@@ -4171,17 +4171,24 @@ redo:
 			                 ship_look.height, 0.0f, 0.0f, 0);
 		if (ship_model && ship_ghost)
 			l3d_ghost_last_object();
+		if (ship_model)
+			l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4, NULL, NULL);
 		bool two_part_volume = false;
 		if (two_part && ship_look.model == M3D_VOLUME)
 		{
 			two_part_volume = l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 13 : 220, true, V3D_STYLE_RAISED,
 			                                 this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0);
+			if (two_part_volume)
+				l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4 + 1, NULL, NULL);
 			if (two_part_volume && ship_ghost)
 				l3d_ghost_last_object();
 			if (two_part_volume && l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 51 : 222, true, V3D_STYLE_RAISED,
-			                                      this_player->x + 19, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0) &&
-			    ship_ghost)
-				l3d_ghost_last_object();
+			                                      this_player->x + 19, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0))
+			{
+				l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4 + 2, NULL, NULL);
+				if (ship_ghost)
+					l3d_ghost_last_object();
+			}
 		}
 
 		explosionFollowAmountX = this_player->x - this_player->last_x_explosion_follow;
@@ -4707,7 +4714,7 @@ redo:
 					                 look.height, 0.0f, 0.0f, 0);
 
 				if (sidekick_3d)
-					;
+					l3d_key_last_object(L3D_KEY_SIDEKICK + playerNum_ * 4 + i, NULL, NULL);
 				else if (large)
 					blit_sprite2x2(VGAScreen, x - 6, y, spriteSheet10, sprite);
 				else

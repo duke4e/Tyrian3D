@@ -3,6 +3,9 @@
  */
 #include "layer3d.h"
 
+#include "models3d.h"
+#include "volume3d.h"
+
 #include "sprite.h"
 #include "video.h"
 
@@ -303,6 +306,19 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 		*vx = dx;
 	if (vy != NULL)
 		*vy = dy;
+}
+
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key)
+{
+	if (!l3d_capturing || !m3d_enabled)
+		return false;
+	if (!l3d_add_volume(sheet, sprite, false, V3D_STYLE_FLAT, x + 6.0f, y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
+		return false;
+	float vx, vy;
+	l3d_key_last_object(key, &vx, &vy);
+	l3d_add_glow(sheet, sprite, x, y);
+	l3d_last_glow_velocity(vx, vy);
+	return true;
 }
 
 void l3d_last_glow_velocity(float vx, float vy)

@@ -288,19 +288,26 @@ bool player_shot_move_and_draw(
 				JE_doSP(*out_shotx+1 + 6, *out_shoty + 6, 5, 3, (sprite_frame / 1000) << 4);
 				sprite_frame = sprite_frame % 1000;
 			}
+			// Tyrian3D: in 3D a flat volume with its glow and a real shadow, moving on between ticks.
 			if (sprite_frame > 500)
 			{
-				if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
-					blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet12, sprite_frame - 500);
-				blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet12, sprite_frame - 500);
-				l3d_add_glow(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty);  // Tyrian3D
+				if (!l3d_add_shot(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty, L3D_KEY_SHOT + shot_id))
+				{
+					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
+						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet12, sprite_frame - 500);
+					blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet12, sprite_frame - 500);
+					l3d_add_glow(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty);
+				}
 			}
 			else
 			{
-				if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
-					blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet8, sprite_frame);
-				blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet8, sprite_frame);
-				l3d_add_glow(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty);  // Tyrian3D
+				if (!l3d_add_shot(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty, L3D_KEY_SHOT + shot_id))
+				{
+					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
+						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet8, sprite_frame);
+					blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet8, sprite_frame);
+					l3d_add_glow(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty);
+				}
 			}
 		}
 	}

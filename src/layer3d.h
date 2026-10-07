@@ -78,7 +78,7 @@ typedef struct
 	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
 } L3DObject;
 
-#define L3D_MAX_OBJECTS 256
+#define L3D_MAX_OBJECTS 1024
 
 // Recolouring filters the game applies to what is already on screen. The 3D view repeats their
 // colours on the background tiles outside the playfield (background3d.h).
@@ -188,6 +188,18 @@ void l3d_ghost_last_object(void);
 // the frames it shows between the game's ticks. Jumps (a slot taken by a new enemy) count as no
 // motion. Returns the velocity, which a glow belonging to the object can take too.
 void l3d_key_last_object(Uint32 key, float *vx, float *vy);
+
+// Key ranges (an enemy slot, shot index and the like is added).
+#define L3D_KEY_ENEMY      0x10000u
+#define L3D_KEY_PLAYER     0x20000u
+#define L3D_KEY_SIDEKICK   0x21000u
+#define L3D_KEY_SHOT       0x30000u
+#define L3D_KEY_ENEMY_SHOT 0x40000u
+
+// A shot's sprite (1x1, drawn at x, y as blit_sprite2 draws it) as a flat volumetric sprite with
+// its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index). False when the 3D
+// view isn't capturing or shows flat sprites: then draw the sprite as usual.
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key);
 // Sets the velocity of the glow recorded last.
 void l3d_last_glow_velocity(float vx, float vy);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.

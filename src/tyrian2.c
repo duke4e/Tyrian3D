@@ -207,7 +207,7 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 }
 
 // Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
-#define ENEMY_MOTION_KEY(slot) (0x10000u + (Uint32)(slot))
+#define ENEMY_MOTION_KEY(slot) (L3D_KEY_ENEMY + (Uint32)(slot))
 
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
@@ -2014,15 +2014,24 @@ draw_player_shot_loop_end:
 								enemyShot[z].animate = 0;
 						}
 
+						// Tyrian3D: in 3D a flat volume with its glow, moving on between ticks.
 						if (enemyShot[z].sgr >= 500)
 						{
-							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500);
-							l3d_add_glow(&spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500, enemyShot[z].sx, enemyShot[z].sy);  // Tyrian3D
+							const unsigned int sprite = enemyShot[z].sgr + enemyShot[z].animate - 500;
+							if (!l3d_add_shot(&spriteSheet12, sprite, enemyShot[z].sx, enemyShot[z].sy, L3D_KEY_ENEMY_SHOT + z))
+							{
+								blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, sprite);
+								l3d_add_glow(&spriteSheet12, sprite, enemyShot[z].sx, enemyShot[z].sy);
+							}
 						}
 						else
 						{
-							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate);
-							l3d_add_glow(&spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate, enemyShot[z].sx, enemyShot[z].sy);  // Tyrian3D
+							const unsigned int sprite = enemyShot[z].sgr + enemyShot[z].animate;
+							if (!l3d_add_shot(&spriteSheet8, sprite, enemyShot[z].sx, enemyShot[z].sy, L3D_KEY_ENEMY_SHOT + z))
+							{
+								blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, sprite);
+								l3d_add_glow(&spriteSheet8, sprite, enemyShot[z].sx, enemyShot[z].sy);
+							}
 						}
 					}
 				}
