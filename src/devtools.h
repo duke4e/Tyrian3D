@@ -15,6 +15,7 @@
  *   TYR3D_GODMODE        the player takes no damage
  *   TYR3D_WINDOWED       run in a window in the corner of the screen without taking the focus
  *                        (and without pausing for the lack of it); tools/capture_run.sh sets it
+ *   TYR3D_WINDOW_SIZE    with TYR3D_WINDOWED: the window's size, "<w>x<h>" (e.g. 1280x720)
  */
 #ifndef DEVTOOLS_H
 #define DEVTOOLS_H

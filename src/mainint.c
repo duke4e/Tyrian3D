@@ -67,6 +67,7 @@ const JE_byte topicStart[TOPICS] = { 0, 1, 2, 3, 7, 255 };
 
 JE_shortint constantLastX;
 JE_word textErase;
+char text_window_message[128];  // Tyrian3D: the message JE_drawTextWindow last showed
 JE_word upgradeCost;
 JE_word downgradeCost;
 JE_boolean performSave;
@@ -82,6 +83,7 @@ void JE_drawTextWindow(const char *text)
 		blit_sprite(VGAScreenSeg, 16, 189, OPTION_SHAPES, 36);  // in-game text area
 
 	textErase = 100;
+	SDL_strlcpy(text_window_message, text, sizeof(text_window_message));
 	JE_outText(VGAScreenSeg, 20, 190, text, 0, 4);
 }
 

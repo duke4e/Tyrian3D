@@ -268,7 +268,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 6. **Filteri izvan igrališta.** Pozadine koje igra filtrira (lava, voda, led) komponiraju se na CPU-u za vidljivo područje i prolaze kroz iste formule kao `lava_filter`/`water_filter` (`b3d_compose`), pa nema šava na rubu igrališta. Preostale razlike: igra za piksel iznad čita prošli frame (ovdje nefiltrirani piksel), vremensko zamućenje leda i blura je izostavljeno, a miješana pozadina 2 nacrtana nakon filtera miješa se samo s komponiranim pozadinama ispod (ne sa spriteovima i pozadinom 3). Trošak: oko 1–2 ms po frameu na tim razinama (RelWithDebInfo). `JE_darkenBackground` (SuperWild) i "astral" stanje izvan igrališta nisu preneseni.
 7. **Boja 0 pozadine 1 je prozirna** (kroz nju se vide zvijezde, kao u igri). Izvan igrališta se ondje vidi crna boja clear-a, a ne boja palete 0 (koja je inače crna).
 8. **Neprijatelji se pojavljuju naglo pri većem tiltu.** Tlo se vidi daleko naprijed, ali igra stvara neprijatelje tek kad im red dođe do vrha ekrana, a objekti se crtaju do 64 reda iznad njega. To je logika igre.
-9. **Prozor koji nije 16:10.** Scena se vidi i desno od HUD-a (M4 premješta HUD u overlay).
+9. **HUD (M4.1/M4.2, iteracija 1).** U 3D-u (jedan igrač) panel HUD-a stoji uz desni rub prozora, visok koliko prozor, a igralište je najveće što stane pored (`layout_3d`); traka s porukama ispod igrališta se ne crta, nego se poruka (`text_window_message`) ponovno iscrta tekstom u dnu igrališta. Dva igrača imaju originalni raspored. Sljedeće: HUD iz stanja igre u višoj rezoluciji (iteracija 2), postavke (M4.3).
 
 ## 9. Predloženi sljedeći koraci (redom)
 

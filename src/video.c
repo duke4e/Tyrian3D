@@ -134,10 +134,13 @@ void init_video(void)
 	{
 		fullscreen_display = configured_display;  // so the configuration is saved unchanged
 		SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+		int w = scalers[scaler].width, h = scalers[scaler].height;
+		const char *size = SDL_getenv("TYR3D_WINDOW_SIZE");  // "<w>x<h>", e.g. 1280x720
+		if (size != NULL && sscanf(size, "%dx%d", &w, &h) == 2)
+			SDL_SetWindowSize(main_window, w, h);
 		SDL_Rect usable;
 		if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
-			SDL_SetWindowPosition(main_window, usable.x + usable.w - scalers[scaler].width - 16,
-			                      usable.y + usable.h - scalers[scaler].height - 16);
+			SDL_SetWindowPosition(main_window, usable.x + usable.w - w - 16, usable.y + usable.h - h - 16);
 	}
 
 	SDL_ShowWindow(main_window);

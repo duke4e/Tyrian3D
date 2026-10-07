@@ -4,7 +4,10 @@
 #include "render_gpu.h"
 
 #include "background3d.h"
+#include "config.h"
 #include "devtools.h"
+#include "fonthand.h"
+#include "mainint.h"
 #include "models3d.h"
 #include "palette.h"
 #include "sprite.h"
@@ -328,13 +331,28 @@ static void convert_screen(const SDL_Surface *screen, Uint32 *dst)
 	}
 }
 
-static void push_quad(BTBHGPUCanvasVertex *v, float x, float y, float w, float h)
+// A rectangle of the screen texture (in screen pixels) drawn to a rectangle of the window.
+typedef struct
 {
+	float x, y, w, h;
+	float source_x, source_y, source_w, source_h;
+} CanvasQuad;
+
+static CanvasQuad whole_screen_quad(const SDL_Rect *dst)
+{
+	return (CanvasQuad){ (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 0, 0, SCREEN_W, SCREEN_H };
+}
+
+static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q)
+{
+	const float x = q->x, y = q->y, w = q->w, h = q->h;
+	const float u0 = q->source_x / SCREEN_W, u1 = (q->source_x + q->source_w) / SCREEN_W;
+	const float v0 = q->source_y / SCREEN_H, v1 = (q->source_y + q->source_h) / SCREEN_H;
 	const BTBHGPUCanvasVertex corners[4] = {
-		{ x,     y,     0, 0, 1, 1, 1, 1 },
-		{ x + w, y,     1, 0, 1, 1, 1, 1 },
-		{ x + w, y + h, 1, 1, 1, 1, 1, 1 },
-		{ x,     y + h, 0, 1, 1, 1, 1, 1 },
+		{ x,     y,     u0, v0, 1, 1, 1, 1 },
+		{ x + w, y,     u1, v0, 1, 1, 1, 1 },
+		{ x + w, y + h, u1, v1, 1, 1, 1, 1 },
+		{ x,     y + h, u0, v1, 1, 1, 1, 1 },
 	};
 	v[0] = corners[0];
 	v[1] = corners[1];
@@ -344,15 +362,20 @@ static void push_quad(BTBHGPUCanvasVertex *v, float x, float y, float w, float h
 	v[5] = corners[3];
 }
 
-// Draws the screen texture over the window and presents. Composites a pending 3D scene first.
-static void present_canvas(const SDL_Rect *dst, bool clear, const BTBHGPUWindowReport *frame)
+#define MAX_CANVAS_QUADS 4
+
+// Draws parts of the screen texture over the window and presents. Composites a pending 3D scene
+// first.
+static void present_canvas(const CanvasQuad *quads, int quad_count, bool clear, const BTBHGPUWindowReport *frame)
 {
-	BTBHGPUCanvasVertex vertices[6];
-	push_quad(vertices, (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h);
+	BTBHGPUCanvasVertex vertices[6 * MAX_CANVAS_QUADS];
+	quad_count = SDL_min(quad_count, MAX_CANVAS_QUADS);
+	for (int i = 0; i < quad_count; ++i)
+		push_quad(vertices + 6 * i, &quads[i]);
 
 	BTBHGPUCanvasBatch batch = { 0 };
 	batch.first_vertex = 0;
-	batch.vertex_count = 6;
+	batch.vertex_count = 6 * (uint32_t)quad_count;
 	batch.texture = screen_texture;
 	batch.blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
 
@@ -370,7 +393,7 @@ static void present_canvas(const SDL_Rect *dst, bool clear, const BTBHGPUWindowR
 	BTBHGPUCanvasReport report;
 	if (btbh_gpu_window_canvas_present(window,
 	        shader_paths[SH_CANVAS_VERT], shader_paths[SH_CANVAS_FRAG], shader_paths[SH_CANVAS_TEXTURED_FRAG],
-	        shader_format, vertices, 6, &batch, 1, &pass, 1, &report) != BTBH_GPU_OK)
+	        shader_format, vertices, batch.vertex_count, &batch, 1, &pass, 1, &report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: canvas present failed: %s\n", report.message);
 	}
@@ -407,7 +430,8 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	convert_screen(screen, screen_rgba);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 
-	present_canvas(dst, true, &frame);
+	const CanvasQuad quad = whole_screen_quad(dst);
+	present_canvas(&quad, 1, true, &frame);
 }
 
 /* --- 3D ------------------------------------------------------------------------------------ */
@@ -698,11 +722,102 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 }
 
 // HUD with a transparent playfield, plus the overlay layers drawn into the playfield.
-static void build_hud(const SDL_Surface *hud, const L3DFrame *frame)
+/*
+ * The 3D view's layout of the window. One-player games: the HUD panel (the original screen's
+ * right column) at the window's right edge, as tall as the window, and the playfield as large as
+ * fits in the rest, centred in it; the bar below the playfield is left out (its messages are
+ * shown in the playfield, see build_hud). Two-player games keep the original screen at dst. The
+ * scene fills the window around and under all of it.
+ */
+#define PANEL_X L3D_PLAYFIELD_W  // the panel's column of the screen
+
+typedef struct
+{
+	bool split;        // panel and playfield placed separately (else the whole screen at dst)
+	float playfield[4];  // x, y, w, h in logical window pixels
+	float panel[4];
+} Layout3D;
+
+static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
+{
+	Layout3D layout = { .split = !twoPlayerMode };
+	if (!layout.split)
+	{
+		layout.playfield[0] = dst->x;
+		layout.playfield[1] = dst->y;
+		layout.playfield[2] = dst->w * (float)L3D_PLAYFIELD_W / SCREEN_W;
+		layout.playfield[3] = dst->h * (float)L3D_PLAYFIELD_H / SCREEN_H;
+		return layout;
+	}
+
+	const float panel_w = (SCREEN_W - PANEL_X) * window_h / SCREEN_H;
+	layout.panel[0] = window_w - panel_w;
+	layout.panel[1] = 0;
+	layout.panel[2] = panel_w;
+	layout.panel[3] = window_h;
+
+	const float room = window_w - panel_w;
+	const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, room / L3D_PLAYFIELD_W);
+	layout.playfield[2] = L3D_PLAYFIELD_W * scale;
+	layout.playfield[3] = L3D_PLAYFIELD_H * scale;
+	layout.playfield[0] = (room - layout.playfield[2]) / 2;
+	layout.playfield[1] = (window_h - layout.playfield[3]) / 2;
+	return layout;
+}
+
+static int layout_quads(const Layout3D *layout, const SDL_Rect *dst, CanvasQuad quads[MAX_CANVAS_QUADS])
+{
+	if (!layout->split)
+	{
+		quads[0] = whole_screen_quad(dst);
+		return 1;
+	}
+	const float *p = layout->panel, *f = layout->playfield;
+	quads[0] = (CanvasQuad){ p[0], p[1], p[2], p[3], PANEL_X, 0, SCREEN_W - PANEL_X, SCREEN_H };
+	quads[1] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
+	return 2;
+}
+
+// In-game messages (JE_drawTextWindow) are written over the bar below the playfield, which the
+// split layout leaves out. While one shows, it is drawn again, as the game draws it, near the
+// bottom of the playfield, with a shadow.
+#define MESSAGE_Y 189
+#define MESSAGE_H 10
+#define MESSAGE_AT (L3D_PLAYFIELD_H - 22)
+
+static void add_message(void)
+{
+	if (textErase == 0 || text_window_message[0] == '\0')
+		return;
+
+	static SDL_Surface *text = NULL;
+	if (text == NULL && (text = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8)) == NULL)
+		return;
+	SDL_FillSurfaceRect(text, NULL, 0xff);  // the text's colours are greys, 0x00-0x0f
+	JE_outText(text, 20, MESSAGE_Y + 1, text_window_message, 0, 4);
+
+	const Uint32 shadow = pack_rgba(0, 0, 0);
+	for (int pass = 0; pass < 2; ++pass)
+		for (int y = 0; y < MESSAGE_H; ++y)
+			for (int x = 0; x < L3D_PLAYFIELD_W - 1; ++x)
+			{
+				const Uint8 index = ((const Uint8 *)text->pixels)[(MESSAGE_Y + y) * text->pitch + x];
+				if (index == 0xff)
+					continue;
+				if (pass == 0)
+					screen_rgba[(MESSAGE_AT + y + 1) * SCREEN_W + x + 1] = shadow;
+				else
+					screen_rgba[(MESSAGE_AT + y) * SCREEN_W + x] = rgb_palette[index];
+			}
+}
+
+static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 {
 	convert_screen(hud, screen_rgba);
 	for (int y = 0; y < L3D_PLAYFIELD_H; ++y)
 		memset(screen_rgba + y * SCREEN_W, 0, L3D_PLAYFIELD_W * sizeof(Uint32));
+	if (split)
+		add_message();
 
 	for (int l = 0; l < frame->layer_count; ++l)
 	{
@@ -1530,19 +1645,23 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	if (slot_count > 0)
 		btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
 
-	build_hud(hud, frame);
+	const float logical_w = (float)window_frame.logical_width, logical_h = (float)window_frame.logical_height;
+	const Layout3D layout = layout_3d(logical_w, logical_h, dst);
+	CanvasQuad quads[MAX_CANVAS_QUADS];
+	const int quad_count = layout_quads(&layout, dst, quads);
+
+	build_hud(hud, frame, layout.split);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 
 	if (slot_count == 0)
 	{
-		present_canvas(dst, true, &window_frame);
+		present_canvas(quads, quad_count, true, &window_frame);
 		return;
 	}
 
 	// Playfield rectangle in NDC (y up) of the whole window.
-	const float logical_w = (float)window_frame.logical_width, logical_h = (float)window_frame.logical_height;
-	const float px0 = dst->x, px1 = dst->x + dst->w * (float)L3D_PLAYFIELD_W / SCREEN_W;
-	const float py0 = dst->y, py1 = dst->y + dst->h * (float)L3D_PLAYFIELD_H / SCREEN_H;
+	const float px0 = layout.playfield[0], px1 = layout.playfield[0] + layout.playfield[2];
+	const float py0 = layout.playfield[1], py1 = layout.playfield[1] + layout.playfield[3];
 	const float ndc_rect[4] = {
 		px0 / logical_w * 2 - 1,
 		1 - py1 / logical_h * 2,
@@ -1656,9 +1775,9 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	        0, 0, 0, 255, &scene_report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
-		present_canvas(dst, true, &window_frame);
+		present_canvas(quads, quad_count, true, &window_frame);
 		return;
 	}
 
-	present_canvas(dst, false, &window_frame);
+	present_canvas(quads, quad_count, false, &window_frame);
 }
