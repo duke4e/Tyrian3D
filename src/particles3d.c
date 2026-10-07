@@ -118,6 +118,38 @@ static void debris(float x, float y, float height, int count)
 	}
 }
 
+P3DLight p3d_lights[P3D_MAX_LIGHTS];
+int p3d_light_count = 0;
+
+// A flash's light; flashes close together in the same frame (the quarters of a large explosion)
+// make one brighter, larger light.
+static void light(float x, float y, float height, float radius, float energy, float life)
+{
+	for (int i = 0; i < p3d_light_count; ++i)
+	{
+		P3DLight *l = &p3d_lights[i];
+		if (l->age == 0 && fabsf(l->x - x) < 16 && fabsf(l->y - y) < 16)
+		{
+			l->x = (l->x + x) / 2;
+			l->y = (l->y + y) / 2;
+			l->radius = SDL_min(l->radius * 1.15f, 64.0f);
+			l->energy = SDL_min(l->energy + energy * 0.35f, 9.0f);
+			l->life = SDL_max(l->life, life);
+			return;
+		}
+	}
+	if (p3d_light_count == P3D_MAX_LIGHTS)
+		return;
+	P3DLight *l = &p3d_lights[p3d_light_count++];
+	*l = (P3DLight){ x, y, height, radius, energy, 0, life, { 255, 150, 60 } };
+}
+
+float p3d_light_energy(const P3DLight *l, float ahead)
+{
+	const float t = (l->age + ahead) / l->life;
+	return t >= 1 ? 0 : l->energy * (1 - t) * (1 - 0.5f * t);
+}
+
 void p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).
@@ -127,12 +159,14 @@ void p3d_explosion(int x, int y, int type)
 	case 0: case 1: case 11: case 12: case 13:  // hits
 		flash(cx, cy, 30, 8, 4);
 		sparks(cx, cy, 30, 4, 2.0f);
+		light(cx, cy, 24, 30, 2.5f, 6);
 		break;
 	case 2: case 3: case 4: case 5:  // a quarter of a large explosion on the ground
 		flash(cx, cy, 8, 14, 6);
 		sparks(cx, cy, 8, 4, 2.2f);
 		debris(cx, cy, 6, 4);
 		smoke(cx, cy, 8, 2, 14, 45);
+		light(cx, cy, 12, 56, 5.5f, 12);
 		break;
 	case 6:  // white smoke
 		smoke(cx, cy, 30, 3, 10, 200);
@@ -141,6 +175,7 @@ void p3d_explosion(int x, int y, int type)
 		flash(cx, cy, 30, 14, 6);
 		sparks(cx, cy, 30, 6, 2.6f);
 		smoke(cx, cy, 30, 1, 14, 55);
+		light(cx, cy, 24, 60, 5.5f, 12);
 		break;
 	default:  // the player's shield, coin values
 		break;
@@ -149,6 +184,18 @@ void p3d_explosion(int x, int y, int type)
 
 void p3d_update(int drift)
 {
+	for (int i = 0; i < p3d_light_count; )
+	{
+		P3DLight *l = &p3d_lights[i];
+		if (++l->age >= l->life)
+		{
+			*l = p3d_lights[--p3d_light_count];
+			continue;
+		}
+		l->y += drift;
+		++i;
+	}
+
 	for (int i = 0; i < p3d_particle_count; )
 	{
 		P3DParticle *p = &p3d_particles[i];
@@ -179,4 +226,5 @@ void p3d_update(int drift)
 void p3d_clear(void)
 {
 	p3d_particle_count = 0;
+	p3d_light_count = 0;
 }

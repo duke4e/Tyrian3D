@@ -36,6 +36,24 @@ typedef struct
 extern P3DParticle p3d_particles[P3D_MAX_PARTICLES];
 extern int p3d_particle_count;
 
+// The light of an explosion's flash, which lights up what is around it for a few frames.
+typedef struct
+{
+	float x, y, height;  // game screen coordinates; height above the ground
+	float radius;        // game pixels
+	float energy;        // at its brightest
+	float age, life;     // frames
+	Uint8 color[3];
+} P3DLight;
+
+#define P3D_MAX_LIGHTS 64
+
+extern P3DLight p3d_lights[P3D_MAX_LIGHTS];
+extern int p3d_light_count;
+
+// A light's brightness `ahead` frames after its current age (0 once it is over).
+float p3d_light_energy(const P3DLight *light, float ahead);
+
 // Called by JE_setupExplosion: x, y are the explosion sprite's top left corner, type its
 // explosion type (see explosion_data).
 void p3d_explosion(int x, int y, int type);

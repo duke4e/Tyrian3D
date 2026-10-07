@@ -2445,6 +2445,70 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
+// The brightest of the explosions' lights (particles3d.h) as the scene's point lights, placed as
+// everything else on their plane (aligned).
+static void add_explosion_lights(BTBHGPUSceneLighting *lighting)
+{
+	int chosen[BTBH_GPU_SCENE_POINT_LIGHTS];
+	float energies[BTBH_GPU_SCENE_POINT_LIGHTS];
+	int count = 0;
+	for (int i = 0; i < p3d_light_count; ++i)
+	{
+		const float energy = p3d_light_energy(&p3d_lights[i], ahead);
+		if (energy <= 0.02f)
+			continue;
+		// Keep the brightest: insert in order, dropping the dimmest when full.
+		int at = count < BTBH_GPU_SCENE_POINT_LIGHTS ? count : BTBH_GPU_SCENE_POINT_LIGHTS - 1;
+		if (count == BTBH_GPU_SCENE_POINT_LIGHTS && energy <= energies[at])
+			continue;
+		while (at > 0 && energies[at - 1] < energy)
+		{
+			energies[at] = energies[at - 1];
+			chosen[at] = chosen[at - 1];
+			--at;
+		}
+		energies[at] = energy;
+		chosen[at] = i;
+		if (count < BTBH_GPU_SCENE_POINT_LIGHTS)
+			++count;
+	}
+	for (int n = 0; n < count; ++n)
+	{
+		const P3DLight *l = &p3d_lights[chosen[n]];
+		const float height = l->height * rgpu_camera.height_scale;
+		const float k = align_scale(height);
+		float *out = lighting->point_lights[n];
+		out[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
+		out[1] = height;
+		out[2] = align.on ? align.cz + (l->y + explodeMove * ahead - align.cz) * k : l->y + explodeMove * ahead;
+		out[3] = l->radius * k;
+		out[4] = l->color[0] / 255.0f;
+		out[5] = l->color[1] / 255.0f;
+		out[6] = l->color[2] / 255.0f;
+		out[7] = energies[n];
+	}
+	lighting->point_light_count = (uint32_t)count;
+
+	// TYR3D_TEST_LIGHT=<x>,<y>,<height>,<radius>,<energy>: one more light, to check the lighting.
+	const char *test = SDL_getenv("TYR3D_TEST_LIGHT");
+	float t[5];
+	if (test != NULL && count < BTBH_GPU_SCENE_POINT_LIGHTS &&
+	    sscanf(test, "%f,%f,%f,%f,%f", &t[0], &t[1], &t[2], &t[3], &t[4]) == 5)
+	{
+		const float k = align_scale(t[2]);
+		float *out = lighting->point_lights[count];
+		out[0] = align.on ? align.cx + (t[0] - align.cx) * k : t[0];
+		out[1] = t[2];
+		out[2] = align.on ? align.cz + (t[1] - align.cz) * k : t[1];
+		out[3] = t[3] * k;
+		out[4] = 1.0f;
+		out[5] = 0.6f;
+		out[6] = 0.25f;
+		out[7] = t[4];
+		lighting->point_light_count = (uint32_t)count + 1;
+	}
+}
+
 static bool shadows_enabled(void)
 {
 	return settings3d.shadows;
@@ -2720,6 +2784,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		lighting.directional_shadow_softness = 1.0f;
 		shadow_view_projection(&camera, lighting.directional_shadow_view_projection);
 	}
+	static int explosion_lights = -1;  // TYR3D_EXPLOSION_LIGHTS=0 leaves them out
+	if (explosion_lights < 0)
+		explosion_lights = SDL_getenv("TYR3D_EXPLOSION_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_EXPLOSION_LIGHTS")) != 0;
+	if (settings3d.effects && explosion_lights)
+		add_explosion_lights(&lighting);
 
 	BTBHGPUScenePost post = { 0 };
 	post.tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;
