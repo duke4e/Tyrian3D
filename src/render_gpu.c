@@ -11,6 +11,7 @@
 #include "player.h"
 #include "models3d.h"
 #include "palette.h"
+#include "particles3d.h"
 #include "sprite.h"
 #include "volume3d.h"
 
@@ -62,6 +63,8 @@ static BTBHGPUTexture *screen_texture = NULL;  // 2D screen / HUD overlay, 320x2
 static BTBHGPUTexture *layer_atlas = NULL;     // 3D layers, 320 x ATLAS_H
 static BTBHGPUTexture *tile_atlas = NULL;      // background map tiles (background3d.h)
 static BTBHGPUTexture *white_texture = NULL;   // 1x1, for flat-coloured quads
+static BTBHGPUTexture *particle_texture = NULL;  // a soft round dot
+static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
 // Filtered backgrounds composed on the CPU (background3d.h): a square slot per background.
 #define COMPOSED_SIZE 1024
 static BTBHGPUTexture *composed_texture = NULL;
@@ -217,6 +220,54 @@ static BTBHGPUCustomMesh *create_quad_mesh(float left_brightness, float right_br
 	return mesh;
 }
 
+// The unit quad in the XY plane centred on the origin, for camera-facing billboards.
+static BTBHGPUCustomMesh *create_billboard_mesh(void)
+{
+	typedef struct
+	{
+		float position[3];
+		float normal[3];
+		float uv[2];
+		float tangent[4];
+		float color[4];
+		float joints[4];
+		float weights[4];
+	} Vertex;
+
+	const Vertex vertices[4] = {
+		{ { -0.5f, -0.5f, 0 }, { 0, 0, 1 }, { 0, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0 }, { 0 } },
+		{ { 0.5f, -0.5f, 0 }, { 0, 0, 1 }, { 1, 1 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0 }, { 0 } },
+		{ { 0.5f, 0.5f, 0 }, { 0, 0, 1 }, { 1, 0 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0 }, { 0 } },
+		{ { -0.5f, 0.5f, 0 }, { 0, 0, 1 }, { 0, 0 }, { 1, 0, 0, 1 }, { 1, 1, 1, 1 }, { 0 }, { 0 } },
+	};
+	const uint32_t indices[6] = { 0, 1, 2, 0, 2, 3 };
+	BTBHGPUCustomMeshReport report;
+	BTBHGPUCustomMesh *mesh = btbh_gpu_window_custom_mesh_create(window, vertices, sizeof(vertices), 4, indices, 6, &report);
+	if (mesh == NULL)
+		die("failed to create billboard mesh", report.message);
+	return mesh;
+}
+
+// White, with an alpha that falls off smoothly from the middle: particles take their colour from
+// their instances.
+static BTBHGPUTexture *create_particle_texture(void)
+{
+	enum { SIZE = 64 };
+	static Uint32 pixels[SIZE * SIZE];
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			const float dx = (x + 0.5f) / SIZE * 2 - 1, dy = (y + 0.5f) / SIZE * 2 - 1;
+			const float d = SDL_min(1.0f, sqrtf(dx * dx + dy * dy));
+			const float a = (1 - d) * (1 - d) * (1 + 2 * d);  // smooth falloff to 0 at the edge
+			const Uint8 rgba[4] = { 255, 255, 255, (Uint8)(255 * a) };
+			memcpy(&pixels[y * SIZE + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	const char *dir = SDL_getenv("TYR3D_SHADER_DIR");
@@ -289,6 +340,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	const Uint32 white = 0xffffffff;
 	btbh_gpu_texture_update_rgba8(white_texture, (const uint8_t *)&white, 0, 0, 1, 1);
 	quad_mesh = create_quad_mesh(1, 1);
+	billboard_mesh = create_billboard_mesh();
+	particle_texture = create_particle_texture();
 	fade_meshes[0] = create_quad_mesh(B3D_BEYOND_FADE, 1);
 	fade_meshes[1] = create_quad_mesh(1, B3D_BEYOND_FADE);
 
@@ -310,6 +363,8 @@ void rgpu_shutdown(void)
 	layer_atlas = NULL;
 	tile_atlas = NULL;
 	white_texture = NULL;
+	particle_texture = NULL;
+	billboard_mesh = NULL;
 	composed_texture = NULL;
 	tile_indices_valid = false;
 	memset(tile_pages, 0, sizeof(tile_pages));
@@ -992,10 +1047,10 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
-#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS)
+#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1697,6 +1752,47 @@ static void build_spotlight(const Layout3D *layout, float window_w, float window
 	btbh_gpu_texture_update_rgba8(spot_texture, (const uint8_t *)spot_rgba, 0, 0, SPOT_W, SPOT_H);
 }
 
+// Appends the particles (particles3d.h): glowing ones added to what is behind them, smoke blended.
+static void add_particle_batches(int *instance_count, int *batch_count)
+{
+	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
+	{
+		const int first = *instance_count;
+		for (int i = 0; i < p3d_particle_count && *instance_count < MAX_INSTANCES; ++i)
+		{
+			const P3DParticle *p = &p3d_particles[i];
+			if (p->kind != kind || p->age < 0)
+				continue;
+			const float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
+			Mat4 transform = mat4_identity();
+			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
+			transform.m[12] = p->x;
+			transform.m[13] = p->height * rgpu_camera.height_scale;
+			transform.m[14] = p->y;
+			float *instance = instances + *instance_count * 24;
+			write_instance(instance, &transform, 1.0f);
+			for (int c = 0; c < 3; ++c)
+				instance[16 + c] = srgb_to_linear((Uint8)(p->color[c] + (p->end_color[c] - p->color[c]) * t));
+			instance[19] = (p->color[3] + (p->end_color[3] - p->color[3]) * t) / 255.0f;
+			++*instance_count;
+		}
+		if (*instance_count == first)
+			continue;
+
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = billboard_mesh;
+		b->first_instance = first;
+		b->instance_count = *instance_count - first;
+		b->albedo_texture = particle_texture;
+		b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		b->unlit_enabled = 1;
+		b->transparency_enabled = 1;
+		b->blend_mode = kind == P3D_GLOW ? BTBH_GPU_SCENE_BLEND_ADDITIVE : BTBH_GPU_SCENE_BLEND_ALPHA;
+	}
+}
+
 // Shadows can be turned off with TYR3D_SHADOWS=0.
 static bool shadows_enabled(void)
 {
@@ -1885,6 +1981,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		if (shadows && batches[i].unlit_enabled == 1)
 			batches[i].unlit_enabled = 2;
 	}
+
+	// Particles last: they neither cast nor receive shadows.
+	const int first_particle_batch = batch_count;
+	add_particle_batches(&instance_count, &batch_count);
+	for (int i = first_particle_batch; i < batch_count; ++i)
+		casts_shadow[i] = 0;
 
 	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
 	// strong against the sky, as in the sprites' own shading: lit from the upper left, with

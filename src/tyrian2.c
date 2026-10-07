@@ -23,6 +23,7 @@
 #include "background3d.h"
 #include "devtools.h"
 #include "layer3d.h"
+#include "particles3d.h"
 #include "models3d.h"
 #include "volume3d.h"
 #include "episodes.h"
@@ -2049,6 +2050,8 @@ draw_player_shot_loop_end:
 
 	/*---------------------------- Draw Explosions ----------------------------*/
 	l3d_phase(L3D_EXPLOSION);
+	if (l3d_capturing)
+		p3d_update(explodeMove);  // Tyrian3D: the explosions' particles
 	for (int j = 0; j < MAX_EXPLOSIONS; j++)
 	{
 		if (explosions[j].ttl != 0)
@@ -3310,6 +3313,7 @@ new_game:
 	fclose(level_f);
 
 	++b3d_map_generation;
+	p3d_clear();
 	b3d_note_tileset(char_shapeFile, (const Uint16 (*)[128])mapSh);
 	if (l3d_enabled)
 		b3d_prepare_sides();

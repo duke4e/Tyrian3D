@@ -271,6 +271,8 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 10. **Neranjivost broda.** Original crta neranjivi brod poluprozirno (`blit_sprite2x2_blend`); model umjesto toga "bljeska" (svjetlina 2,5×). Prozirnost bi trebala alfa u BTBH-ovom MRT model shaderu (plan: M5.2 stanja).
 11. **Strane mape (WFC).** Stupci uz mapu (16 sa svake strane) generiraju se iz tileova same mape (`src/wfc.c`, `make_sides` u `background3d.c`) unaprijed za sve razine (`tools/precompute_sides.sh` → `assets/sides`, zlib, oko 0,5 MB); ako ih nema, pri učitavanju razine (`b3d_prepare_sides` u `JE_loadMap`) uz keš u `~/.config/opentyrian2000/tyrian3d-sides/` (ime = hash mape i postavki; promjena algoritma traži novi `SIDE_CACHE_VERSION` i ponovni precompute). Prvo generiranje traje oko 0,2–0,4 s po pozadini u Debug buildu. Trake od 24 reda rješavaju se redom; ako ne uspiju, pokušava se bez veze s trakom iznad, pa bez veze s rubom mape, a tek onda zrcaljenje. Šav nastaje na mjestima petlje mape (BKwrap) i između traka koje nisu vezane.
 
+12. **Particlei (M7, prva verzija).** `src/particles3d.c`: svaka eksplozija (`JE_setupExplosion`) u 3D-u dobiva bljesak, iskre, dim i na tlu krhotine; originalni sprite eksplozije ostaje. Vlastiti RNG (ne dira `mt_rand`), pomiču se s `explodeMove`, crtaju se kao billboardi (aditivno i alfa, `transparency_enabled`, ne bacaju ni primaju sjenu). Izgled je prva procjena; treba ga dotjerati po dojmu.
+
 ## 9. Predloženi sljedeći koraci (redom)
 
 1. Korisnik ručno isproba igru i kaže dojam o pozadinama i volumetrijskim spriteovima. Kalibrirati zadani tilt, FOV i visine slojeva (tipke za kameru ispisuju vrijednosti).

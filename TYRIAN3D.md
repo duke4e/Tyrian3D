@@ -175,7 +175,8 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 4. ~~Background maps drawn for everything the 3D camera sees.~~
 5. Next steps (see `docs/plans/2026-10-07-tyrian3d-plan.md`):
    - ~~Shadows from models onto the ground layer.~~
-   - Models for shots, power-ups and explosions (particles).
+   - Models for shots and power-ups; explosions as particles (started: `src/particles3d.c` adds a
+     flash, sparks, smoke and debris to every explosion).
    - ~~Upside-down levels (`starShowVGASpecialCode` 1) and spotlight levels (2) in 3D.~~
    - Custom models matching the original sprites, and higher-resolution background tiles.
 

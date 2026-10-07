@@ -17,6 +17,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 #include "varz.h"
+#include "layer3d.h"
+#include "particles3d.h"
 
 #include "config.h"
 #include "devtools.h"
@@ -962,6 +964,8 @@ void JE_setupExplosion(
 				explosions[i].followPlayer = followPlayer;
 				explosions[i].fixedPosition = fixedPosition;
 				explosions[i].deltaY = deltaY;
+				if (l3d_enabled)
+					p3d_explosion(explosions[i].x, explosions[i].y, type);  // Tyrian3D
 				break;
 			}
 		}
