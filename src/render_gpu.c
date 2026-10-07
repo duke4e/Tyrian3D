@@ -12,6 +12,7 @@
 #include "models3d.h"
 #include "palette.h"
 #include "particles3d.h"
+#include "paths3d.h"
 #include "settings3d.h"
 #include "sprite.h"
 #include "volume3d.h"
@@ -321,8 +322,7 @@ static BTBHGPUTexture *create_particle_texture(void)
 
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
-	const char *dir = SDL_getenv("TYR3D_SHADER_DIR");
-	SDL_strlcpy(shader_dir, dir != NULL ? dir : TYR3D_SHADER_DIR, sizeof(shader_dir));
+	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
 
 	const char *ext = backend == BTBH_GPU_BACKEND_METAL ? "metallib" : "spv";
 	for (int i = 0; i < SH_COUNT; ++i)

@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "palette.h"
+#include "paths3d.h"
 #include "pcxmast.h"
 #include "varz.h"
 #include "wfc.h"
@@ -247,8 +248,8 @@ static bool side_file_path(const char *dir, Uint64 hash, char *path, size_t size
 
 static const char *shipped_sides_dir(void)
 {
-	const char *dir = SDL_getenv("TYR3D_SIDES_DIR");
-	return dir != NULL ? dir : TYR3D_SIDES_DIR;
+	static char buffer[1024];
+	return tyr3d_resource_dir("TYR3D_SIDES_DIR", TYR3D_SIDES_DIR, "sides", buffer, sizeof(buffer));
 }
 
 static const char *user_sides_dir(char *buffer, size_t size)

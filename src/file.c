@@ -33,12 +33,25 @@ const char *custom_data_dir = NULL;
 // finds the Tyrian data directory
 const char *data_dir(void)
 {
+	// Tyrian3D: an app bundle looks for the game's data in its Resources ("data"), in the user's
+	// application support folder (Tyrian3D/data) and beside the app.
+	static char bundled[1024], user[1024], beside[1024];
+	const char *base = SDL_GetBasePath();
+	SDL_snprintf(bundled, sizeof(bundled), "%sdata", base != NULL ? base : "");
+	char *pref = SDL_GetPrefPath("", "Tyrian3D");
+	SDL_snprintf(user, sizeof(user), "%sdata", pref != NULL ? pref : "");
+	SDL_free(pref);
+	SDL_snprintf(beside, sizeof(beside), "%s../../../data", base != NULL ? base : "");
+
 	const char *const dirs[] =
 	{
 		custom_data_dir,
 		TYRIAN_DIR,
 		"data",
 		".",
+		bundled,
+		user,
+		beside,
 	};
 
 	static const char *dir = NULL;

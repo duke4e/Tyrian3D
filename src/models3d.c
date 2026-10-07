@@ -3,6 +3,8 @@
  */
 #include "models3d.h"
 
+#include "paths3d.h"
+
 #include <SDL3/SDL.h>
 
 #include <stdio.h>
@@ -59,9 +61,8 @@ static const M3DAppearance sprite_appearance = { .model = M3D_SPRITE };
 
 static const char *config_path(char *buffer, size_t size, const char **dir_out)
 {
-	const char *dir = SDL_getenv("TYR3D_MODEL_DIR");
-	if (dir == NULL)
-		dir = TYR3D_MODEL_DIR;
+	static char dir_buffer[1024];
+	const char *dir = tyr3d_resource_dir("TYR3D_MODEL_DIR", TYR3D_MODEL_DIR, "models", dir_buffer, sizeof(dir_buffer));
 	const char *file = SDL_getenv("TYR3D_MODEL_CONFIG");
 	snprintf(buffer, size, "%s/%s", dir, file != NULL ? file : "models.cfg");
 	*dir_out = dir;

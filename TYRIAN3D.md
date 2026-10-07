@@ -37,6 +37,16 @@ The game needs the freeware Tyrian 2000 data in `data/tyrian2000`
 build/game/tyrian3d
 ```
 
+To make an app bundle (`build/package/Tyrian3D.app`, with its shaders, models, map sides and
+libraries inside):
+
+```bash
+tools/package_macos.sh
+```
+
+The app looks for the game data in `~/Library/Application Support/Tyrian3D/data` or in a folder
+named `data` beside the app (or `open Tyrian3D.app --args -t <folder>`).
+
 ## Controls
 
 The original controls are unchanged. These are added:
@@ -170,6 +180,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/catalog_html.py` | Browsable page of the `TYR3D_EXTRACT` catalogue |
 | `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
+| `tools/package_macos.sh` | Builds the macOS app bundle |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/blender/` | The model pipeline (see Models) |
 
