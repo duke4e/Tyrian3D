@@ -4,6 +4,7 @@
 #include "render_gpu.h"
 
 #include "background3d.h"
+#include "backgrnd.h"
 #include "config.h"
 #include "devtools.h"
 #include "fonthand.h"
@@ -41,6 +42,7 @@
 // Background map tiles and starfield pixels drawn per frame, at most.
 #define MAX_TILES 6144
 #define MAX_STARS 4096
+#define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
 
 // Direction the sun's light travels: from above and the top left of the screen, as the sprites
 // are lit. TYR3D_SUN=<x>,<y>,<z> overrides it, for tuning.
@@ -116,6 +118,12 @@ static float glint_time = 0;  // seconds of game time, for the waves
 // Wave scale, strength, sharpness and tilt; TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>
 // overrides them, for tuning.
 static float glint_parameters[4] = { 1.0f, 0.5f, 140.0f, 3.0f };
+
+// Bloom (M7): light from what the scene shows brighter than white (shots' glows, explosions,
+// emissive parts, highlights), spread around it. The palette's colours never get past white, so
+// the ground, sprites and HUD don't bloom. Intensity, threshold, knee and radius;
+// TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius> overrides them (intensity 0: none).
+static float bloom_parameters[4] = { 0.5f, 1.0f, 0.1f, 1.2f };
 
 // Whether a colour is water: blue to cyan and fairly bright (Tyrian's water and ice).
 static bool water_color(Uint32 color)
@@ -343,6 +351,8 @@ void rgpu_apply_camera_overrides(void)
 		sscanf(value, "%f,%f,%f", &sun_direction[0], &sun_direction[1], &sun_direction[2]);
 	if ((value = SDL_getenv("TYR3D_GLINTS")) != NULL)
 		sscanf(value, "%f,%f,%f,%f", &glint_parameters[0], &glint_parameters[1], &glint_parameters[2], &glint_parameters[3]);
+	if ((value = SDL_getenv("TYR3D_BLOOM")) != NULL)
+		sscanf(value, "%f,%f,%f,%f", &bloom_parameters[0], &bloom_parameters[1], &bloom_parameters[2], &bloom_parameters[3]);
 }
 
 SDL_Window *rgpu_init(const char *title, int width, int height)
@@ -823,6 +833,11 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 		edge_fade_ready = true;
 	}
 
+	// In space (the game's starfield is on) colour 0 of the stars' layer is empty space, where the
+	// game draws its stars: it lets the deep starfield through (add_deep_star_batch).
+	const bool space = frame->star_count > 0 && settings3d.effects && frame->filter_hue == -99 &&
+	                   frame->filter_brightness == -99;
+
 	int slots = 0;
 	for (int l = 0; l < frame->layer_count; ++l)
 	{
@@ -832,6 +847,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 			slot_of_layer[l] = -1;
 			continue;
 		}
+		const bool empty_zero = space && l == frame->star_layer;
 		slot_of_layer[l] = slots;
 		Uint32 *dst = atlas_rgba + slots * ATLAS_SLOT_H * L3D_WIDTH;
 		if (native[l])
@@ -841,7 +857,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 				for (int x = L3D_PLAYFIELD_X; x < L3D_PLAYFIELD_X + L3D_PLAYFIELD_W; ++x)
 				{
 					const int i = y * L3D_WIDTH + x;
-					if (layer->cover[i])
+					if (layer->cover[i] && !(empty_zero && layer->index[i] == 0))
 						dst[i] = colors[layer->index[i]];
 				}
 			Uint32 *water = layer_water_rgba + (slots) * ATLAS_SLOT_H * L3D_WIDTH;
@@ -853,7 +869,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 		const Uint8 *fade = &edge_fade[0][0];
 		for (int i = 0; i < L3D_WIDTH * L3D_ROWS; ++i)
 		{
-			if (!layer->cover[i])
+			if (!layer->cover[i] || (empty_zero && layer->index[i] == 0))
 			{
 				dst[i] = 0;
 				continue;
@@ -1115,10 +1131,11 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
-#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + L3D_MAX_GLOWS)
+#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
+                       L3D_MAX_GLOWS + DEEP_STARS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1753,6 +1770,102 @@ static float srgb_to_linear(Uint8 value)
 	return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
 }
 
+/*
+ * Deep space (M8, procedural stars): while the game's starfield is on, more stars lie in a few
+ * layers far below the ground and scroll with the game's stars, so space shows depth as the level
+ * moves: the deeper layers creep by slower and look finer. Like the game's stars they show only
+ * through what background 1 leaves empty. They only show (the Effects setting).
+ */
+#define DEEP_STAR_LAYERS 3
+
+static const struct
+{
+	float depth;       // game pixels below the game's stars
+	int count;
+	float size;        // game pixels
+	float brightness;  // shade of the starfield's palette ramp, 0-1
+} deep_star_layers[DEEP_STAR_LAYERS] = {
+	{ 40.0f, 110, 0.8f, 0.75f },
+	{ 130.0f, 170, 1.0f, 0.6f },
+	{ 340.0f, 280, 1.3f, 0.45f },
+};
+
+static float deep_star_scroll = 0;  // game pixels the deep stars have moved down the screen
+
+static Uint32 hash32(Uint32 x)
+{
+	x ^= x >> 16;
+	x *= 0x7feb352du;
+	x ^= x >> 15;
+	x *= 0x846ca68bu;
+	x ^= x >> 16;
+	return x;
+}
+
+static float hash_unit(Uint32 x)
+{
+	return (hash32(x) >> 8) / 16777216.0f;
+}
+
+#define STARFIELD_RAMP 0x90  // the game's stars' palette ramp (STARFIELD_HUE)
+
+static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
+                                const Uint32 colors[256], int *instance_count, int *batch_count)
+{
+	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES)
+		return;
+
+	// As fast as the game's slowest stars (2 + starfield_speed pixels a frame).
+	deep_star_scroll += 2.0f + starfield_speed;
+	const float twinkle_time = l3d_frame_number / 35.0f;
+
+	const int first = *instance_count;
+	const float ground = heights[frame->star_layer] - STARS_BELOW_LAYER;
+	for (int k = 0; k < DEEP_STAR_LAYERS; ++k)
+	{
+		const float height = ground - deep_star_layers[k].depth * rgpu_camera.height_scale;
+		float rect[4];
+		plane_footprint(camera, height, rect);
+		if (rect[0] > rect[2] || rect[1] >= rect[3])
+			continue;
+		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+		const float size = deep_star_layers[k].size;
+		for (int i = 0; i < deep_star_layers[k].count && *instance_count < MAX_INSTANCES; ++i)
+		{
+			const Uint32 seed = (Uint32)(k * 7919 + i) * 4u;
+			const float x = rect[0] + hash_unit(seed) * w;
+			const float z = rect[1] + fmodf(hash_unit(seed + 1) * h + deep_star_scroll, h);
+			const float scale = size * (0.6f + 0.8f * hash_unit(seed + 2));
+
+			Mat4 transform = mat4_identity();
+			transform.m[0] = transform.m[10] = scale;
+			transform.m[12] = x - scale / 2;
+			transform.m[13] = height;
+			transform.m[14] = z - scale / 2;
+			float *instance = instances + *instance_count * 24;
+			write_instance(instance, &transform, 1.0f);
+
+			const float shade = SDL_clamp(deep_star_layers[k].brightness + 0.35f * (hash_unit(seed + 3) - 0.5f), 0.2f, 1.0f);
+			const float twinkle = 0.8f + 0.2f * sinf(twinkle_time * (1.5f + 3.0f * hash_unit(seed + 2)) + 6.28f * hash_unit(seed + 3));
+			const Uint8 *rgba = (const Uint8 *)&colors[STARFIELD_RAMP | (int)(shade * 15.0f + 0.5f)];
+			for (int c = 0; c < 3; ++c)
+				instance[16 + c] = srgb_to_linear(rgba[c]) * twinkle;
+			++*instance_count;
+		}
+	}
+	if (*instance_count == first)
+		return;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = quad_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = white_texture;
+	b->unlit_enabled = 1;
+}
+
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
 // A composed background 1 has the stars in it already.
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -2169,6 +2282,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
@@ -2241,6 +2355,13 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	post.focus_point_y = 0.55f;
 	post.focus_direction_x = 1.0f;
 	post.highlight_threshold = 0.7f;
+	if (settings3d.effects)
+	{
+		post.bloom_intensity = bloom_parameters[0];
+		post.bloom_threshold = bloom_parameters[1];
+		post.bloom_knee = bloom_parameters[2];
+		post.bloom_radius = bloom_parameters[3];
+	}
 
 	BTBHGPUSceneReport scene_report;
 	if (btbh_gpu_window_scene_present_instances_with_visibility(window,

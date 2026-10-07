@@ -6,6 +6,7 @@
 #include "config.h"
 #include "episodes.h"
 #include "layer3d.h"
+#include "mtrand.h"
 #include "palette.h"
 #include "params.h"
 #include "player.h"
@@ -86,6 +87,11 @@ bool dev_start_game(void)
 		fprintf(stderr, "warning: TYR3D_START must be <episode>:<section>, got '%s'\n", start);
 		return false;
 	}
+
+	// The same random numbers every run (TYR3D_SEED picks others), so runs can be compared frame
+	// by frame.
+	const char *seed = SDL_getenv("TYR3D_SEED");
+	mt_srand(seed != NULL ? strtoul(seed, NULL, 10) : 1);
 
 	// As newGame() does for a one-player full game.
 	onePlayerAction = false;
@@ -178,8 +184,9 @@ bool dev_autopilot(void)
 
 void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 {
-	// Weave across the playfield with a slow vertical drift; always fire.
-	const double t = SDL_GetTicks() / 1000.0;
+	// Weave across the playfield with a slow vertical drift; always fire. Timed by frames, so runs
+	// started with TYR3D_START repeat exactly (see dev_start_game).
+	const double t = frame / 35.0;
 	const int target_x = 140 + (int)(100 * SDL_sin(t * 0.9));
 	const int target_y = 140 + (int)(25 * SDL_sin(t * 0.37));
 

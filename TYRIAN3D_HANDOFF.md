@@ -204,12 +204,17 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
 | `tools/blender/` | Blender pipeline: `tyrkit.py` (konvencije, materijali, loft, izvoz, pregledi), `glb_winding.py`, modeli u `models/` (npr. `ships/talon.py`). |
 | `tools/montage.py` | Slaže BMP dumpove u jedan PNG (samo stdlib; PIL nije instaliran). |
 
-## 5. Izmjene u fork rendereru (branch `tyrian3d`, commit `bba9f4a`)
+## 5. Izmjene u fork rendereru (branch `tyrian3d`)
 
 - `include/btbh_gpu/btbh_gpu.h`, `src/gpu/btbh_gpu_texture.c`:
   - `btbh_gpu_window_texture_create_rgba8_ex()`: RGBA tekstura iz memorije, sRGB ili linear, opcionalno s mipovima.
   - `btbh_gpu_texture_update_rgba8()`: streaming upload regije teksture.
 - `src/gpu/btbh_gpu_window.c`: `btbh_gpu_window_sdl_window()` vraća `SDL_Window *`.
+- `unlit_enabled = 2`: unlit površine koje primaju sjenu primarnog directional svjetla (45 % svjetla u sjeni); shadow mapa 2048.
+- Površina `BTBH_GPU_SCENE_SURFACE_GLINTS` (6): sunčevi odsjaji na valovima, maska u plavom kanalu ORM teksture.
+- Bloom u post lancu (`BTBHGPUScenePost.bloom_*`, shaderi `production_bloom_{down,up,composite}`): prag sa
+  soft kneeom i Karisovim prosjekom, šest polovičnih razina dolje i natrag gore (tent filter), zbroj se dodaje
+  sceni prije tonemappinga. `bloom_intensity` 0 ga gasi.
 
 ## 6. Kako testirati
 
@@ -274,6 +279,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 13. **Sjaj metaka i odsjaji na vodi (M7, M8).** Svaki metak (igračev i neprijateljski) bilježi `l3d_add_glow` (boja = najsvjetliji piksel spritea, indeks palete), a renderer crta aditivni billboard. Voda u pozadinskim slojevima (tlo, pozadine 2 i 3), u tileovima i u komponiranim pozadinama dobiva sunčeve odsjaje na animiranim valovima (u prvoj razini voda je pozadina 2, ne tlo): nova površina `BTBH_GPU_SCENE_SURFACE_GLINTS` u rendereru (branch `tyrian3d`) dodaje odsjaj na boju (radi i za unlit) gdje plavi kanal ORM teksture kaže; maske vode (`layer_water`, `tile_water`) računaju se iz boje piksela (plavo do cijan, `water_color`). Oboje se gasi postavkom Effects.
 14. **Postavke (M4.3).** `src/settings3d.c`: izbornik Setup → 3D (prikaz, objekti, sjene, efekti, kamera: Standard/Steep/Overhead), sekcija `[tyrian3d]` u `opentyrian.cfg`; env varijable ih nadjačavaju; F3/F4 ih mijenjaju.
 15. **Predmeti (M5.3).** Novčići, dragulji, kristali, data cubeovi, oklop, power-up kapsule i ljubičasta kugla imaju modele (`tools/blender/models/items`). Pravila `sprite coins …` / `sprite powerups …` u `models.cfg` (u kodu slova `$` i `+`, `enemy_sheet_letter`); jedan sivi model po vrsti dobiva boju trenutnog frejma spritea (`color=sprite`: rampa glavne boje kao sprite filter, pa data cube mijenja boje kao u originalu), `spin=` ih okreće (`l3d_frame_number`), `glow` dodaje svjetlo u boji rampe. Novčići se prevrću (`roll=frames:12`), kristali kotrljaju, dragulji okreću s iskrom. Katalog (`TYR3D_EXTRACT`) sada navodi i predmete koje ostavljaju uništeni neprijatelji (sloj `drop`: eventi 33/45/85, `eenemydie`, nasumične zamjene 533/534, brod s oklopom 560). Oružja u kuglama (powerups sheet) i posebna oružja ostaju volumetrijski spriteovi. Renderer diže modele koji bi zbog rotacije zašli ispod tla (`reach` u `add_object_batches`).
+16. **Bloom i duboki svemir (M7, M8).** Bloom u forku (odjeljak 5) uključen je s postavkom Effects: prag 1.0, pa svijetli samo ono što scena pokaže svjetlije od bijele (aditivni sjajevi, bljeskovi eksplozija, emisija, odsjaji); boje palete nikad ne prelaze bijelu, pa tlo, spriteovi i HUD ne cvjetaju (`TYR3D_BLOOM`). U svemiru (zvjezdano polje igre je uključeno) boja 0 sloja sa zvijezdama je prazan prostor kroz koji se vidi duboko zvjezdano polje: tri sloja proceduralnih zvijezda 40–340 px ispod tla, skrolaju brzinom zvijezda igre, pa dublji izgledaju sporiji (`add_deep_star_batch`). Isto s postavkom Effects.
 
 ## 9. Predloženi sljedeći koraci (redom)
 
