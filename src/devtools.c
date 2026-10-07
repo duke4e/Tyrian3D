@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static long env_long(const char *name, long fallback)
 {
@@ -106,11 +107,57 @@ bool dev_start_game(void)
 		player[0].items.sidekick[RIGHT_SIDEKICK] = (JE_byte)SDL_clamp(right, 0, OPTION_NUM);
 	}
 
+	// Other game modes, as newGame() and newSuperArcadeGame() set them up.
+	const char *mode = SDL_getenv("TYR3D_MODE");
+	int mode_number = 1;
+	if (mode != NULL && strcmp(mode, "arcade") == 0)
+	{
+		onePlayerAction = true;
+		player[0].cash = 0;
+		player[0].items.ship = 8;  // Stalker
+	}
+	else if (mode != NULL && strcmp(mode, "two") == 0)
+	{
+		twoPlayerMode = true;
+		for (uint i = 0; i < COUNTOF(player); ++i)
+			player[i].cash = 0;
+		player[0].items.ship = 11;  // Silver Ship
+		difficultyLevel++;
+		inputDevice[0] = 1;
+		inputDevice[1] = 2;
+	}
+	else if (mode != NULL && sscanf(mode, "timed:%d", &mode_number) == 1)
+	{
+		timedBattleMode = true;
+		onePlayerAction = true;
+		timeBattleSelection = (JE_byte)SDL_clamp(mode_number, 1, 2);
+		player[0].cash = 0;
+		player[0].items.ship = 8;
+	}
+	else if (mode != NULL && sscanf(mode, "super:%d", &mode_number) == 1)
+	{
+		const int i = SDL_clamp(mode_number, 1, SA_LASTSHIP) - 1;
+		onePlayerAction = true;
+		superArcadeMode = (JE_byte)(i + 1);
+		player[0].cash = 0;
+		player[0].items.ship = SAShip[i];
+		player[0].items.weapon[FRONT_WEAPON].id = SAWeapon[i][0];
+		player[0].items.special = SASpecialWeapon[i];
+		if (superArcadeMode == SA_NORTSHIPZ)
+			for (uint k = 0; k < COUNTOF(player[0].items.sidekick); ++k)
+				player[0].items.sidekick[k] = 24;  // Companion Ship Quicksilver
+		difficultyLevel++;
+	}
+	else if (mode != NULL && strcmp(mode, "full") != 0)
+		fprintf(stderr, "warning: TYR3D_MODE must be full, arcade, two, timed:<1-2> or super:<1-%d>\n", SA_LASTSHIP);
+	initialDifficulty = difficultyLevel;
+
 	constantPlay = true;  // skip shops: they jump straight to the next level
 	mainLevel = (JE_byte)section;
 	gameLoaded = true;
 
-	printf("devtools: starting episode %d at section %d\n", episode, section);
+	printf("devtools: starting episode %d at section %d%s%s\n", episode, section, mode != NULL ? ", mode " : "",
+	       mode != NULL ? mode : "");
 	return true;
 }
 

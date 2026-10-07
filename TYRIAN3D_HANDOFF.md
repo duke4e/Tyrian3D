@@ -286,7 +286,9 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 4. M6: bossovi i višedijelni neprijatelji, epizode 2–5.
 5. M7: laseri kao trake, bloom i tonemapping, svjetla eksplozija; M8: oblaci (BG2/BG3).
 6. M4.2 iteracija 2: HUD iz stanja igre u višoj rezoluciji.
-7. M9: ostali modovi (2 igrača, Galaga, timed battle, Super Arcade), Windows i Linux.
+7. M9: Windows i Linux. Modovi 2 igrača, arcade, timed battle i Super Arcade rade u 3D-u
+   (`TYR3D_MODE`); Super Arcade zatamni dio ekrana kao spotlight, isto kao original. Galaga
+   (tajna razina) još nije isproban.
 8. M10: reprodukcija MIDI-ja sa soundfontom (čeka korisnikovo odobrenje skidanja).
 
 **Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 2–4,3 ms CPU-a po frameu (najviše spotlight i razine s filterima). Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
