@@ -299,14 +299,19 @@ iz sheetova 10 i 11.
 | Vjernost modela u odnosu na sprite | Preglednik s usporedbom tlocrta i kontrolne točke s korisnikom po valu. |
 | Promjene renderera kolidiraju s BTBH razvojem | Male općenite funkcije na `tyrian3d` branchu, kasnije PR prema BTBH-u po želji. |
 
-## 3. Otvorena pitanja za korisnika
+## 3. Pitanja za korisnika
 
-1. **Blender** (`brew install --cask blender`, oko 1 GB) za modeliranje od M3 dalje? Bez njega ide
-   proceduralni Python, uz manje mogućnosti.
-2. **Volumetrijski spriteovi:** nakon kontrolne točke u M2.1, trebaju li biti zadani prikaz za
-   objekte bez ručnog modela, ili samo opcija?
+1. ~~**Blender** za modeliranje od M3 dalje?~~ Odobreno; Blender 5.2.2 je već instaliran.
+2. ~~**Volumetrijski spriteovi** kao zadani prikaz?~~ Da ("dobro je, kasnije lako to tweakamo").
 3. **Javni repo?** `duke4e/Tyrian3D` je zasad privatan. Projekt je GPL-2.0, a podaci igre nisu u repou.
 
-## 4. Sljedeći korak
+Korisnikov zahtjev od 2026-10-07: renderer igre odsijeca sve što ne stane na staru 2D kameru; 3D
+kamera mora vidjeti nacrtan cijeli svijet. Za pozadine i zvjezdano polje to je riješeno
+izravnim crtanjem mapa u 3D-u (`src/background3d.c`), što pokriva i dio M4.1 (popuna strana
+izvan mape).
 
-Počinje **M1.1** (odabir razine, autopilot, godmode, sweep), na branchu `tyrian3d/m1-tools`.
+## 4. Stanje
+
+Gotovo na branchu `tyrian3d/m1-tools`: M1.1, M1.2, M1.4, M2.1 i 3D pozadine. Od M1.3 postoji
+`tools/modelkit` (stdlib glTF); preglednik modela i probni model kroz cijeli put još nisu
+napravljeni. Sljedeće: M1.3 do kraja (preglednik, Blender pipeline), zatim M2.2 i M3.

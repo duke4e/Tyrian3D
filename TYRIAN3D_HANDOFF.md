@@ -1,7 +1,7 @@
 # Tyrian3D: predaja rada
 
-Datum predaje: **2026-10-07**. Ovo je početna točka za novog agenta, bez potrebe za starim
-razgovorom. Putanje su relativne prema rootu repozitorija
+Datum predaje: **2026-10-07**, ažurirano istog dana nakon M1, M2.1 i 3D pozadine. Ovo je
+početna točka za novog agenta, bez potrebe za starim razgovorom. Putanje su relativne prema rootu repozitorija
 `/Users/duke4e/Documents/GitHub/Tyrian3D`, osim ako je navedeno drukčije.
 
 Najprije pročitaj ovaj dokument, zatim [TYRIAN3D.md](TYRIAN3D.md) (build, kontrole i opis
@@ -15,7 +15,7 @@ Mijenja se samo prikaz. Korisnik je zadao ove faze:
 1. **PoC1**: originalni spriteovi u 3D perspektivi prihvatljivoj za vertikalni shmup. **Gotovo.**
 2. **PoC2**: besplatni modeli umjesto spriteova, samo da se dobije osjećaj. **Gotovo** (Kenney Space Kit).
 3. Kasnije: vlastiti modeli po uzoru na originalne spriteove i rekonstrukcija ostale grafike
-   (pozadine, efekti). **Nije započeto.**
+   (pozadine, efekti). **U tijeku**, po planu u `docs/plans/` (odjeljak 9 dolje).
 
 Korisnikove odluke:
 
@@ -24,11 +24,17 @@ Korisnikove odluke:
 - Korisnik je odobrio preuzimanje Tyrian 2000 podataka (freeware, camanis.net).
 - Kenney modeli nisu preuzimani s interneta. Kopirani su iz korisnikova lokalnog projekta
   (`~/Documents/GitHub/QIX Rouguelike (GPT 5.3)/assets/kenney/space-kit`), CC0.
+- Volumetrijski spriteovi (M2.1) su odobreni i zadani su prikaz za sve bez ručnog modela
+  ("dobro je, kasnije lako to tweakamo").
+- Blender je odobren za modeliranje. Već je instaliran: `/Applications/Blender.app`, 5.2.2 LTS.
+- Renderer igre ne smije biti ograničen na staru 2D kameru: sve što 3D kamera vidi mora biti
+  nacrtano (riješeno za pozadine, odjeljak 3.10).
 
 **Git (stanje 2026-10-07):**
 
-- Rad je commitan i pushan na branch `tyrian3d/poc` repoa `https://github.com/duke4e/Tyrian3D`.
-  Repo je privatan.
+- PoC je na branchu `tyrian3d/poc` repoa `https://github.com/duke4e/Tyrian3D`. Repo je privatan.
+- Rad na planu ide na branch `tyrian3d/m1-tools` (M1.1/M1.2, M1.4/M2.1, 3D pozadine). Još nije
+  spojen u `tyrian3d/poc`.
 - Upstream OpenTyrian2000 je remote `upstream`.
 - Renderer je na branchu `tyrian3d` repoa `duke4e/btbh-renderer` (commit `bba9f4a`).
 - Korisnik je odobrio commit i push nakon svakog završenog koraka.
@@ -126,11 +132,38 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
      Sprite i 2D sjena se tada ne crtaju; nagib dolazi iz `ship_banking`.
    - Objekti (`L3DObject`) se renderiraju kao modeli batchom po materijalu, uz sunce i ambient.
    - Slojevi su u opaque passu s alpha cutoffom, pa se modeli i slojevi ispravno zaklanjaju po dubini.
-7. **Kontrole i alati.**
+7. **Kontrole i alati (PoC).**
    - F3 prebacuje 3D/2D, F4 uključuje i isključuje modele.
    - PgUp/PgDn mijenja tilt, Home/End FOV, Ins/Del razmak visina slojeva.
    - Tipke se obrađuju u `video_handle_key()`, a poziva ih `keyboard.c`.
    - Env varijable i dev alati su u `src/devtools.c`. Popis je u TYRIAN3D.md.
+
+8. **Dev alati (M1.1, M1.2).** `TYR3D_START=<epizoda>:<sekcija>` pokreće razinu bez izbornika,
+   `TYR3D_AUTOPILOT` i `TYR3D_GODMODE` igraju sami. `tools/sweep.sh` prolazi sve razine i slaže
+   contact sheet po razini. `TYR3D_EXTRACT=<dir>` (`src/extract.c`) izvozi sheetove i katalog
+   neprijatelja; `tools/catalog_html.py` od njega radi HTML stranicu.
+9. **Izgled objekata (M1.4, M2.1).** `models.cfg` v2: model, `volume` ili `sprite` po pravilu;
+   pravila po brodu (`ship`), `default`, opcije `yaw=` (fiksno, `velocity`, `aim`, `frames:`),
+   `height=`, `banking=`. F5 ponovno učitava datoteku, `TYR3D_MODEL_CONFIG` bira drugu
+   (`models_kenney.cfg` je PoC2). Volumetrijski spriteovi (`src/volume3d.c`): silueta spritea se
+   napuhne u zaobljeni reljef sa zidovima do baze i teksturom samog spritea; zadani su prikaz.
+   Sjenčanje od sunca zapečeno je u boje vertexa i crta se unlit, pa ploha okrenuta prema gore
+   ima točno boje spritea. Zemaljski objekti (stil FLAT) su gotovo ravni, bez zaobljenog ruba.
+   `tools/modelkit` je stdlib Python generator `.glb` modela.
+10. **Pozadine u 3D-u (`src/background3d.c`).** Igra crta samo tileove koji stanu na njen ekran,
+    a nagnuta kamera vidi puno više. Zato 3D prikaz sam crta sve tri pozadinske mape kao tileove
+    na ravnini svake pozadine, za cijelo područje koje kamera vidi (`plane_footprint()`, do 640 px
+    naprijed, pa se gase).
+    - Svako crtanje pozadine u igri zapisuje stanje scrolla (`l3d_add_background()` u
+      `backgrnd.c`), pa se tileovi poklapaju s crtežom igre. Redovi iznad prate `BKwrap` petlje.
+    - Izvan bočnih rubova mapa se nastavlja zrcaljeno i postupno tamni (gradijent preko tilea).
+    - Unutar igrališta snimljeni sloj se crta iznad tileova (tileovi su 0,05 ispod sloja), pa su
+      filteri igre tamo točni. Izvan igrališta tileovi ih aproksimiraju mapiranjem palete:
+      miješana pozadina 2 (`draw_background_2_blend`, uz prosječnu svjetlinu tla razine), voda,
+      lava, led (`l3d_add_effect()`).
+    - Atlas tileova (`b3d_build_atlas()`) ima 4 stranice obojene različitim paletama; tileovi
+      se crtaju instancirano, batch po ćeliji atlasa.
+    - Staro crtanje pozadina u overscan je uklonjeno; overscan od 64 reda ostaje za spriteove.
 
 **Provjereno automatski** (dumpovi frameova iz demo snimke `demo.1`, samo Metal):
 
@@ -153,17 +186,23 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
 | Datoteka | Uloga |
 | --- | --- |
 | `CMakeLists.txt` | Builda `btbh_gpu` iz submodulea (brew SDL3 + assimp) i kompajlira produkcijske HLSL shadere renderera (popis se čita iz njegova CMakeLists) u SPIR-V i metallib. Builda i igru. |
-| `src/layer3d.[ch]` | Hvatanje slojeva po fazama, objekti modela, nominalne visine slojeva (`layer_info`). |
-| `src/render_gpu.[ch]` | Sve vezano uz BTBH: device i prozor, teksture, atlas slojeva, HUD, kamera, batchevi slojeva i modela, osvjetljenje, readback za dumpove. |
-| `src/models3d.[ch]` | Parser za `models.cfg` i odabir modela za neprijatelje i igrača. |
-| `src/devtools.[ch]` | Env-driven alati: demo nakon N ms, dump frameova i slojeva, izlaz nakon N frameova. |
+| `src/layer3d.[ch]` | Hvatanje slojeva po fazama, objekti (modeli, volumetrijski spriteovi), zapisi pozadina i filtera, nominalne visine slojeva (`layer_info`). |
+| `src/render_gpu.[ch]` | Sve vezano uz BTBH: device i prozor, teksture, atlas slojeva, HUD, kamera i njeno vidno polje na ravnini (`plane_footprint`), batchevi slojeva, tileova pozadine, modela i volumena, osvjetljenje, readback za dumpove. |
+| `src/background3d.[ch]` | Pozadinske mape u 3D-u: atlas tileova, odabir tileova za zadano područje (scroll, `BKwrap`, zrcaljenje izvan mape), mapiranje palete za miješanje i filtere. |
+| `src/volume3d.[ch]` | Volumetrijski spriteovi: dekodiranje sheeta i generiranje mesha iz spritea. |
+| `src/models3d.[ch]` | Parser za `models.cfg` (v2) i izbor izgleda za neprijatelje i brodove. |
+| `src/devtools.[ch]` | Env-driven alati: demo nakon N ms, dump frameova i slojeva (uz ispis zapisa pozadina), izlaz nakon N frameova, start razine, autopilot, godmode. |
+| `src/extract.[ch]` | `TYR3D_EXTRACT`: izvoz sheetova u PNG i katalog neprijatelja/brodova u JSON. |
 | `src/video.[ch]` | Prozor (stvara ga renderer), overscan površine, `JE_showVGA` (2D) i `JE_showVGA3D` (3D), tipke za prikaz. |
 | `src/tyrian2.c` | Glavna petlja s markerima faza, `JE_starShowVGA` (bira 2D ili 3D prezentaciju), hook za modele neprijatelja. |
 | `src/mainint.c` | Hook za model igrača. |
-| `src/backgrnd.c` | Overscan crtanje pozadina; presretanje `JE_filterScreen`. |
+| `src/backgrnd.c` | Zapisi crtanja pozadina i filtera za 3D (`l3d_add_background`, `l3d_add_effect`); presretanje `JE_filterScreen`. |
 | `src/sprite.c` | Clipping s overscanom. |
-| `assets/models/` | `models.cfg` i Kenney modeli s licencom. |
+| `assets/models/` | `models.cfg` (zadano: volumetrijski), `models_kenney.cfg` (PoC2) i Kenney modeli s licencom. |
 | `tools/capture_run.sh` | Pokreće igru u demo modu i dumpa frameove (vidi odjeljak 6). |
+| `tools/sweep.sh`, `tools/levels.py` | Sweep svih razina (autopilot, godmode) i popis sekcija razina. |
+| `tools/catalog_html.py` | HTML katalog neprijatelja iz `TYR3D_EXTRACT` izvoza. |
+| `tools/modelkit/` | Stdlib Python: `.glb` writer i proceduralni oblici. |
 | `tools/montage.py` | Slaže BMP dumpove u jedan PNG (samo stdlib; PIL nije instaliran). |
 
 ## 5. Izmjene u fork rendereru (branch `tyrian3d`, commit `bba9f4a`)
@@ -185,7 +224,11 @@ Argumenti su redom izlazni direktorij, svaki N-ti frame i izlaz nakon N frameova
 dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_2D=1` ili `TYR3D_PROFILE=1`.
 
 - Skripta postavlja `TYR3D_DEMO_IDLE_MS=300`, pa demo počinje odmah. Oko frameova 300–1300 je gameplay prve razine.
-- U 3D modu frameovi se snimaju GPU readbackom u punoj rezoluciji (1920×1200 na Retini).
+- Za određenu razinu: `TYR3D_START=1:3 TYR3D_AUTOPILOT=1 TYR3D_GODMODE=1` (sekcije daje `tools/levels.py`; Timed Battle sekcije nisu na popisu, jer bez pripreme tog načina igre vise).
+- Sve razine: `tools/sweep.sh <dir> [epizoda...]`, contact sheet po razini (oko 40 minuta za 68 razina na 4K prozoru). Zadnji sweep (2026-10-07): sve razine rade, bez rušenja.
+- `TYR3D_BACKGROUNDS=13` crta tileove samo za navedene pozadine, za izoliranje grešaka.
+- U 3D modu frameovi se snimaju GPU readbackom u punoj rezoluciji prozora (na ovom stroju 3840×2160).
+- Ne pokreći dvije instance igre istovremeno (sweep i ručni capture se ne smiju preklapati).
 - Pretvorba u PNG: `sips -s format png -Z 1000 frame_000600.bmp --out f.png`, ili `tools/montage.py`.
 - Koristi novi izlazni direktorij za svaki run. Sigurnosna provjera blokira `rm` s varijablom u putanji.
 
@@ -199,33 +242,35 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 - Nulama inicijaliziran `BTBHGPUSceneGeometryBatch` je nevaljan. Koristi `init_batch()`: stencil "disabled" kombinacija, `material_slot = -1`, boje 255, `uv_scale = 1`.
 - Teksture za scenu su sRGB, jer post pass radi linear→sRGB. Canvas teksture su UNORM.
 - Batch modela ne uzima materijal sam od sebe. Za svaki materijal je zaseban batch s `material_slot` i `btbh_gpu_model_material_info`.
-- Visine slojeva rastu redoslijedom crtanja, najmanje za 0.05 po sloju, da se slojevi iste nominalne visine ne bore u depth bufferu.
+- Visine slojeva rastu redoslijedom crtanja, najmanje za 0.1 po sloju (`LAYER_STEP`), da se slojevi iste nominalne visine ne bore u depth bufferu. Tileovi pozadine su 0.05 ispod svog sloja.
+- BTBH-ov lit put (PBR) dodaje ambijent ("multiple scattering") i spekular neovisno o albedu, pa
+  tamne boje postaju sivkaste. Gdje boje moraju ostati vjerne (volumetrijski spriteovi), crta se
+  unlit, a sjenčanje se peče u boje vertexa.
+- BTBH nema UV po instanci (`uv_transform` je po batchu), zato tileovi pozadine idu u batch po ćeliji atlasa. Boja instance (`instance.color`) množi boju, što se koristi za tamnjenje.
 - Present mode je IMMEDIATE (nema vsynca). Tempo određuje vlastiti timer igre.
 - Readback BMP-a je RGBA; boje su provjerene.
 
 ## 8. Poznati problemi
 
-1. **Gornji kutovi su crni** pri većem tiltu. Mapa pozadine je široka samo oko 312–336 px, pa se lijevo i desno nema što dodati. Ublaženo zatamnjenjem rubova.
-2. **Razine s posebnim prikazom.** Naopaki prikaz (`starShowVGASpecialCode == 1`) i spotlight (`== 2`) nemaju 3D obradu. U 3D modu se prikazuju normalno.
-3. **Mali plavi neprijatelji** u prvoj razini ostaju spriteovi. `TYR3D_LOG_ENEMIES` ih ne prijavljuje kao neprijatelje iz enemy sheeta, pa izvor nije utvrđen. Moguće su enemy shots ili posebni objekti.
-4. **Sjene.** Model igrača nema sjenu, jer je 2D sjena isključena kad se crta model. Modeli ne bacaju sjene na tlo.
-5. **Neprijatelji koji se okreću** (više sprite frameova za rotaciju) imaju statičan model okrenut prema dolje.
-6. **Pikseli iste boje.** Kad sprite iscrta piksel iste boje kakva je već ispod, diff ga ne vidi, pa taj piksel ostaje u nižem sloju. Vizualno je zanemarivo.
-7. **Specijalni brodovi.** `shipGr_ 0` i `1` (dvodijelni brodovi, Nortship) uvijek su spriteovi.
-8. **Pozadina na rubu mape.** Pozadine koje se ponavljaju (`BKwrap`) mogu na vrhu overscana pokazati nekontinuirani komad mape.
+1. **Razine s posebnim prikazom.** Naopaki prikaz (`starShowVGASpecialCode == 1`) i spotlight (`== 2`) nemaju 3D obradu. U 3D modu se prikazuju normalno (plan: M4.4).
+2. **Mali plavi neprijatelji** u prvoj razini ostaju spriteovi. `TYR3D_LOG_ENEMIES` ih prijavljuje sa sheetom `'?'` (nisu iz enemy shape filea), pa za njih ne vrijede pravila iz `models.cfg`.
+3. **Sjene.** Objekti ne bacaju sjene na tlo; 2D sjena broda je isključena kad se crta 3D izgled (plan: M5.4).
+4. **Pikseli iste boje.** Kad sprite iscrta piksel iste boje kakva je već ispod, diff ga ne vidi, pa taj piksel ostaje u nižem sloju. Za pozadine to više ne vrijedi (tileovi su ispod snimljenog sloja). Vizualno je zanemarivo.
+5. **Specijalni brodovi.** `shipGr_ 0` i `1` (dvodijelni brodovi, Nortship) uvijek su spriteovi.
+6. **Filteri izvan igrališta su aproksimirani.** Unutar igrališta su točni (snimljeni sloj). Izvan njega tileovi dobivaju samo nijansu i prosječnu svjetlinu: voda bez valovanja, led i blur bez vremenskog zamućenja, miješana pozadina 2 uz prosječnu svjetlinu tla razine. Boja 0 tla i prazni unosi mape pod lavom i ledom dobivaju boju filtera, kao u igri. Najvidljivije je na razinama s lavom (LAVA RUN 4:4, ASSASSIN 1:36): filter u igri zaglađuje tlo, a tileovi izvan igrališta zadržavaju puni detalj, pa se rub igrališta vidi. Prijedlog: za razine s filterom softverski nacrtati pozadinu za vidljivo područje i na nju primijeniti iste funkcije filtera (`lava_filter` i druge, poopćene na veći buffer), uz vlasništvo piksela kao kod hvatanja slojeva. `JE_darkenBackground` (SuperWild) i "astral" stanje izvan igrališta nisu preneseni.
+7. **Boja 0 pozadine 1 je prozirna** (kroz nju se vide zvijezde, kao u igri). Izvan igrališta se ondje vidi crna boja clear-a, a ne boja palete 0 (koja je inače crna).
+8. **Neprijatelji se pojavljuju naglo pri većem tiltu.** Tlo se vidi daleko naprijed, ali igra stvara neprijatelje tek kad im red dođe do vrha ekrana, a objekti se crtaju do 64 reda iznad njega. To je logika igre.
+9. **Prozor koji nije 16:10.** Scena se vidi i desno od HUD-a (M4 premješta HUD u overlay).
 
 ## 9. Predloženi sljedeći koraci (redom)
 
-1. Slijediti plan u `docs/plans/2026-10-07-tyrian3d-plan.md`. Prvi korak je M1.1.
-2. Korisnik ručno isproba igru. Kalibrirati zadani tilt, FOV i visine slojeva prema njegovom dojmu (tipke za kameru ispisuju vrijednosti u stdout).
-3. Bolji PoC2:
-   - Mapiranje po tipu neprijatelja preko `sprite` pravila u `models.cfg`; `TYR3D_LOG_ENEMIES=1` daje popis.
-   - Yaw iz indeksa animacijskog framea za rotirajuće neprijatelje.
-4. Sjene: osvijetljen sloj tla koji prima sjene i directional shadow map u BTBH-u (`lighting.directional_shadow_*`).
-5. Metci, power-upi i eksplozije kao 3D ili čestice (sada su spriteovi u sloju `player`/`explosion`).
-6. Razine s posebnim efektima iz odjeljka 8.2.
-7. Faza 3: vlastiti modeli po uzoru na originalne spriteove; tileovi pozadine u većoj rezoluciji ili 3D teren.
-8. Isprobati Vulkan (`TYR3D_GPU_BACKEND=vulkan`, na macOS-u preko MoltenVK) i build na Windowsu/Linuxu. Za Windows treba riješiti izvor SDL3 i assimp, npr. vendored submodule renderera.
+1. Korisnik ručno isproba igru i kaže dojam o pozadinama i volumetrijskim spriteovima. Kalibrirati zadani tilt, FOV i visine slojeva (tipke za kameru ispisuju vrijednosti).
+2. Dovršiti M1.3: preglednik modela (`TYR3D_MODEL_VIEW`), Blender headless pipeline do `.glb`, jedan probni model kroz cijeli put.
+3. M2.2: semantika animacija (rotacija, ciklus, naginjanje) iz kataloga.
+4. M3: brodovi igrača u Blenderu.
+5. M4: HUD kao overlay (scena već puni prozor), posebne razine.
+6. M5.4 sjene: varijanta shadera "unlit + prima sjenu" za slojeve, tileove i volumetrijske spriteove.
+7. Vulkan (`TYR3D_GPU_BACKEND=vulkan`, na macOS-u preko MoltenVK) i build na Windowsu/Linuxu (M9).
 
 ## 10. Memorija
 

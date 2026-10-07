@@ -68,6 +68,7 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
+| `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
 
 ## How it works
 
@@ -79,27 +80,38 @@ The camera keys work only while the 3D view is on screen.
   cover it, so it is complete. Filter effects (water, blur, darkening) write their changes back
   into the layer that owns each pixel. The level's colour filter is applied per layer, as a
   palette remap.
-- **Overscan.** The tilted camera sees past the original top edge. In 3D mode the game also
-  draws backgrounds and enemies into 64 extra rows above the screen, and one extra tile column on
-  the left.
+- **Background maps** (`src/background3d.c`). The game draws only the background tiles that fit
+  on its screen; the tilted camera sees much more. So the 3D view draws the three background maps
+  itself, as tiles on each background's plane, for the whole area the camera sees (up to 640
+  pixels ahead, then fading out). Each time the game draws a background its scroll state is
+  recorded, so the tiles line up with the game's own drawing, and scrolling further up follows
+  the map's wrap points. Beyond the map's sides the map continues mirrored and slowly darkening.
+  Inside the playfield the captured layer is drawn over the tiles, which keeps the game's filters
+  exact there; outside it the tiles approximate them (blended background 2, water, lava, ice).
+- **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
+  enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights. The
   camera is fitted so the playfield's bottom edge, at the player's height, fills the original
-  playfield width; the projection is shifted onto the playfield's rectangle in the window. The
-  HUD and in-playfield text are drawn flat on top.
+  playfield width; the projection is shifted onto the playfield's rectangle in the window, and
+  the scene continues into the rest of the window. The HUD and in-playfield text are drawn flat
+  on top.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested
   against the layers and lit by a sun and ambient light.
 - **Volumetric sprites** (`src/volume3d.c`). The default appearance: a sprite's silhouette is
-  inflated into a rounded relief and textured with the sprite's own pixels, so every object has
-  volume and takes light while it keeps its exact original look.
+  inflated into a rounded relief and textured with the sprite's own pixels. The sun's shading is
+  baked into the mesh, scaled so that faces pointing up keep exactly the sprite's colours: every
+  object has volume while it keeps its original look. Ground objects, whose sprites include the
+  ground around them, stay nearly flat.
 
 ## Roadmap
 
 1. ~~PoC 1: the original sprites in 3D.~~
 2. ~~PoC 2: placeholder CC0 models (Kenney Space Kit) for enemies and the player.~~
 3. ~~Volumetric sprites for every enemy and player ship; per-enemy appearance rules with yaw modes.~~
-4. Next steps (see `docs/plans/2026-10-07-tyrian3d-plan.md`):
+4. ~~Background maps drawn for everything the 3D camera sees.~~
+5. Next steps (see `docs/plans/2026-10-07-tyrian3d-plan.md`):
    - Shadows from models onto the ground layer.
    - Models for shots, power-ups and explosions (particles).
    - Upside-down levels (`starShowVGASpecialCode` 1) and spotlight levels (2) in 3D.
