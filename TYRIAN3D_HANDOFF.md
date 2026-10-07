@@ -174,12 +174,10 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
 
 **Nije provjereno:**
 
-- Vulkan backend.
-- Interaktivno igranje.
-- Dva igrača.
+- Interaktivno igranje (provjere su automatske: autopilot, dumpovi frameova).
 - Fullscreen i promjena veličine prozora.
 - Joystick.
-- Druge epizode i razine s posebnim efektima.
+- Galaga mod (tajna razina).
 
 ## 4. Karta datoteka
 
@@ -267,7 +265,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 6. **Filteri izvan igrališta.** Pozadine koje igra filtrira (lava, voda, led) komponiraju se na CPU-u za vidljivo područje i prolaze kroz iste formule kao `lava_filter`/`water_filter` (`b3d_compose`), pa nema šava na rubu igrališta. Preostale razlike: igra za piksel iznad čita prošli frame (ovdje nefiltrirani piksel), vremensko zamućenje leda i blura je izostavljeno, a miješana pozadina 2 nacrtana nakon filtera miješa se samo s komponiranim pozadinama ispod (ne sa spriteovima i pozadinom 3). Trošak: oko 1–2 ms po frameu na tim razinama (RelWithDebInfo). `JE_darkenBackground` (SuperWild) i "astral" stanje izvan igrališta nisu preneseni.
 7. **Boja 0 pozadine 1 je prozirna** (kroz nju se vide zvijezde, kao u igri). Izvan igrališta se ondje vidi crna boja clear-a, a ne boja palete 0 (koja je inače crna).
 8. **Neprijatelji se pojavljuju naglo pri većem tiltu.** Tlo se vidi daleko naprijed, ali igra stvara neprijatelje tek kad im red dođe do vrha ekrana, a objekti se crtaju do 64 reda iznad njega. To je logika igre.
-9. **HUD (M4.1/M4.2, iteracija 1).** U 3D-u (jedan igrač) panel HUD-a stoji uz desni rub prozora, visok koliko prozor, a igralište je najveće što stane pored (`layout_3d`); traka s porukama ispod igrališta se ne crta, nego se poruka (`text_window_message`) ponovno iscrta tekstom u dnu igrališta. Dva igrača imaju originalni raspored. Sljedeće: HUD iz stanja igre u višoj rezoluciji (iteracija 2), postavke (M4.3).
+9. **HUD (M4.1/M4.2, iteracija 1).** U 3D-u panel HUD-a stoji uz desni rub prozora, visok koliko prozor, a igralište je najveće što stane pored (`layout_3d`); traka s porukama ispod igrališta se ne crta, nego se poruka (`text_window_message`) ponovno iscrta tekstom u dnu igrališta. Isto vrijedi za dva igrača (njihov ekran ima isti raspored). Sljedeće: HUD iz stanja igre u višoj rezoluciji (iteracija 2), postavke (M4.3).
 10. **Stanja (M5.2).** Neranjivi brod je poluproziran kao u originalu (`l3d_ghost_last_object`; batch s `transparency_enabled` i pola alfe). Sprite filter (pogođeni neprijatelji, led, Magneto: `blit_sprite2_filter`, indeks = filter | nijansa) primjenjuje se točno: paletni materijali modela uzimaju `filter | (indeks & 0x0f)`, a volumeni dobivaju filtriranu varijantu teksture sheeta (`filtered_volume_texture`). Ne-paletni (emisivni) materijali se ne mijenjaju.
 11. **Strane mape (WFC).** Stupci uz mapu (16 sa svake strane) generiraju se iz tileova same mape (`src/wfc.c`, `make_sides` u `background3d.c`) unaprijed za sve razine (`tools/precompute_sides.sh` → `assets/sides`, zlib, oko 0,5 MB); ako ih nema, pri učitavanju razine (`b3d_prepare_sides` u `JE_loadMap`) uz keš u `~/.config/opentyrian2000/tyrian3d-sides/` (ime = hash mape i postavki; promjena algoritma traži novi `SIDE_CACHE_VERSION` i ponovni precompute). Prvo generiranje traje oko 0,2–0,4 s po pozadini u Debug buildu. Trake od 24 reda rješavaju se redom; ako ne uspiju, pokušava se bez veze s trakom iznad, pa bez veze s rubom mape, a tek onda zrcaljenje. Šav nastaje na mjestima petlje mape (BKwrap) i između traka koje nisu vezane.
 

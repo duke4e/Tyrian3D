@@ -128,11 +128,11 @@ change the first two as well.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights. The
   camera is fitted so the playfield's bottom edge, at the player's height, fills the original
   playfield width; the projection is shifted onto the playfield's rectangle in the window, and
-  the scene continues into the rest of the window. In one-player games the HUD panel stands at
-  the window's right edge, as tall as the window, and the playfield is as large as fits beside
-  it (on 16:9 it fills the window's height); messages from the bar below the playfield are shown
-  as text in the playfield. Two-player games keep the original screen's layout. The HUD and
-  in-playfield text are drawn flat on top.
+  the scene continues into the rest of the window. The HUD panel stands at the window's right
+  edge, as tall as the window, and the playfield is as large as fits beside it (on 16:9 it fills
+  the window's height); messages from the bar below the playfield are shown as text in the
+  playfield. Two-player games have the same layout. The HUD and in-playfield text are drawn flat
+  on top.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested

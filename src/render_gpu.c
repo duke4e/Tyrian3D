@@ -878,11 +878,10 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 
 // HUD with a transparent playfield, plus the overlay layers drawn into the playfield.
 /*
- * The 3D view's layout of the window. One-player games: the HUD panel (the original screen's
- * right column) at the window's right edge, as tall as the window, and the playfield as large as
- * fits in the rest, centred in it; the bar below the playfield is left out (its messages are
- * shown in the playfield, see build_hud). Two-player games keep the original screen at dst. The
- * scene fills the window around and under all of it.
+ * The 3D view's layout of the window: the HUD panel (the original screen's right column) at the
+ * window's right edge, as tall as the window, and the playfield as large as fits in the rest,
+ * centred in it; the bar below the playfield is left out (its messages are shown in the
+ * playfield, see build_hud). The scene fills the window around and under all of it.
  */
 #define PANEL_X L3D_PLAYFIELD_W  // the panel's column of the screen
 
@@ -895,7 +894,7 @@ typedef struct
 
 static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
 {
-	Layout3D layout = { .split = !twoPlayerMode };
+	Layout3D layout = { .split = true };
 	if (!layout.split)
 	{
 		layout.playfield[0] = dst->x;
