@@ -69,6 +69,7 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
+| `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light energies (for tuning; defaults 3, 0.6) |
 
 ## How it works
 
@@ -106,6 +107,22 @@ The camera keys work only while the 3D view is on screen.
   baked into the mesh, scaled so that faces pointing up keep exactly the sprite's colours: every
   object has volume while it keeps its original look. Ground objects, whose sprites include the
   ground around them, stay nearly flat.
+
+## Models
+
+Models are built in Blender by Python scripts in `tools/blender/models`, using the kit in
+`tools/blender/tyrkit.py`, and exported to `assets/models` as glTF binaries:
+
+```bash
+/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P tools/blender/models/ships/talon.py -- --preview /tmp/talon
+```
+
+`--preview` also renders a top view framed like the sprite and a three-quarter view. Conventions:
+1 unit = 1 game pixel, the nose up the screen (+Y in Blender), the origin at the sprite's centre.
+Materials take the colour an up-facing surface should show in the game, so sprite colours can be
+used directly. The export reverses the triangles' winding (`tools/blender/glb_winding.py`):
+BTBH takes clockwise triangles as the front of static models, glTF counter-clockwise; models
+from elsewhere need the same treatment once.
 
 ## Roadmap
 

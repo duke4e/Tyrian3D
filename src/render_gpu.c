@@ -1373,6 +1373,88 @@ static void add_star_batch(const L3DFrame *frame, const bool *composed, const Ca
 	*instance_count += count;
 }
 
+/* --- Environment ------------------------------------------------------------------------------ */
+
+// What the models are lit by besides the sun, and reflect (BTBH's procedural sky IBL): a light
+// sky above, a dark ground below. Neutral, so that the models' colours stay the sprites' colours.
+// Linear colours.
+static const float sky_top[3] = { 0.52f, 0.52f, 0.54f };
+static const float sky_horizon[3] = { 0.46f, 0.46f, 0.46f };
+static const float ground_horizon[3] = { 0.26f, 0.24f, 0.22f };
+static const float ground_bottom[3] = { 0.14f, 0.13f, 0.12f };
+
+// The sky's radiance in a direction, as the model shader computes it (sample_procedural_sky,
+// without the sun's disc; both gradient curves are 1).
+static void sky_radiance(const float d[3], float out[3])
+{
+	const float angle = acosf(SDL_clamp(d[1], -1.0f, 1.0f));
+	const float half_pi = (float)M_PI / 2;
+	const float t = d[1] >= 0 ? 1 - angle / half_pi : (angle - half_pi) / half_pi;
+	for (int c = 0; c < 3; ++c)
+		out[c] = d[1] >= 0 ? sky_horizon[c] + (sky_top[c] - sky_horizon[c]) * t
+		                   : ground_horizon[c] + (ground_bottom[c] - ground_horizon[c]) * t;
+}
+
+// The sky's irradiance in the shader's SH9 basis (evaluate_irradiance_sh): the radiance projected
+// onto the basis and convolved with the cosine lobe, divided by pi as the shader multiplies the
+// irradiance by the albedo directly.
+static void sky_irradiance_sh(float sh[27])
+{
+	memset(sh, 0, 27 * sizeof(float));
+	const int rows = 64, columns = 128;
+	const float band[9] = { 1, 2.0f / 3, 2.0f / 3, 2.0f / 3, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f };
+	for (int i = 0; i < rows; ++i)
+	{
+		const float theta = (float)M_PI * (i + 0.5f) / rows;
+		const float d_area = (float)(M_PI / rows) * (float)(2 * M_PI / columns) * sinf(theta);
+		for (int j = 0; j < columns; ++j)
+		{
+			const float phi = 2 * (float)M_PI * (j + 0.5f) / columns;
+			const float d[3] = { sinf(theta) * cosf(phi), cosf(theta), sinf(theta) * sinf(phi) };
+			const float x = d[0], y = d[1], z = d[2];
+			const float basis[9] = {
+				0.2820948f, 0.48860252f * y, 0.48860252f * z, 0.48860252f * x, 1.0925485f * x * y,
+				1.0925485f * y * z, 0.31539157f * (3 * z * z - 1), 1.0925485f * x * z, 0.54627424f * (x * x - y * y),
+			};
+			float radiance[3];
+			sky_radiance(d, radiance);
+			for (int k = 0; k < 9; ++k)
+				for (int c = 0; c < 3; ++c)
+					sh[k * 3 + c] += radiance[c] * basis[k] * d_area * band[k];
+		}
+	}
+}
+
+static void set_environment(BTBHGPUSceneLighting *lighting)
+{
+	static float sh[27];
+	static bool sh_ready = false;
+	if (!sh_ready)
+	{
+		sky_irradiance_sh(sh);
+		sh_ready = true;
+	}
+	lighting->ibl_enabled = 1;
+	memcpy(lighting->irradiance_sh, sh, sizeof(sh));
+	lighting->sky_top_red = sky_top[0];
+	lighting->sky_top_green = sky_top[1];
+	lighting->sky_top_blue = sky_top[2];
+	lighting->sky_horizon_red = sky_horizon[0];
+	lighting->sky_horizon_green = sky_horizon[1];
+	lighting->sky_horizon_blue = sky_horizon[2];
+	lighting->ground_horizon_red = ground_horizon[0];
+	lighting->ground_horizon_green = ground_horizon[1];
+	lighting->ground_horizon_blue = ground_horizon[2];
+	lighting->ground_bottom_red = ground_bottom[0];
+	lighting->ground_bottom_green = ground_bottom[1];
+	lighting->ground_bottom_blue = ground_bottom[2];
+	// Reflections of the sky stay dim: the sprites show highlights from the sun, not a mirrored
+	// sky, which would grey dark colours. (The irradiance above is the full sky's.)
+	lighting->sky_energy = lighting->ground_energy = 0.3f;
+	lighting->sky_horizon_curve = lighting->ground_horizon_curve = 1.0f;
+	lighting->sun_curve = 1.0f;  // the sun's disc is off (sun_energy 0): the directional light is the sun
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -1464,7 +1546,9 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_object_batches(frame, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 
-	// Models are lit by a sun and a cool ambient term; layers and volumetric sprites are unlit.
+	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
+	// strong against the sky, as in the sprites' own shading: lit from the upper left, with
+	// clear highlights and shadows.
 	BTBHGPUSceneLighting lighting = { 0 };
 	lighting.spot_falloff = 1.0f;
 	lighting.spot_inner_cutoff = 0.92388f;
@@ -1473,16 +1557,20 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	lighting.ambient_red = 0.55f;
 	lighting.ambient_green = 0.58f;
 	lighting.ambient_blue = 0.68f;
-	lighting.ambient_energy = 0.9f;
+	lighting.ambient_energy = 0.6f;
 	const float *sun = sun_direction;
 	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
 	lighting.directional_x = sun[0] / sun_length;
 	lighting.directional_y = sun[1] / sun_length;
 	lighting.directional_z = sun[2] / sun_length;
-	lighting.directional_energy = 2.6f;
+	lighting.directional_energy = 3.0f;
 	lighting.directional_red = 1.0f;
-	lighting.directional_green = 0.96f;
-	lighting.directional_blue = 0.88f;
+	lighting.directional_green = 0.98f;
+	lighting.directional_blue = 0.94f;
+	set_environment(&lighting);
+	const char *energies = SDL_getenv("TYR3D_LIGHTING");  // "<sun>,<sky>": overrides, for tuning
+	if (energies != NULL)
+		sscanf(energies, "%f,%f", &lighting.directional_energy, &lighting.ambient_energy);
 
 	BTBHGPUScenePost post = { 0 };
 	post.tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;

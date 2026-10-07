@@ -203,6 +203,7 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
 | `tools/sweep.sh`, `tools/levels.py` | Sweep svih razina (autopilot, godmode) i popis sekcija razina. |
 | `tools/catalog_html.py` | HTML katalog neprijatelja iz `TYR3D_EXTRACT` izvoza. |
 | `tools/modelkit/` | Stdlib Python: `.glb` writer i proceduralni oblici. |
+| `tools/blender/` | Blender pipeline: `tyrkit.py` (konvencije, materijali, loft, izvoz, pregledi), `glb_winding.py`, modeli u `models/` (npr. `ships/talon.py`). |
 | `tools/montage.py` | Slaže BMP dumpove u jedan PNG (samo stdlib; PIL nije instaliran). |
 
 ## 5. Izmjene u fork rendereru (branch `tyrian3d`, commit `bba9f4a`)
@@ -246,6 +247,8 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 - BTBH-ov lit put (PBR) dodaje ambijent ("multiple scattering") i spekular neovisno o albedu, pa
   tamne boje postaju sivkaste. Gdje boje moraju ostati vjerne (volumetrijski spriteovi), crta se
   unlit, a sjenčanje se peče u boje vertexa.
+- **Namotaj trokuta modela.** BTBH-ova scena uzima trokute u smjeru kazaljke na satu kao prednja lica statičkih modela, a normale stražnjih lica okreće. glTF koristi suprotan smjer, pa su svi modeli (i Kenney) bili osvijetljeni iznutra: sunce na njih nije djelovalo. `tools/blender/glb_winding.py` okreće namotaj (izvoz iz `tyrkit` to radi sam; Kenney modeli su okrenuti jednom). Pazi: Blender dijeli index buffer među meshovima iste topologije.
+- **Rasvjeta modela.** Sunce 3,0 i IBL proceduralno nebo (`set_environment`, SH9 irradijancija računata na CPU-u); refleksije neba su prigušene (0,3), jer bi tamne boje posivjele. Bez mape okoline metal je taman, zato su materijali uglavnom dielektrici. Ploha okrenuta gore dobiva oko 1,16× albedo (izmjereno testnim pločama); `tyrkit.material()` uzima boju kakva se vidi u igri.
 - BTBH nema UV po instanci (`uv_transform` je po batchu), zato tileovi pozadine idu u batch po ćeliji atlasa. Boja instance (`instance.color`) množi boju, što se koristi za tamnjenje.
 - Present mode je IMMEDIATE (nema vsynca). Tempo određuje vlastiti timer igre.
 - Readback BMP-a je RGBA; boje su provjerene.
