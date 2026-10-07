@@ -6,6 +6,7 @@
 #include "episodes.h"
 #include "keyboard.h"
 #include "layer3d.h"
+#include "lvllib.h"
 #include "lvlmast.h"
 #include "models3d.h"
 #include "opentyr.h"
@@ -28,6 +29,8 @@ typedef struct
 	unsigned int sprite;  // as blit_sprite2x2 (large) or blit_sprite2 takes it
 	bool large;
 	M3DAppearance look;
+	int frame_count;      // enemies: their animation (frames[0] is sprite)
+	unsigned int frames[20];
 } Entry;
 
 static bool seen_before(const Entry *entries, int count, const Sprite2_array *sheet, unsigned int sprite)
@@ -53,6 +56,66 @@ static int ship_entries(Entry *entries)
 		const unsigned int sprite = graphic > 500 ? graphic - 500 : graphic;
 		if (!seen_before(entries, count, sheet, sprite))
 			entries[count++] = (Entry){ sheet, sprite, true, m3d_ship_appearance(id) };
+	}
+	return count;
+}
+
+// The enemy types models.cfg gives a model of their own ("sprite" lines), each with its
+// animation as the first episode using it defines it.
+static int enemy_entries(Entry *entries)
+{
+	static Sprite2_array sheets[8];
+	static char sheet_letters[8];
+	int sheet_count = 0;
+
+	int count = 0;
+	for (int r = 0; r < m3d_sprite_rule_count() && count < MAX_ENTRIES; ++r)
+	{
+		char letter;
+		unsigned int first;
+		M3DAppearance look;
+		m3d_sprite_rule(r, &letter, &first, &look);
+		if (look.model < 0)
+			continue;
+
+		// The enemy type: its size and frames.
+		bool found = false;
+		Entry e = { .sprite = first, .look = look };
+		for (int episode = 1; episode <= EPISODE_MAX && !found; ++episode)
+		{
+			if (!episodeAvail[episode - 1])
+				continue;
+			JE_initEpisode((JE_byte)episode);
+			for (int id = 1; id <= ENEMY_NUM && !found; ++id)
+			{
+				const int bank = enemyDat[id].shapebank;
+				if (bank < 1 || bank > (int)COUNTOF(shapeFile) || shapeFile[bank - 1] != letter ||
+				    enemyDat[id].egraphic[0] != first)
+					continue;
+				found = true;
+				e.large = enemyDat[id].esize == 1;
+				e.frame_count = SDL_max(1, SDL_min(enemyDat[id].ani, 20));
+				for (int k = 0; k < e.frame_count; ++k)
+					e.frames[k] = enemyDat[id].egraphic[k] != 0 ? enemyDat[id].egraphic[k] : first;
+			}
+		}
+		if (!found)
+			continue;
+
+		// Its shape file, loaded once.
+		int s = 0;
+		while (s < sheet_count && sheet_letters[s] != letter)
+			++s;
+		if (s == sheet_count)
+		{
+			if (sheet_count == (int)COUNTOF(sheets))
+				continue;
+			JE_loadCompShapes(&sheets[s], letter);
+			sheet_letters[s] = letter;
+			++sheet_count;
+		}
+		e.sheet = &sheets[s];
+		entries[count++] = e;
 	}
 	return count;
 }
@@ -98,9 +161,11 @@ void dev_model_viewer(const char *what)
 		count = ship_entries(entries);
 	else if (strcmp(what, "sidekicks") == 0)
 		count = sidekick_entries(entries);
+	else if (strcmp(what, "enemies") == 0)
+		count = enemy_entries(entries);
 	if (count == 0)
 	{
-		fprintf(stderr, "warning: TYR3D_VIEWER: nothing to show for '%s' (try 'ships' or 'sidekicks')\n", what);
+		fprintf(stderr, "warning: TYR3D_VIEWER: nothing to show for '%s' (try 'ships', 'sidekicks' or 'enemies')\n", what);
 		return;
 	}
 
@@ -141,15 +206,21 @@ void dev_model_viewer(const char *what)
 			const int half_w = e->large ? 12 : 6, half_h = e->large ? 14 : 7;
 			const int x = left + (i % columns) * pair_w + cell_w / 2 + 5;
 			const int y = top + (i / columns) * row_h + cell_h / 2 + 6;
-			const float turn = e->look.yaw + yaw + spin * frame;
+			// Enemies animate as in the game, a frame every few ticks; models turn or roll with it.
+			const int k = e->frame_count > 1 ? (int)(frame / 4) % e->frame_count : 0;
+			const unsigned int sprite = e->frame_count > 1 ? e->frames[k] : e->sprite;
+			float turn = e->look.yaw + yaw + spin * frame;
+			if (e->look.yaw_mode == M3D_YAW_FRAMES)
+				turn += k * e->look.yaw_step;
+			const float model_roll = roll + k * e->look.roll_step;
 
 			if (e->look.model >= 0)
-				l3d_add_object(e->look.model, x, y, e->look.height, turn, roll, 0);
+				l3d_add_object(e->look.model, x, y, e->look.height, turn, model_roll, 0);
 			else if (e->look.model != M3D_VOLUME ||
-			         !l3d_add_volume(e->sheet, e->sprite, e->large, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0))
-				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x - half_w, y - half_h, *e->sheet, e->sprite);
+			         !l3d_add_volume(e->sheet, sprite, e->large, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0))
+				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x - half_w, y - half_h, *e->sheet, sprite);
 
-			(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x + cell_w + 4 - half_w, y - half_h, *e->sheet, e->sprite);
+			(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x + cell_w + 4 - half_w, y - half_h, *e->sheet, sprite);
 		}
 
 		l3d_frame_end();

@@ -3,7 +3,8 @@
  *
  * TYR3D_VIEWER=ships shows each player ship's 3D appearance (as models.cfg gives it) beside its
  * sprite, in rows, in the 3D view with the levels' palette and lighting; TYR3D_VIEWER=sidekicks
- * does the same for the sidekicks. It runs until Escape (or TYR3D_EXIT_AFTER frames, with
+ * does the same for the sidekicks, and TYR3D_VIEWER=enemies for the enemy types models.cfg gives
+ * a model of their own, animated as in the game. It runs until Escape (or TYR3D_EXIT_AFTER frames, with
  * TYR3D_DUMP_DIR for captures), then exits.
  *
  *   TYR3D_VIEWER_YAW=<degrees>   turn the models (default 0: as in the game)

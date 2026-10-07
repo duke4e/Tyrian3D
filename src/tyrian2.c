@@ -256,7 +256,8 @@ static bool draw_enemy_model(unsigned int i)
 		break;
 	}
 
-	return l3d_add_object(look.model, x, y, look.height, yaw, 0.0f, enemy[i].filter);
+	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
+	return l3d_add_object(look.model, x, y, look.height, yaw, roll, enemy[i].filter);
 }
 
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing

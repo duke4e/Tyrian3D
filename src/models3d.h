@@ -42,6 +42,7 @@ typedef struct
 	float yaw_step;     // degrees per animation frame, for M3D_YAW_FRAMES
 	float height;       // added to the layer's height, game pixels
 	bool banking;       // player ships: roll with the banking sprite
+	float roll_step;    // degrees of roll per animation frame (the animation is a roll), or 0
 } M3DAppearance;
 
 extern bool m3d_enabled;  // appearances other than M3D_SPRITE are used (toggled at runtime)
@@ -62,5 +63,9 @@ M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool l
 M3DAppearance m3d_ship_appearance(unsigned int ship_id);
 // Appearance of a sidekick (option id as in the shop, 1-based).
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
+
+// The "sprite" lines of models.cfg (one enemy type each), for the model viewer.
+int m3d_sprite_rule_count(void);
+void m3d_sprite_rule(int i, char *sheet, unsigned int *first_sprite, M3DAppearance *appearance);
 
 #endif /* MODELS3D_H */

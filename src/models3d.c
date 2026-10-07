@@ -129,6 +129,15 @@ static bool parse_option(const char *token, M3DAppearance *a)
 		}
 		return true;
 	}
+	if (key_length == 4 && strncmp(token, "roll", 4) == 0 && strncmp(value, "frames:", 7) == 0)
+	{
+		// frames:<count>[:ccw]: the animation is a roll about the nose, a full turn in count frames
+		const int count = atoi(value + 7);
+		a->roll_step = count > 0 ? 360.0f / count : 0.0f;
+		if (strstr(value, ":ccw") != NULL)
+			a->roll_step = -a->roll_step;
+		return true;
+	}
 	if (key_length == 6 && strncmp(token, "height", 6) == 0)
 	{
 		a->height = option_float(value, 0.0f);
@@ -379,4 +388,16 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
 {
 	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
+}
+
+int m3d_sprite_rule_count(void)
+{
+	return override_count;
+}
+
+void m3d_sprite_rule(int i, char *sheet, unsigned int *first_sprite, M3DAppearance *appearance)
+{
+	*sheet = overrides[i].sheet;
+	*first_sprite = overrides[i].sprite;
+	*appearance = overrides[i].appearance;
 }
