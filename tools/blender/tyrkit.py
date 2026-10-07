@@ -155,6 +155,40 @@ def profile(points, step=0.5):
     return out
 
 
+def slab(name, outline, z0, z1, mat=None, bevel_width=0.0, bevel_segments=2):
+    """A flat part (wing, fin, plate): the polygon `outline` [(x, y), ...] in the XY plane,
+    counter-clockwise seen from above, extruded from z0 to z1. Outlines may be concave."""
+    bm = bmesh.new()
+    bottom = [bm.verts.new((x, y, z0)) for x, y in outline]
+    face = bm.faces.new(bottom)
+    bmesh.ops.reverse_faces(bm, faces=[face])  # the bottom faces down
+    result = bmesh.ops.extrude_face_region(bm, geom=[face])
+    top = [e for e in result["geom"] if isinstance(e, bmesh.types.BMVert)]
+    bmesh.ops.translate(bm, verts=top, vec=(0, 0, z1 - z0))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bmesh.ops.triangulate(bm, faces=bm.faces, quad_method="BEAUTY", ngon_method="BEAUTY")
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    if mat is not None:
+        obj.data.materials.append(mat)
+    if bevel_width > 0:
+        bevel(obj, bevel_width, bevel_segments)
+    return obj
+
+
+def lathe(name, profile_points, mat=None, segments=24, axis_x=0.0, axis_z=0.0, squash=1.0):
+    """A round part (pod, bottle, nozzle) turned around an axis along Y: profile_points are
+    (y, radius) pairs in increasing y; squash scales the height (z) of the cross-sections."""
+    rings = [ring(y, r, r * squash, segments, z=axis_z, x=axis_x) for y, r in profile_points if r > 0]
+    first, last = profile_points[0], profile_points[-1]
+    return loft(name, rings, mat,
+                start_point=(axis_x, first[0], axis_z) if first[1] > 0 else (axis_x, first[0], axis_z),
+                end_point=(axis_x, last[0], axis_z))
+
+
 def box(name, centre, size, mat=None):
     hx, hy, hz = (s / 2 for s in size)
     cx, cy, cz = centre
@@ -261,9 +295,56 @@ def preview(prefix, size=(24, 28), scale=16):
     bpy.ops.render.render(write_still=True)
 
 
+def sprite_mask(sheet, index, large=True):
+    """Coverage of a sprite in a sheet exported by TYR3D_EXTRACT: rows of bools."""
+    from sprite_profile import sprite_pixels
+    return [[p is not None for p in row] for row in sprite_pixels(sheet, index, large)]
+
+
+def check_silhouette(sheet, index, large=True, supersample=4):
+    """Renders the model's top view at the sprite's resolution and compares it with the sprite's
+    silhouette: prints the overlap (intersection over union) and a map where '#' is covered by
+    both, '+' by the model only and '-' by the sprite only."""
+    mask = sprite_mask(sheet, index, large)
+    h, w = len(mask), len(mask[0])
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.film_transparent = True
+    scene.render.resolution_x, scene.render.resolution_y = w * supersample, h * supersample
+    scene.render.resolution_percentage = 100
+    cam = _camera("silhouette", (0, 0, 100), (0, 0, 0), ortho_scale=max(w, h))
+    scene.camera = cam
+    path = os.path.join(bpy.app.tempdir or "/tmp", "tyrkit_silhouette.png")
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    image = bpy.data.images.load(path)
+    rw, rh = image.size
+    pixels = list(image.pixels)
+    covered = [[False] * w for _ in range(h)]
+    for y in range(h):
+        for x in range(w):
+            alpha = 0.0
+            for sy in range(supersample):
+                for sx in range(supersample):
+                    px, py = x * supersample + sx, rh - 1 - (y * supersample + sy)  # images are bottom-up
+                    alpha += pixels[(py * rw + px) * 4 + 3]
+            covered[y][x] = alpha / supersample ** 2 > 0.5
+    both = sum(covered[y][x] and mask[y][x] for y in range(h) for x in range(w))
+    either = sum(covered[y][x] or mask[y][x] for y in range(h) for x in range(w))
+    print("silhouette overlap: %.3f" % (both / max(either, 1)))
+    for y in range(h):
+        print("".join("#" if covered[y][x] and mask[y][x] else "+" if covered[y][x] else "-" if mask[y][x] else "."
+                      for x in range(w)))
+    bpy.data.objects.remove(cam)
+    return both / max(either, 1)
+
+
 def finish(default_out):
     """Exports to --out (or default_out) and renders previews if --preview is given."""
     options = args()
+    if "check" in options:  # --check <sheet.png>:<sprite index>
+        sheet, index = options["check"].rsplit(":", 1)
+        check_silhouette(sheet, int(index))
     export(options.get("out", default_out))
     if "preview" in options:
         preview(options["preview"])

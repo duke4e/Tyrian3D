@@ -95,6 +95,9 @@ bool dev_start_game(void)
 	difficultyLevel = DIFFICULTY_NORMAL;
 	initialDifficulty = difficultyLevel;
 	player[0].cash = 10000;
+	const char *ship = SDL_getenv("TYR3D_SHIP");  // ship id as in the shop (1-18)
+	if (ship != NULL)
+		player[0].items.ship = (JE_byte)SDL_atoi(ship);
 
 	constantPlay = true;  // skip shops: they jump straight to the next level
 	mainLevel = (JE_byte)section;
@@ -102,6 +105,11 @@ bool dev_start_game(void)
 
 	printf("devtools: starting episode %d at section %d\n", episode, section);
 	return true;
+}
+
+bool dev_background_run(void)
+{
+	return SDL_getenv("TYR3D_WINDOWED") != NULL;
 }
 
 bool dev_godmode(void)

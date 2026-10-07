@@ -11,6 +11,8 @@
  *                        shops are skipped
  *   TYR3D_AUTOPILOT      the player ship weaves across the screen and fires constantly
  *   TYR3D_GODMODE        the player takes no damage
+ *   TYR3D_WINDOWED       run in a window in the corner of the screen without taking the focus
+ *                        (and without pausing for the lack of it); tools/capture_run.sh sets it
  */
 #ifndef DEVTOOLS_H
 #define DEVTOOLS_H
@@ -23,6 +25,9 @@ Uint32 dev_demo_idle_ms(void);
 bool dev_start_game(void);
 
 bool dev_godmode(void);
+
+// True for TYR3D_WINDOWED runs, which keep playing without the window's focus.
+bool dev_background_run(void);
 
 // Autopilot steering for one player; adds to the movement and buttons for this frame.
 bool dev_autopilot(void);

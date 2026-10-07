@@ -228,7 +228,9 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 - Za određenu razinu: `TYR3D_START=1:3 TYR3D_AUTOPILOT=1 TYR3D_GODMODE=1` (sekcije daje `tools/levels.py`; Timed Battle sekcije nisu na popisu, jer bez pripreme tog načina igre vise).
 - Sve razine: `tools/sweep.sh <dir> [epizoda...]`, contact sheet po razini (oko 40 minuta za 68 razina na 4K prozoru). Zadnji sweep (2026-10-07): sve razine rade, bez rušenja.
 - `TYR3D_BACKGROUNDS=13` crta tileove samo za navedene pozadine, za izoliranje grešaka.
-- U 3D modu frameovi se snimaju GPU readbackom u punoj rezoluciji prozora (na ovom stroju 3840×2160).
+- Skripta postavlja i `TYR3D_WINDOWED=1`: igra radi u malom prozoru u donjem desnom kutu, ne uzima fokus i ne pauzira bez njega, pa ne smeta korisniku dok radi. Nikad ne pokreći testove u fullscreenu. (Skriveni prozor ne radi: bez prikazanog prozora nema swapchaina.)
+- U 3D modu frameovi se snimaju GPU readbackom u punoj rezoluciji prozora (prozor 3x je 960×600 točaka, na Retini 1920×1200).
+- `TYR3D_SHIP=<1-18>` uz `TYR3D_START` bira brod (brojevi kao u shopu).
 - Ne pokreći dvije instance igre istovremeno (sweep i ručni capture se ne smiju preklapati).
 - Pretvorba u PNG: `sips -s format png -Z 1000 frame_000600.bmp --out f.png`, ili `tools/montage.py`.
 - Koristi novi izlazni direktorij za svaki run. Sigurnosna provjera blokira `rm` s varijablom u putanji.

@@ -97,6 +97,10 @@ void init_video(void)
 	if (SDL_WasInit(SDL_INIT_VIDEO))
 		return;
 
+	// Tyrian3D dev runs in the background: on macOS the game doesn't become the active application.
+	if (dev_background_run())
+		SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
+
 	if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
 	{
 		fprintf(stderr, "error: failed to initialize SDL video: %s\n", SDL_GetError());
@@ -120,7 +124,21 @@ void init_video(void)
 
 	main_window = rgpu_init(opentyrian_str, scalers[scaler].width, scalers[scaler].height);
 
-	reinit_fullscreen(fullscreen_display);
+	// Tyrian3D dev runs (tools/capture_run.sh): TYR3D_WINDOWED keeps them in a window in the corner
+	// of the screen, whatever the configuration says, without taking the focus. (A hidden window
+	// gets no frames to render to.)
+	const bool windowed = dev_background_run();
+	const int configured_display = fullscreen_display;
+	reinit_fullscreen(windowed ? -1 : fullscreen_display);
+	if (windowed)
+	{
+		fullscreen_display = configured_display;  // so the configuration is saved unchanged
+		SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+		SDL_Rect usable;
+		if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
+			SDL_SetWindowPosition(main_window, usable.x + usable.w - scalers[scaler].width - 16,
+			                      usable.y + usable.h - scalers[scaler].height - 16);
+	}
 
 	SDL_ShowWindow(main_window);
 

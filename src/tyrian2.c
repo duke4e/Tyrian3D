@@ -2337,7 +2337,7 @@ draw_player_shot_loop_end:
 				goto level_loop;
 		}
 
-		if (pause_pressed || !windowHasFocus)
+		if (pause_pressed || (!windowHasFocus && !dev_background_run()))
 		{
 			pause_pressed = false;
 

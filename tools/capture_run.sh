@@ -7,7 +7,8 @@ shift 3 2>/dev/null || shift $#
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$OUT"
 cd "$ROOT/build/game"
-env TYR3D_DEMO_IDLE_MS="${TYR3D_DEMO_IDLE_MS:-300}" TYR3D_DUMP_DIR="$OUT" TYR3D_DUMP_EVERY="$EVERY" TYR3D_EXIT_AFTER="$FRAMES" "$@" ./tyrian3d > "$OUT/log.txt" 2>&1 &
+# In a window in the corner of the screen, without taking the focus (TYR3D_WINDOWED).
+env TYR3D_WINDOWED=1 TYR3D_DEMO_IDLE_MS="${TYR3D_DEMO_IDLE_MS:-300}" TYR3D_DUMP_DIR="$OUT" TYR3D_DUMP_EVERY="$EVERY" TYR3D_EXIT_AFTER="$FRAMES" "$@" ./tyrian3d > "$OUT/log.txt" 2>&1 &
 PID=$!
 i=0
 while [ $i -lt 120 ] && kill -0 $PID 2>/dev/null; do sleep 1; i=$((i+1)); done

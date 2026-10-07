@@ -38,3 +38,4 @@ tyrian.sav
 
 # CMake build output
 /build/
+__pycache__/
