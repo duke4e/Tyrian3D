@@ -520,6 +520,17 @@ void mapWindowPointToScreen(Sint32 *const inout_x, Sint32 *const inout_y)
 	*inout_y = (2 * (*inout_y - last_output_rect.y) + 1) * VGAScreen->h / (2 * last_output_rect.h);
 }
 
+void video_window_points_per_pixel(float *x, float *y)
+{
+	if (last_frame_was_3d)
+	{
+		*x = *y = rgpu_playfield_scale();
+		return;
+	}
+	*x = (float)last_output_rect.w / VGAScreen->w;
+	*y = (float)last_output_rect.h / VGAScreen->h;
+}
+
 /** Scales a distance in window coordinates to game screen coordinates. */
 void scaleWindowDistanceToScreen(Sint32 *const inout_x, Sint32 *const inout_y)
 {

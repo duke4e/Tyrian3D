@@ -308,6 +308,15 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 		*vy = dy;
 }
 
+bool l3d_key_seen(Uint32 key)
+{
+	Uint32 slot = (key * 2654435761u) % MOTION_SLOTS;
+	for (int probe = 0; probe < 16; ++probe, slot = (slot + 1) % MOTION_SLOTS)
+		if (motion[slot].key == key)
+			return motion[slot].frame + 1 >= l3d_frame_number;
+	return false;
+}
+
 bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key)
 {
 	if (!l3d_capturing || !m3d_enabled)

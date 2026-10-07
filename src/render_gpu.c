@@ -810,9 +810,59 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 #define BACKGROUND_AHEAD 640.0f
 #define BACKGROUND_FADE 160.0f
 
-// The part of the horizontal plane at the given height that the window shows (the playfield
-// and everything around it), as a rectangle {x0, z0, x1, z1} in game screen coordinates.
-static void plane_footprint(const Camera3D *camera, float height, float rect[4])
+/*
+ * Layer alignment. The game draws every layer in the same screen coordinates, but in the view the
+ * layers are planes at different heights, and with perspective the same position would be seen
+ * at different places on different layers: a turret's shots and its explosion away from the
+ * turret, a ground enemy's shadow off its sprite. So each plane is scaled about the point below
+ * the camera by its distance from the camera relative to the player's plane: a position on any
+ * layer is seen where the same position on the player's plane is, as in the game. Objects scale
+ * with the plane they stand on, so they keep their sprites' size; depth still decides what is in
+ * front, and light and shadows are 3D. TYR3D_LAYER_PARALLAX=1 shows the planes unscaled.
+ */
+static struct
+{
+	bool on;
+	float cx, cy, cz;  // the camera's position
+	float reference;   // the player's plane's height
+} align;
+
+static void set_alignment(const Camera3D *camera, float reference_height)
+{
+	static int parallax = -1;
+	if (parallax < 0)
+		parallax = SDL_getenv("TYR3D_LAYER_PARALLAX") != NULL && SDL_atoi(SDL_getenv("TYR3D_LAYER_PARALLAX")) != 0;
+	align.on = !parallax;
+	align.cx = camera->position[0];
+	align.cy = camera->position[1];
+	align.cz = camera->position[2];
+	align.reference = reference_height;
+}
+
+// How much larger the plane at the given height is drawn.
+static float align_scale(float height)
+{
+	return align.on ? (align.cy - height) / (align.cy - align.reference) : 1.0f;
+}
+
+// The transform of something standing on the plane at its translation's height, aligned.
+static Mat4 aligned(const Mat4 *transform)
+{
+	const float height = transform->m[13];
+	const float k = align_scale(height);
+	if (k == 1.0f)
+		return *transform;
+	Mat4 a = mat4_identity();
+	a.m[0] = a.m[5] = a.m[10] = k;
+	a.m[12] = align.cx * (1 - k);
+	a.m[13] = height * (1 - k);
+	a.m[14] = align.cz * (1 - k);
+	return mat4_mul(&a, transform);
+}
+
+// The part of the horizontal plane at the given height that the window shows, in world
+// coordinates, as far as the given z.
+static void plane_footprint_world(const Camera3D *camera, float height, float far_z, float rect[4])
 {
 	rect[0] = rect[1] = INFINITY;
 	rect[2] = rect[3] = -INFINITY;
@@ -830,16 +880,30 @@ static void plane_footprint(const Camera3D *camera, float height, float rect[4])
 		if (ray[1] < -1e-6f)
 			s = (height - camera->position[1]) / ray[1];
 		else if (ray[2] < -1e-6f)
-			s = (-BACKGROUND_AHEAD - camera->position[2]) / ray[2];
+			s = (far_z - camera->position[2]) / ray[2];
 		else
 			continue;
 		const float x = camera->position[0] + ray[0] * s;
-		const float z = SDL_max(camera->position[2] + ray[2] * s, -BACKGROUND_AHEAD);
+		const float z = SDL_max(camera->position[2] + ray[2] * s, far_z);
 		rect[0] = SDL_min(rect[0], x);
 		rect[1] = SDL_min(rect[1], z);
 		rect[2] = SDL_max(rect[2], x);
 		rect[3] = SDL_max(rect[3], z);
 	}
+}
+
+// The part of the horizontal plane at the given height that the window shows (the playfield
+// and everything around it), as a rectangle {x0, z0, x1, z1} in game screen coordinates.
+static void plane_footprint(const Camera3D *camera, float height, float rect[4])
+{
+	const float k = align_scale(height);
+	plane_footprint_world(camera, height, align.cz + (-BACKGROUND_AHEAD - align.cz) * k, rect);
+	if (k == 1.0f || rect[0] > rect[2])
+		return;
+	rect[0] = align.cx + (rect[0] - align.cx) / k;
+	rect[2] = align.cx + (rect[2] - align.cx) / k;
+	rect[1] = align.cz + (rect[1] - align.cz) / k;
+	rect[3] = align.cz + (rect[3] - align.cz) / k;
 }
 
 // Palette colours for this frame, with JE_filterScreen applied as a palette-index remap.
@@ -1174,6 +1238,16 @@ void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const 
 	ahead = 0;
 }
 
+float rgpu_playfield_scale(void)
+{
+	int w = 0, h = 0;
+	SDL_GetWindowSize(btbh_gpu_window_sdl_window(window), &w, &h);
+	const SDL_Rect none = { 0, 0, 0, 0 };
+	const Layout3D layout = layout_3d((float)w, (float)h, &none);
+	const float scale = layout.playfield[2] / L3D_PLAYFIELD_W;
+	return scale > 0 ? scale : 1;
+}
+
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	static Uint64 total_ticks = 0;
@@ -1268,12 +1342,20 @@ static LoadedModel *get_model(int index)
 	return loaded->gpu != NULL ? loaded : NULL;
 }
 
-static void write_instance(float *instance, const Mat4 *transform, float brightness)
+// An instance at world coordinates.
+static void write_instance_world(float *instance, const Mat4 *transform, float brightness)
 {
 	memcpy(instance, transform->m, 16 * sizeof(float));
 	instance[16] = instance[17] = instance[18] = brightness;
 	instance[19] = 1;
 	instance[20] = instance[21] = instance[22] = instance[23] = 0;
+}
+
+// An instance at game coordinates on its plane (aligned, see align).
+static void write_instance(float *instance, const Mat4 *transform, float brightness)
+{
+	const Mat4 world = aligned(transform);
+	write_instance_world(instance, &world, brightness);
 }
 
 static void init_batch(BTBHGPUSceneGeometryBatch *b)
@@ -2018,7 +2100,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 	{
 		const float height = ground - deep_star_layers[k].depth * rgpu_camera.height_scale;
 		float rect[4];
-		plane_footprint(camera, height, rect);
+		plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
 		if (rect[0] > rect[2] || rect[1] >= rect[3])
 			continue;
 		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
@@ -2036,7 +2118,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 			transform.m[13] = height;
 			transform.m[14] = z - scale / 2;
 			float *instance = instances + *instance_count * 24;
-			write_instance(instance, &transform, 1.0f);
+			write_instance_world(instance, &transform, 1.0f);
 
 			const float shade = SDL_clamp(deep_star_layers[k].brightness + 0.35f * (hash_unit(seed + 3) - 0.5f), 0.2f, 1.0f);
 			const float twinkle = 0.8f + 0.2f * sinf(twinkle_time * (1.5f + 3.0f * hash_unit(seed + 2)) + 6.28f * hash_unit(seed + 3));
@@ -2311,7 +2393,7 @@ static bool shadows_enabled(void)
 static void shadow_view_projection(const Camera3D *camera, float out[16])
 {
 	float rect[4];
-	plane_footprint(camera, 0.0f, rect);
+	plane_footprint_world(camera, 0.0f, -BACKGROUND_AHEAD, rect);
 	rect[0] = SDL_max(rect[0], L3D_PLAYFIELD_X - SHADOW_REACH_SIDE);
 	rect[2] = SDL_min(rect[2], L3D_PLAYFIELD_X + L3D_PLAYFIELD_W + SHADOW_REACH_SIDE);
 	rect[1] = SDL_max(rect[1], -SHADOW_REACH_UP);
@@ -2468,6 +2550,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	}
 
 	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down);
+	set_alignment(&camera, reference_height);
 
 	int instance_count = 0;
 	int batch_count = 0;

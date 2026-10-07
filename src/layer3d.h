@@ -188,6 +188,8 @@ void l3d_ghost_last_object(void);
 // the frames it shows between the game's ticks. Jumps (a slot taken by a new enemy) count as no
 // motion. Returns the velocity, which a glow belonging to the object can take too.
 void l3d_key_last_object(Uint32 key, float *vx, float *vy);
+// Whether an object had the key in the last frame (or has it in this one).
+bool l3d_key_seen(Uint32 key);
 
 // Key ranges (an enemy slot, shot index and the like is added).
 #define L3D_KEY_ENEMY      0x10000u

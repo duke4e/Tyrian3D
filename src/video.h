@@ -96,5 +96,7 @@ bool video_handle_key(SDL_Scancode scancode);  // presents the captured 3D layer
 void mapScreenPointToWindow(Sint32 *inout_x, Sint32 *inout_y);
 void mapWindowPointToScreen(Sint32 *inout_x, Sint32 *inout_y);
 void scaleWindowDistanceToScreen(Sint32 *inout_x, Sint32 *inout_y);
+// Window points per screen pixel as the screen is shown now (in the 3D view, the playfield's).
+void video_window_points_per_pixel(float *x, float *y);
 
 #endif /* VIDEO_H */

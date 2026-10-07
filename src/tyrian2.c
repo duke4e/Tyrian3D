@@ -305,49 +305,57 @@ static bool draw_enemy_model(unsigned int i)
  * makes an enemy only when the map scrolls to its event, on a line just above the screen. So that
  * enemies don't pop up on that line, the events of the next stretch of map are shown ahead of
  * time: each enemy where it would be now had it existed, moving towards where it will appear
- * (carried by its layer's scroll and its own speed, as JE_drawEnemy moves it). Only shown; it reads
+ * (carried by its layer's scroll and its own speed, as JE_drawEnemy moves it). Enemies the events
+ * make below the screen, rising, are shown coming from below the same way. Only shown; it reads
  * the events and touches nothing (no random numbers either: enemies placed at random are left out).
  */
 #define COMING_KEY 0x50000u
-#define COMING_FAR (-260)  // game pixels: the furthest row worth showing
+#define COMING_FAR (-260)    // game pixels: the furthest row worth showing above the screen
+#define COMING_BELOW 330     // and below it
 
-static void draw_coming_enemy(int event, Uint16 eDatI, int ex, int ey, int dx, int dy, int ticks, int map_x_ofs)
+typedef struct
 {
-	if (eDatI == 0 || eDatI > ENEMY_NUM || ticks <= 0)
+	int shapebank;
+	unsigned int graphic;
+	bool large;
+} ComingLook;
+
+static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, float dx, float dy, float ticks, int map_x_ofs,
+                              bool from_below)
+{
+	if (ticks < 0)
 		return;
-	const int x_now = ex - dx * ticks, y_now = ey - dy * ticks;
-	if (y_now >= -28 || y_now < COMING_FAR)
+	const float x_now = ex - dx * ticks, y_now = ey - dy * ticks;
+	if (from_below ? y_now > COMING_BELOW : y_now < COMING_FAR)
 		return;
 
-	const __typeof__(enemyDat[0]) *dat = &enemyDat[eDatI];
 	Sprite2_array *sheet = NULL;
-	if (dat->shapebank == 21)
+	if (what.shapebank == 21)
 		sheet = &spriteSheet11;
-	else if (dat->shapebank == 26)
+	else if (what.shapebank == 26)
 		sheet = &spriteSheet10;
 	else
 		for (size_t i = 0; i < COUNTOF(enemySpriteSheetIds); ++i)
-			if (dat->shapebank == enemySpriteSheetIds[i] && enemySpriteSheets[i].data != NULL)
+			if (what.shapebank == enemySpriteSheetIds[i] && enemySpriteSheets[i].data != NULL)
 				sheet = &enemySpriteSheets[i];
-	if (sheet == NULL || dat->egraphic[0] == 0 || dat->egraphic[0] == 999)
+	if (sheet == NULL || what.graphic == 0 || what.graphic == 999)
 		return;
 
-	const bool large = dat->esize == 1;
 	const float x = x_now + map_x_ofs + 6, y = y_now + 7;
-	const M3DAppearance look = m3d_enemy_appearance(enemy_sheet_letter(sheet), dat->egraphic[0], large, l3d_current_layer());
+	const M3DAppearance look = m3d_enemy_appearance(enemy_sheet_letter(sheet), what.graphic, what.large, l3d_current_layer());
 	bool added;
 	if (look.model >= 0)
-		added = l3d_add_object(look.model, x, y, look.height, look.yaw_mode == M3D_YAW_FRAMES ? look.yaw : look.yaw, 0.0f, 0);
+		added = l3d_add_object(look.model, x, y, look.height, look.yaw, 0.0f, 0);
 	else if (look.model == M3D_VOLUME)
 	{
 		const bool ground = l3d_current_layer() == L3D_GROUND_ENEMY;
-		added = l3d_add_volume(sheet, dat->egraphic[0], large, ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y,
+		added = l3d_add_volume(sheet, what.graphic, what.large, ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y,
 		                       ground ? 0.3f - l3d_layer_height(L3D_GROUND_ENEMY) : look.height, 0.0f, 0.0f, 0);
 	}
 	else
 		return;
 	if (added)
-		l3d_key_last_object(COMING_KEY + (Uint32)event * 4 + (Uint32)(eDatI & 3), NULL, NULL);
+		l3d_key_last_object(key, NULL, NULL);
 }
 
 // enemy_offset: the slots of the layer being drawn (0 sky, 25 and 75 ground, 50 top).
@@ -355,21 +363,41 @@ static void draw_coming_enemies(int enemy_offset)
 {
 	if (!l3d_capturing || !m3d_enabled || endLevel)
 		return;
-	// How far the events move on a tick, and how far the layer carries its enemies.
-	const int event_step = backMove > 0 && map1YDelayMax <= 1 ? backMove : forceEvents ? 1 : 0;
-	if (event_step == 0)
+	// How far the events move on a tick (on slowly scrolling maps the map moves a pixel every few
+	// ticks: the next time in map1YDelay ticks), and how far the layer carries its enemies.
+	const bool slow = map1YDelayMax > 1 && backMove < 2;
+	int event_step;
+	float ground_rate;
+	if (slow)
+	{
+		event_step = 1;
+		ground_rate = 1.0f / map1YDelayMax;
+	}
+	else if (backMove > 0)
+		ground_rate = event_step = backMove;
+	else if (forceEvents)
+	{
+		event_step = 1;
+		ground_rate = 0;
+	}
+	else
 		return;
-	const int carried = enemy_offset == 0 ? 0 : enemy_offset == 50 ? backMove3 : backMove;
+	const float carried = enemy_offset == 0 ? 0 : enemy_offset == 50 ? backMove3 : ground_rate;
 	const int map_x_ofs = enemy_offset == 0 ? mapX2Ofs : enemy_offset == 50 ? (background3x1 == 0 ? oldMapX3Ofs : mapXOfs) : mapXOfs;
 
 	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
 	{
 		const struct JE_EventRecType *ev = &eventRec[e];
-		const int ticks = ((int)ev->eventtime - (int)curLoc + event_step - 1) / event_step;
+		// The event happens in `ticks` + 1 ticks (events happen when the map has moved, before the
+		// enemies are drawn), and the enemy is first drawn a tick's movement from where it is made.
+		const int moves = ((int)ev->eventtime - (int)curLoc + event_step - 1) / event_step;
+		const float ticks = (slow ? map1YDelay + (moves - 1) * map1YDelayMax : moves) - 1;
 		if (ticks > 400)
 			break;
 
-		int offset = -1, parts = 1;
+		// The slots the event's enemies take, how many (a 2x2 group), and where they appear.
+		int offset = -1, parts = 1, bottom_y = 0;
+		bool custom = false;  // events 49-52: enemy 0 with the event's sprite
 		switch (ev->eventtype)
 		{
 		case 6:  offset = 25; break;
@@ -380,6 +408,15 @@ static void draw_coming_enemies(int enemy_offset)
 			parts = 4;
 			offset = ev->eventdat6 <= 1 ? 25 : ev->eventdat6 == 2 ? 0 : ev->eventdat6 == 3 ? 50 : 75;
 			break;
+		case 17: offset = 25; bottom_y = 190 + ev->eventdat5; break;
+		case 18: offset = 0;  bottom_y = 190 + ev->eventdat5; break;
+		case 23: offset = 50; bottom_y = 180 + ev->eventdat5; break;
+		case 32: offset = 50; bottom_y = 190; break;
+		case 56: offset = 75; bottom_y = 190; break;
+		case 49: case 50: case 51: case 52:
+			offset = (const int[]){ 25, 0, 50, 75 }[ev->eventtype - 49];
+			custom = true;
+			break;
 		default: break;
 		}
 		if (offset != enemy_offset || ev->eventdat2 == -200 || ev->eventdat2 == -99)
@@ -387,9 +424,18 @@ static void draw_coming_enemies(int enemy_offset)
 
 		for (int part = 0; part < parts; ++part)
 		{
-			const Uint16 eDatI = (Uint16)(ev->eventdat + part);
-			if (eDatI == 0 || eDatI > ENEMY_NUM)
+			const Uint16 eDatI = custom ? 0 : (Uint16)(ev->eventdat + part);
+			if ((eDatI == 0 && !custom) || eDatI > ENEMY_NUM)
 				continue;
+			const __typeof__(enemyDat[0]) *dat = &enemyDat[eDatI];
+			ComingLook what = { dat->shapebank, dat->egraphic[0], dat->esize == 1 };
+			if (custom)
+			{
+				what.graphic = (unsigned int)ev->eventdat;
+				if (ev->eventdat3 > 0)
+					what.shapebank = ev->eventdat3;
+			}
+
 			int ex = ev->eventdat2 - (mapX - 1) * 24;
 			if (offset == 25 || offset == 75)
 				ex -= 12;
@@ -401,7 +447,7 @@ static void draw_coming_enemies(int enemy_offset)
 				ex -= 6;
 				ey += 4;
 			}
-			if (smallEnemyAdjust && enemyDat[eDatI].esize == 0)
+			if (smallEnemyAdjust && dat->esize == 0)
 			{
 				ex -= 10;
 				ey -= 7;
@@ -411,10 +457,14 @@ static void draw_coming_enemies(int enemy_offset)
 			if (part & 2)
 				ey -= 28;
 			ey += ev->eventdat5;
-			const int dx = enemyDat[eDatI].xmove;
-			const int dy = enemyDat[eDatI].ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12) + carried;
-			if (dy > 0)
-				draw_coming_enemy(e * 4 + part, eDatI, ex, ey, dx, dy, ticks, map_x_ofs);
+			if (bottom_y != 0)
+				ey = bottom_y;
+			// Events 49-52 give the enemy no speed of their own (eventdat3 and 6 mean other things).
+			const int own_dy = custom ? dat->ymove : dat->ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12);
+			const float dy = own_dy + carried;
+			const Uint32 key = COMING_KEY + (Uint32)(e * 4 + part) * 4 + (eDatI & 3);
+			if (bottom_y != 0 ? dy < 0 : dy > 0)
+				draw_coming_enemy(key, what, ex + dat->xmove, ey + dy, dat->xmove, dy, ticks, map_x_ofs, bottom_y != 0);
 		}
 	}
 }
@@ -4576,6 +4626,17 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemy[b-1].eyc += eventRec[eventLoc-1].eventdat3;
 	enemy[b-1].linknum = eventRec[eventLoc-1].eventdat4;
 	enemy[b-1].fixedmovey = eventRec[eventLoc-1].eventdat6;
+
+	// Tyrian3D dev: whether the 3D view showed the enemy coming (draw_coming_enemies).
+	if (SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
+	{
+		const int e = eventLoc - 1;
+		const Uint32 key = COMING_KEY + (Uint32)(e * 4 + enemyTypeOfs) * 4 + (tempW & 3);
+		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d %s; backMove %d/%d/%d delay %d (3D frame %u)\n",
+		       e, eventRec[e].eventtype, enemyOffset, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
+		       enemy[b-1].fixedmovey, l3d_key_seen(key) ? "predicted" : "POPS", backMove, backMove2, backMove3, map1YDelayMax,
+		       l3d_frame_number);
+	}
 }
 
 void JE_eventJump(JE_word jump)

@@ -41,4 +41,7 @@ void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Re
 // next tick.
 void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst, float ticks);
 
+// Window points per game pixel in the 3D view's playfield (at the player's height).
+float rgpu_playfield_scale(void);
+
 #endif /* RENDER_GPU_H */

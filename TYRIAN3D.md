@@ -104,6 +104,8 @@ change the first two as well.
 | `TYR3D_SMOOTH=0` | Show each of the game's frames once, as it renders them (no frames between ticks) |
 | `TYR3D_DUMP_AHEAD=1` | Frame dumps include the frames shown between ticks |
 | `TYR3D_SOFTWARE_POINTER=1` | Draw the mouse pointer into the screen as the original does, instead of the system pointer |
+| `TYR3D_LAYER_PARALLAX=1` | Show the layers' planes unscaled (positions on different layers no longer line up as in the game) |
+| `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming |
 | `TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius>` | Tune the bloom (defaults 0.5, 1, 0.1, 1.2; intensity 0 turns it off) |
 | `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
 | `TYR3D_VIEWER=ships` | Model viewer: each ship's 3D look beside its sprite (see `src/viewer.h`), with `TYR3D_VIEWER_YAW`, `_ROLL`, `_SPIN`; `sidekicks` shows the sidekicks |
@@ -136,7 +138,9 @@ change the first two as well.
   filter code, with the waver aligned to the game's screen.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
-- **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights. The
+- **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each
+  scaled about the point below the camera so that a position on any layer is seen where the game
+  draws it (a turret's shots and explosion stay on the turret); objects scale with their plane. The
   camera is fitted so the playfield's bottom edge, at the player's height, fills the original
   playfield width; the projection is shifted onto the playfield's rectangle in the window, and
   the scene continues into the rest of the window. The HUD panel stands at the window's right
@@ -201,6 +205,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/package_macos.sh` | Builds the macOS app bundle |
 | `tools/fetch_soundfont.sh` | Downloads the GeneralUser GS SoundFont the music plays through into `data/soundfonts` |
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
+| `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/blender/` | The model pipeline (see Models) |
 

@@ -49,9 +49,9 @@ char last_text[32];
 
 static bool mouseRelativeEnabled;
 
-// Relative mouse position in window coordinates.
-static Sint32 mouseWindowXRelative;
-static Sint32 mouseWindowYRelative;
+// Relative mouse position in window coordinates (SDL reports fractions of a point).
+static float mouseWindowXRelative;
+static float mouseWindowYRelative;
 
 void flush_events_buffer(void)
 {
@@ -126,12 +126,15 @@ void mouseGetRelativePosition(Sint32 *const out_x, Sint32 *const out_y)
 {
 	service_SDL_events(false);
 
-	scaleWindowDistanceToScreen(&mouseWindowXRelative, &mouseWindowYRelative);
-	*out_x = mouseWindowXRelative;
-	*out_y = mouseWindowYRelative;
-
-	mouseWindowXRelative = 0;
-	mouseWindowYRelative = 0;
+	// Tyrian3D: in screen pixels at the size the screen is shown at (the 3D view's playfield is
+	// larger than the 2D screen); what is left below a whole pixel is kept for the next call, so
+	// slow motion moves the ship too (it used to be dropped below a pixel per frame).
+	float points_x, points_y;
+	video_window_points_per_pixel(&points_x, &points_y);
+	*out_x = (Sint32)(mouseWindowXRelative / points_x);
+	*out_y = (Sint32)(mouseWindowYRelative / points_y);
+	mouseWindowXRelative -= *out_x * points_x;
+	mouseWindowYRelative -= *out_y * points_y;
 }
 
 void service_SDL_events(JE_boolean clear_new)
