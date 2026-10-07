@@ -259,7 +259,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 
 ## 8. Poznati problemi
 
-1. **Razine s posebnim prikazom.** Naopaki prikaz (`starShowVGASpecialCode == 1`) i spotlight (`== 2`) nemaju 3D obradu. U 3D modu se prikazuju normalno (plan: M4.4).
+1. **Razine s posebnim prikazom (M4.4).** Naopaki prikaz (`starShowVGASpecialCode == 1`, npr. LAVA RUN i EYESPY u epizodi 4) zrcali pogled okomito u `fit_camera`; modeli se pritom zrcale lijevo-desno, pa izgledaju okrenuto (kao spriteovi) a lica im ostaju ispravno orijentirana za osvjetljenje. Tekstovi u igralištu (bodovi, traka bossa) namjerno ostaju čitljivi; original ih okreće. Spotlight (`== 2`, npr. ASSASSIN) je crni overlay preko prozora po formuli iz `JE_starShowVGA` (`build_spotlight`). Katalog (`TYR3D_EXTRACT`) navodi razine s posebnim prikazom i vrijeme događaja (`special_views`).
 2. **Mali plavi neprijatelji** u prvoj razini ostaju spriteovi. `TYR3D_LOG_ENEMIES` ih prijavljuje sa sheetom `'?'` (nisu iz enemy shape filea), pa za njih ne vrijede pravila iz `models.cfg`.
 3. **Sjene.** Objekti ne bacaju sjene na tlo; 2D sjena broda je isključena kad se crta 3D izgled (plan: M5.4).
 4. **Pikseli iste boje.** Kad sprite iscrta piksel iste boje kakva je već ispod, diff ga ne vidi, pa taj piksel ostaje u nižem sloju. Za pozadine to više ne vrijedi (tileovi su ispod snimljenog sloja). Vizualno je zanemarivo.

@@ -8,6 +8,7 @@
 #include "devtools.h"
 #include "fonthand.h"
 #include "mainint.h"
+#include "player.h"
 #include "models3d.h"
 #include "palette.h"
 #include "sprite.h"
@@ -90,6 +91,12 @@ static void forget_volume_sheets(void);
 static Uint32 hash_colors(const Uint32 colors[256]);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
+
+// Darkness over the whole window on spotlight levels (see build_spotlight).
+#define SPOT_W 320
+#define SPOT_H 200
+static BTBHGPUTexture *spot_texture = NULL;
+static Uint32 spot_rgba[SPOT_W * SPOT_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 
 // The tile atlas has pages coloured with different palettes: the frame's colours, and those
@@ -160,7 +167,8 @@ static void die(const char *what, const char *message)
 	exit(EXIT_FAILURE);
 }
 
-static BTBHGPUTexture *create_texture(int width, int height, BTBHGPUTextureColorSpace color_space)
+static BTBHGPUTexture *create_texture_filtered(int width, int height, BTBHGPUTextureColorSpace color_space,
+                                               BTBHGPUTextureFilter filter)
 {
 	Uint32 *zeroes = calloc((size_t)width * height, sizeof(Uint32));
 	if (zeroes == NULL)
@@ -168,11 +176,16 @@ static BTBHGPUTexture *create_texture(int width, int height, BTBHGPUTextureColor
 	BTBHGPUTextureReport report;
 	BTBHGPUTexture *texture = btbh_gpu_window_texture_create_rgba8_ex(
 		window, (const uint8_t *)zeroes, width, height, 0,
-		BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_CLAMP, color_space, &report);
+		filter, BTBH_GPU_TEXTURE_WRAP_CLAMP, color_space, &report);
 	free(zeroes);
 	if (texture == NULL)
 		die("failed to create GPU texture", report.message);
 	return texture;
+}
+
+static BTBHGPUTexture *create_texture(int width, int height, BTBHGPUTextureColorSpace color_space)
+{
+	return create_texture_filtered(width, height, color_space, BTBH_GPU_TEXTURE_FILTER_NEAREST);
 }
 
 static BTBHGPUCustomMesh *create_quad_mesh(float left_brightness, float right_brightness)
@@ -268,6 +281,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	init_camera_from_env();
 
 	screen_texture = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
+	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	layer_atlas = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	tile_atlas = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	white_texture = create_texture(1, 1, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
@@ -343,11 +357,12 @@ static CanvasQuad whole_screen_quad(const SDL_Rect *dst)
 	return (CanvasQuad){ (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 0, 0, SCREEN_W, SCREEN_H };
 }
 
-static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q)
+// texture_w/h: the size of the texture the quad's source rectangle is in.
+static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture_w, float texture_h)
 {
 	const float x = q->x, y = q->y, w = q->w, h = q->h;
-	const float u0 = q->source_x / SCREEN_W, u1 = (q->source_x + q->source_w) / SCREEN_W;
-	const float v0 = q->source_y / SCREEN_H, v1 = (q->source_y + q->source_h) / SCREEN_H;
+	const float u0 = q->source_x / texture_w, u1 = (q->source_x + q->source_w) / texture_w;
+	const float v0 = q->source_y / texture_h, v1 = (q->source_y + q->source_h) / texture_h;
 	const BTBHGPUCanvasVertex corners[4] = {
 		{ x,     y,     u0, v0, 1, 1, 1, 1 },
 		{ x + w, y,     u1, v0, 1, 1, 1, 1 },
@@ -365,23 +380,40 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q)
 #define MAX_CANVAS_QUADS 4
 
 // Draws parts of the screen texture over the window and presents. Composites a pending 3D scene
-// first.
-static void present_canvas(const CanvasQuad *quads, int quad_count, bool clear, const BTBHGPUWindowReport *frame)
+// first. A spotlight overlay (spot_texture over the whole window) goes under the screen's parts.
+static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlight, bool clear,
+                           const BTBHGPUWindowReport *frame)
 {
-	BTBHGPUCanvasVertex vertices[6 * MAX_CANVAS_QUADS];
+	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 1)];
+	BTBHGPUCanvasBatch batches_2d[2] = { { 0 } };
+	int batch_count_2d = 0;
+	uint32_t vertex_count = 0;
+
+	if (spotlight)
+	{
+		const CanvasQuad whole = { 0, 0, (float)frame->logical_width, (float)frame->logical_height, 0, 0, SPOT_W, SPOT_H };
+		push_quad(vertices, &whole, SPOT_W, SPOT_H);
+		BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
+		b->first_vertex = vertex_count;
+		b->vertex_count = 6;
+		b->texture = spot_texture;
+		b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+		vertex_count += 6;
+	}
+
 	quad_count = SDL_min(quad_count, MAX_CANVAS_QUADS);
 	for (int i = 0; i < quad_count; ++i)
-		push_quad(vertices + 6 * i, &quads[i]);
-
-	BTBHGPUCanvasBatch batch = { 0 };
-	batch.first_vertex = 0;
-	batch.vertex_count = 6 * (uint32_t)quad_count;
-	batch.texture = screen_texture;
-	batch.blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+		push_quad(vertices + vertex_count + 6 * i, &quads[i], SCREEN_W, SCREEN_H);
+	BTBHGPUCanvasBatch *batch = &batches_2d[batch_count_2d++];
+	batch->first_vertex = vertex_count;
+	batch->vertex_count = 6 * (uint32_t)quad_count;
+	batch->texture = screen_texture;
+	batch->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+	vertex_count += batch->vertex_count;
 
 	BTBHGPUCanvasPass pass = { 0 };
 	pass.first_batch = 0;
-	pass.batch_count = 1;
+	pass.batch_count = (uint32_t)batch_count_2d;
 	pass.target = NULL;
 	pass.clear_enabled = clear;
 	pass.clear_alpha = 255;
@@ -393,7 +425,7 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool clear, 
 	BTBHGPUCanvasReport report;
 	if (btbh_gpu_window_canvas_present(window,
 	        shader_paths[SH_CANVAS_VERT], shader_paths[SH_CANVAS_FRAG], shader_paths[SH_CANVAS_TEXTURED_FRAG],
-	        shader_format, vertices, batch.vertex_count, &batch, 1, &pass, 1, &report) != BTBH_GPU_OK)
+	        shader_format, vertices, vertex_count, batches_2d, (uint32_t)batch_count_2d, &pass, 1, &report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: canvas present failed: %s\n", report.message);
 	}
@@ -431,7 +463,7 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 
 	const CanvasQuad quad = whole_screen_quad(dst);
-	present_canvas(&quad, 1, true, &frame);
+	present_canvas(&quad, 1, false, true, &frame);
 }
 
 /* --- 3D ------------------------------------------------------------------------------------ */
@@ -520,7 +552,9 @@ typedef struct
  * The projection is shifted so that the fitted view lands on the playfield's rectangle within
  * the window, letting the scene continue under the HUD and into any letterbox area.
  */
-static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4])
+// upside_down mirrors the view vertically within the playfield's rectangle, as the game flips the
+// playfield on upside-down levels.
+static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4], bool upside_down)
 {
 	const float theta = rgpu_camera.tilt_degrees * (float)M_PI / 180.0f;
 	const float t = tanf(rgpu_camera.fov_degrees * (float)M_PI / 360.0f);
@@ -575,7 +609,7 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float sy = (ndc_rect[3] - ndc_rect[1]) / 2, oy = (ndc_rect[1] + ndc_rect[3]) / 2;
 	Mat4 post = { { 0 } };
 	post.m[0] = sx;
-	post.m[5] = sy;
+	post.m[5] = upside_down ? -sy : sy;
 	post.m[10] = 1;
 	post.m[12] = ox;
 	post.m[13] = oy;
@@ -968,7 +1002,11 @@ static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 
 // Appends instances and batches for the frame's model objects, grouped by model. colors are the
 // frame's palette colours, for palette materials.
-static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], int *instance_count, int *batch_count)
+// mirror turns the models left for right: in a vertically mirrored view (upside-down levels) that
+// makes them look turned round rather than mirrored, so their triangles still face the camera the
+// right way round for the renderer's lighting.
+static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
+                               int *batch_count)
 {
 	sync_model_cache();
 
@@ -988,8 +1026,12 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 			const M3DModel *model = &m3d_models[model_index];
 			const float scale = model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f;
 			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
+			Mat4 mirror_x = mat4_identity();
+			if (mirror)
+				mirror_x.m[0] = -1;
 			const Mat4 chain[] = {
 				mat4_translation(object->x, height, object->y),
+				mirror_x,
 				mat4_rotation(1, -object->yaw),
 				mat4_rotation(2, -object->roll),
 				mat4_rotation(1, model->yaw),
@@ -1625,6 +1667,36 @@ static void set_environment(BTBHGPUSceneLighting *lighting)
 	lighting->sun_curve = 1.0f;  // the sun's disc is off (sun_energy 0): the directional light is the sun
 }
 
+/*
+ * Spotlight levels (starShowVGASpecialCode 2): the game darkens the playfield outside a cone of
+ * light that opens up the screen from the player's ship (JE_starShowVGA): inside it full
+ * brightness, then an edge 5 pixels wide, and elsewhere a quarter of each colour's shade. The 3D
+ * view darkens the whole window the same way with a black overlay, in playfield pixels.
+ */
+static void build_spotlight(const Layout3D *layout, float window_w, float window_h)
+{
+	const float scale = layout->playfield[2] / L3D_PLAYFIELD_W;
+	const float apex_x = player[0].x - 17.0f;  // playfield column and row of the cone's apex
+	const float apex_y = player[0].y + 12.0f;
+	for (int j = 0; j < SPOT_H; ++j)
+	{
+		const float row = ((j + 0.5f) * window_h / SPOT_H - layout->playfield[1]) / scale;
+		for (int i = 0; i < SPOT_W; ++i)
+		{
+			const float column = ((i + 0.5f) * window_w / SPOT_W - layout->playfield[0]) / scale;
+			const float outside = fabsf(column - apex_x) - (apex_y - row);  // pixels outside the cone
+			float brightness = 0.25f;
+			if (row <= apex_y && outside < 0)
+				brightness = 1.0f;
+			else if (row <= apex_y && outside < 5)
+				brightness = 0.25f + 0.5f * (5 - outside) / 5;
+			const Uint8 rgba[4] = { 0, 0, 0, (Uint8)(255 * (1 - brightness)) };
+			memcpy(&spot_rgba[j * SPOT_W + i], rgba, sizeof(rgba));
+		}
+	}
+	btbh_gpu_texture_update_rgba8(spot_texture, (const uint8_t *)spot_rgba, 0, 0, SPOT_W, SPOT_H);
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -1653,9 +1725,15 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	build_hud(hud, frame, layout.split);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 
+	// Levels with a special view, as JE_starShowVGA shows them.
+	const bool upside_down = starShowVGASpecialCode == 1;
+	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2;
+	if (spotlight)
+		build_spotlight(&layout, logical_w, logical_h);
+
 	if (slot_count == 0)
 	{
-		present_canvas(quads, quad_count, true, &window_frame);
+		present_canvas(quads, quad_count, spotlight, true, &window_frame);
 		return;
 	}
 
@@ -1681,7 +1759,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		heights[l] = height;
 	}
 
-	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect);
+	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down);
 
 	int instance_count = 0;
 	int batch_count = 0;
@@ -1717,7 +1795,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
-	add_object_batches(frame, colors, &instance_count, &batch_count);
+	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 
 	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
@@ -1775,9 +1853,9 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	        0, 0, 0, 255, &scene_report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
-		present_canvas(quads, quad_count, true, &window_frame);
+		present_canvas(quads, quad_count, spotlight, true, &window_frame);
 		return;
 	}
 
-	present_canvas(quads, quad_count, false, &window_frame);
+	present_canvas(quads, quad_count, spotlight, false, &window_frame);
 }

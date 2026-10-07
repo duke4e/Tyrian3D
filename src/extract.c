@@ -213,6 +213,9 @@ static void read_level_names(char names[][16], int capacity)
 	fclose(f);
 }
 
+// Levels that turn on a special view (event 64 sets smoothie 9: upside down, 6: spotlight).
+static char special_views[2048];
+
 static void scan_episode_levels(void)
 {
 	memset(uses, 0, sizeof(uses));
@@ -256,6 +259,15 @@ static void scan_episode_levels(void)
 			fread_s8_die(&dat5, 1, f);
 			fread_s8_die(&dat6, 1, f);
 			fread_u8_die(&dat4, 1, f);
+
+			if (type == 64 && (dat == 9 || dat == 6) && dat2 != 0)
+			{
+				char entry[128];
+				snprintf(entry, sizeof(entry), "%s\n    {\"episode\": %d, \"level\": \"%s\", \"view\": \"%s\", \"time\": %d}",
+				         special_views[0] != '\0' ? "," : "", episodeNum, names[level], dat == 9 ? "upside-down" : "spotlight", time);
+				if (strstr(special_views, entry + (special_views[0] != '\0' ? 1 : 0)) == NULL)
+					SDL_strlcat(special_views, entry, sizeof(special_views));
+			}
 
 			const int slot = enemy_event_slot(type);
 			if (slot == -1)
@@ -398,7 +410,7 @@ void dev_extract(const char *dir)
 		fprintf(json, ", \"sheet\": \"%s\", \"index\": %d}", graphic >= 500 ? "ships_t2000" : "ships",
 		        graphic >= 500 ? graphic - 500 : graphic);
 	}
-	fprintf(json, "\n  ],\n  \"sidekicks\": [");
+	fprintf(json, "\n  ],\n  \"special_views\": [%s\n  ],\n  \"sidekicks\": [", special_views);
 	for (int i = 1; i <= OPTION_NUM; ++i)
 	{
 		const JE_OptionType *o = &options[i];
