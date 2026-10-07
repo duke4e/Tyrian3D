@@ -263,7 +263,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 2. **Mali plavi neprijatelji** u prvoj razini ostaju spriteovi. `TYR3D_LOG_ENEMIES` ih prijavljuje sa sheetom `'?'` (nisu iz enemy shape filea), pa za njih ne vrijede pravila iz `models.cfg`.
 3. **Sjene (M5.4).** Modeli i volumetrijski spriteovi bacaju sunčevu sjenu (directional shadow mapa 2048, ortografska, pokriva tlo oko igrališta: `shadow_view_projection`). Slojevi, tileovi i volumeni su unlit, pa je primaju preko `unlit_enabled = 2` (renderer, branch `tyrian3d`: u sjeni zadržavaju 45 % svjetla). Slojevi ne bacaju sjenu (shadow pass ne radi alpha test, pa bi bacali cijeli pravokutnik), pa je nemaju ni metci ni eksplozije. Sjena visokih objekata pada daleko (igrač je 44 px iznad tla). `TYR3D_SHADOWS=0` ih gasi. Originalna 2D sjena broda ostaje isključena kad se crta 3D izgled.
 4. **Pikseli iste boje.** Kad sprite iscrta piksel iste boje kakva je već ispod, diff ga ne vidi, pa taj piksel ostaje u nižem sloju. Za pozadine to više ne vrijedi (tileovi su ispod snimljenog sloja). Vizualno je zanemarivo.
-5. **Dvodijelni brodovi.** `shipGr_ 0` (Dragonwing) i `1` (Nort Ship) dobivaju volumen polovicu po polovicu (`two_part_volume` u `mainint.c`); njihovi bočni potisnici i NortSparks ostaju 2D. Vlastiti modeli još nemaju.
+5. **Dvodijelni brodovi.** `shipGr_ 0` (Dragonwing, brod drugog igrača; u `models.cfg` `ship dragonwing`) i `1` (Nort Ship) imaju modele centrirane na par polovica, kao ostali brodovi; bez modela dobivaju volumen polovicu po polovicu (`two_part_volume` u `mainint.c`). Bočni potisnici Nort Shipa i NortSparks ostaju 2D. Preglednik (`TYR3D_VIEWER=ships`) ih prikazuje u dvostrukoj ćeliji.
 6. **Filteri izvan igrališta.** Pozadine koje igra filtrira (lava, voda, led) komponiraju se na CPU-u za vidljivo područje i prolaze kroz iste formule kao `lava_filter`/`water_filter` (`b3d_compose`), pa nema šava na rubu igrališta. Preostale razlike: igra za piksel iznad čita prošli frame (ovdje nefiltrirani piksel), vremensko zamućenje leda i blura je izostavljeno, a miješana pozadina 2 nacrtana nakon filtera miješa se samo s komponiranim pozadinama ispod (ne sa spriteovima i pozadinom 3). Trošak: oko 1–2 ms po frameu na tim razinama (RelWithDebInfo). `JE_darkenBackground` (SuperWild) i "astral" stanje izvan igrališta nisu preneseni.
 7. **Boja 0 pozadine 1 je prozirna** (kroz nju se vide zvijezde, kao u igri). Izvan igrališta se ondje vidi crna boja clear-a, a ne boja palete 0 (koja je inače crna).
 8. **Neprijatelji se pojavljuju naglo pri većem tiltu.** Tlo se vidi daleko naprijed, ali igra stvara neprijatelje tek kad im red dođe do vrha ekrana, a objekti se crtaju do 64 reda iznad njega. To je logika igre.
@@ -282,14 +282,13 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 1. Korisnik isproba igru i odobri set brodova (`TYR3D_VIEWER=ships`) i izgled razine 1.
 2. M5.1: modeli neprijatelja po učestalosti iz kataloga; složeniji tek s korisnikovim AI upscaleom
    spriteova (`upscale/out`, atlasi iz `tools/make_atlases.py`).
-3. M3: modeli za dvodijelne brodove (Dragonwing, Nort Ship).
-4. M6: bossovi i višedijelni neprijatelji, epizode 2–5.
-5. M7: laseri kao trake, bloom i tonemapping, svjetla eksplozija; M8: oblaci (BG2/BG3).
-6. M4.2 iteracija 2: HUD iz stanja igre u višoj rezoluciji.
-7. M9: Windows i Linux. Modovi 2 igrača, arcade, timed battle i Super Arcade rade u 3D-u
+3. M6: bossovi i višedijelni neprijatelji, epizode 2–5.
+4. M7: laseri kao trake, bloom i tonemapping, svjetla eksplozija; M8: oblaci (BG2/BG3).
+5. M4.2 iteracija 2: HUD iz stanja igre u višoj rezoluciji.
+6. M9: Windows i Linux. Modovi 2 igrača, arcade, timed battle i Super Arcade rade u 3D-u
    (`TYR3D_MODE`); Super Arcade zatamni dio ekrana kao spotlight, isto kao original. Galaga
    (tajna razina) još nije isproban.
-8. M10: reprodukcija MIDI-ja sa soundfontom (čeka korisnikovo odobrenje skidanja).
+7. M10: reprodukcija MIDI-ja sa soundfontom (čeka korisnikovo odobrenje skidanja).
 
 **Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 2–4,3 ms CPU-a po frameu (najviše spotlight i razine s filterima). Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
 

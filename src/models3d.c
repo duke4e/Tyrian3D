@@ -233,7 +233,8 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 	{
 		const bool any = tokens[0][0] == 'p' || strcmp(tokens[1], "any") == 0;
 		const int first_option = tokens[0][0] == 'p' ? 2 : 3;
-		ShipRule rule = { .ship = any ? 0 : (unsigned int)atoi(tokens[1]) };
+		ShipRule rule = { .ship = any ? 0 : !sidekick && strcmp(tokens[1], "dragonwing") == 0 ? M3D_SHIP_DRAGONWING
+		                                                                                     : (unsigned int)atoi(tokens[1]) };
 		rule.appearance = (M3DAppearance){ .model = M3D_SPRITE, .banking = true };
 		if (!parse_kind(tokens[first_option - 1], &rule.appearance.model))
 		{

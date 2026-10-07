@@ -425,9 +425,12 @@ def preview(prefix, size=(24, 28), scale=16):
 
 
 def sprite_mask(sheet, index, large=True):
-    """Coverage of a sprite in a sheet exported by TYR3D_EXTRACT: rows of bools."""
+    """Coverage of a sprite in a sheet exported by TYR3D_EXTRACT: rows of bools. index may be a
+    list of sprites drawn side by side (ships the game draws in two halves)."""
     from sprite_profile import sprite_pixels
-    return [[p is not None for p in row] for row in sprite_pixels(sheet, index, large)]
+    indices = index if isinstance(index, (list, tuple)) else [index]
+    parts = [[[p is not None for p in row] for row in sprite_pixels(sheet, i, large)] for i in indices]
+    return [sum((part[y] for part in parts), []) for y in range(len(parts[0]))]
 
 
 def check_silhouette(sheet, index, large=True, supersample=4):
@@ -468,12 +471,13 @@ def check_silhouette(sheet, index, large=True, supersample=4):
     return both / max(either, 1)
 
 
-def finish(default_out):
-    """Exports to --out (or default_out) and renders previews if --preview is given."""
+def finish(default_out, size=(24, 28)):
+    """Exports to --out (or default_out) and renders previews if --preview is given (size: the
+    sprite's size in game pixels, which the top view frames)."""
     options = args()
-    if "check" in options:  # --check <sheet.png>:<sprite index>
+    if "check" in options:  # --check <sheet.png>:<sprite index>[+<sprite index>...]
         sheet, index = options["check"].rsplit(":", 1)
-        check_silhouette(sheet, int(index))
+        check_silhouette(sheet, [int(i) for i in index.split("+")])
     export(options.get("out", default_out))
     if "preview" in options:
-        preview(options["preview"])
+        preview(options["preview"], size)

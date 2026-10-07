@@ -27,6 +27,7 @@ typedef struct
 {
 	Sprite2_array *sheet;
 	unsigned int sprite;  // as blit_sprite2x2 (large) or blit_sprite2 takes it
+	unsigned int right;   // ships drawn in two halves: the right half (sprite is the left), else 0
 	bool large;
 	M3DAppearance look;
 	int frame_count;      // enemies: their animation (frames[0] is sprite)
@@ -50,13 +51,19 @@ static int ship_entries(Entry *entries)
 	for (unsigned int id = 1; id <= SHIP_NUM && count < MAX_ENTRIES; ++id)
 	{
 		const unsigned int graphic = ships[id].shipgraphic;
-		if (graphic <= 1)  // the Nort Ship and the Dragonwing are drawn in parts
+		if (graphic == 1)  // the Nort Ship, drawn in two halves
+		{
+			entries[count++] = (Entry){ &spriteSheet9, 220, 222, true, m3d_ship_appearance(id) };
 			continue;
+		}
 		Sprite2_array *sheet = graphic > 500 ? &spriteSheetT2000 : &spriteSheet9;
 		const unsigned int sprite = graphic > 500 ? graphic - 500 : graphic;
 		if (!seen_before(entries, count, sheet, sprite))
-			entries[count++] = (Entry){ sheet, sprite, true, m3d_ship_appearance(id) };
+			entries[count++] = (Entry){ sheet, sprite, 0, true, m3d_ship_appearance(id) };
 	}
+	// The Dragonwing (the second player's ship), also in two halves.
+	if (count < MAX_ENTRIES)
+		entries[count++] = (Entry){ &spriteSheet9, 13, 51, true, m3d_ship_appearance(M3D_SHIP_DRAGONWING) };
 	return count;
 }
 
@@ -142,7 +149,7 @@ static int sidekick_entries(Entry *entries)
 		const bool large = option->tr == 1 || option->tr == 2;
 		Sprite2_array *sheet = large ? &spriteSheet10 : &spriteSheet9;
 		if (!seen_before(entries, count, sheet, option->gr[0]))
-			entries[count++] = (Entry){ sheet, option->gr[0], large, m3d_sidekick_appearance(id) };
+			entries[count++] = (Entry){ sheet, option->gr[0], 0, large, m3d_sidekick_appearance(id) };
 	}
 	return count;
 }
@@ -192,7 +199,16 @@ void dev_model_viewer(const char *what)
 	const int cell_w = any_large ? 24 : 12, cell_h = any_large ? 28 : 14;
 	const int pair_w = 2 * cell_w + 14;
 	const int columns = L3D_PLAYFIELD_W / pair_w;
-	const int rows = (count + columns - 1) / columns;
+	// Slots in the grid: ships drawn in two halves take two, in one row.
+	int slot[MAX_ENTRIES], slots = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		if (entries[i].right != 0 && slots % columns == columns - 1)
+			++slots;
+		slot[i] = slots;
+		slots += entries[i].right != 0 ? 2 : 1;
+	}
+	const int rows = (slots + columns - 1) / columns;
 	const int row_h = SDL_min(cell_h + 12, (L3D_PLAYFIELD_H + 20) / rows);  // tighter when there are many
 	const int left = L3D_PLAYFIELD_X + (L3D_PLAYFIELD_W - columns * pair_w) / 2;
 	const int top = (L3D_PLAYFIELD_H - rows * row_h) / 2;
@@ -211,8 +227,9 @@ void dev_model_viewer(const char *what)
 			// Centre of the left cell; sprites are drawn from their top left corner, half a
 			// sprite from their centre.
 			const int half_w = e->large ? 12 : 6, half_h = e->large ? 14 : 7;
-			const int x = left + (i % columns) * pair_w + cell_w / 2 + 5;
-			const int y = top + (i / columns) * row_h + cell_h / 2 + 6;
+			const int width = e->right != 0 ? 2 * cell_w : cell_w;  // a pair of halves is twice as wide
+			const int x = left + (slot[i] % columns) * pair_w + width / 2 + 5;
+			const int y = top + (slot[i] / columns) * row_h + cell_h / 2 + 6;
 			// Enemies animate as in the game, a frame every few ticks; models turn or roll with it.
 			const int k = e->frame_count > 1 ? (int)(frame / 4) % e->frame_count : 0;
 			const unsigned int sprite = e->frame_count > 1 ? e->frames[k] : e->sprite;
@@ -228,11 +245,27 @@ void dev_model_viewer(const char *what)
 
 			if (e->look.model >= 0)
 				l3d_add_object(e->look.model, x, y, e->look.height, turn, model_roll, filter);
+			else if (e->right != 0)
+			{
+				if (e->look.model != M3D_VOLUME ||
+				    !l3d_add_volume(e->sheet, e->sprite, true, V3D_STYLE_RAISED, x - half_w, y, e->look.height, 0, 0, 0) ||
+				    !l3d_add_volume(e->sheet, e->right, true, V3D_STYLE_RAISED, x + half_w, y, e->look.height, 0, 0, 0))
+				{
+					blit_sprite2x2(VGAScreen, x - 2 * half_w, y - half_h, *e->sheet, e->sprite);
+					blit_sprite2x2(VGAScreen, x, y - half_h, *e->sheet, e->right);
+				}
+			}
 			else if (e->look.model != M3D_VOLUME ||
 			         !l3d_add_volume(e->sheet, sprite, e->large, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0))
 				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x - half_w, y - half_h, *e->sheet, sprite);
 
-			(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x + cell_w + 4 - half_w, y - half_h, *e->sheet, sprite);
+			if (e->right != 0)
+			{
+				blit_sprite2x2(VGAScreen, x + width + 4 - 2 * half_w, y - half_h, *e->sheet, e->sprite);
+				blit_sprite2x2(VGAScreen, x + width + 4, y - half_h, *e->sheet, e->right);
+			}
+			else
+				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x + cell_w + 4 - half_w, y - half_h, *e->sheet, sprite);
 		}
 
 		l3d_frame_end();

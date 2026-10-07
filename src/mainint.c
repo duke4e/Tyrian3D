@@ -4157,21 +4157,22 @@ redo:
 
 		int ship_sprite = ship_banking * 2 + shipGr_;
 
-		// Tyrian3D: regular ships can be shown as a 3D model, which replaces the sprite and its shadow.
-		const M3DAppearance ship_look = m3d_ship_appearance(this_player->items.ship);
+		// Tyrian3D: ships can be shown as a 3D model, which replaces the sprite and its shadow. Ships
+		// drawn in two halves (the Dragonwing, shipGr_ 0, and the Nort Ship, 1) are centred on the
+		// pair, as the others; without a model they get volume half by half.
+		const bool two_part = shipGr_ <= 1;
+		const M3DAppearance ship_look = m3d_ship_appearance(shipGr_ == 0 ? M3D_SHIP_DRAGONWING : this_player->items.ship);
 		const bool ship_ghost = this_player->invulnerable_ticks > 0;  // drawn half transparent
-		const bool ship_model = shipGr_ > 1 && (ship_look.model >= 0
+		const bool ship_model = ship_look.model >= 0
 			? l3d_add_object(ship_look.model, this_player->x + 7, this_player->y + 7, ship_look.height,
 			                 ship_look.yaw, ship_look.banking ? ship_banking * 12.0f : 0.0f, 0)
-			: ship_look.model == M3D_VOLUME &&
+			: !two_part && ship_look.model == M3D_VOLUME &&
 			  l3d_add_volume(shipGrPtr_, ship_sprite, true, V3D_STYLE_RAISED, this_player->x + 7, this_player->y + 7,
-			                 ship_look.height, 0.0f, 0.0f, 0));
+			                 ship_look.height, 0.0f, 0.0f, 0);
 		if (ship_model && ship_ghost)
 			l3d_ghost_last_object();
-		// Ships drawn in two halves (the Dragonwing, shipGr_ 0, and the Nort Ship, 1) get volume
-		// half by half.
 		bool two_part_volume = false;
-		if (shipGr_ <= 1 && ship_look.model == M3D_VOLUME)
+		if (two_part && ship_look.model == M3D_VOLUME)
 		{
 			two_part_volume = l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 13 : 220, true, V3D_STYLE_RAISED,
 			                                 this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0);
@@ -4192,8 +4193,8 @@ redo:
 		this_player->last_x_explosion_follow = this_player->x;
 		this_player->last_y_explosion_follow = this_player->y;
 
-		if (two_part_volume)
-			;  // the volumes have real shadows
+		if (two_part_volume || (two_part && ship_model))
+			;  // the volumes and models have real shadows
 		else if (shipGr_ == 0)
 		{
 			if (background2)
@@ -4231,7 +4232,7 @@ redo:
 		{
 			--this_player->invulnerable_ticks;
 
-			if (two_part_volume)
+			if (two_part_volume || (two_part && ship_model))
 				;
 			else if (shipGr_ == 0)
 			{
@@ -4250,7 +4251,7 @@ redo:
 		{
 			if (shipGr_ == 0)
 			{
-				if (!two_part_volume)
+				if (!two_part_volume && !ship_model)
 				{
 					blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, ship_sprite + 13);
 					blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, ship_sprite + 51);
@@ -4258,7 +4259,7 @@ redo:
 			}
 			else if (shipGr_ == 1)
 			{
-				if (!two_part_volume)
+				if (!two_part_volume && !ship_model)
 				{
 					blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, 220);
 					blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, 222);

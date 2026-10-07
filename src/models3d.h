@@ -69,7 +69,11 @@ void m3d_reload(void);
 // M3D_SHEET_POWERUPS for those sheets, 0 for others) and first_sprite the first sprite of its
 // animation.
 M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool large, L3DLayerType layer);
-// Appearance of a player ship (ship id as in the shop, 1-based).
+// The Dragonwing, the second player's ship in two-player arcade games, which isn't in the shop
+// ("ship dragonwing" in models.cfg).
+#define M3D_SHIP_DRAGONWING 255
+
+// Appearance of a player ship (ship id as in the shop, 1-based, or M3D_SHIP_DRAGONWING).
 M3DAppearance m3d_ship_appearance(unsigned int ship_id);
 // Appearance of a sidekick (option id as in the shop, 1-based).
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);

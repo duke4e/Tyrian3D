@@ -314,12 +314,12 @@ izvan mape).
 ## 4. Stanje
 
 Gotovo na branchu `tyrian3d/m1-tools`: M1; M2 (volumetrijski spriteovi i semantika animacija);
-M3 u prvoj verziji (modeli svih brodova osim dvodijelnih Dragonwing i Nort Ship, sidekickovi kao
-volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
+M3 u prvoj verziji (modeli svih brodova, uključivo dvodijelne Dragonwing i Nort Ship,
+sidekickovi kao volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
 HUD-a uz rub, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
 M5.3 predmeti; M5.4 sjene; prvi modeli neprijatelja (M5.1: ring core, pod, U-luk); M7 u prvoj
-verziji (čestice eksplozija, sjaj metaka); M8 odsjaji na vodi; M9 macOS paket; M10 izvoz glazbe
-u MIDI.
+verziji (čestice eksplozija, sjaj metaka); M8 odsjaji na vodi; M9 macOS paket i svi modovi igre
+u 3D-u; M10 izvoz glazbe u MIDI.
 
 Na čekanju korisnika: odobrenje seta brodova; AI upscale spriteova (`upscale/in` →
 `upscale/out`) prije složenijih modela neprijatelja; soundfont i AudioSR za M10.
