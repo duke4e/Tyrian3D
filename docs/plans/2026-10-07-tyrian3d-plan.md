@@ -45,6 +45,7 @@ Principi koji vrijede za cijeli plan:
 | M7 | Efekti | metci, laseri, eksplozije kao čestice, svjetla, bloom | M5 |
 | M8 | Okruženje | pozadine u većoj rezoluciji s reljefom, oblaci, 3D strukture | M4 |
 | M9 | Robustnost i izdanje | posebne razine, svi modovi igre, Vulkan i Windows, paket | M5 |
+| M10 | Zvuk | bolja OPL emulacija ili remaster glazbe (LDS → MIDI), poboljšani zvučni efekti | — |
 
 Posebne razine (naopake, spotlight) idu u M4, jer diraju kameru i svjetlo koje M4 ionako mijenja.
 
@@ -312,6 +313,21 @@ izvan mape).
 
 ## 4. Stanje
 
-Gotovo na branchu `tyrian3d/m1-tools`: M1.1, M1.2, M1.4, M2.1 i 3D pozadine. Od M1.3 postoji
-`tools/modelkit` (stdlib glTF); preglednik modela i probni model kroz cijeli put još nisu
-napravljeni. Sljedeće: M1.3 do kraja (preglednik, Blender pipeline), zatim M2.2 i M3.
+Gotovo na branchu `tyrian3d/m1-tools`: M1 (uključivo preglednik modela `TYR3D_VIEWER` i Blender
+pipeline), M2.1, 3D pozadine, M3 u prvoj verziji (modeli svih brodova, sidekickovi kao
+volumetrijski spriteovi, boje modela iz palete), M4.1/M4.2 iteracija 1 (igralište što veće,
+panel HUD-a uz rub prozora) i M4.4 (naopake i spotlight razine). Na čekanju: korisnikovo
+odobrenje seta brodova. Sljedeće: popuna strana mape s WFC-om (vidi 5.), M2.2, M5.
+
+## 5. Ideje korisnika (2026-10-07)
+
+| Ideja | Procjena | Gdje |
+| --- | --- | --- |
+| AI upscale spriteova kao podloga za modele; fanart i gotovi Tyrian 3D modeli kao reference | Više pomažu prave reference: igra ima i velike slike brodova iz shopa (`bigshipgraphic`). Pixel-art upscale (xBRZ/hqx) lokalno; AI upscaler (Real-ESRGAN) traži skidanje modela i na 24×28 izmišlja detalje. Tuđi modeli samo uz dopuštenu licencu, inače kao referenca. | M3, M5 |
+| Bočne strane izvan mape: umjesto zrcaljenja statistički generator (wave function collapse), izračunat jednom i keširan | Dobro pristaje: mape su mreže tileova. Susjedstva tileova uče se iz same mape, WFC generira stupce lijevo i desno uz rubni stupac kao ograničenje; kešira se na disk, a zrcaljenje ostaje kao pričuva. | M4.1 (nadogradnja), M8 |
+| Particle sustav iz Be The Bullet Hell | Renderer u submoduleu ga nema. Ako je u kodu igre BTBH, prenosi se pristup (instancirani billboardi kroz scenu) za eksplozije, iskre, dim i tragove. | M7 |
+| Zvijezde, oblaci i tlo proceduralno, uz originalni obris mape | Pikseli mape razvrstaju se po materijalu (rampe palete: voda, lava, stijena, metal…), a za svaki se generira detaljnija tekstura i reljef. Zvijezde su već proceduralne u igri. | M8 |
+| Remaster glazbe (format je blizak MIDI-ju) | Glazba je LDS (Loudness Sound System) za AdLib/OPL2: note i FM instrumenti. Vjerna varijanta: točnija OPL emulacija i bolji resampling. Remaster: izvoz LDS → MIDI i nova orkestracija (glazbene odluke). | M10 (zvuk) |
+| AI "upscale" zvučnih efekata | Postoji audio super-resolution (npr. AudioSR) za 8-bitne uzorke od ~11 kHz; treba skinuti model (nekoliko GB). Bez skidanja: kvalitetan resampling, uklanjanje kvantizacijskog šuma, blagi exciter. | M10 (zvuk) |
+
+Otvoreno: linkovi na fanart i modele, gdje je BTBH particle kod, smije li se skidati AI modele.
