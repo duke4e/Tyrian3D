@@ -16,6 +16,7 @@
 #include "paths3d.h"
 #include "settings3d.h"
 #include "sprite.h"
+#include "varz.h"
 #include "volume3d.h"
 
 #include <btbh_gpu/btbh_gpu.h>
@@ -114,6 +115,11 @@ static BTBHGPUTexture *tile_water = NULL;
 static BTBHGPUTexture *composed_water = NULL;
 static Uint32 layer_water_rgba[L3D_WIDTH * ATLAS_H];
 static float glint_time = 0;  // seconds of game time, for the waves
+
+// Frames shown between the game's ticks (rgpu_present_3d_ahead) show the last captured frame moved
+// on by `ahead` ticks: backgrounds scroll on, objects and particles keep their velocity.
+static float ahead = 0;
+static float background_speed[4];  // by map set 1-3: game pixels a tick down the screen
 
 // Wave scale, strength, sharpness and tilt; TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>
 // overrides them, for tuning.
@@ -543,7 +549,12 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	pass.clear_enabled = clear;
 	pass.clear_alpha = 255;
 
-	const bool capture = dev_capture_next_frame();
+	// Frames shown between ticks don't count as the game's frames (dumps, TYR3D_EXIT_AFTER).
+	static int dump_ahead = -1;  // TYR3D_DUMP_AHEAD=1: they do, to check them
+	if (dump_ahead < 0)
+		dump_ahead = SDL_getenv("TYR3D_DUMP_AHEAD") != NULL;
+	const bool tick_frame = ahead == 0 || dump_ahead;
+	const bool capture = tick_frame && dev_capture_next_frame();
 	if (capture)
 		btbh_gpu_window_request_presented_frame_readback(window);
 
@@ -573,7 +584,8 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 			return;
 		}
 	}
-	dev_on_frame_presented(NULL, 0, 0, 0);
+	if (tick_frame)
+		dev_on_frame_presented(NULL, 0, 0, 0);
 }
 
 /* --- 2D ------------------------------------------------------------------------------------ */
@@ -1011,6 +1023,13 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
 
+void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst, float ticks)
+{
+	ahead = ticks;
+	present_3d(hud, frame, dst);
+	ahead = 0;
+}
+
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	static Uint64 total_ticks = 0;
@@ -1178,7 +1197,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				if (mirror)
 					mirror_x.m[0] = -1;
 				const Mat4 chain[] = {
-					mat4_translation(object->x, height, object->y),
+					mat4_translation(object->x + object->vx * ahead, height, object->y + object->vy * ahead),
 					mirror_x,
 					mat4_rotation(1, -object->yaw),
 					mat4_rotation(2, -object->roll),
@@ -1461,7 +1480,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 
 			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
 			const Mat4 chain[] = {
-				mat4_translation(object->x, height, object->y),
+				mat4_translation(object->x + object->vx * ahead, height, object->y + object->vy * ahead),
 				mat4_rotation(1, -object->yaw),
 				mat4_rotation(2, -object->roll),
 			};
@@ -1548,7 +1567,8 @@ static Uint32 composed_rgba[COMPOSED_SIZE * COMPOSED_SIZE];
 // Appends a textured quad for each background composed on the CPU (the ones the game filters),
 // covering the area the camera sees.
 static void add_composed_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
-                                 const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
+                                 const float *heights, const Uint32 colors[256], bool new_frame, int *instance_count,
+                                 int *batch_count)
 {
 	int first = -1;
 	for (int i = 0; i < frame->background_count && first < 0; ++i)
@@ -1575,13 +1595,29 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 		h = COMPOSED_SIZE;
 	}
 
-	Uint8 *images[L3D_MAX_BACKGROUNDS], *shades[L3D_MAX_BACKGROUNDS];
-	for (int i = 0; i < L3D_MAX_BACKGROUNDS; ++i)
+	// Frames between ticks reuse the images composed for the frame's tick, moved on.
+	static int composed_area[4];
+	if (!new_frame)
 	{
-		images[i] = composed_images[i];
-		shades[i] = composed_shades[i];
+		x0 = composed_area[0];
+		z0 = composed_area[1];
+		w = composed_area[2];
+		h = composed_area[3];
 	}
-	b3d_compose(frame, composed, x0, z0, w, h, composed_index, composed_owner, images, shades);
+	else
+	{
+		composed_area[0] = x0;
+		composed_area[1] = z0;
+		composed_area[2] = w;
+		composed_area[3] = h;
+		Uint8 *images[L3D_MAX_BACKGROUNDS], *shades[L3D_MAX_BACKGROUNDS];
+		for (int i = 0; i < L3D_MAX_BACKGROUNDS; ++i)
+		{
+			images[i] = composed_images[i];
+			shades[i] = composed_shades[i];
+		}
+		b3d_compose(frame, composed, x0, z0, w, h, composed_index, composed_owner, images, shades);
+	}
 
 	const float texture_h = (float)(COMPOSED_SIZE * L3D_MAX_BACKGROUNDS);
 	for (int i = 0; i < frame->background_count; ++i)
@@ -1595,7 +1631,7 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 		Uint8 remap[256];
 		b3d_effect_remap(background, remap);
 		const Uint8 *image = composed_images[i], *shade = composed_shades[i];
-		for (int p = 0; p < w * h; ++p)
+		for (int p = 0; p < w * h && new_frame; ++p)
 		{
 			Uint32 color;
 			if (composed_owner[p] == i)
@@ -1615,9 +1651,10 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 			}
 			composed_rgba[p] = color;
 		}
-		btbh_gpu_texture_update_rgba8(composed_texture, (const uint8_t *)composed_rgba, 0, i * COMPOSED_SIZE, w, h);
+		if (new_frame)
+			btbh_gpu_texture_update_rgba8(composed_texture, (const uint8_t *)composed_rgba, 0, i * COMPOSED_SIZE, w, h);
 		const bool glints = settings3d.effects;
-		if (glints)
+		if (glints && new_frame)
 		{
 			for (int p = 0; p < w * h; ++p)
 				composed_rgba[p] = composed_rgba[p] != 0 ? water_mask(composed_rgba[p]) : 0;
@@ -1629,7 +1666,7 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 		transform.m[10] = (float)h;
 		transform.m[12] = (float)x0;
 		transform.m[13] = heights[frame->backgrounds[i].layer] - TILE_BELOW_LAYER;
-		transform.m[14] = (float)z0;
+		transform.m[14] = (float)z0 + background_speed[background->set & 3] * ahead;
 		write_instance(instances + *instance_count * 24, &transform, 1.0f);
 
 		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
@@ -1673,10 +1710,13 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		if (composed[i] || (only != NULL && SDL_strchr(only, '0' + background->set) == NULL))
 			continue;
 		const float height = heights[background->layer] - TILE_BELOW_LAYER;
+		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
 		plane_footprint(camera, height, rect);
 		if (rect[0] > rect[2])
 			continue;
+		rect[1] -= shift;  // what has scrolled into view
+		rect[3] -= shift;
 
 		// Tiles take the colours the game gives them through blending and the level's filters.
 		Uint8 remap[256];
@@ -1694,6 +1734,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		                                tiles + tile_count, capacity - tile_count);
 		for (int t = first; t < tile_count; ++t)
 		{
+			tiles[t].z += shift;
 			tile_height[t] = height;
 			// Batch key: atlas page and cell, mirrored, fading.
 			tile_key[t] = ((page * B3D_ATLAS_CELLS + tiles[t].cell) * 2 + tiles[t].flipped) * 3 + tiles[t].fade + 1;
@@ -1816,8 +1857,14 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 		return;
 
 	// As fast as the game's slowest stars (2 + starfield_speed pixels a frame).
-	deep_star_scroll += 2.0f + starfield_speed;
-	const float twinkle_time = l3d_frame_number / 35.0f;
+	static Uint32 scrolled_frame = 0;
+	if (scrolled_frame != l3d_frame_number)
+	{
+		scrolled_frame = l3d_frame_number;
+		deep_star_scroll += 2.0f + starfield_speed;
+	}
+	const float scroll = deep_star_scroll + (2.0f + starfield_speed) * ahead;
+	const float twinkle_time = (l3d_frame_number + ahead) / 35.0f;
 
 	const int first = *instance_count;
 	const float ground = heights[frame->star_layer] - STARS_BELOW_LAYER;
@@ -1834,7 +1881,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 		{
 			const Uint32 seed = (Uint32)(k * 7919 + i) * 4u;
 			const float x = rect[0] + hash_unit(seed) * w;
-			const float z = rect[1] + fmodf(hash_unit(seed + 1) * h + deep_star_scroll, h);
+			const float z = rect[1] + fmodf(hash_unit(seed + 1) * h + scroll, h);
 			const float scale = size * (0.6f + 0.8f * hash_unit(seed + 2));
 
 			Mat4 transform = mat4_identity();
@@ -2039,9 +2086,10 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			const float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
 			Mat4 transform = mat4_identity();
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
-			transform.m[12] = p->x;
-			transform.m[13] = p->height * rgpu_camera.height_scale;
-			transform.m[14] = p->y;
+			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
+			transform.m[12] = p->x + p->vx * age;
+			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale;
+			transform.m[14] = p->y + (p->vy + explodeMove) * age;
 			float *instance = instances + *instance_count * 24;
 			write_instance(instance, &transform, 1.0f);
 			for (int c = 0; c < 3; ++c)
@@ -2077,9 +2125,9 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 		const L3DGlow *glow = &frame->glows[g];
 		Mat4 transform = mat4_identity();
 		transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
-		transform.m[12] = glow->x;
+		transform.m[12] = glow->x + glow->vx * ahead;
 		transform.m[13] = l3d_layer_height(glow->layer) * rgpu_camera.height_scale + 0.5f;
-		transform.m[14] = glow->y;
+		transform.m[14] = glow->y + glow->vy * ahead;
 		float *instance = instances + *instance_count * 24;
 		write_instance(instance, &transform, 1.0f);
 		const Uint8 *c = (const Uint8 *)&colors[glow->color];
@@ -2187,33 +2235,56 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	Uint32 colors[256];
 	frame_colors(frame, colors);
 
+	// A frame the game has just captured, or one of those shown between ticks (rgpu_present_3d_ahead),
+	// which reuse what was made of the frame.
+	static Uint32 presented_frame = 0;
+	const bool new_frame = presented_frame != l3d_frame_number || ahead == 0;
+	presented_frame = l3d_frame_number;
+
 	// Layers that background maps were drawn into get the map's tiles beneath them.
 	bool native[L3D_MAX_LAYERS] = { false };
 	for (int i = 0; i < frame->background_count; ++i)
 		native[frame->backgrounds[i].layer] = true;
 
-	int slot_of_layer[L3D_MAX_LAYERS];
-	int slot_count = 0;
-	build_layer_atlas(frame, colors, native, slot_of_layer, &slot_count);
-	if (slot_count > 0)
+	static int slot_of_layer[L3D_MAX_LAYERS];
+	static int slot_count = 0;
+	static float layer_speed[L3D_MAX_LAYERS];
+	if (new_frame)
 	{
-		btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
-		btbh_gpu_texture_update_rgba8(layer_water, (const uint8_t *)layer_water_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
+		build_layer_atlas(frame, colors, native, slot_of_layer, &slot_count);
+		if (slot_count > 0)
+		{
+			btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
+			btbh_gpu_texture_update_rgba8(layer_water, (const uint8_t *)layer_water_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
+		}
+		glint_time += 1.0f / 35.0f;  // about the game's frame rate
+
+		// How fast things move on: the maps at their scroll speeds, explosions drift with them.
+		background_speed[0] = 0;
+		background_speed[1] = backMove;
+		background_speed[2] = backMove2;
+		background_speed[3] = backMove3;
+		for (int l = 0; l < frame->layer_count; ++l)
+			layer_speed[l] = frame->layers[l].type == L3D_EXPLOSION ? explodeMove : 0;
+		for (int i = 0; i < frame->background_count; ++i)
+			layer_speed[frame->backgrounds[i].layer] = background_speed[frame->backgrounds[i].set & 3];
 	}
-	glint_time += 1.0f / 35.0f;  // about the game's frame rate
 
 	const float logical_w = (float)window_frame.logical_width, logical_h = (float)window_frame.logical_height;
 	const Layout3D layout = layout_3d(logical_w, logical_h, dst);
 	CanvasQuad quads[MAX_CANVAS_QUADS];
 	const int quad_count = layout_quads(&layout, dst, quads);
 
-	build_hud(hud, frame, layout.split);
-	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
+	if (new_frame)
+	{
+		build_hud(hud, frame, layout.split);
+		btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
+	}
 
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;
 	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2;
-	if (spotlight)
+	if (spotlight && new_frame)
 		build_spotlight(&layout, logical_w, logical_h);
 
 	if (slot_count == 0)
@@ -2258,7 +2329,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		transform.m[0] = L3D_WIDTH;
 		transform.m[10] = L3D_ROWS;
 		transform.m[13] = heights[l];
-		transform.m[14] = -L3D_OVERSCAN;
+		transform.m[14] = -L3D_OVERSCAN + layer_speed[l] * ahead;
 		write_instance(instances + instance_count * 24, &transform, 1.0f);
 
 		// Layers are opaque with an alpha cutoff, so they and the models occlude each other by depth.
@@ -2279,7 +2350,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	bool composed[L3D_MAX_BACKGROUNDS];
 	b3d_composed_backgrounds(frame, composed);
-	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);

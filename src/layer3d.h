@@ -75,6 +75,7 @@ typedef struct
 	float roll;           // degrees, positive banks right
 	Uint8 filter;         // the sprite filter (blit_sprite2_filter: index = filter | shade), 0 for none
 	bool ghost;           // half transparent (the player's ship while invulnerable)
+	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 256
@@ -124,6 +125,7 @@ typedef struct
 {
 	float x, y;
 	float size, strength;  // diameter in game pixels; fraction of the colour added at the centre
+	float vx, vy;          // how far it moved since the last frame (game pixels)
 	Uint8 layer;
 	Uint8 color;
 } L3DGlow;
@@ -180,6 +182,14 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 // Makes the object recorded last half transparent, as the game draws the invulnerable player's
 // ship (blit_sprite2x2_blend).
 void l3d_ghost_last_object(void);
+
+// Gives the object recorded last a key that stays the same from frame to frame (an enemy's slot):
+// it then gets the velocity it moved with since the last frame, so the 3D view can move it on in
+// the frames it shows between the game's ticks. Jumps (a slot taken by a new enemy) count as no
+// motion. Returns the velocity, which a glow belonging to the object can take too.
+void l3d_key_last_object(Uint32 key, float *vx, float *vy);
+// Sets the velocity of the glow recorded last.
+void l3d_last_glow_velocity(float vx, float vy);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);

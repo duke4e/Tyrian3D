@@ -36,5 +36,9 @@ void rgpu_shutdown(void);
 void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst);
 // hud is the 8-bit screen holding the HUD; its playfield area is replaced by the 3D view.
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
+// The same frame again, `ticks` of the game's ticks later: what moves (the maps, objects with a
+// velocity, particles) moved on at its speed. For the frames shown while the game waits for its
+// next tick.
+void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst, float ticks);
 
 #endif /* RENDER_GPU_H */

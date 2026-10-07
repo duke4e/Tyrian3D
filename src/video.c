@@ -23,6 +23,8 @@
 #include "opentyr.h"
 #include "layer3d.h"
 #include "models3d.h"
+#include "mouse.h"
+#include "nortsong.h"
 #include "palette.h"
 #include "render_gpu.h"
 #include "settings3d.h"
@@ -365,6 +367,14 @@ static void present_screen(SDL_Surface *src_surface)
 	// Save output rect to be used by mouse functions
 	last_output_rect = dst_rect;
 	last_frame_was_3d = false;
+	mouse_frame_shown();
+}
+
+int video_pointer_scale(void)
+{
+	// Window points per screen pixel, whole.
+	const int scale = (last_output_rect.w + vga_width / 2) / vga_width;
+	return scale < 1 ? 1 : scale;
 }
 
 void JE_showVGA3D(void)
@@ -376,6 +386,57 @@ void JE_showVGA3D(void)
 
 	last_output_rect = dst_rect;
 	last_frame_was_3d = true;
+	mouse_frame_shown();
+}
+
+// The display's refresh period, for pacing the frames shown between ticks.
+static Uint64 refresh_period_ns(void)
+{
+	const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(main_window));
+	const float rate = mode != NULL && mode->refresh_rate > 1.0f ? mode->refresh_rate : 60.0f;
+	return (Uint64)(1e9f / rate);
+}
+
+void video_wait_tick_3d(void)
+{
+	// TYR3D_SMOOTH=0: wait as the game always has, showing nothing more.
+	static int smooth = -1;
+	if (smooth < 0)
+		smooth = SDL_getenv("TYR3D_SMOOTH") == NULL || SDL_atoi(SDL_getenv("TYR3D_SMOOTH")) != 0;
+
+	const Uint64 period = refresh_period_ns();
+	static Uint64 cost = 0;  // what showing a frame takes, about
+	static unsigned int ticks = 0, extra_frames = 0;
+	Uint64 next = SDL_GetTicksNS() + period;
+	for (;;)
+	{
+		const Sint64 left = getDelayLeftNS();
+		if (!smooth || left <= (Sint64)(cost + 1000000))
+			break;
+		const Uint64 now = SDL_GetTicksNS();
+		if (now < next)
+		{
+			const Uint64 sleep = SDL_min(next - now, (Uint64)left - cost - 1000000);
+			SDL_DelayPrecise(sleep);
+			continue;
+		}
+
+		SDL_Rect dst_rect;
+		calc_dst_render_rect(&dst_rect);
+		const Uint64 start = SDL_GetTicksNS();
+		rgpu_present_3d_ahead(VGAScreenSeg, &l3d_frame, &dst_rect, getDelayProgress());
+		const Uint64 end = SDL_GetTicksNS();
+		cost = (cost * 3 + (end - start)) / 4;
+		next = start + period;
+		++extra_frames;
+	}
+	wait_delay_precise();
+
+	++ticks;
+	if (SDL_getenv("TYR3D_PROFILE") != NULL && ticks % 175 == 0)
+		printf("smooth: %.1f frames shown per tick (display %.0f Hz)\n", 1.0 + extra_frames / 175.0, 1e9 / period);
+	if (ticks % 175 == 0)
+		extra_frames = 0;
 }
 
 void video_set_3d_enabled(bool enabled)

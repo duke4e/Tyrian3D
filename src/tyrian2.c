@@ -78,6 +78,9 @@ char tempStr[31];
 JE_byte itemAvail[9][10]; /* [1..9, 1..10] */
 JE_byte itemAvailMax[9]; /* [1..9] */
 
+// Tyrian3D: the last frame was shown in 3D without waiting; the next tick waits first.
+static bool wait_at_tick_start = false;
+
 void JE_starShowVGA(void)
 {
 	JE_byte *src;
@@ -93,7 +96,10 @@ void JE_starShowVGA(void)
 		src = game_screen->pixels;
 		src += 24;
 
-		if (smoothScroll != 0 /*&& thisPlayerNum != 2*/)
+		// Tyrian3D: a frame for the 3D view shows at once; the game waits for its next tick at the
+		// start of the tick instead (video_wait_tick_3d), so input shows a tick sooner.
+		const bool frame_3d = l3d_take_frame();
+		if (smoothScroll != 0 /*&& thisPlayerNum != 2*/ && !frame_3d)
 		{
 			wait_delay();
 			setDelay(frameCountMax);
@@ -153,10 +159,12 @@ void JE_starShowVGA(void)
 				src += game_screen->pitch;
 			}
 		}
-		if (l3d_take_frame())
+		if (frame_3d)
 		{
 			dev_on_layers_captured();
 			JE_showVGA3D();
+			if (smoothScroll != 0)
+				wait_at_tick_start = true;
 		}
 		else
 		{
@@ -197,6 +205,9 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 			return shapeFile[enemySpriteSheetIds[k] - 1];
 	return 0;
 }
+
+// Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
+#define ENEMY_MOTION_KEY(slot) (0x10000u + (Uint32)(slot))
 
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
@@ -239,15 +250,15 @@ static bool draw_enemy_model(unsigned int i)
 		// Ground enemies are drawn over the ground they include, so they sit flat on it.
 		const bool ground = l3d_current_layer() == L3D_GROUND_ENEMY;
 		const float height = ground ? 0.3f - l3d_layer_height(L3D_GROUND_ENEMY) : look.height;
-		return l3d_add_volume(enemy[i].sprite2s, enemy[i].egr[enemy[i].enemycycle - 1], enemy[i].size == 1,
-		                      ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f, enemy[i].filter);
+		const bool added = l3d_add_volume(enemy[i].sprite2s, enemy[i].egr[enemy[i].enemycycle - 1], enemy[i].size == 1,
+		                                  ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f,
+		                                  enemy[i].filter);
+		l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
+		return added;
 	}
 
 	const bool large = enemy[i].size == 1;
 	const unsigned int sprite = enemy[i].egr[enemy[i].enemycycle - 1];
-	if (look.glow_size != 0)
-		l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y,
-		                    look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size, look.glow_strength);
 
 	// Palette materials can take the colour of the current frame (items whose animation cycles
 	// colours); a sprite filter (hit) wins.
@@ -277,7 +288,16 @@ static bool draw_enemy_model(unsigned int i)
 		yaw += fmodf(look.spin * l3d_frame_number + i * 47.0f, 360.0f);
 
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
-	return l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
+	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
+	float vx, vy;
+	l3d_key_last_object(ENEMY_MOTION_KEY(i), &vx, &vy);
+	if (look.glow_size != 0)
+	{
+		l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y,
+		                    look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size, look.glow_strength);
+		l3d_last_glow_velocity(vx, vy);
+	}
+	return added;
 }
 
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing
@@ -1198,6 +1218,14 @@ start_level_first:
 	BKwrap3 = BKwrap3to = &megaData3.mainmap[1][0];
 
 level_loop:
+
+	// Tyrian3D: the wait the 3D view moved here from JE_starShowVGA, before input is read.
+	if (wait_at_tick_start)
+	{
+		wait_at_tick_start = false;
+		video_wait_tick_3d();
+		setDelayContinued(frameCountMax);
+	}
 
 	//tempScreenSeg = game_screen; /* side-effect of game_screen */
 

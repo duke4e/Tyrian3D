@@ -7,6 +7,7 @@
 #include "video.h"
 
 #include <assert.h>
+#include <math.h>
 #include <string.h>
 
 bool l3d_enabled = false;
@@ -258,6 +259,61 @@ void l3d_ghost_last_object(void)
 		l3d_frame.objects[l3d_frame.object_count - 1].ghost = true;
 }
 
+// Where keyed objects were in the frames they were last seen in (open addressing by key).
+#define MOTION_SLOTS 2048
+#define MOTION_MAX_STEP 24.0f  // game pixels a frame; more is a jump
+
+static struct
+{
+	Uint32 key;    // 0 = free
+	Uint32 frame;  // l3d_frame_number when seen
+	float x, y;
+} motion[MOTION_SLOTS];
+
+void l3d_key_last_object(Uint32 key, float *vx, float *vy)
+{
+	float dx = 0, dy = 0;
+	if (l3d_capturing && l3d_frame.object_count > 0 && key != 0)
+	{
+		L3DObject *object = &l3d_frame.objects[l3d_frame.object_count - 1];
+		Uint32 slot = (key * 2654435761u) % MOTION_SLOTS;
+		for (int probe = 0; probe < 16; ++probe, slot = (slot + 1) % MOTION_SLOTS)
+		{
+			const bool stale = motion[slot].frame + 2 < l3d_frame_number;
+			if (motion[slot].key == key || motion[slot].key == 0 || stale)
+			{
+				if (motion[slot].key == key && motion[slot].frame + 1 == l3d_frame_number)
+				{
+					dx = object->x - motion[slot].x;
+					dy = object->y - motion[slot].y;
+					if (fabsf(dx) > MOTION_MAX_STEP || fabsf(dy) > MOTION_MAX_STEP)
+						dx = dy = 0;
+				}
+				motion[slot].key = key;
+				motion[slot].frame = l3d_frame_number;
+				motion[slot].x = object->x;
+				motion[slot].y = object->y;
+				break;
+			}
+		}
+		object->vx = dx;
+		object->vy = dy;
+	}
+	if (vx != NULL)
+		*vx = dx;
+	if (vy != NULL)
+		*vy = dy;
+}
+
+void l3d_last_glow_velocity(float vx, float vy)
+{
+	if (l3d_capturing && l3d_frame.glow_count > 0)
+	{
+		l3d_frame.glows[l3d_frame.glow_count - 1].vx = vx;
+		l3d_frame.glows[l3d_frame.glow_count - 1].vy = vy;
+	}
+}
+
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter)
 {
@@ -386,6 +442,7 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	L3DGlow *glow = &l3d_frame.glows[l3d_frame.glow_count++];
 	glow->x = x;
 	glow->y = y;
+	glow->vx = glow->vy = 0;
 	glow->size = size;
 	glow->strength = strength;
 	glow->layer = (Uint8)phase_type;

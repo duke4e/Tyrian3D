@@ -48,9 +48,37 @@ static float delayPeriod = 0x4300 * ((12.0f / 14318180.0f) * 1000.0f);
 static Uint32 target = 0;
 static Uint32 target2 = 0;
 
+// The current delay in nanoseconds, from when it was set to when it ends (for the 3D view's
+// frames between ticks).
+static Uint64 target_start_ns = 0, target_ns = 0;
+
 void setDelay(int delay)  // FKA NortSong.frameCount
 {
 	target = SDL_GetTicks() + delay * delayPeriod;
+	target_start_ns = SDL_GetTicksNS();
+	target_ns = target_start_ns + (Uint64)(delay * delayPeriod * 1000000.0f);
+}
+
+void setDelayContinued(int delay)
+{
+	const Uint64 now = SDL_GetTicksNS(), length = (Uint64)(delay * delayPeriod * 1000000.0f);
+	// From the end of the last delay, unless that was a whole delay ago or more.
+	target_start_ns = target_ns != 0 && target_ns + length > now ? target_ns : now;
+	target_ns = target_start_ns + length;
+	target = (Uint32)(target_ns / 1000000);
+}
+
+Sint64 getDelayLeftNS(void)
+{
+	return (Sint64)(target_ns - SDL_GetTicksNS());
+}
+
+float getDelayProgress(void)
+{
+	const Uint64 now = SDL_GetTicksNS();
+	if (target_ns <= target_start_ns || now <= target_start_ns)
+		return 0.0f;
+	return (float)(now - target_start_ns) / (float)(target_ns - target_start_ns);
 }
 
 void setDelay2(int delay)  // FKA NortSong.frameCount2
@@ -75,6 +103,13 @@ void wait_delay(void)
 	Sint32 delay = target - SDL_GetTicks();
 	if (delay > 0)
 		SDL_Delay(delay);
+}
+
+void wait_delay_precise(void)
+{
+	const Sint64 left = getDelayLeftNS();
+	if (left > 0)
+		SDL_DelayPrecise((Uint64)left);
 }
 
 void service_wait_delay(void)

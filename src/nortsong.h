@@ -36,6 +36,12 @@ extern const JE_word fxPlayVol;
 extern JE_word tempVolume;
 
 void setDelay(int delay);
+// Tyrian3D: a delay that starts where the last one ended, so the game keeps its pace while the
+// 3D view waits for ticks; and how much of the current delay is left or gone.
+void setDelayContinued(int delay);
+Sint64 getDelayLeftNS(void);
+float getDelayProgress(void);
+void wait_delay_precise(void);
 void setDelay2(int delay);
 Uint32 getDelayTicks(void);
 Uint32 getDelayTicks2(void);

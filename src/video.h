@@ -81,6 +81,11 @@ void deinit_video(void);
 void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
 void JE_showVGA3D(void);
+// Tyrian3D: waits for the game's next tick (the delay set with setDelay*), showing the last 3D
+// frame again as often as the display refreshes, moved on in time (rgpu_present_3d_ahead).
+void video_wait_tick_3d(void);
+// Tyrian3D: whole window points per screen pixel, for the pointer's size.
+int video_pointer_scale(void);
 
 // Tyrian3D: switches between the 3D view and the original 2D screen.
 void video_set_3d_enabled(bool enabled);

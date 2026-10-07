@@ -202,11 +202,15 @@ void service_SDL_events(JE_boolean clear_new)
 					mouseWindowYRelative += ev.motion.yrel;
 				}
 
-				// Show system mouse pointer if outside screen.
-				if (mouse_x < 0 || mouse_x >= vga_width || mouse_y < 0 || mouse_y >= vga_height)
-					SDL_ShowCursor();
-				else
-					SDL_HideCursor();
+				// Show system mouse pointer if outside screen (with the game's own pointer the system
+				// pointer is shown as the screens want it, mouse_frame_shown).
+				if (SDL_getenv("TYR3D_SOFTWARE_POINTER") != NULL)
+				{
+					if (mouse_x < 0 || mouse_x >= vga_width || mouse_y < 0 || mouse_y >= vga_height)
+						SDL_ShowCursor();
+					else
+						SDL_HideCursor();
+				}
 
 				if (ev.motion.xrel != 0 || ev.motion.yrel != 0)
 					mouseInactive = false;

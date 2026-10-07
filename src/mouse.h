@@ -42,5 +42,7 @@ extern JE_word mouseXB, mouseYB;
 void JE_mouseStart(void);
 void JE_mouseStartFilter(Uint8 filter);
 void JE_mouseReplace(void);
+// Tyrian3D: after each frame shown, shows or hides the system pointer (see mouse.c).
+void mouse_frame_shown(void);
 
 #endif /* MOUSE_H */
