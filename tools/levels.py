@@ -30,14 +30,20 @@ def read_strings(path):
 
 
 def level_sections(path):
-    """(section, level name) for every section with a ]L (load level) command."""
+    """(section, level name) for every section with a ]L (load level) command.
+
+    Timed battle sections are left out: they belong to a separate game mode, and starting one
+    with TYR3D_START does not set that mode up.
+    """
     result = []
     section = 0
     seen = set()
+    timed_battle = False
     for s in read_strings(path):
         if s.startswith("*"):
             section += 1
-        elif s.startswith("]L") and section not in seen:
+            timed_battle = "timed battle" in s.lower()
+        elif s.startswith("]L") and section not in seen and not timed_battle:
             seen.add(section)
             result.append((section, s[13:22].strip()))  # levelName: 9 chars at 13
     return result

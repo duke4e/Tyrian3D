@@ -38,10 +38,17 @@ static MapSet map_set(int set)
 
 _Static_assert(COUNTOF(megaData1.shapes) <= B3D_TILES_PER_SET, "atlas cells per map");
 
-void b3d_build_atlas(Uint8 *indices, Uint8 *opaque)
+void b3d_build_atlas(Uint8 *indices, Uint8 *opaque, Uint8 *ground)
 {
 	memset(indices, 0, B3D_ATLAS_W * B3D_ATLAS_H);
 	memset(opaque, 0, B3D_ATLAS_W * B3D_ATLAS_H);
+	memset(ground, 0, B3D_ATLAS_W * B3D_ATLAS_H);
+
+	// The blank cell: colour 0 everywhere.
+	int bx, by;
+	b3d_cell_origin(B3D_BLANK_CELL, &bx, &by);
+	for (int y = -1; y <= B3D_TILE_H; ++y)
+		memset(ground + (by + y) * B3D_ATLAS_W + bx - 1, 1, B3D_CELL_W);
 
 	for (int set = 1; set <= B3D_SETS; ++set)
 	{
@@ -60,6 +67,7 @@ void b3d_build_atlas(Uint8 *indices, Uint8 *opaque)
 					const int i = (oy + y) * B3D_ATLAS_W + ox + x;
 					indices[i] = index;
 					opaque[i] = index != 0;
+					ground[i] = set == 1;
 				}
 		}
 	}
@@ -138,8 +146,8 @@ static Uint8 **row_above(const L3DBackground *b, Uint8 **position, int width)
 	return position;
 }
 
-static int collect_row(const L3DBackground *b, const MapSet *m, Uint8 **row_entry, int row, int first_tile,
-                       int last_tile, B3DTile *tiles, int count, int capacity)
+static int collect_row(const L3DBackground *b, const MapSet *m, bool fill_empty, Uint8 **row_entry, int row,
+                       int first_tile, int last_tile, B3DTile *tiles, int count, int capacity)
 {
 	const intptr_t entry = ((intptr_t)row_entry - (intptr_t)m->map) / (intptr_t)sizeof(Uint8 *);
 	if (entry < 0 || entry >= (intptr_t)m->width * m->rows)
@@ -159,14 +167,17 @@ static int collect_row(const L3DBackground *b, const MapSet *m, Uint8 **row_entr
 			column = m->width - 1 - column;
 
 		const Uint8 *data = row_start[column];
-		if (data == NULL)
-			continue;
-		const ptrdiff_t offset = data - m->first_tile;
-		if (offset < 0 || offset % m->tile_stride != 0 || offset / m->tile_stride >= m->tile_count)
+		const ptrdiff_t offset = data != NULL ? data - m->first_tile : -1;
+		int cell;
+		if (offset >= 0 && offset % m->tile_stride == 0 && offset / m->tile_stride < m->tile_count)
+			cell = (b->set - 1) * B3D_TILES_PER_SET + (int)(offset / m->tile_stride);
+		else if (fill_empty)
+			cell = B3D_BLANK_CELL;
+		else
 			continue;
 
 		B3DTile *tile = &tiles[count++];
-		tile->cell = (Uint16)((b->set - 1) * B3D_TILES_PER_SET + offset / m->tile_stride);
+		tile->cell = (Uint16)cell;
 		tile->flipped = flipped;
 		tile->x = (float)(b->x + t * B3D_TILE_W);
 		tile->z = (float)(b->top_y + row * B3D_TILE_H);
@@ -177,7 +188,7 @@ static int collect_row(const L3DBackground *b, const MapSet *m, Uint8 **row_entr
 	return count;
 }
 
-int b3d_collect_tiles(const L3DBackground *b, float x0, float z0, float x1, float z1,
+int b3d_collect_tiles(const L3DBackground *b, bool fill_empty, float x0, float z0, float x1, float z1,
                       B3DTile *tiles, int capacity)
 {
 	if (b->set < 1 || b->set > B3D_SETS)
@@ -194,7 +205,7 @@ int b3d_collect_tiles(const L3DBackground *b, float x0, float z0, float x1, floa
 
 	// The drawn rows and those below them follow each other in the map.
 	for (int row = SDL_max(first_row, 0); row <= last_row; ++row)
-		count = collect_row(b, &m, b->top_row + row * m.width, row, first_tile, last_tile, tiles, count, capacity);
+		count = collect_row(b, &m, fill_empty, b->top_row + row * m.width, row, first_tile, last_tile, tiles, count, capacity);
 
 	// Rows above are the ones the map will scroll to.
 	const ptrdiff_t column_offset = b->top_row - b->position;
@@ -202,7 +213,7 @@ int b3d_collect_tiles(const L3DBackground *b, float x0, float z0, float x1, floa
 	for (int row = -1; row >= first_row; --row)
 	{
 		position = row_above(b, position, m.width);
-		count = collect_row(b, &m, position + column_offset, row, first_tile, last_tile, tiles, count, capacity);
+		count = collect_row(b, &m, fill_empty, position + column_offset, row, first_tile, last_tile, tiles, count, capacity);
 	}
 	return count;
 }

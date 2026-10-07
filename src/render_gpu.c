@@ -78,6 +78,7 @@ static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 #define TILE_PAGES 4
 static Uint8 tile_indices[B3D_ATLAS_W * B3D_ATLAS_H];
 static Uint8 tile_opaque[B3D_ATLAS_W * B3D_ATLAS_H];
+static Uint8 tile_ground[B3D_ATLAS_W * B3D_ATLAS_H];
 static Uint32 tile_rgba[B3D_ATLAS_W * B3D_ATLAS_H];
 static bool tile_indices_valid = false;
 static unsigned int tile_indices_generation;  // b3d_map_generation of tile_indices
@@ -86,6 +87,7 @@ static struct
 	bool valid;
 	unsigned int generation;  // b3d_map_generation it was coloured for
 	Uint32 colors_hash;
+	bool ground_zero;         // colour 0 of background 1 is drawn (a filter recolours it)
 	unsigned int used;        // frame it was last used in
 } tile_pages[TILE_PAGES];
 static unsigned int tile_frame = 0;
@@ -788,8 +790,8 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
-// either way or not at all (B3D_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_CELLS * 6 + 1)
+// either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1058,11 +1060,11 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 #define TILE_BELOW_LAYER 0.05f
 
 // Atlas page coloured with the given colours, reusing one that already is. Returns its index.
-static int tile_page(const Uint32 colors[256])
+static int tile_page(const Uint32 colors[256], bool ground_zero)
 {
 	if (!tile_indices_valid || tile_indices_generation != b3d_map_generation)
 	{
-		b3d_build_atlas(tile_indices, tile_opaque);
+		b3d_build_atlas(tile_indices, tile_opaque, tile_ground);
 		tile_indices_valid = true;
 		tile_indices_generation = b3d_map_generation;
 	}
@@ -1071,7 +1073,8 @@ static int tile_page(const Uint32 colors[256])
 	int page = 0;
 	for (int p = 0; p < TILE_PAGES; ++p)
 	{
-		if (tile_pages[p].valid && tile_pages[p].generation == b3d_map_generation && tile_pages[p].colors_hash == hash)
+		if (tile_pages[p].valid && tile_pages[p].generation == b3d_map_generation && tile_pages[p].colors_hash == hash &&
+		    tile_pages[p].ground_zero == ground_zero)
 		{
 			tile_pages[p].used = tile_frame;
 			return p;
@@ -1084,11 +1087,12 @@ static int tile_page(const Uint32 colors[256])
 	}
 
 	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
-		tile_rgba[i] = tile_opaque[i] ? colors[tile_indices[i]] : 0;
+		tile_rgba[i] = tile_opaque[i] || (ground_zero && tile_ground[i]) ? colors[tile_indices[i]] : 0;
 	btbh_gpu_texture_update_rgba8(tile_atlas, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
 	tile_pages[page].valid = true;
 	tile_pages[page].generation = b3d_map_generation;
 	tile_pages[page].colors_hash = hash;
+	tile_pages[page].ground_zero = ground_zero;
 	tile_pages[page].used = tile_frame;
 	return page;
 }
@@ -1107,9 +1111,15 @@ static void add_background_batches(const L3DFrame *frame, const Camera3D *camera
 	static int tile_key[MAX_TILES];
 	const int capacity = SDL_min(MAX_TILES, MAX_INSTANCES - *instance_count);
 	int tile_count = 0;
+
+	// TYR3D_BACKGROUNDS: which maps get tiles, e.g. "13" for backgrounds 1 and 3 (default all).
+	const char *only = SDL_getenv("TYR3D_BACKGROUNDS");
+
 	for (int i = 0; i < frame->background_count; ++i)
 	{
 		const L3DBackground *background = &frame->backgrounds[i];
+		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
+			continue;
 		const float height = heights[background->layer] - TILE_BELOW_LAYER;
 		float rect[4];
 		plane_footprint(camera, height, rect);
@@ -1122,20 +1132,23 @@ static void add_background_batches(const L3DFrame *frame, const Camera3D *camera
 		b3d_tile_remap(background, remap);
 		for (int c = 0; c < 256; ++c)
 			page_colors[c] = colors[remap[c]];
-		const int page = tile_page(page_colors);
+		// The game clears the screen to colour 0 under background 1; a filter that recolours it
+		// shows there too (lava, ice).
+		const bool ground_zero = background->set == 1 && remap[0] != 0;
+		const int page = tile_page(page_colors, ground_zero);
 
 		const int first = tile_count;
-		tile_count += b3d_collect_tiles(background, rect[0], rect[1], rect[2], rect[3],
+		tile_count += b3d_collect_tiles(background, ground_zero, rect[0], rect[1], rect[2], rect[3],
 		                                tiles + tile_count, capacity - tile_count);
 		for (int t = first; t < tile_count; ++t)
 		{
 			tile_height[t] = height;
 			// Batch key: atlas page and cell, mirrored, fading.
-			tile_key[t] = ((page * B3D_CELLS + tiles[t].cell) * 2 + tiles[t].flipped) * 3 + tiles[t].fade + 1;
+			tile_key[t] = ((page * B3D_ATLAS_CELLS + tiles[t].cell) * 2 + tiles[t].flipped) * 3 + tiles[t].fade + 1;
 		}
 	}
 
-	enum { KEYS = TILE_PAGES * B3D_CELLS * 6 };
+	enum { KEYS = TILE_PAGES * B3D_ATLAS_CELLS * 6 };
 	static int key_count[KEYS], key_next[KEYS];
 	memset(key_count, 0, sizeof(key_count));
 	for (int t = 0; t < tile_count; ++t)
@@ -1173,7 +1186,7 @@ static void add_background_batches(const L3DFrame *frame, const Camera3D *camera
 			continue;
 		const int fade = key % 3 - 1;
 		const bool flipped = (key / 3 & 1) != 0;
-		const int cell = key / 6 % B3D_CELLS, page = key / 6 / B3D_CELLS;
+		const int cell = key / 6 % B3D_ATLAS_CELLS, page = key / 6 / B3D_ATLAS_CELLS;
 		int ox, oy;
 		b3d_cell_origin(cell, &ox, &oy);
 		oy += page * B3D_ATLAS_H;

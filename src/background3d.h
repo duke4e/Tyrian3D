@@ -29,16 +29,19 @@
 #define B3D_CELL_H (B3D_TILE_H + 2)
 #define B3D_ATLAS_COLUMNS 16
 #define B3D_CELLS (B3D_SETS * B3D_TILES_PER_SET)
+#define B3D_BLANK_CELL B3D_CELLS        // a tile of colour 0, for empty entries of background 1
+#define B3D_ATLAS_CELLS (B3D_CELLS + 1)
 #define B3D_ATLAS_W (B3D_ATLAS_COLUMNS * B3D_CELL_W)
-#define B3D_ATLAS_H (((B3D_CELLS + B3D_ATLAS_COLUMNS - 1) / B3D_ATLAS_COLUMNS) * B3D_CELL_H)
+#define B3D_ATLAS_H (((B3D_ATLAS_CELLS + B3D_ATLAS_COLUMNS - 1) / B3D_ATLAS_COLUMNS) * B3D_CELL_H)
 
 // Increases whenever a level's background maps are loaded, so the atlas can be rebuilt.
 extern unsigned int b3d_map_generation;
 
 // Fills the atlas with palette indices and opacity (B3D_ATLAS_W x B3D_ATLAS_H). Colour 0 is
 // transparent; under background 1 that shows the starfield or the black of the cleared screen,
-// as in the game.
-void b3d_build_atlas(Uint8 *indices, Uint8 *opaque);
+// as in the game. `ground` marks the cells of background 1 and the blank cell: where a filter
+// recolours colour 0 (b3d_tile_remap), their colour 0 is drawn as well.
+void b3d_build_atlas(Uint8 *indices, Uint8 *opaque, Uint8 *ground);
 
 // Atlas cell position of a tile, in pixels (top-left of the tile itself, inside the padding).
 static inline void b3d_cell_origin(int cell, int *x, int *y)
@@ -65,8 +68,10 @@ typedef struct
 } B3DTile;
 
 // Appends the tiles of a recorded background that overlap the rectangle [x0, x1] x [z0, z1]
-// (game screen coordinates). Returns the number of tiles written (at most capacity).
-int b3d_collect_tiles(const L3DBackground *background, float x0, float z0, float x1, float z1,
+// (game screen coordinates). With fill_empty, empty map entries get the blank cell (for
+// background 1 under a filter that recolours colour 0). Returns the number of tiles written
+// (at most capacity).
+int b3d_collect_tiles(const L3DBackground *background, bool fill_empty, float x0, float z0, float x1, float z1,
                       B3DTile *tiles, int capacity);
 
 typedef struct
