@@ -280,6 +280,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 14. **Postavke (M4.3).** `src/settings3d.c`: izbornik Setup → 3D (prikaz, objekti, sjene, efekti, kamera: Standard/Steep/Overhead), sekcija `[tyrian3d]` u `opentyrian.cfg`; env varijable ih nadjačavaju; F3/F4 ih mijenjaju.
 15. **Predmeti (M5.3).** Novčići, dragulji, kristali, data cubeovi, oklop, power-up kapsule i ljubičasta kugla imaju modele (`tools/blender/models/items`). Pravila `sprite coins …` / `sprite powerups …` u `models.cfg` (u kodu slova `$` i `+`, `enemy_sheet_letter`); jedan sivi model po vrsti dobiva boju trenutnog frejma spritea (`color=sprite`: rampa glavne boje kao sprite filter, pa data cube mijenja boje kao u originalu), `spin=` ih okreće (`l3d_frame_number`), `glow` dodaje svjetlo u boji rampe. Novčići se prevrću (`roll=frames:12`), kristali kotrljaju, dragulji okreću s iskrom. Katalog (`TYR3D_EXTRACT`) sada navodi i predmete koje ostavljaju uništeni neprijatelji (sloj `drop`: eventi 33/45/85, `eenemydie`, nasumične zamjene 533/534, brod s oklopom 560). Oružja u kuglama (powerups sheet) i posebna oružja ostaju volumetrijski spriteovi. Renderer diže modele koji bi zbog rotacije zašli ispod tla (`reach` u `add_object_batches`).
 16. **Bloom i duboki svemir (M7, M8).** Bloom u forku (odjeljak 5) uključen je s postavkom Effects: prag 1.0, pa svijetli samo ono što scena pokaže svjetlije od bijele (aditivni sjajevi, bljeskovi eksplozija, emisija, odsjaji); boje palete nikad ne prelaze bijelu, pa tlo, spriteovi i HUD ne cvjetaju (`TYR3D_BLOOM`). U svemiru (zvjezdano polje igre je uključeno) boja 0 sloja sa zvijezdama je prazan prostor kroz koji se vidi duboko zvjezdano polje: tri sloja proceduralnih zvijezda 40–340 px ispod tla, skrolaju brzinom zvijezda igre, pa dublji izgledaju sporiji (`add_deep_star_batch`). Isto s postavkom Effects.
+17. **Zvučni efekti (M10).** `TYR3D_EXPORT_SFX=<dir>` izvozi 40 zvukova (31 efekt, 9 glasova) kao WAV; igra učitava istoimene WAV-ove iz `sfx` uz podatke igre (`data/tyrian2000/sfx`), osim uz `TYR3D_ORIGINAL_SFX=1`. `tools/upscale_sfx.py` ih provlači kroz AudioSR (48 kHz, ista duljina, glasnoća po RMS-u, tišina gdje je original tih). AudioSR je u venvu `~/Library/Caches/Tyrian3D/audiosr` (Python 3.11; scipy 1.14.1, numpy 1.23.5, setuptools<81, matplotlib 3.9, contourpy<1.3; torchaudio.load zamijenjen soundfileom jer novi torchaudio traži TorchCodec), model u `~/.cache/huggingface` (~5,8 GB). Upscalani zvukovi su izvedeni iz podataka igre, pa nisu u gitu; za `.app` ih treba kopirati u `sfx` uz podatke.
 
 ## 9. Predloženi sljedeći koraci (redom)
 
@@ -294,7 +295,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
    (tajna razina) još nije isproban.
 7. M10: reprodukcija MIDI-ja sa soundfontom (čeka korisnikovo odobrenje skidanja).
 
-**Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 2–4,3 ms CPU-a po frameu (najviše spotlight i razine s filterima). Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
+**Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 1,1–1,2 ms CPU-a po frameu na običnim razinama, do ~3,7 ms na razinama s filterima (LAVA RUN) i spotlightom; bloom i duboko zvjezdano polje su uključeni. Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
 
 ## 10. Memorija
 

@@ -319,10 +319,11 @@ sidekickovi kao volumetrijski spriteovi, boje iz palete, preglednik modela); M4 
 HUD-a uz rub, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
 M5.3 predmeti; M5.4 sjene; prvi modeli neprijatelja (M5.1: ring core, pod, U-luk, kugle, krhotine, marker); M7 u prvoj
 verziji (čestice eksplozija, sjaj metaka, bloom); M8 odsjaji na vodi i duboko zvjezdano polje; M9 macOS paket i svi modovi igre
-u 3D-u; M10 izvoz glazbe u MIDI.
+u 3D-u; M10 izvoz glazbe u MIDI i zvučni efekti upscalani AudioSR-om.
 
 Na čekanju korisnika: odobrenje seta brodova; AI upscale spriteova (`upscale/in` →
-`upscale/out`) prije složenijih modela neprijatelja; soundfont i AudioSR za M10.
+`upscale/out`) prije složenijih modela neprijatelja; dojam o upscalanim zvukovima; soundfont za
+reprodukciju MIDI-ja (M10).
 
 Sljedeće: M5.1 dalje po učestalosti, M6 bossovi, M7 laseri, bloom i svjetla, M8 oblaci, M4.2
 iteracija 2 (HUD u višoj rezoluciji), M9 ostali modovi igre i platforme.
@@ -339,3 +340,10 @@ iteracija 2 (HUD u višoj rezoluciji), M9 ostali modovi igre i platforme.
 | AI "upscale" zvučnih efekata | Postoji audio super-resolution (npr. AudioSR) za 8-bitne uzorke od ~11 kHz; treba skinuti model (nekoliko GB). Bez skidanja: kvalitetan resampling, uklanjanje kvantizacijskog šuma, blagi exciter. | M10 (zvuk) |
 
 Otvoreno: linkovi na fanart i modele, gdje je BTBH particle kod, smije li se skidati AI modele.
+
+Isprobano i odgođeno (2026-10-07): **ekstruzija slojeva** (pozadine 2 i 3 nacrtane još nekoliko puta
+niže i tamnije, pa strukture dobiju bočne stijene). Ledene ploče u SAVARI izgledaju dobro, ali
+sloj na rubu dobiva lažni zid, voda u pozadini 2 (razina 1) ne smije se ekstrudirati, a cijevi i
+mostovi postaju zidovi do tla. Traži masku po pikselu (voda, prozirno), isto za tileove izvan
+igrališta i odluku po razini. **Reljef tla iz normal mapa** ima smisla tek uz dinamička svjetla
+(eksplozije); uz nepomično sunce to je samo statični emboss filter.
