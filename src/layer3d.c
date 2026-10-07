@@ -321,6 +321,64 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	return true;
 }
 
+#define MAX_DEPARTED 96
+#define DEPARTED_FAR (-280)  // game pixels: where they are gone for good
+#define L3D_KEY_DEPARTED 0x60000u
+
+static struct
+{
+	const void *sheet;
+	Uint16 sprite;
+	float x, y, vx, vy;
+	bool live;
+} departed[MAX_DEPARTED];
+
+void l3d_shot_departed(const void *sheet, unsigned int sprite, int x, int y, int vx, int vy)
+{
+	if (!l3d_enabled || vy >= 0)
+		return;
+	for (int i = 0; i < MAX_DEPARTED; ++i)
+		if (!departed[i].live)
+		{
+			departed[i].sheet = sheet;
+			departed[i].sprite = (Uint16)sprite;
+			departed[i].x = (float)x;
+			departed[i].y = (float)y;
+			departed[i].vx = (float)vx;
+			departed[i].vy = (float)vy;
+			departed[i].live = true;
+			return;
+		}
+}
+
+void l3d_draw_departed_shots(void)
+{
+	for (int i = 0; i < MAX_DEPARTED; ++i)
+	{
+		if (!departed[i].live)
+			continue;
+		departed[i].x += departed[i].vx;
+		departed[i].y += departed[i].vy;
+		if (departed[i].y < DEPARTED_FAR || !l3d_capturing)
+		{
+			departed[i].live = false;
+			continue;
+		}
+		if (l3d_add_volume(departed[i].sheet, departed[i].sprite, false, V3D_STYLE_FLAT, departed[i].x + 6.0f,
+		                   departed[i].y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
+		{
+			l3d_key_last_object(L3D_KEY_DEPARTED + (Uint32)i, NULL, NULL);
+			l3d_add_glow(departed[i].sheet, departed[i].sprite, (int)departed[i].x, (int)departed[i].y);
+			l3d_last_glow_velocity(departed[i].vx, departed[i].vy);
+		}
+	}
+}
+
+void l3d_clear_departed_shots(void)
+{
+	memset(departed, 0, sizeof(departed));
+}
+
 void l3d_last_glow_velocity(float vx, float vy)
 {
 	if (l3d_capturing && l3d_frame.glow_count > 0)

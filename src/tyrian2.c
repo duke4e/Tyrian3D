@@ -300,6 +300,125 @@ static bool draw_enemy_model(unsigned int i)
 	return added;
 }
 
+/*
+ * Tyrian3D: enemies still to come. The 3D view sees further up than the screen, but the game
+ * makes an enemy only when the map scrolls to its event, on a line just above the screen. So that
+ * enemies don't pop up on that line, the events of the next stretch of map are shown ahead of
+ * time: each enemy where it would be now had it existed, moving towards where it will appear
+ * (carried by its layer's scroll and its own speed, as JE_drawEnemy moves it). Only shown; it reads
+ * the events and touches nothing (no random numbers either: enemies placed at random are left out).
+ */
+#define COMING_KEY 0x50000u
+#define COMING_FAR (-260)  // game pixels: the furthest row worth showing
+
+static void draw_coming_enemy(int event, Uint16 eDatI, int ex, int ey, int dx, int dy, int ticks, int map_x_ofs)
+{
+	if (eDatI == 0 || eDatI > ENEMY_NUM || ticks <= 0)
+		return;
+	const int x_now = ex - dx * ticks, y_now = ey - dy * ticks;
+	if (y_now >= -28 || y_now < COMING_FAR)
+		return;
+
+	const __typeof__(enemyDat[0]) *dat = &enemyDat[eDatI];
+	Sprite2_array *sheet = NULL;
+	if (dat->shapebank == 21)
+		sheet = &spriteSheet11;
+	else if (dat->shapebank == 26)
+		sheet = &spriteSheet10;
+	else
+		for (size_t i = 0; i < COUNTOF(enemySpriteSheetIds); ++i)
+			if (dat->shapebank == enemySpriteSheetIds[i] && enemySpriteSheets[i].data != NULL)
+				sheet = &enemySpriteSheets[i];
+	if (sheet == NULL || dat->egraphic[0] == 0 || dat->egraphic[0] == 999)
+		return;
+
+	const bool large = dat->esize == 1;
+	const float x = x_now + map_x_ofs + 6, y = y_now + 7;
+	const M3DAppearance look = m3d_enemy_appearance(enemy_sheet_letter(sheet), dat->egraphic[0], large, l3d_current_layer());
+	bool added;
+	if (look.model >= 0)
+		added = l3d_add_object(look.model, x, y, look.height, look.yaw_mode == M3D_YAW_FRAMES ? look.yaw : look.yaw, 0.0f, 0);
+	else if (look.model == M3D_VOLUME)
+	{
+		const bool ground = l3d_current_layer() == L3D_GROUND_ENEMY;
+		added = l3d_add_volume(sheet, dat->egraphic[0], large, ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y,
+		                       ground ? 0.3f - l3d_layer_height(L3D_GROUND_ENEMY) : look.height, 0.0f, 0.0f, 0);
+	}
+	else
+		return;
+	if (added)
+		l3d_key_last_object(COMING_KEY + (Uint32)event * 4 + (Uint32)(eDatI & 3), NULL, NULL);
+}
+
+// enemy_offset: the slots of the layer being drawn (0 sky, 25 and 75 ground, 50 top).
+static void draw_coming_enemies(int enemy_offset)
+{
+	if (!l3d_capturing || !m3d_enabled || endLevel)
+		return;
+	// How far the events move on a tick, and how far the layer carries its enemies.
+	const int event_step = backMove > 0 && map1YDelayMax <= 1 ? backMove : forceEvents ? 1 : 0;
+	if (event_step == 0)
+		return;
+	const int carried = enemy_offset == 0 ? 0 : enemy_offset == 50 ? backMove3 : backMove;
+	const int map_x_ofs = enemy_offset == 0 ? mapX2Ofs : enemy_offset == 50 ? (background3x1 == 0 ? oldMapX3Ofs : mapXOfs) : mapXOfs;
+
+	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
+	{
+		const struct JE_EventRecType *ev = &eventRec[e];
+		const int ticks = ((int)ev->eventtime - (int)curLoc + event_step - 1) / event_step;
+		if (ticks > 400)
+			break;
+
+		int offset = -1, parts = 1;
+		switch (ev->eventtype)
+		{
+		case 6:  offset = 25; break;
+		case 7:  offset = 50; break;
+		case 10: offset = 75; break;
+		case 15: offset = 0; break;
+		case 12:
+			parts = 4;
+			offset = ev->eventdat6 <= 1 ? 25 : ev->eventdat6 == 2 ? 0 : ev->eventdat6 == 3 ? 50 : 75;
+			break;
+		default: break;
+		}
+		if (offset != enemy_offset || ev->eventdat2 == -200 || ev->eventdat2 == -99)
+			continue;
+
+		for (int part = 0; part < parts; ++part)
+		{
+			const Uint16 eDatI = (Uint16)(ev->eventdat + part);
+			if (eDatI == 0 || eDatI > ENEMY_NUM)
+				continue;
+			int ex = ev->eventdat2 - (mapX - 1) * 24;
+			if (offset == 25 || offset == 75)
+				ex -= 12;
+			else if (offset == 50)
+				ex = background3x1 ? ev->eventdat2 - (mapX - 1) * 24 - 12 : ev->eventdat2 - mapX3 * 24 - 24 * 2 + 6;
+			int ey = -28;
+			if (offset == 50 && background3x1b)
+			{
+				ex -= 6;
+				ey += 4;
+			}
+			if (smallEnemyAdjust && enemyDat[eDatI].esize == 0)
+			{
+				ex -= 10;
+				ey -= 7;
+			}
+			if (part & 1)
+				ex += 24;
+			if (part & 2)
+				ey -= 28;
+			ey += ev->eventdat5;
+			const int dx = enemyDat[eDatI].xmove;
+			const int dy = enemyDat[eDatI].ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12) + carried;
+			if (dy > 0)
+				draw_coming_enemy(e * 4 + part, eDatI, ex, ey, dx, dy, ticks, map_x_ofs);
+		}
+	}
+}
+
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing
 {
 	player[0].x -= 25;
@@ -1493,6 +1612,8 @@ level_loop:
 	tempBackMove = backMove;
 	JE_drawEnemy(50);
 	JE_drawEnemy(100);
+	draw_coming_enemies(25);
+	draw_coming_enemies(75);
 
 	if (enemyOnScreen == 0 || enemyOnScreen == lastEnemyOnScreen)
 	{
@@ -1571,6 +1692,7 @@ level_loop:
 		tempMapXOfs = mapX2Ofs;
 		tempBackMove = 0;
 		JE_drawEnemy(25);
+		draw_coming_enemies(0);
 
 		if (enemyOnScreen == lastEnemyOnScreen)
 		{
@@ -1590,9 +1712,11 @@ level_loop:
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : mapXOfs;
 		tempBackMove = backMove3;
 		JE_drawEnemy(75);
+		draw_coming_enemies(50);
 	}
 
 	l3d_phase(L3D_PLAYER);
+	l3d_draw_departed_shots();  // Tyrian3D
 
 	/* Player Shot Images */
 	for (int z = 0; z < MAX_PWEAPON; z++)
@@ -2051,6 +2175,7 @@ draw_player_shot_loop_end:
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : oldMapXOfs;
 		tempBackMove = backMove3;
 		JE_drawEnemy(75);
+		draw_coming_enemies(50);
 	}
 
 	/* Draw Sky Enemy */
@@ -2062,6 +2187,7 @@ draw_player_shot_loop_end:
 		tempMapXOfs = mapX2Ofs;
 		tempBackMove = 0;
 		JE_drawEnemy(25);
+		draw_coming_enemies(0);
 
 		if (enemyOnScreen == lastEnemyOnScreen)
 		{
@@ -3378,6 +3504,7 @@ new_game:
 
 	++b3d_map_generation;
 	p3d_clear();
+	l3d_clear_departed_shots();
 	b3d_note_tileset(char_shapeFile, (const Uint16 (*)[128])mapSh);
 	if (l3d_enabled)
 		b3d_prepare_sides();

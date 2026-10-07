@@ -19,6 +19,7 @@
 #include "shots.h"
 
 #include "layer3d.h"
+#include "models3d.h"
 #include "player.h"
 #include "sprite.h"
 #include "video.h"
@@ -223,6 +224,14 @@ bool player_shot_move_and_draw(
 		if (shot->shotX < -34 || shot->shotX > 290 ||
 			shot->shotY < -15 || shot->shotY > 190)
 		{
+			// Tyrian3D: one that flies off the top flies on in the 3D view.
+			const JE_word frame = shot->shotGr + shot->shotAni;
+			if (shot->shotY < -15 && shot->shotXM <= 100 && shot->shotYM <= 100 && frame < 60000 && m3d_enabled)
+			{
+				const JE_word sprite = frame % 1000;
+				l3d_shot_departed(sprite > 500 ? (const void *)&spriteSheet12 : (const void *)&spriteSheet8,
+				                  sprite > 500 ? sprite - 500 : sprite, shot->shotX + 1, shot->shotY, shot->shotXM, shot->shotYM);
+			}
 			shotAvail[shot_id] = 0;
 			return false;
 		}

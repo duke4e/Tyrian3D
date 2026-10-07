@@ -200,6 +200,13 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy);
 // its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index). False when the 3D
 // view isn't capturing or shows flat sprites: then draw the sprite as usual.
 bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key);
+
+// A shot the game dropped because it left the screen at the top: the 3D view, which sees further,
+// lets it fly on (vx, vy: game pixels a tick) until it is far away. l3d_draw_departed_shots adds
+// them to the frame (in the player's phase, once a frame).
+void l3d_shot_departed(const void *sheet, unsigned int sprite, int x, int y, int vx, int vy);
+void l3d_draw_departed_shots(void);
+void l3d_clear_departed_shots(void);
 // Sets the velocity of the glow recorded last.
 void l3d_last_glow_velocity(float vx, float vy);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.

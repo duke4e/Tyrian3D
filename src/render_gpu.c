@@ -826,7 +826,7 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 // Converts the layers to colour, one atlas slot each. Layers drawn over background map tiles
 // (native) keep only the playfield, where the game drew them; the tiles show everything else.
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
-                              int *slot_of_layer, int *slot_count)
+                              const bool *composed_layer, int *slot_of_layer, int *slot_count)
 {
 	// The world ends at the edges of the layers; fade towards the black clear colour there so the
 	// tilted camera doesn't show a hard border.
@@ -864,13 +864,25 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 		Uint32 *dst = atlas_rgba + slots * ATLAS_SLOT_H * L3D_WIDTH;
 		if (native[l])
 		{
+			// A filtered (composed) background outside the playfield only approximates the game's
+			// filters, so the playfield's edge fades into it, dithered, rather than showing a seam.
+			static const Uint8 bayer[4][4] = { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
+			const int feather = composed_layer[l] ? 10 : 0;
 			memset(dst, 0, L3D_WIDTH * L3D_ROWS * sizeof(Uint32));
 			for (int y = L3D_OVERSCAN; y < L3D_OVERSCAN + L3D_PLAYFIELD_H; ++y)
 				for (int x = L3D_PLAYFIELD_X; x < L3D_PLAYFIELD_X + L3D_PLAYFIELD_W; ++x)
 				{
 					const int i = y * L3D_WIDTH + x;
-					if (layer->cover[i] && !(empty_zero && layer->index[i] == 0))
-						dst[i] = colors[layer->index[i]];
+					if (!layer->cover[i] || (empty_zero && layer->index[i] == 0))
+						continue;
+					if (feather > 0)
+					{
+						const int edge = SDL_min(SDL_min(x - L3D_PLAYFIELD_X, L3D_PLAYFIELD_X + L3D_PLAYFIELD_W - 1 - x),
+						                         y - L3D_OVERSCAN);
+						if (edge < feather && bayer[y & 3][x & 3] * feather >= edge * 16)
+							continue;
+					}
+					dst[i] = colors[layer->index[i]];
 				}
 			Uint32 *water = layer_water_rgba + (slots) * ATLAS_SLOT_H * L3D_WIDTH;
 			for (int i = 0; i < L3D_WIDTH * L3D_ROWS; ++i)
@@ -1707,9 +1719,11 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	for (int i = 0; i < frame->background_count; ++i)
 	{
 		const L3DBackground *background = &frame->backgrounds[i];
-		if (composed[i] || (only != NULL && SDL_strchr(only, '0' + background->set) == NULL))
+		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
 			continue;
-		const float height = heights[background->layer] - TILE_BELOW_LAYER;
+		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
+		// go on beyond it, a little below so that the composed image wins where it is.
+		const float height = heights[background->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
 		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
 		plane_footprint(camera, height, rect);
@@ -2251,7 +2265,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	static float layer_speed[L3D_MAX_LAYERS];
 	if (new_frame)
 	{
-		build_layer_atlas(frame, colors, native, slot_of_layer, &slot_count);
+		bool composed_backgrounds[L3D_MAX_BACKGROUNDS];
+		bool composed_layer[L3D_MAX_LAYERS] = { false };
+		b3d_composed_backgrounds(frame, composed_backgrounds);
+		for (int i = 0; i < frame->background_count; ++i)
+			composed_layer[frame->backgrounds[i].layer] |= composed_backgrounds[i];
+		build_layer_atlas(frame, colors, native, composed_layer, slot_of_layer, &slot_count);
 		if (slot_count > 0)
 		{
 			btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
