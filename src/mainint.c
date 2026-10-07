@@ -49,6 +49,7 @@
 #include "picload.h"
 #include "player.h"
 #include "shots.h"
+#include "settings3d.h"
 #include "sndmast.h"
 #include "sprite.h"
 #include "varz.h"
@@ -3500,6 +3501,28 @@ void JE_pauseGame(void)
 	mouseSetRelative(true);
 }
 
+// Tyrian3D: the ship the mouse moves directly (settings3d.mouse_direct), or NULL.
+static Player *mouse_ship = NULL;
+
+// The ship's bounds, as JE_playerMovement keeps it in them.
+static int ship_max_y(int playerNum_)
+{
+	return isNetworkGame && playerNum_ == 1 ? 154 : 160;
+}
+
+void player_pointer_lead(float lead[2])
+{
+	lead[0] = lead[1] = 0;
+	if (mouse_ship == NULL || !settings3d.mouse_direct || endLevel)
+		return;
+	float dx, dy;
+	mouse_pending_motion(&dx, &dy);
+	if (smoothies[9-1])
+		dy = -dy;
+	lead[0] = SDL_clamp(mouse_ship->x + dx, 40.0f, 256.0f) - mouse_ship->x;
+	lead[1] = SDL_clamp(mouse_ship->y + dy, 10.0f, (float)ship_max_y(mouse_ship == &player[0] ? 1 : 2)) - mouse_ship->y;
+}
+
 void JE_playerMovement(Player *this_player,
                        JE_byte inputDevice,
                        JE_byte playerNum_,
@@ -3509,6 +3532,7 @@ void JE_playerMovement(Player *this_player,
 {
 	JE_integer mouseXC, mouseYC;
 	JE_integer accelXC, accelYC;
+	Sint32 directXC, directYC;  // Tyrian3D: the mouse's motion, moving the ship directly
 
 	if (playerNum_ == 2 || !twoPlayerMode)
 	{
@@ -3537,6 +3561,8 @@ redo:
 	mouseYC = 0;
 	accelXC = 0;
 	accelYC = 0;
+	directXC = 0;
+	directYC = 0;
 
 	bool link_gun_analog = false;
 	float link_gun_angle = 0;
@@ -3727,8 +3753,19 @@ redo:
 					Sint32 mouseXR;
 					Sint32 mouseYR;
 					mouseGetRelativePosition(&mouseXR, &mouseYR);
-					mouseXC += mouseXR;
-					mouseYC += mouseYR;
+					if (settings3d.mouse_direct && !isNetworkGame)
+					{
+						directXC += mouseXR;
+						directYC += mouseYR;
+						mouse_ship = this_player;
+					}
+					else
+					{
+						mouseXC += mouseXR;
+						mouseYC += mouseYR;
+						if (mouse_ship == this_player)
+							mouse_ship = NULL;
+					}
 				}
 
 				/* keyboard input */
@@ -3824,6 +3861,15 @@ redo:
 					this_player->y += (mouseYC + 3) / 4;
 				else if (mouseYC < 0)
 					this_player->y += (mouseYC - 3) / 4;
+
+				// Tyrian3D: the mouse moves the ship as far as it moved, as it moves a desktop pointer,
+				// without the original's speed limit and momentum (settings3d.mouse_direct).
+				if (smoothies[9-1])
+					directYC = -directYC;
+				if (directXC != 0)
+					this_player->x = SDL_clamp(this_player->x + directXC, 40, 256);
+				if (directYC != 0)
+					this_player->y = SDL_clamp(this_player->y + directYC, 10, ship_max_y(playerNum_));
 
 				if (mouseXC > 3)
 					accelXC++;
@@ -4171,8 +4217,11 @@ redo:
 			                 ship_look.height, 0.0f, 0.0f, 0);
 		if (ship_model && ship_ghost)
 			l3d_ghost_last_object();
+		const bool follows_mouse = mouse_ship == this_player && settings3d.mouse_direct;
 		if (ship_model)
 			l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4, NULL, NULL);
+		if (ship_model && follows_mouse)
+			l3d_pointer_last_object();
 		bool two_part_volume = false;
 		if (two_part && ship_look.model == M3D_VOLUME)
 		{
@@ -4180,6 +4229,8 @@ redo:
 			                                 this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0);
 			if (two_part_volume)
 				l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4 + 1, NULL, NULL);
+			if (two_part_volume && follows_mouse)
+				l3d_pointer_last_object();
 			if (two_part_volume && ship_ghost)
 				l3d_ghost_last_object();
 			if (two_part_volume && l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 51 : 222, true, V3D_STYLE_RAISED,
@@ -4188,6 +4239,8 @@ redo:
 				l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4 + 2, NULL, NULL);
 				if (ship_ghost)
 					l3d_ghost_last_object();
+				if (follows_mouse)
+					l3d_pointer_last_object();
 			}
 		}
 

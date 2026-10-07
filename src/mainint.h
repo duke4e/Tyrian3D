@@ -82,6 +82,9 @@ void JE_mainKeyboardInput(void);
 void JE_pauseGame(void);
 
 void JE_playerMovement(Player *this_player, JE_byte inputDevice, JE_byte playerNum, JE_word shipGr, Sprite2_array *shipGrPtr_, JE_word *mouseX, JE_word *mouseY);
+// Tyrian3D: how far the mouse has moved the ship it moves directly since the last tick (game
+// pixels, within the ship's bounds), for the frames shown between ticks.
+void player_pointer_lead(float lead[2]);
 void JE_mainGamePlayerFunctions(void);
 const char *JE_getName(JE_byte pnum);
 

@@ -104,6 +104,9 @@ change the first two as well.
 | `TYR3D_SMOOTH=0` | Show each of the game's frames once, as it renders them (no frames between ticks) |
 | `TYR3D_DUMP_AHEAD=1` | Frame dumps include the frames shown between ticks |
 | `TYR3D_SOFTWARE_POINTER=1` | Draw the mouse pointer into the screen as the original does, instead of the system pointer |
+| `TYR3D_MOUSE=direct\|original` | The mouse moves the ship as far as it moves (default), or as in the original (a speed, with momentum) |
+| `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
+| `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
 | `TYR3D_LAYER_PARALLAX=1` | Show the layers' planes unscaled (positions on different layers no longer line up as in the game) |
 | `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming |
 | `TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius>` | Tune the bloom (defaults 0.5, 1, 0.1, 1.2; intensity 0 turns it off) |

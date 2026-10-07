@@ -541,13 +541,12 @@ int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float
 
 void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS])
 {
-	bool any = false;
+	int last = -1;
 	for (int i = 0; i < frame->background_count; ++i)
-	{
-		const L3DBackground *b = &frame->backgrounds[i];
-		composed[i] = b->effect_count > 0 || (any && b->blend);
-		any |= composed[i];
-	}
+		if (frame->backgrounds[i].effect_count > 0 || frame->backgrounds[i].blend)
+			last = i;
+	for (int i = 0; i < frame->background_count; ++i)
+		composed[i] = i <= last;
 }
 
 // Pixels of a tile in the game's tile data (NULL for the blank cell).

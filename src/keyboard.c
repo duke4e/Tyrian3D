@@ -137,6 +137,14 @@ void mouseGetRelativePosition(Sint32 *const out_x, Sint32 *const out_y)
 	mouseWindowYRelative -= *out_y * points_y;
 }
 
+void mouse_pending_motion(float *const out_x, float *const out_y)
+{
+	float points_x, points_y;
+	video_window_points_per_pixel(&points_x, &points_y);
+	*out_x = mouseRelativeEnabled ? mouseWindowXRelative / points_x : 0;
+	*out_y = mouseRelativeEnabled ? mouseWindowYRelative / points_y : 0;
+}
+
 void service_SDL_events(JE_boolean clear_new)
 {
 	SDL_Event ev;

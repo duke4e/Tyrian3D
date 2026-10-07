@@ -20,6 +20,7 @@
 
 #include "devtools.h"
 #include "keyboard.h"
+#include "mainint.h"
 #include "opentyr.h"
 #include "layer3d.h"
 #include "models3d.h"
@@ -407,16 +408,18 @@ void video_wait_tick_3d(void)
 	const Uint64 period = refresh_period_ns();
 	static Uint64 cost = 0;  // what showing a frame takes, about
 	static unsigned int ticks = 0, extra_frames = 0;
+	static double left_sum = 0;
+	left_sum += getDelayLeftNS() / 1e6;
 	Uint64 next = SDL_GetTicksNS() + period;
 	for (;;)
 	{
 		const Sint64 left = getDelayLeftNS();
-		if (!smooth || left <= (Sint64)(cost + 1000000))
+		if (!smooth || left <= (Sint64)(cost + 500000))
 			break;
 		const Uint64 now = SDL_GetTicksNS();
 		if (now < next)
 		{
-			const Uint64 sleep = SDL_min(next - now, (Uint64)left - cost - 1000000);
+			const Uint64 sleep = SDL_min(next - now, (Uint64)left - cost - 500000);
 			SDL_DelayPrecise(sleep);
 			continue;
 		}
@@ -424,19 +427,28 @@ void video_wait_tick_3d(void)
 		SDL_Rect dst_rect;
 		calc_dst_render_rect(&dst_rect);
 		const Uint64 start = SDL_GetTicksNS();
+		service_SDL_events(false);  // the mouse's motion so far, for the ship it moves
+		player_pointer_lead(l3d_pointer_lead);
 		rgpu_present_3d_ahead(VGAScreenSeg, &l3d_frame, &dst_rect, getDelayProgress());
 		const Uint64 end = SDL_GetTicksNS();
-		cost = (cost * 3 + (end - start)) / 4;
+		// A typical frame's cost: an occasional slow one (the GPU catching up) doesn't count fully,
+		// or it would cut the frames short after it.
+		cost = (cost * 7 + SDL_min(end - start, cost * 2 + 500000)) / 8;
 		next = start + period;
 		++extra_frames;
 	}
+	l3d_pointer_lead[0] = l3d_pointer_lead[1] = 0;
 	wait_delay_precise();
 
 	++ticks;
 	if (SDL_getenv("TYR3D_PROFILE") != NULL && ticks % 175 == 0)
-		printf("smooth: %.1f frames shown per tick (display %.0f Hz)\n", 1.0 + extra_frames / 175.0, 1e9 / period);
+		printf("smooth: %.1f frames shown per tick (display %.0f Hz; %.1f ms left after a tick, a frame costs %.1f ms)\n",
+		       1.0 + extra_frames / 175.0, 1e9 / period, left_sum / 175, cost / 1e6);
 	if (ticks % 175 == 0)
+	{
 		extra_frames = 0;
+		left_sum = 0;
+	}
 }
 
 void video_set_3d_enabled(bool enabled)

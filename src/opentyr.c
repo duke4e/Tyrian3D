@@ -131,6 +131,12 @@ static const char *getMusicPickerItem(size_t i, char *buffer, size_t bufferSize)
 	return i == 0 ? (music_midi_available() ? "SoundFont" : "SoundFont (none)") : "AdLib";
 }
 
+static const char *getMousePickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "Direct" : "Original";
+}
+
 static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
 {
 	(void)buffer, (void)bufferSize;
@@ -170,6 +176,7 @@ void setupMenu(void)
 		MENU_ITEM_EFFECTS,
 		MENU_ITEM_CAMERA,
 		MENU_ITEM_MUSIC_SYNTH,
+		MENU_ITEM_MOUSE,
 	} MenuItemId;
 
 	typedef enum
@@ -227,6 +234,7 @@ void setupMenu(void)
 				{ MENU_ITEM_SHADOWS, "Shadows:", "Shadows of ships and enemies.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_EFFECTS, "Effects:", "Explosion particles and glowing shots.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_CAMERA, "Camera:", "How the 3D camera looks at the playfield.", getCameraPickerItemsCount, getCameraPickerItem },
+				{ MENU_ITEM_MOUSE, "Mouse:", "The ship moves as far as the mouse, or as in the original.", getTwoItemsCount, getMousePickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -340,9 +348,11 @@ void setupMenu(void)
 			case MENU_ITEM_EFFECTS:
 			case MENU_ITEM_CAMERA:
 			case MENU_ITEM_MUSIC_SYNTH:
+			case MENU_ITEM_MOUSE:
 			{
 				const size_t choice =
 					menuItem->id == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
+					menuItem->id == MENU_ITEM_MOUSE ? !settings3d.mouse_direct :
 					menuItem->id == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
 					menuItem->id == MENU_ITEM_MODELS ? !settings3d.models :
 					menuItem->id == MENU_ITEM_SHADOWS ? !settings3d.shadows :
@@ -633,12 +643,14 @@ void setupMenu(void)
 				case MENU_ITEM_EFFECTS:
 				case MENU_ITEM_CAMERA:
 				case MENU_ITEM_MUSIC_SYNTH:
+				case MENU_ITEM_MOUSE:
 				{
 					JE_playSampleNum(S_CLICK);
 
 					currentPicker = selectedMenuItemId;
 					pickerSelectedIndex =
 						selectedMenuItemId == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
+						selectedMenuItemId == MENU_ITEM_MOUSE ? !settings3d.mouse_direct :
 						selectedMenuItemId == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
 						selectedMenuItemId == MENU_ITEM_MODELS ? !settings3d.models :
 						selectedMenuItemId == MENU_ITEM_SHADOWS ? !settings3d.shadows :
@@ -878,6 +890,10 @@ void setupMenu(void)
 					settings3d.music_midi = pickerSelectedIndex == 0;
 					settings3d_changed(S3D_MUSIC);
 					settings3d_apply();
+					break;
+				case MENU_ITEM_MOUSE:
+					settings3d.mouse_direct = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_MOUSE);
 					break;
 				default:
 					break;

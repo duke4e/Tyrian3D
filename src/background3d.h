@@ -112,8 +112,8 @@ int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float
  * Each pixel stays with the background that drew it, like the captured layers.
  */
 
-// Marks the backgrounds that must be composed: those drawn before a filter, and blended ones
-// drawn over a composed background (they average with its filtered pixels).
+// Marks the backgrounds that must be composed: those drawn before a filter, blended ones (they
+// average each pixel with what is below, which tiles can't), and those drawn before them.
 void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS]);
 
 // Composes the marked backgrounds over the rectangle (x0, z0, w x h) in game screen coordinates:

@@ -13,12 +13,14 @@
 
 #include <string.h>
 
-Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true };
+Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
+                          .mouse_direct = true };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
-static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true };
-static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music;
+static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
+                             .mouse_direct = true };
+static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse;
 
 static const struct
 {
@@ -51,6 +53,9 @@ void settings3d_load(const ConfigSection *section)
 		const char *music;
 		if (config_get_string_option(section, "music", &music))
 			chosen.music_midi = SDL_strcasecmp(music, "opl") != 0;
+		const char *mouse;
+		if (config_get_string_option(section, "mouse", &mouse))
+			chosen.mouse_direct = SDL_strcasecmp(mouse, "original") != 0;
 		const char *camera;
 		if (config_get_string_option(section, "camera", &camera))
 			for (int i = 0; i < (int)COUNTOF(cameras); ++i)
@@ -72,6 +77,9 @@ void settings3d_load(const ConfigSection *section)
 	const char *music = SDL_getenv("TYR3D_MUSIC");  // midi or opl
 	if ((overridden_music = music != NULL))
 		settings3d.music_midi = SDL_strcasecmp(music, "opl") != 0;
+	const char *mouse = SDL_getenv("TYR3D_MOUSE");  // direct or original
+	if ((overridden_mouse = mouse != NULL))
+		settings3d.mouse_direct = SDL_strcasecmp(mouse, "original") != 0;
 }
 
 void settings3d_changed(Settings3DField field)
@@ -102,6 +110,10 @@ void settings3d_changed(Settings3DField field)
 		chosen.music_midi = settings3d.music_midi;
 		overridden_music = false;
 		break;
+	case S3D_MOUSE:
+		chosen.mouse_direct = settings3d.mouse_direct;
+		overridden_mouse = false;
+		break;
 	}
 }
 
@@ -113,6 +125,7 @@ void settings3d_save(ConfigSection *section)
 	config_set_bool_option(section, "effects", overridden_effects ? chosen.effects : settings3d.effects, NO_YES);
 	config_set_string_option(section, "camera", settings3d_camera_name(settings3d.camera));
 	config_set_string_option(section, "music", (overridden_music ? chosen.music_midi : settings3d.music_midi) ? "midi" : "opl");
+	config_set_string_option(section, "mouse", (overridden_mouse ? chosen.mouse_direct : settings3d.mouse_direct) ? "direct" : "original");
 }
 
 void settings3d_apply(void)

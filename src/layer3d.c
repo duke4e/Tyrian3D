@@ -308,6 +308,14 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 		*vy = dy;
 }
 
+float l3d_pointer_lead[2];
+
+void l3d_pointer_last_object(void)
+{
+	if (l3d_capturing && l3d_frame.object_count > 0)
+		l3d_frame.objects[l3d_frame.object_count - 1].pointer = true;
+}
+
 bool l3d_key_seen(Uint32 key)
 {
 	Uint32 slot = (key * 2654435761u) % MOTION_SLOTS;

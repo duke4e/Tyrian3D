@@ -76,6 +76,7 @@ typedef struct
 	Uint8 filter;         // the sprite filter (blit_sprite2_filter: index = filter | shade), 0 for none
 	bool ghost;           // half transparent (the player's ship while invulnerable)
 	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
+	bool pointer;         // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -190,6 +191,11 @@ void l3d_ghost_last_object(void);
 void l3d_key_last_object(Uint32 key, float *vx, float *vy);
 // Whether an object had the key in the last frame (or has it in this one).
 bool l3d_key_seen(Uint32 key);
+
+// The ship the mouse moves directly: in the frames shown between ticks it is drawn where the mouse
+// has moved it so far (l3d_pointer_lead, game pixels), rather than moved on by its velocity.
+void l3d_pointer_last_object(void);
+extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).
 #define L3D_KEY_ENEMY      0x10000u

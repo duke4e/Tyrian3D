@@ -1342,6 +1342,18 @@ static LoadedModel *get_model(int index)
 	return loaded->gpu != NULL ? loaded : NULL;
 }
 
+// Where an object is drawn in a frame shown `ahead` of its tick: moved on by its velocity, or,
+// the ship the mouse moves directly, where the mouse has moved it so far.
+static float object_x(const L3DObject *object)
+{
+	return object->x + (object->pointer ? l3d_pointer_lead[0] : object->vx * ahead);
+}
+
+static float object_y(const L3DObject *object)
+{
+	return object->y + (object->pointer ? l3d_pointer_lead[1] : object->vy * ahead);
+}
+
 // An instance at world coordinates.
 static void write_instance_world(float *instance, const Mat4 *transform, float brightness)
 {
@@ -1423,7 +1435,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				if (mirror)
 					mirror_x.m[0] = -1;
 				const Mat4 chain[] = {
-					mat4_translation(object->x + object->vx * ahead, height, object->y + object->vy * ahead),
+					mat4_translation(object_x(object), height, object_y(object)),
 					mirror_x,
 					mat4_rotation(1, -object->yaw),
 					mat4_rotation(2, -object->roll),
@@ -1706,7 +1718,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 
 			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
 			const Mat4 chain[] = {
-				mat4_translation(object->x + object->vx * ahead, height, object->y + object->vy * ahead),
+				mat4_translation(object_x(object), height, object_y(object)),
 				mat4_rotation(1, -object->yaw),
 				mat4_rotation(2, -object->roll),
 			};
@@ -2559,6 +2571,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		const int slot = slot_of_layer[l];
 		if (slot < 0)
 			continue;
+		// TYR3D_TILES_ONLY: background layers are left out, so only the map's tiles show them.
+		static int tiles_only = -1;
+		if (tiles_only < 0)
+			tiles_only = SDL_getenv("TYR3D_TILES_ONLY") != NULL;
+		if (tiles_only && native[l])
+			continue;
 
 		Mat4 transform = mat4_identity();
 		transform.m[0] = L3D_WIDTH;
@@ -2669,6 +2687,22 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		post.bloom_radius = bloom_parameters[3];
 	}
 
+	// The scene is rendered at the window's size in points (on a high-density display, half its
+	// pixels each way) and scaled up to the window: at 4K the GPU couldn't show a frame on every
+	// refresh, and the game's art is 320x200 anyway. The HUD is drawn at full resolution.
+	// TYR3D_RENDER_SCALE=<0.25..1> sets the scale of the window's pixels instead.
+	static float scale_override = -1;
+	if (scale_override < 0)
+	{
+		const char *value = SDL_getenv("TYR3D_RENDER_SCALE");
+		scale_override = value != NULL ? SDL_clamp((float)SDL_atof(value), 0.25f, 1.0f) : 0;
+	}
+	const float render_scale = scale_override > 0 ? scale_override
+		: SDL_min(1.0f, (float)window_frame.logical_width / (float)window_frame.drawable_width);
+	const Uint32 render_w = SDL_max(1u, (Uint32)(window_frame.drawable_width * render_scale + 0.5f));
+	const Uint32 render_h = SDL_max(1u, (Uint32)(window_frame.drawable_height * render_scale + 0.5f));
+	post.upscale_mode = BTBH_GPU_SCENE_UPSCALE_LANCZOS;
+
 	BTBHGPUSceneReport scene_report;
 	if (btbh_gpu_window_scene_present_instances_with_visibility(window,
 	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
@@ -2676,7 +2710,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
 	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
 	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
-	        shader_format, window_frame.drawable_width, window_frame.drawable_height,
+	        shader_format, render_w, render_h,
 	        camera.view_projection.m, camera.right, camera.up, camera.position,
 	        &lighting, &post, instances, instance_count, instance_count, batches, NULL, casts_shadow, batch_count,
 	        0, 0, 0, 255, &scene_report) != BTBH_GPU_OK)
