@@ -23,6 +23,7 @@
 #include "devtools.h"
 #include "layer3d.h"
 #include "models3d.h"
+#include "volume3d.h"
 #include "episodes.h"
 #include "file.h"
 #include "font.h"
@@ -197,14 +198,14 @@ static bool draw_enemy_model(unsigned int i)
 	if (!l3d_capturing || enemy[i].sprite2s == NULL)
 		return false;
 
-	// Keyed by the first animation frame, so the model stays the same while the sprite animates.
-	const unsigned int index = enemy[i].egr[0];
+	// Keyed by the first animation frame, so the appearance stays the same while the sprite animates.
+	const unsigned int first_sprite = enemy[i].egr[0];
 	const char sheet = enemy_sheet_letter(enemy[i].sprite2s);
-	const int model = m3d_enemy_model(sheet, index, enemy[i].size == 1, l3d_current_layer());
+	const M3DAppearance look = m3d_enemy_appearance(sheet, first_sprite, enemy[i].size == 1, l3d_current_layer());
 	if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL)
 	{
 		static Uint32 logged[256];
-		const Uint32 key = ((Uint32)(Uint8)sheet << 16) | index;
+		const Uint32 key = ((Uint32)(Uint8)sheet << 16) | first_sprite;
 		bool seen = false;
 		for (size_t k = 0; k < COUNTOF(logged) && logged[k] != 0; ++k)
 			seen |= logged[k] == key + 1;
@@ -212,21 +213,48 @@ static bool draw_enemy_model(unsigned int i)
 			if (logged[k] == 0)
 			{
 				logged[k] = key + 1;
-				const Sprite2_array *s2 = enemy[i].sprite2s;
-				printf("enemy sprite: sheet '%c' index %u %s layer %s -> model %d%s\n", sheet ? sheet : '?', index,
-				       enemy[i].size == 1 ? "2x2" : "1x1", l3d_layer_name(l3d_current_layer()), model,
-				       s2 == &spriteSheet10 ? " (sheet10)" : s2 == &spriteSheet11 ? " (sheet11)" : "");
+				printf("enemy: sheet '%c' sprite %u %s layer %s -> %d\n", sheet ? sheet : '?', first_sprite,
+				       enemy[i].size == 1 ? "2x2" : "1x1", l3d_layer_name(l3d_current_layer()), look.model);
 				break;
 			}
 	}
-	if (model < 0)
+	if (look.model == M3D_SPRITE)
 		return false;
 
 	if (enemy[i].ey <= -26 - screen_overscan_rows || enemy[i].ey >= 200)
 		return true;  // off screen
 
 	// Both 1x1 and 2x2 sprites are centred on (ex + 6, ey + 7).
-	return l3d_add_object(model, enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, 180.0f, 0.0f, enemy[i].filter);
+	const float x = enemy[i].ex + tempMapXOfs + 6, y = enemy[i].ey + 7;
+
+	if (look.model == M3D_VOLUME)
+	{
+		// The current animation frame, as drawn: rotation frames are already in the sprite.
+		// Ground enemies are drawn over the ground they include, so they sit flat on it.
+		const bool ground = l3d_current_layer() == L3D_GROUND_ENEMY;
+		const float height = ground ? 0.3f - l3d_layer_height(L3D_GROUND_ENEMY) : look.height;
+		return l3d_add_volume(enemy[i].sprite2s, enemy[i].egr[enemy[i].enemycycle - 1], enemy[i].size == 1,
+		                      ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f, enemy[i].filter);
+	}
+
+	float yaw = look.yaw;
+	switch (look.yaw_mode)
+	{
+	case M3D_YAW_FIXED:
+		break;
+	case M3D_YAW_VELOCITY:
+		if (enemy[i].exc != 0 || enemy[i].eyc != 0)
+			yaw = atan2f((float)enemy[i].exc, (float)-enemy[i].eyc) * 180.0f / (float)M_PI;
+		break;
+	case M3D_YAW_AIM:
+		yaw = atan2f(player[0].x + 7 - x, -(player[0].y + 7 - y)) * 180.0f / (float)M_PI;
+		break;
+	case M3D_YAW_FRAMES:
+		yaw = look.yaw + (enemy[i].enemycycle - 1) * look.yaw_step;
+		break;
+	}
+
+	return l3d_add_object(look.model, x, y, look.height, yaw, 0.0f, enemy[i].filter);
 }
 
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing

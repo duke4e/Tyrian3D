@@ -44,7 +44,8 @@ The original controls are unchanged. These are added:
 | Key | Action |
 | --- | --- |
 | F3 | Switch between the 3D view and the original 2D view |
-| F4 | Switch 3D models on or off (off shows the original sprites in 3D) |
+| F4 | Switch 3D appearances (models, volumetric sprites) on or off; off shows the flat sprites |
+| F5 | Reload `assets/models/models.cfg` |
 | Page Up / Page Down | Camera tilt |
 | Home / End | Field of view |
 | Insert / Delete | Height spread between layers |
@@ -56,13 +57,17 @@ The camera keys work only while the 3D view is on screen.
 | Variable | Meaning |
 | --- | --- |
 | `TYR3D_2D=1` | Start in the original 2D view |
-| `TYR3D_NO_MODELS=1` | Start with models off |
+| `TYR3D_NO_MODELS=1` | Start with flat sprites (as after F4) |
+| `TYR3D_MODEL_CONFIG` | Appearance file in `assets/models` (default `models.cfg`; `models_kenney.cfg` has the PoC 2 models) |
 | `TYR3D_TILT`, `TYR3D_FOV`, `TYR3D_HEIGHT_SCALE` | Initial camera (defaults 20, 30, 1) |
 | `TYR3D_GPU_BACKEND=vulkan` | Use Vulkan instead of Metal (macOS needs MoltenVK) |
 | `TYR3D_DEMO_IDLE_MS` | Title-screen idle time before the demo starts (default 30000) |
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation |
+| `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
+| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage |
+| `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 
 ## How it works
 
@@ -81,16 +86,20 @@ The camera keys work only while the 3D view is on screen.
   camera is fitted so the playfield's bottom edge, at the player's height, fills the original
   playfield width; the projection is shifted onto the playfield's rectangle in the window. The
   HUD and in-playfield text are drawn flat on top.
-- **Models** (`src/models3d.c`, `assets/models/models.cfg`). When an enemy or the player's ship
-  has a mapped model, the game records a 3D object instead of drawing the sprite. Models are
-  depth-tested against the layers and lit by a sun and ambient light.
+- **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
+  ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
+  first two the game records a 3D object instead of drawing the sprite; objects are depth-tested
+  against the layers and lit by a sun and ambient light.
+- **Volumetric sprites** (`src/volume3d.c`). The default appearance: a sprite's silhouette is
+  inflated into a rounded relief and textured with the sprite's own pixels, so every object has
+  volume and takes light while it keeps its exact original look.
 
 ## Roadmap
 
 1. ~~PoC 1: the original sprites in 3D.~~
 2. ~~PoC 2: placeholder CC0 models (Kenney Space Kit) for enemies and the player.~~
-3. Next steps:
-   - Per-enemy model mapping, with yaw taken from the animation frames of rotating enemies.
+3. ~~Volumetric sprites for every enemy and player ship; per-enemy appearance rules with yaw modes.~~
+4. Next steps (see `docs/plans/2026-10-07-tyrian3d-plan.md`):
    - Shadows from models onto the ground layer.
    - Models for shots, power-ups and explosions (particles).
    - Upside-down levels (`starShowVGASpecialCode` 1) and spotlight levels (2) in 3D.

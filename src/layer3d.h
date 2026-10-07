@@ -57,12 +57,20 @@ typedef struct
 	int min_y, max_y;                   // layer rows that contain pixels (max_y exclusive)
 } L3DLayer;
 
-// A game object shown as a 3D model instead of a sprite.
+// Object kinds besides a model index (>= 0); matches M3D_VOLUME in models3d.h.
+#define L3D_VOLUME (-2)   // a volumetric sprite
+
+// A game object shown in 3D instead of as a flat sprite.
 typedef struct
 {
-	int model;            // index into m3d_models
+	int model;            // index into m3d_models, or L3D_VOLUME
+	const void *sheet;    // L3D_VOLUME: the Sprite2_array the sprite comes from
+	Uint16 sprite;        // L3D_VOLUME: sprite index (1-based)
+	bool large;           // L3D_VOLUME: 2x2 sprite
+	Uint8 style;          // L3D_VOLUME: V3DStyle
 	float x, y;           // centre, in game screen coordinates
 	L3DLayerType layer;   // draw phase the object was drawn in
+	float height;         // added to the layer's height, game pixels
 	float yaw;            // degrees; 0 = nose up the screen
 	float roll;           // degrees, positive banks right
 	Uint8 filter;         // enemy hit-flash filter (palette hue << 4), 0 for none
@@ -103,13 +111,10 @@ bool l3d_take_frame(void);
 L3DLayerType l3d_current_layer(void);
 // Records a model object in the current phase. Returns false if the frame isn't being captured
 // (the caller should draw the sprite instead).
-bool l3d_add_object(int model, float x, float y, float yaw, float roll, Uint8 filter);
-
-// As l3d_add_object, but does nothing and returns false for model < 0.
-static inline bool l3d_add_object_if(int model, float x, float y, float yaw, float roll, Uint8 filter)
-{
-	return model >= 0 && l3d_add_object(model, x, y, yaw, roll, filter);
-}
+bool l3d_add_object(int model, float x, float y, float height, float yaw, float roll, Uint8 filter);
+// Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
+bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
+                    float yaw, float roll, Uint8 filter);
 
 // Records full-screen filter parameters instead of applying them to the composite.
 void l3d_set_filter(int hue, int brightness);

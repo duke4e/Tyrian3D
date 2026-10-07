@@ -498,9 +498,13 @@ void JE_loadCompShapes(Sprite2_array *sprite2s, char s)
 	fclose(f);
 }
 
+unsigned int sprite2_generation = 0;
+
 void JE_loadCompShapesB(Sprite2_array *sprite2s, FILE *f)
 {
 	assert(sprite2s->data == NULL);
+
+	++sprite2_generation;
 
 	sprite2s->data = malloc(sprite2s->size);
 	fread_u8_die(sprite2s->data, sprite2s->size, f);
@@ -508,6 +512,7 @@ void JE_loadCompShapesB(Sprite2_array *sprite2s, FILE *f)
 
 void free_sprite2s(Sprite2_array *sprite2s)
 {
+	++sprite2_generation;
 	free(sprite2s->data);
 	sprite2s->data = NULL;
 

@@ -6,6 +6,8 @@
 #include "devtools.h"
 #include "models3d.h"
 #include "palette.h"
+#include "sprite.h"
+#include "volume3d.h"
 
 #include <btbh_gpu/btbh_gpu.h>
 
@@ -47,6 +49,9 @@ typedef struct
 } LoadedModel;
 
 static LoadedModel loaded_models[M3D_MAX_MODELS];
+
+typedef struct VolumeSheet VolumeSheet;
+static void forget_volume_sheets(void);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
@@ -212,6 +217,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 void rgpu_shutdown(void)
 {
 	memset(loaded_models, 0, sizeof(loaded_models));  // owned by the window
+	forget_volume_sheets();
 
 	if (window != NULL)
 		btbh_gpu_window_destroy(window);  // releases every resource the window owns
@@ -478,9 +484,9 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	return camera;
 }
 
-static void build_layer_atlas(const L3DFrame *frame, int *slot_of_layer, int *slot_count)
+// Palette colours for this frame, with JE_filterScreen applied as a palette-index remap.
+static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 {
-	// JE_filterScreen as a palette-index remap.
 	Uint8 remap[256];
 	for (int i = 0; i < 256; ++i)
 	{
@@ -495,9 +501,14 @@ static void build_layer_atlas(const L3DFrame *frame, int *slot_of_layer, int *sl
 		remap[i] = (Uint8)index;
 	}
 
-	Uint32 colors[256];
 	for (int i = 0; i < 256; ++i)
 		colors[i] = rgb_palette[remap[i]];
+}
+
+static void build_layer_atlas(const L3DFrame *frame, int *slot_of_layer, int *slot_count)
+{
+	Uint32 colors[256];
+	frame_colors(frame, colors);
 
 	// The world ends at the edges of the layers; fade towards the black clear colour there so the
 	// tilted camera doesn't show a hard border.
@@ -598,6 +609,19 @@ void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Re
 	}
 }
 
+// Drops loaded models when models.cfg was reloaded (indices may now mean other models).
+static void sync_model_cache(void)
+{
+	static unsigned int generation = 0;
+	if (generation == m3d_generation)
+		return;
+	generation = m3d_generation;
+	for (int i = 0; i < M3D_MAX_MODELS; ++i)
+		if (loaded_models[i].gpu != NULL)
+			btbh_gpu_model_destroy(loaded_models[i].gpu);
+	memset(loaded_models, 0, sizeof(loaded_models));
+}
+
 static LoadedModel *get_model(int index)
 {
 	LoadedModel *loaded = &loaded_models[index];
@@ -652,7 +676,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS)
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -660,6 +684,8 @@ static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 // Appends instances and batches for the frame's model objects, grouped by model.
 static void add_object_batches(const L3DFrame *frame, int *instance_count, int *batch_count)
 {
+	sync_model_cache();
+
 	for (int model_index = 0; model_index < m3d_model_count; ++model_index)
 	{
 		const int first_instance = *instance_count;
@@ -674,8 +700,8 @@ static void add_object_batches(const L3DFrame *frame, int *instance_count, int *
 				break;
 
 			const M3DModel *model = &m3d_models[model_index];
-			const float scale = loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f;
-			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale;
+			const float scale = model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f;
+			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
 			const Mat4 chain[] = {
 				mat4_translation(object->x, height, object->y),
 				mat4_rotation(1, -object->yaw),
@@ -727,6 +753,195 @@ static void add_object_batches(const L3DFrame *frame, int *instance_count, int *
 				b->emission_energy = info->emission_energy;
 			}
 		}
+	}
+}
+
+/* --- Volumetric sprites -------------------------------------------------------------------- */
+
+#define MAX_VOLUME_SHEETS 12
+#define SHEET_SPRITES (V3D_COLUMNS * V3D_ROWS)
+
+struct VolumeSheet
+{
+	const Uint8 *data;  // sheet data this entry was decoded from; NULL = free slot
+	Uint8 indices[V3D_ATLAS_W * V3D_ATLAS_H];
+	Uint8 cover[V3D_ATLAS_W * V3D_ATLAS_H];
+	BTBHGPUTexture *texture;
+	Uint32 colors_hash;  // palette the texture was coloured with
+	BTBHGPUCustomMesh *meshes[V3D_STYLE_COUNT][2][SHEET_SPRITES + 1];  // [style][large][sprite index]
+	bool mesh_built[V3D_STYLE_COUNT][2][SHEET_SPRITES + 1];
+};
+
+static VolumeSheet volume_sheets[MAX_VOLUME_SHEETS];
+static unsigned int volume_generation = 0;
+
+// The GPU objects are owned by the window and released with it.
+static void forget_volume_sheets(void)
+{
+	memset(volume_sheets, 0, sizeof(volume_sheets));
+}
+
+static void release_volume_sheet(VolumeSheet *entry)
+{
+	for (int s = 0; s < V3D_STYLE_COUNT; ++s)
+		for (int l = 0; l < 2; ++l)
+			for (int i = 0; i <= SHEET_SPRITES; ++i)
+				if (entry->meshes[s][l][i] != NULL)
+					btbh_gpu_custom_mesh_destroy(entry->meshes[s][l][i]);
+	if (entry->texture != NULL)
+		btbh_gpu_texture_destroy(entry->texture);
+	memset(entry, 0, sizeof(*entry));
+}
+
+static Uint32 hash_colors(const Uint32 colors[256])
+{
+	Uint32 hash = 2166136261u;
+	const Uint8 *bytes = (const Uint8 *)colors;
+	for (int i = 0; i < 256 * 4; ++i)
+		hash = (hash ^ bytes[i]) * 16777619u;
+	return hash;
+}
+
+static VolumeSheet *get_volume_sheet(const Sprite2_array *sheet, const Uint32 colors[256], Uint32 colors_hash)
+{
+	// Sheets are reloaded between levels; drop everything decoded from old data.
+	if (volume_generation != sprite2_generation)
+	{
+		for (int i = 0; i < MAX_VOLUME_SHEETS; ++i)
+			if (volume_sheets[i].data != NULL)
+				release_volume_sheet(&volume_sheets[i]);
+		volume_generation = sprite2_generation;
+	}
+	if (sheet == NULL || sheet->data == NULL)
+		return NULL;
+
+	VolumeSheet *entry = NULL;
+	for (int i = 0; i < MAX_VOLUME_SHEETS && entry == NULL; ++i)
+		if (volume_sheets[i].data == sheet->data)
+			entry = &volume_sheets[i];
+	if (entry == NULL)
+	{
+		for (int i = 0; i < MAX_VOLUME_SHEETS && entry == NULL; ++i)
+			if (volume_sheets[i].data == NULL)
+				entry = &volume_sheets[i];
+		if (entry == NULL)
+		{
+			entry = &volume_sheets[0];
+			release_volume_sheet(entry);
+		}
+		entry->data = sheet->data;
+		v3d_decode_sheet(sheet, entry->indices, entry->cover);
+	}
+
+	if (entry->texture == NULL || entry->colors_hash != colors_hash)
+	{
+		static Uint32 rgba[V3D_ATLAS_W * V3D_ATLAS_H];
+		for (int i = 0; i < V3D_ATLAS_W * V3D_ATLAS_H; ++i)
+			rgba[i] = entry->cover[i] ? colors[entry->indices[i]] : 0;
+		if (entry->texture == NULL)
+		{
+			BTBHGPUTextureReport report;
+			entry->texture = btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)rgba, V3D_ATLAS_W, V3D_ATLAS_H, 0,
+				BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+			if (entry->texture == NULL)
+				fprintf(stderr, "warning: volumetric sprite texture: %s\n", report.message);
+		}
+		else
+		{
+			btbh_gpu_texture_update_rgba8(entry->texture, (const uint8_t *)rgba, 0, 0, V3D_ATLAS_W, V3D_ATLAS_H);
+		}
+		entry->colors_hash = colors_hash;
+	}
+	return entry->texture != NULL ? entry : NULL;
+}
+
+static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprite, bool large, int style)
+{
+	if (sprite == 0 || sprite > SHEET_SPRITES || style < 0 || style >= V3D_STYLE_COUNT)
+		return NULL;
+	BTBHGPUCustomMesh **mesh = &entry->meshes[style][large][sprite];
+	if (!entry->mesh_built[style][large][sprite])
+	{
+		entry->mesh_built[style][large][sprite] = true;
+		static V3DVertex vertices[V3D_MAX_VERTICES];
+		static Uint32 indices[V3D_MAX_INDICES];
+		int vertex_count = 0;
+		const int index_count = v3d_build_mesh(entry->indices, entry->cover, sprite, large, (V3DStyle)style,
+		                                       vertices, &vertex_count, indices);
+		if (index_count > 0)
+		{
+			BTBHGPUCustomMeshReport report;
+			*mesh = btbh_gpu_window_custom_mesh_create(window, vertices,
+				(uint32_t)(vertex_count * sizeof(V3DVertex)), (uint32_t)vertex_count, indices, (uint32_t)index_count, &report);
+			if (*mesh == NULL)
+				fprintf(stderr, "warning: volumetric sprite mesh: %s\n", report.message);
+		}
+	}
+	return *mesh;
+}
+
+// Volumetric sprites keep their original colours on surfaces facing up: part of the colour is
+// emitted, the rest comes from the scene's light (scaled down through the albedo), so the relief
+// still shades. Calibrated by comparing flat areas against the plain sprites (ratio 1.0).
+#define VOLUME_EMISSION 0.35f
+#define VOLUME_ALBEDO 125
+
+static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *batch_count)
+{
+	Uint32 colors[256];
+	frame_colors(frame, colors);
+	const Uint32 colors_hash = hash_colors(colors);
+
+	bool done[L3D_MAX_OBJECTS] = { false };
+	for (int o = 0; o < frame->object_count; ++o)
+	{
+		const L3DObject *first = &frame->objects[o];
+		if (done[o] || first->model != L3D_VOLUME)
+			continue;
+
+		VolumeSheet *entry = get_volume_sheet(first->sheet, colors, colors_hash);
+		BTBHGPUCustomMesh *mesh = entry != NULL ? get_volume_mesh(entry, first->sprite, first->large, first->style) : NULL;
+
+		// All objects showing the same sprite share one batch.
+		const int first_instance = *instance_count;
+		for (int p = o; p < frame->object_count; ++p)
+		{
+			const L3DObject *object = &frame->objects[p];
+			if (done[p] || object->model != L3D_VOLUME || object->sheet != first->sheet ||
+			    object->sprite != first->sprite || object->large != first->large || object->style != first->style)
+				continue;
+			done[p] = true;
+			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
+				continue;
+
+			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
+			const Mat4 chain[] = {
+				mat4_translation(object->x, height, object->y),
+				mat4_rotation(1, -object->yaw),
+				mat4_rotation(2, -object->roll),
+			};
+			const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+			write_instance(instances + *instance_count * 24, &transform, object->filter != 0 ? 2.5f : 1.0f);
+			++*instance_count;
+		}
+
+		const int count = *instance_count - first_instance;
+		if (count == 0 || *batch_count >= MAX_BATCHES)
+			continue;
+
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = mesh;
+		b->first_instance = first_instance;
+		b->instance_count = count;
+		b->albedo_texture = entry->texture;
+		b->albedo_red = b->albedo_green = b->albedo_blue = VOLUME_ALBEDO;
+		b->emission_texture = entry->texture;
+		b->emission_red = b->emission_green = b->emission_blue = b->emission_alpha = 255;
+		b->emission_energy = VOLUME_EMISSION;
+		b->roughness = 0.75f;
+		b->alpha_cutoff = 0.5f;
 	}
 }
 
@@ -807,6 +1022,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	}
 
 	add_object_batches(frame, &instance_count, &batch_count);
+	add_volume_batches(frame, &instance_count, &batch_count);
 
 	// Models are lit by a sun from the upper left and a cool ambient term; layers are unlit.
 	BTBHGPUSceneLighting lighting = { 0 };

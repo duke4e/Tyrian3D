@@ -226,7 +226,7 @@ L3DLayerType l3d_current_layer(void)
 	return phase_type;
 }
 
-bool l3d_add_object(int model, float x, float y, float yaw, float roll, Uint8 filter)
+bool l3d_add_object(int model, float x, float y, float height, float yaw, float roll, Uint8 filter)
 {
 	if (!l3d_capturing)
 		return false;
@@ -234,13 +234,34 @@ bool l3d_add_object(int model, float x, float y, float yaw, float roll, Uint8 fi
 		return true;  // drop it rather than mixing a sprite into the frame
 
 	L3DObject *object = &l3d_frame.objects[l3d_frame.object_count++];
+	memset(object, 0, sizeof(*object));
 	object->model = model;
 	object->x = x;
 	object->y = y;
 	object->layer = phase_type;
+	object->height = height;
 	object->yaw = yaw;
 	object->roll = roll;
 	object->filter = filter;
+	return true;
+}
+
+bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
+                    float yaw, float roll, Uint8 filter)
+{
+	if (!l3d_add_object(L3D_VOLUME, x, y, height, yaw, roll, filter))
+		return false;
+	if (l3d_frame.object_count > 0)
+	{
+		L3DObject *object = &l3d_frame.objects[l3d_frame.object_count - 1];
+		if (object->model == L3D_VOLUME)
+		{
+			object->sheet = sheet;
+			object->sprite = (Uint16)sprite;
+			object->large = large;
+			object->style = (Uint8)style;
+		}
+	}
 	return true;
 }
 

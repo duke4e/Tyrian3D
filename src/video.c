@@ -376,10 +376,15 @@ bool video_handle_key(SDL_Scancode scancode)
 		set_3d_enabled(!l3d_enabled);
 		return true;
 	}
-	if (scancode == SDL_SCANCODE_F4 && m3d_model_count > 0)
+	if (scancode == SDL_SCANCODE_F4)
 	{
 		m3d_enabled = !m3d_enabled;
 		printf("models: %s\n", m3d_enabled ? "on" : "off");
+		return true;
+	}
+	if (scancode == SDL_SCANCODE_F5)
+	{
+		m3d_reload();
 		return true;
 	}
 

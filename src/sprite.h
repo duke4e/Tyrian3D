@@ -114,6 +114,9 @@ extern Sprite2_array spriteSheet11;  // fka eShapes5
 extern Sprite2_array spriteSheet12;  // fka shapesW2
 extern Sprite2_array spriteSheetT2000; // fka shapesT2k
 
+// Increases whenever a sprite2 sheet is loaded or freed, so caches of sheet data can be dropped.
+extern unsigned int sprite2_generation;
+
 void JE_loadCompShapes(Sprite2_array *, char s);
 void JE_loadCompShapesB(Sprite2_array *, FILE *f);
 void free_sprite2s(Sprite2_array *);

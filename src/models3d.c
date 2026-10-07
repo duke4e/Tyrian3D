@@ -1,5 +1,5 @@
 /*
- * Tyrian3D: which game objects are shown as 3D models instead of sprites. See models3d.h.
+ * Tyrian3D: how game objects appear in 3D. See models3d.h and assets/models/models.cfg.
  */
 #include "models3d.h"
 
@@ -9,10 +9,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+_Static_assert(M3D_VOLUME == L3D_VOLUME, "object kinds must match");
+
 bool m3d_enabled = false;
 
 int m3d_model_count = 0;
 M3DModel m3d_models[M3D_MAX_MODELS];
+unsigned int m3d_generation = 0;
 
 typedef enum { CLASS_ANY, CLASS_GROUND, CLASS_SKY, CLASS_TOP } LayerClass;
 typedef enum { SIZE_ANY, SIZE_SMALL, SIZE_LARGE } SizeClass;
@@ -26,20 +29,42 @@ typedef struct
 	SizeClass size;
 	int model_count;
 	int models[MAX_RULE_MODELS];
+	M3DAppearance options;  // yaw and height options shared by the listed models
 } EnemyRule;
 
 typedef struct
 {
 	char sheet;
-	unsigned int index;
-	int model;  // -1 for "none"
+	unsigned int sprite;
+	M3DAppearance appearance;
 } SpriteOverride;
 
-static int player_model = -1;
-static int rule_count = 0;
+typedef struct
+{
+	unsigned int ship;  // 0 = any ship
+	M3DAppearance appearance;
+} ShipRule;
+
+static int rule_count;
 static EnemyRule rules[MAX_RULES];
-static int override_count = 0;
-static SpriteOverride overrides[128];
+static int override_count;
+static SpriteOverride overrides[512];
+static int ship_rule_count;
+static ShipRule ship_rules[32];
+static M3DAppearance enemy_default;
+
+static const M3DAppearance sprite_appearance = { .model = M3D_SPRITE };
+
+static const char *config_path(char *buffer, size_t size, const char **dir_out)
+{
+	const char *dir = SDL_getenv("TYR3D_MODEL_DIR");
+	if (dir == NULL)
+		dir = TYR3D_MODEL_DIR;
+	const char *file = SDL_getenv("TYR3D_MODEL_CONFIG");
+	snprintf(buffer, size, "%s/%s", dir, file != NULL ? file : "models.cfg");
+	*dir_out = dir;
+	return buffer;
+}
 
 static int find_model(const char *name)
 {
@@ -49,11 +74,81 @@ static int find_model(const char *name)
 	return -1;
 }
 
+// A model name, "volume" or "sprite"/"none". Returns false for unknown names.
+static bool parse_kind(const char *token, int *kind)
+{
+	if (strcmp(token, "sprite") == 0 || strcmp(token, "none") == 0)
+		*kind = M3D_SPRITE;
+	else if (strcmp(token, "volume") == 0)
+		*kind = M3D_VOLUME;
+	else if ((*kind = find_model(token)) < 0)
+		return false;
+	return true;
+}
+
+static float option_float(const char *value, float fallback)
+{
+	char *end;
+	const double v = strtod(value, &end);
+	return end != value ? (float)v : fallback;
+}
+
+// key=value options shared by enemy, sprite and ship lines.
+static bool parse_option(const char *token, M3DAppearance *a)
+{
+	const char *eq = strchr(token, '=');
+	if (eq == NULL)
+		return false;
+	const size_t key_length = (size_t)(eq - token);
+	const char *value = eq + 1;
+
+	if (key_length == 3 && strncmp(token, "yaw", 3) == 0)
+	{
+		if (strcmp(value, "velocity") == 0)
+			a->yaw_mode = M3D_YAW_VELOCITY;
+		else if (strcmp(value, "aim") == 0)
+			a->yaw_mode = M3D_YAW_AIM;
+		else if (strncmp(value, "frames:", 7) == 0)
+		{
+			// frames:<count>[:<first frame yaw>][:ccw]
+			a->yaw_mode = M3D_YAW_FRAMES;
+			const int count = atoi(value + 7);
+			const char *second = strchr(value + 7, ':');
+			a->yaw = second != NULL ? option_float(second + 1, 180.0f) : 180.0f;
+			a->yaw_step = count > 0 ? 360.0f / count : 0.0f;
+			if (strstr(value, ":ccw") != NULL)
+				a->yaw_step = -a->yaw_step;
+		}
+		else
+		{
+			a->yaw_mode = M3D_YAW_FIXED;
+			a->yaw = option_float(value, a->yaw);
+		}
+		return true;
+	}
+	if (key_length == 6 && strncmp(token, "height", 6) == 0)
+	{
+		a->height = option_float(value, 0.0f);
+		return true;
+	}
+	if (key_length == 7 && strncmp(token, "banking", 7) == 0)
+	{
+		a->banking = strcmp(value, "off") != 0 && strcmp(value, "0") != 0;
+		return true;
+	}
+	return false;
+}
+
+static M3DAppearance enemy_options_default(void)
+{
+	return (M3DAppearance){ .model = M3D_SPRITE, .yaw_mode = M3D_YAW_FIXED, .yaw = 180.0f };
+}
+
 static void parse_line(char *line, const char *dir, const char *file, int line_number)
 {
-	char *tokens[16];
+	char *tokens[24];
 	int count = 0;
-	for (char *token = strtok(line, " \t\r\n"); token != NULL && count < 16; token = strtok(NULL, " \t\r\n"))
+	for (char *token = strtok(line, " \t\r\n"); token != NULL && count < 24; token = strtok(NULL, " \t\r\n"))
 	{
 		if (token[0] == '#')
 			break;
@@ -62,28 +157,52 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 	if (count == 0)
 		return;
 
-	if (strcmp(tokens[0], "model") == 0 && count >= 4 && m3d_model_count < M3D_MAX_MODELS)
+	#define WARN(...) do { fprintf(stderr, "warning: %s:%d: ", file, line_number); fprintf(stderr, __VA_ARGS__); fputc('\n', stderr); } while (0)
+
+	if (strcmp(tokens[0], "model") == 0 && count >= 3)
 	{
+		if (m3d_model_count == M3D_MAX_MODELS)
+		{
+			WARN("too many models");
+			return;
+		}
 		M3DModel *model = &m3d_models[m3d_model_count++];
 		SDL_strlcpy(model->name, tokens[1], sizeof(model->name));
 		snprintf(model->path, sizeof(model->path), "%s/%s", dir, tokens[2]);
-		model->size = (float)SDL_atof(tokens[3]);
-		model->yaw = count > 4 ? (float)SDL_atof(tokens[4]) : 0.0f;
-		model->pitch = count > 5 ? (float)SDL_atof(tokens[5]) : 0.0f;
-		model->roll = count > 6 ? (float)SDL_atof(tokens[6]) : 0.0f;
+		model->size = count > 3 ? option_float(tokens[3], 0.0f) : 0.0f;
+		model->yaw = count > 4 ? option_float(tokens[4], 0.0f) : 0.0f;
+		model->pitch = count > 5 ? option_float(tokens[5], 0.0f) : 0.0f;
+		model->roll = count > 6 ? option_float(tokens[6], 0.0f) : 0.0f;
 		return;
 	}
 
-	if (strcmp(tokens[0], "player") == 0 && count >= 2)
+	// player <model> [options] is "ship any".
+	if ((strcmp(tokens[0], "player") == 0 && count >= 2) || (strcmp(tokens[0], "ship") == 0 && count >= 3))
 	{
-		player_model = find_model(tokens[1]);
-		if (player_model < 0)
-			fprintf(stderr, "warning: %s:%d: unknown model '%s'\n", file, line_number, tokens[1]);
+		const bool any = tokens[0][0] == 'p' || strcmp(tokens[1], "any") == 0;
+		const int first_option = tokens[0][0] == 'p' ? 2 : 3;
+		ShipRule rule = { .ship = any ? 0 : (unsigned int)atoi(tokens[1]) };
+		rule.appearance = (M3DAppearance){ .model = M3D_SPRITE, .banking = true };
+		if (!parse_kind(tokens[first_option - 1], &rule.appearance.model))
+		{
+			WARN("unknown model '%s'", tokens[first_option - 1]);
+			return;
+		}
+		for (int i = first_option; i < count; ++i)
+			if (!parse_option(tokens[i], &rule.appearance))
+				WARN("unknown option '%s'", tokens[i]);
+		if (ship_rule_count < (int)COUNTOF(ship_rules))
+			ship_rules[ship_rule_count++] = rule;
 		return;
 	}
 
-	if (strcmp(tokens[0], "enemy") == 0 && count >= 4 && rule_count < MAX_RULES)
+	if (strcmp(tokens[0], "enemy") == 0 && count >= 4)
 	{
+		if (rule_count == MAX_RULES)
+		{
+			WARN("too many enemy rules");
+			return;
+		}
 		EnemyRule *rule = &rules[rule_count];
 		rule->layer = strcmp(tokens[1], "ground") == 0 ? CLASS_GROUND
 		            : strcmp(tokens[1], "sky") == 0 ? CLASS_SKY
@@ -93,39 +212,72 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		           : strcmp(tokens[2], "2x2") == 0 ? SIZE_LARGE
 		           : SIZE_ANY;
 		rule->model_count = 0;
-		for (int i = 3; i < count && rule->model_count < MAX_RULE_MODELS; ++i)
+		rule->options = enemy_options_default();
+		for (int i = 3; i < count; ++i)
 		{
-			const int model = find_model(tokens[i]);
-			if (model < 0)
-				fprintf(stderr, "warning: %s:%d: unknown model '%s'\n", file, line_number, tokens[i]);
-			else
-				rule->models[rule->model_count++] = model;
+			int kind;
+			if (parse_option(tokens[i], &rule->options))
+				continue;
+			if (!parse_kind(tokens[i], &kind))
+				WARN("unknown model '%s'", tokens[i]);
+			else if (rule->model_count < MAX_RULE_MODELS)
+				rule->models[rule->model_count++] = kind;
 		}
 		if (rule->model_count > 0)
 			++rule_count;
 		return;
 	}
 
-	if (strcmp(tokens[0], "sprite") == 0 && count >= 4 && override_count < (int)COUNTOF(overrides))
+	if (strcmp(tokens[0], "sprite") == 0 && count >= 4)
 	{
-		SpriteOverride *o = &overrides[override_count++];
+		if (override_count == (int)COUNTOF(overrides))
+		{
+			WARN("too many sprite overrides");
+			return;
+		}
+		SpriteOverride *o = &overrides[override_count];
 		o->sheet = (char)SDL_tolower((unsigned char)tokens[1][0]);
-		o->index = (unsigned int)strtoul(tokens[2], NULL, 10);
-		o->model = strcmp(tokens[3], "none") == 0 ? -1 : find_model(tokens[3]);
+		o->sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
+		o->appearance = enemy_options_default();
+		if (!parse_kind(tokens[3], &o->appearance.model))
+		{
+			WARN("unknown model '%s'", tokens[3]);
+			return;
+		}
+		for (int i = 4; i < count; ++i)
+			if (!parse_option(tokens[i], &o->appearance))
+				WARN("unknown option '%s'", tokens[i]);
+		++override_count;
 		return;
 	}
 
-	fprintf(stderr, "warning: %s:%d: can't parse line\n", file, line_number);
+	if (strcmp(tokens[0], "default") == 0 && count >= 2)
+	{
+		enemy_default = enemy_options_default();
+		if (!parse_kind(tokens[1], &enemy_default.model))
+			WARN("unknown model '%s'", tokens[1]);
+		for (int i = 2; i < count; ++i)
+			if (!parse_option(tokens[i], &enemy_default))
+				WARN("unknown option '%s'", tokens[i]);
+		return;
+	}
+
+	WARN("can't parse line");
+	#undef WARN
 }
 
-void m3d_init(void)
+static void load(void)
 {
-	const char *dir = SDL_getenv("TYR3D_MODEL_DIR");
-	if (dir == NULL)
-		dir = TYR3D_MODEL_DIR;
+	m3d_model_count = 0;
+	rule_count = 0;
+	override_count = 0;
+	ship_rule_count = 0;
+	enemy_default = enemy_options_default();
+	++m3d_generation;
 
 	char path[600];
-	snprintf(path, sizeof(path), "%s/models.cfg", dir);
+	const char *dir;
+	config_path(path, sizeof(path), &dir);
 	FILE *f = fopen(path, "r");
 	if (f == NULL)
 	{
@@ -139,8 +291,19 @@ void m3d_init(void)
 		parse_line(line, dir, path, ++line_number);
 	fclose(f);
 
-	printf("models: %d models, %d enemy rules, %d sprite overrides\n", m3d_model_count, rule_count, override_count);
-	m3d_enabled = m3d_model_count > 0 && SDL_getenv("TYR3D_NO_MODELS") == NULL;
+	printf("models: %d models, %d enemy rules, %d sprite overrides, %d ship rules\n",
+	       m3d_model_count, rule_count, override_count, ship_rule_count);
+}
+
+void m3d_init(void)
+{
+	load();
+	m3d_enabled = SDL_getenv("TYR3D_NO_MODELS") == NULL;
+}
+
+void m3d_reload(void)
+{
+	load();
 }
 
 static LayerClass layer_class(L3DLayerType layer)
@@ -154,15 +317,15 @@ static LayerClass layer_class(L3DLayerType layer)
 	}
 }
 
-int m3d_enemy_model(char sheet, unsigned int sprite_index, bool large, L3DLayerType layer)
+M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool large, L3DLayerType layer)
 {
 	if (!m3d_enabled || sheet == 0)
-		return -1;
+		return sprite_appearance;
 
 	sheet = (char)SDL_tolower((unsigned char)sheet);
 	for (int i = 0; i < override_count; ++i)
-		if (overrides[i].sheet == sheet && overrides[i].index == sprite_index)
-			return overrides[i].model;
+		if (overrides[i].sheet == sheet && overrides[i].sprite == first_sprite)
+			return overrides[i].appearance;
 
 	const LayerClass lc = layer_class(layer);
 	const SizeClass sc = large ? SIZE_LARGE : SIZE_SMALL;
@@ -171,15 +334,28 @@ int m3d_enemy_model(char sheet, unsigned int sprite_index, bool large, L3DLayerT
 		const EnemyRule *rule = &rules[i];
 		if ((rule->layer == CLASS_ANY || rule->layer == lc) && (rule->size == SIZE_ANY || rule->size == sc))
 		{
-			// Stable pick per sprite so each enemy type keeps its look.
-			const unsigned int hash = (unsigned int)(unsigned char)sheet * 2654435761u ^ sprite_index * 40503u;
-			return rule->models[(hash >> 7) % rule->model_count];
+			// Stable pick per enemy type so it keeps its look.
+			const unsigned int hash = (unsigned int)(unsigned char)sheet * 2654435761u ^ first_sprite * 40503u;
+			M3DAppearance a = rule->options;
+			a.model = rule->models[(hash >> 7) % rule->model_count];
+			return a;
 		}
 	}
-	return -1;
+	return enemy_default;
 }
 
-int m3d_player_model(void)
+M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 {
-	return m3d_enabled ? player_model : -1;
+	if (!m3d_enabled)
+		return sprite_appearance;
+
+	const ShipRule *any = NULL;
+	for (int i = 0; i < ship_rule_count; ++i)
+	{
+		if (ship_rules[i].ship == ship_id)
+			return ship_rules[i].appearance;
+		if (ship_rules[i].ship == 0 && any == NULL)
+			any = &ship_rules[i];
+	}
+	return any != NULL ? any->appearance : sprite_appearance;
 }
