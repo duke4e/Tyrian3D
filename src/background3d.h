@@ -54,6 +54,8 @@ static inline void b3d_cell_origin(int cell, int *x, int *y)
 // is below (draw_background_2_blend) and recolours them afterwards (water, lava and ice filters):
 // the hue and average brightness, without the detail, blur and waver those also add.
 void b3d_tile_remap(const L3DBackground *background, Uint8 remap[256]);
+// The same for the filters alone.
+void b3d_effect_remap(const L3DBackground *background, Uint8 remap[256]);
 
 // Beyond its sides the map continues mirrored, darkening by this factor per tile away from it.
 #define B3D_BEYOND_FADE 0.88f
@@ -86,5 +88,27 @@ typedef struct
 // stars will come from, and repeats every 320 pixels beside it.
 int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1,
                       B3DStar *stars, int capacity);
+
+/*
+ * Filtered backgrounds. Where the game filters the screen (lava, water, ice), the tiles cannot
+ * reproduce the result: the filters blur and waver across tile edges. Those backgrounds are
+ * composed on the CPU instead, for the area the camera sees, exactly as the game draws them, and
+ * the game's filters are applied to the composite with their waver aligned to the game's screen.
+ * Each pixel stays with the background that drew it, like the captured layers.
+ */
+
+// Marks the backgrounds that must be composed: those drawn before a filter, and blended ones
+// drawn over a composed background (they average with its filtered pixels).
+void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS]);
+
+// Composes the marked backgrounds over the rectangle (x0, z0, w x h) in game screen coordinates:
+// the screen's palette indices after the filters, and the background owning each pixel (0xff for
+// none). Each composed background also keeps its whole drawing, unfiltered (images[i]; 0 where it
+// drew nothing, except background 1, which draws everywhere), as the captured layers do: drawn at
+// its own height, a background covered by a higher one must not have holes. shades[i] holds the
+// darkening of the map's continuation beyond its sides (255 inside the map).
+void b3d_compose(const L3DFrame *frame, const bool composed[L3D_MAX_BACKGROUNDS], int x0, int z0, int w, int h,
+                 Uint8 *index, Uint8 *owner, Uint8 *const images[L3D_MAX_BACKGROUNDS],
+                 Uint8 *const shades[L3D_MAX_BACKGROUNDS]);
 
 #endif /* BACKGROUND3D_H */

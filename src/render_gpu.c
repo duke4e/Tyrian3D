@@ -50,6 +50,9 @@ static BTBHGPUTexture *screen_texture = NULL;  // 2D screen / HUD overlay, 320x2
 static BTBHGPUTexture *layer_atlas = NULL;     // 3D layers, 320 x ATLAS_H
 static BTBHGPUTexture *tile_atlas = NULL;      // background map tiles (background3d.h)
 static BTBHGPUTexture *white_texture = NULL;   // 1x1, for flat-coloured quads
+// Filtered backgrounds composed on the CPU (background3d.h): a square slot per background.
+#define COMPOSED_SIZE 1024
+static BTBHGPUTexture *composed_texture = NULL;
 static BTBHGPUCustomMesh *quad_mesh = NULL;    // unit quad in the XZ plane
 // The unit quad darkening by B3D_BEYOND_FADE towards its left or right edge.
 static BTBHGPUCustomMesh *fade_meshes[2] = { NULL, NULL };
@@ -143,11 +146,14 @@ static void die(const char *what, const char *message)
 
 static BTBHGPUTexture *create_texture(int width, int height, BTBHGPUTextureColorSpace color_space)
 {
-	static Uint32 zeroes[L3D_WIDTH * ATLAS_H];
+	Uint32 *zeroes = calloc((size_t)width * height, sizeof(Uint32));
+	if (zeroes == NULL)
+		die("failed to create GPU texture", "out of memory");
 	BTBHGPUTextureReport report;
 	BTBHGPUTexture *texture = btbh_gpu_window_texture_create_rgba8_ex(
 		window, (const uint8_t *)zeroes, width, height, 0,
 		BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_CLAMP, color_space, &report);
+	free(zeroes);
 	if (texture == NULL)
 		die("failed to create GPU texture", report.message);
 	return texture;
@@ -247,6 +253,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	layer_atlas = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	tile_atlas = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	white_texture = create_texture(1, 1, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	composed_texture = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	const Uint32 white = 0xffffffff;
 	btbh_gpu_texture_update_rgba8(white_texture, (const uint8_t *)&white, 0, 0, 1, 1);
 	quad_mesh = create_quad_mesh(1, 1);
@@ -271,6 +278,7 @@ void rgpu_shutdown(void)
 	layer_atlas = NULL;
 	tile_atlas = NULL;
 	white_texture = NULL;
+	composed_texture = NULL;
 	tile_indices_valid = false;
 	memset(tile_pages, 0, sizeof(tile_pages));
 	quad_mesh = NULL;
@@ -788,10 +796,10 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
-#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS)
+#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1097,10 +1105,111 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 	return page;
 }
 
+static Uint8 composed_index[COMPOSED_SIZE * COMPOSED_SIZE];
+static Uint8 composed_owner[COMPOSED_SIZE * COMPOSED_SIZE];
+static Uint8 composed_images[L3D_MAX_BACKGROUNDS][COMPOSED_SIZE * COMPOSED_SIZE];
+static Uint8 composed_shades[L3D_MAX_BACKGROUNDS][COMPOSED_SIZE * COMPOSED_SIZE];
+static Uint32 composed_rgba[COMPOSED_SIZE * COMPOSED_SIZE];
+
+// Appends a textured quad for each background composed on the CPU (the ones the game filters),
+// covering the area the camera sees.
+static void add_composed_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
+                                 const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
+{
+	int first = -1;
+	for (int i = 0; i < frame->background_count && first < 0; ++i)
+		if (composed[i])
+			first = i;
+	if (first < 0)
+		return;
+
+	// The lowest composed plane sees the most; the others are drawn over the same area.
+	float rect[4];
+	plane_footprint(camera, heights[frame->backgrounds[first].layer] - TILE_BELOW_LAYER, rect);
+	if (rect[0] > rect[2])
+		return;
+	int x0 = (int)floorf(rect[0]), z0 = (int)floorf(rect[1]);
+	int w = (int)ceilf(rect[2]) - x0 + 1, h = (int)ceilf(rect[3]) - z0 + 1;
+	if (w > COMPOSED_SIZE)
+	{
+		x0 = L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2 - COMPOSED_SIZE / 2;
+		w = COMPOSED_SIZE;
+	}
+	if (h > COMPOSED_SIZE)
+	{
+		z0 += h - COMPOSED_SIZE;  // keep the near part
+		h = COMPOSED_SIZE;
+	}
+
+	Uint8 *images[L3D_MAX_BACKGROUNDS], *shades[L3D_MAX_BACKGROUNDS];
+	for (int i = 0; i < L3D_MAX_BACKGROUNDS; ++i)
+	{
+		images[i] = composed_images[i];
+		shades[i] = composed_shades[i];
+	}
+	b3d_compose(frame, composed, x0, z0, w, h, composed_index, composed_owner, images, shades);
+
+	const float texture_h = (float)(COMPOSED_SIZE * L3D_MAX_BACKGROUNDS);
+	for (int i = 0; i < frame->background_count; ++i)
+	{
+		if (!composed[i] || *instance_count >= MAX_INSTANCES || *batch_count >= MAX_BATCHES)
+			continue;
+
+		// Pixels on top of the screen show the filtered screen; pixels that a higher background
+		// covers keep this background's own drawing in the filters' colours.
+		const L3DBackground *background = &frame->backgrounds[i];
+		Uint8 remap[256];
+		b3d_effect_remap(background, remap);
+		const Uint8 *image = composed_images[i], *shade = composed_shades[i];
+		for (int p = 0; p < w * h; ++p)
+		{
+			Uint32 color;
+			if (composed_owner[p] == i)
+				color = colors[composed_index[p]];
+			else if (image[p] != 0 || background->set == 1)
+				color = colors[remap[image[p]]];
+			else
+			{
+				composed_rgba[p] = 0;
+				continue;
+			}
+			if (shade[p] != 255)
+			{
+				Uint8 *c = (Uint8 *)&color;
+				for (int k = 0; k < 3; ++k)
+					c[k] = (Uint8)(c[k] * shade[p] / 255);
+			}
+			composed_rgba[p] = color;
+		}
+		btbh_gpu_texture_update_rgba8(composed_texture, (const uint8_t *)composed_rgba, 0, i * COMPOSED_SIZE, w, h);
+
+		Mat4 transform = mat4_identity();
+		transform.m[0] = (float)w;
+		transform.m[10] = (float)h;
+		transform.m[12] = (float)x0;
+		transform.m[13] = heights[frame->backgrounds[i].layer] - TILE_BELOW_LAYER;
+		transform.m[14] = (float)z0;
+		write_instance(instances + *instance_count * 24, &transform, 1.0f);
+
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = quad_mesh;
+		b->first_instance = (*instance_count)++;
+		b->instance_count = 1;
+		b->albedo_texture = composed_texture;
+		b->uv_scale_x = (float)w / COMPOSED_SIZE;
+		b->uv_scale_y = h / texture_h;
+		b->uv_offset_y = i * COMPOSED_SIZE / texture_h;
+		b->unlit_enabled = 1;
+		b->alpha_cutoff = 0.5f;
+	}
+}
+
 // Appends instances and batches for the background maps: every tile the camera sees on each
-// background's plane, grouped into one batch per atlas cell.
-static void add_background_batches(const L3DFrame *frame, const Camera3D *camera, const float *heights,
-                                   const Uint32 colors[256], int *instance_count, int *batch_count)
+// background's plane, grouped into one batch per atlas cell. Composed backgrounds are skipped.
+static void add_background_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
+                                   const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
 	if (frame->background_count == 0)
 		return;
@@ -1118,7 +1227,7 @@ static void add_background_batches(const L3DFrame *frame, const Camera3D *camera
 	for (int i = 0; i < frame->background_count; ++i)
 	{
 		const L3DBackground *background = &frame->backgrounds[i];
-		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
+		if (composed[i] || (only != NULL && SDL_strchr(only, '0' + background->set) == NULL))
 			continue;
 		const float height = heights[background->layer] - TILE_BELOW_LAYER;
 		float rect[4];
@@ -1218,11 +1327,15 @@ static float srgb_to_linear(Uint8 value)
 }
 
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
-static void add_star_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
-                           const Uint32 colors[256], int *instance_count, int *batch_count)
+// A composed background 1 has the stars in it already.
+static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
+                           const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
 	if (frame->star_count == 0 || *batch_count >= MAX_BATCHES)
 		return;
+	for (int i = 0; i < frame->background_count; ++i)
+		if (composed[i] && frame->backgrounds[i].layer == frame->star_layer)
+			return;
 
 	const float height = heights[frame->star_layer] - STARS_BELOW_LAYER;
 	float rect[4];
@@ -1343,8 +1456,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		b->alpha_cutoff = 0.5f;
 	}
 
-	add_background_batches(frame, &camera, heights, colors, &instance_count, &batch_count);
-	add_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
+	bool composed[L3D_MAX_BACKGROUNDS];
+	b3d_composed_backgrounds(frame, composed);
+	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_object_batches(frame, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 

@@ -86,8 +86,10 @@ The camera keys work only while the 3D view is on screen.
   pixels ahead, then fading out). Each time the game draws a background its scroll state is
   recorded, so the tiles line up with the game's own drawing, and scrolling further up follows
   the map's wrap points. Beyond the map's sides the map continues mirrored and slowly darkening.
-  Inside the playfield the captured layer is drawn over the tiles, which keeps the game's filters
-  exact there; outside it the tiles approximate them (blended background 2, water, lava, ice).
+  Inside the playfield the captured layer is drawn over the tiles. Backgrounds that the game
+  filters (lava, water, ice) cannot be tiles, since the filters blur and waver across tile edges:
+  they are composed on the CPU for the area the camera sees and run through the game's own
+  filter code, with the waver aligned to the game's screen.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights. The
