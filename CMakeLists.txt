@@ -98,6 +98,8 @@ file(GLOB TYRIAN_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.c")
 add_executable(tyrian3d ${TYRIAN_SOURCES})
 add_dependencies(tyrian3d tyrian3d_shaders)
 target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 m)
+# cgltf (compiled into btbh_gpu) reads the models' material names.
+target_include_directories(tyrian3d PRIVATE "${BTBH_DIR}/external/raylib/src/external")
 # Upstream OpenTyrian always builds with NDEBUG; some of its asserts fire on valid Tyrian 2000 data.
 target_compile_definitions(tyrian3d PRIVATE
     NDEBUG

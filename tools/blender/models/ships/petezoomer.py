@@ -23,9 +23,9 @@ def col_x(col):
 
 def build():
     k.reset()
-    beer = k.material("mug_beer", (251, 203, 48), roughness=0.18)
-    foam = k.material("mug_foam", (255, 251, 220), roughness=0.7)
-    glass = k.material("mug_glass", (186, 186, 186), metallic=0.1, roughness=0.15)
+    beer = k.material("mug_beer", palette=124, roughness=0.18)
+    foam = k.material("mug_foam", palette=126, roughness=0.7)
+    glass = k.material("mug_glass", palette=12, metallic=0.1, roughness=0.15)
     blue = k.material("mug_thrusters", (60, 120, 220), roughness=0.3, emission=(80, 150, 255), emission_strength=3.0)
 
     cx = col_x(12.7)  # the mug's axis (the handle sits to its left)

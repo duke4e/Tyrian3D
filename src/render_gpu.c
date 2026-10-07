@@ -12,6 +12,8 @@
 
 #include <btbh_gpu/btbh_gpu.h>
 
+#include "cgltf.h"
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,8 +35,14 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 
-// Direction the sun's light travels: from the upper left, slightly from the bottom of the screen.
-static const float sun_direction[3] = { 0.45f, -1.0f, -0.35f };
+// Direction the sun's light travels: from above and the top left of the screen, as the sprites
+// are lit. TYR3D_SUN=<x>,<y>,<z> overrides it, for tuning.
+static float sun_direction[3] = { 0.6f, -1.0f, 0.6f };
+
+// The models' light: a strong sun and a dim sky, for contrast like the sprites' shading. Energies
+// relative to the sky's irradiance (set_environment); TYR3D_LIGHTING=<sun>,<sky> overrides them.
+#define SUN_ENERGY 4.0f
+#define SKY_FILL 0.3f
 
 RGPUCamera rgpu_camera = {
 	.tilt_degrees = 20.0f,
@@ -63,9 +71,14 @@ typedef struct
 	bool load_attempted;
 	uint32_t material_count;
 	BTBHGPUModelMaterialInfo materials[16];
+	int palette_index[16];  // per material: the palette index that colours it, or -1
 	float center[3];
 	float footprint;  // larger of width and depth, model units
 } LoadedModel;
+
+// What an up-facing surface shows of its albedo in the models' light (tools/blender/tyrkit.py
+// calibrates materials with the same value).
+#define MODEL_UP_FACING_LIGHT 1.16f
 
 static LoadedModel loaded_models[M3D_MAX_MODELS];
 
@@ -207,6 +220,8 @@ static void init_camera_from_env(void)
 		rgpu_camera.fov_degrees = (float)SDL_atof(value);
 	if ((value = SDL_getenv("TYR3D_HEIGHT_SCALE")) != NULL)
 		rgpu_camera.height_scale = (float)SDL_atof(value);
+	if ((value = SDL_getenv("TYR3D_SUN")) != NULL)
+		sscanf(value, "%f,%f,%f", &sun_direction[0], &sun_direction[1], &sun_direction[2]);
 }
 
 SDL_Window *rgpu_init(const char *title, int width, int height)
@@ -743,6 +758,37 @@ static void sync_model_cache(void)
 	memset(loaded_models, 0, sizeof(loaded_models));
 }
 
+static float srgb_to_linear(Uint8 value);
+
+// Palette materials are named "<name>@<palette index>" (tyrkit.material(palette=...)): the game
+// colours them with the palette, as it does their sprites, so they follow the level's palette,
+// its fades and filters. The renderer's material slot 0 is its default material, so glTF
+// material i is slot i + 1.
+static void read_palette_materials(const char *path, LoadedModel *loaded)
+{
+	for (size_t m = 0; m < COUNTOF(loaded->palette_index); ++m)
+		loaded->palette_index[m] = -1;
+
+	cgltf_options options;
+	memset(&options, 0, sizeof(options));
+	cgltf_data *data = NULL;
+	if (cgltf_parse_file(&options, path, &data) != cgltf_result_success)
+		return;
+	for (cgltf_size i = 0; i < data->materials_count && i + 1 < COUNTOF(loaded->palette_index); ++i)
+	{
+		const char *name = data->materials[i].name;
+		const char *at = name != NULL ? SDL_strrchr(name, '@') : NULL;
+		if (at != NULL && SDL_isdigit((unsigned char)at[1]))
+			loaded->palette_index[i + 1] = SDL_clamp(SDL_atoi(at + 1), 0, 255);
+	}
+	cgltf_free(data);
+}
+
+static Uint8 palette_albedo(Uint8 value)
+{
+	return (Uint8)SDL_min(255.0f, srgb_to_linear(value) / MODEL_UP_FACING_LIGHT * 255.0f + 0.5f);
+}
+
 static LoadedModel *get_model(int index)
 {
 	LoadedModel *loaded = &loaded_models[index];
@@ -764,6 +810,7 @@ static LoadedModel *get_model(int index)
 		loaded->material_count = SDL_min(report.material_count, (uint32_t)COUNTOF(loaded->materials));
 		for (uint32_t m = 0; m < loaded->material_count; ++m)
 			btbh_gpu_model_material_info(loaded->gpu, m, &loaded->materials[m]);
+		read_palette_materials(model->path, loaded);
 		printf("model %s: %u meshes, %u materials, footprint %.2f\n", model->name, report.mesh_count,
 		       report.material_count, loaded->footprint);
 	}
@@ -804,8 +851,9 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 
-// Appends instances and batches for the frame's model objects, grouped by model.
-static void add_object_batches(const L3DFrame *frame, int *instance_count, int *batch_count)
+// Appends instances and batches for the frame's model objects, grouped by model. colors are the
+// frame's palette colours, for palette materials.
+static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
 	sync_model_cache();
 
@@ -874,6 +922,13 @@ static void add_object_batches(const L3DFrame *frame, int *instance_count, int *
 				b->emission_blue = info->emission_blue;
 				b->emission_alpha = info->emission_alpha;
 				b->emission_energy = info->emission_energy;
+				if (loaded->palette_index[m] >= 0)
+				{
+					const Uint8 *c = (const Uint8 *)&colors[loaded->palette_index[m]];
+					b->albedo_red = palette_albedo(c[0]);
+					b->albedo_green = palette_albedo(c[1]);
+					b->albedo_blue = palette_albedo(c[2]);
+				}
 			}
 		}
 	}
@@ -1543,7 +1598,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
-	add_object_batches(frame, &instance_count, &batch_count);
+	add_object_batches(frame, colors, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 
 	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
@@ -1563,14 +1618,17 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	lighting.directional_x = sun[0] / sun_length;
 	lighting.directional_y = sun[1] / sun_length;
 	lighting.directional_z = sun[2] / sun_length;
-	lighting.directional_energy = 3.0f;
+	lighting.directional_energy = SUN_ENERGY;
 	lighting.directional_red = 1.0f;
 	lighting.directional_green = 0.98f;
 	lighting.directional_blue = 0.94f;
 	set_environment(&lighting);
-	const char *energies = SDL_getenv("TYR3D_LIGHTING");  // "<sun>,<sky>": overrides, for tuning
+	const char *energies = SDL_getenv("TYR3D_LIGHTING");
+	float sky_fill = SKY_FILL;
 	if (energies != NULL)
-		sscanf(energies, "%f,%f", &lighting.directional_energy, &lighting.ambient_energy);
+		sscanf(energies, "%f,%f", &lighting.directional_energy, &sky_fill);
+	for (int i = 0; i < 27; ++i)
+		lighting.irradiance_sh[i] *= sky_fill;
 
 	BTBHGPUScenePost post = { 0 };
 	post.tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;

@@ -50,6 +50,7 @@
 #include "vga256d.h"
 #include "video.h"
 #include "video_scale.h"
+#include "viewer.h"
 #include "xmas.h"
 
 #include <SDL3/SDL.h>
@@ -807,6 +808,12 @@ int main(int argc, char *argv[])
 	if (SDL_getenv("TYR3D_EXTRACT") != NULL)
 	{
 		dev_extract(SDL_getenv("TYR3D_EXTRACT"));
+		JE_tyrianHalt(0);
+	}
+
+	if (SDL_getenv("TYR3D_VIEWER") != NULL)
+	{
+		dev_model_viewer(SDL_getenv("TYR3D_VIEWER"));
 		JE_tyrianHalt(0);
 	}
 

@@ -20,8 +20,8 @@ def col_x(col):
 
 def build():
     k.reset()
-    hull = k.material("storm_hull", (24, 16, 36), metallic=0.4, roughness=0.28)
-    trim = k.material("storm_trim", (48, 60, 69), metallic=0.4, roughness=0.3)
+    hull = k.material("storm_hull", palette=82, metallic=0.4, roughness=0.28)
+    trim = k.material("storm_trim", palette=102, metallic=0.4, roughness=0.3)
     glass = k.material("storm_glass", (77, 130, 146), roughness=0.1, emission=(77, 130, 146), emission_strength=0.6)
     lights = k.material("storm_lights", (77, 130, 146), roughness=0.3, emission=(110, 190, 230), emission_strength=3.0)
 

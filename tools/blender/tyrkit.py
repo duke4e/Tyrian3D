@@ -54,9 +54,30 @@ def srgb(rgb):
 UP_FACING_LIGHT = 1.16
 
 
-def material(name, color, metallic=0.0, roughness=0.5, emission=None, emission_strength=1.0):
+_level_palette = None
+
+
+def level_palette():
+    """The palette levels are played in (palette_levels.txt, from TYR3D_EXTRACT's palette.txt):
+    256 (r, g, b), in ramps of 16 shades, dark to light: index 16 * ramp + shade."""
+    global _level_palette
+    if _level_palette is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "palette_levels.txt")
+        _level_palette = [tuple(int(v) for v in line.split()) for line in open(path) if line.strip()]
+    return _level_palette
+
+
+def material(name, color=None, metallic=0.0, roughness=0.5, emission=None, emission_strength=1.0, palette=None):
     """A Principled BSDF material. color is 0-255 sRGB, the colour an up-facing surface shows in
-    the game (a sprite's colour): the albedo is that divided by the game's light."""
+    the game (a sprite's colour): the albedo is that divided by the game's light.
+
+    palette=<index> colours the material with that palette index instead, as the game colours
+    sprites: the game takes the colour from the current palette (so it follows the level's
+    palette, its fades and filters), Blender shows the levels' palette. Such materials are named
+    "<name>@<index>"; tools/blender/sprite_profile.py lists a sprite's indices."""
+    if palette is not None:
+        color = level_palette()[palette]
+        name = f"{name}@{palette}"
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes["Principled BSDF"]
@@ -96,6 +117,38 @@ def ring(y, half_width, half_height, segments=16, z=0.0, x=0.0, top=1.0, bottom=
         if s > 0:
             pz += crest * s ** 12
         points.append(Vector((x + px, y, z + pz)))
+    return points
+
+
+def lobed_ring(y, lobes, segments=64, origin_z=0.0):
+    """A cross-section in the XZ plane at y: the outline of a union of lobes, for hulls with pods
+    or ridges whose creases should show. Each lobe (x, z, half_width, top, bottom) is an ellipse
+    centred at (x, z) whose upper and lower halves have the given heights; lobes with a
+    half-width or height near 0 are left out. The outline is traced along rays from
+    (0, origin_z), which must be inside the union. Points run counter-clockwise seen from +Y."""
+    points = []
+    for k in range(segments):
+        a = 2 * math.pi * k / segments
+        dx, dz = math.cos(a), math.sin(a)
+        best = 0.0
+        for cx, cz, w, top, bottom in lobes:
+            if w < 0.05:
+                continue
+            for h, upper in ((top, True), (bottom, False)):
+                if h < 0.05:
+                    continue
+                # Points origin + t * direction on the ellipse ((x - cx) / w)^2 + ((z - cz) / h)^2 = 1.
+                ox, oz = -cx, origin_z - cz
+                qa = (dx / w) ** 2 + (dz / h) ** 2
+                qb = 2 * (ox * dx / w ** 2 + oz * dz / h ** 2)
+                qc = (ox / w) ** 2 + (oz / h) ** 2 - 1
+                disc = qb * qb - 4 * qa * qc
+                if disc < 0:
+                    continue
+                for t in ((-qb + math.sqrt(disc)) / (2 * qa), (-qb - math.sqrt(disc)) / (2 * qa)):
+                    if t > best and (origin_z + t * dz >= cz) == upper:
+                        best = t
+        points.append(Vector((best * dx, y, origin_z + best * dz)))
     return points
 
 

@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Measures a sprite for modelling: its silhouette per pixel row, a brightness map and its main
-colours, read from a sheet exported by TYR3D_EXTRACT (19 columns of 12x14 cells).
+"""Measures a sprite for modelling: its silhouette per pixel row, a brightness map, its palette
+indices and its main colours, read from a sheet exported by TYR3D_EXTRACT (19 columns of 12x14
+cells, in the levels' palette, with the palette indices in <sheet>.idx).
 
 usage: tools/blender/sprite_profile.py <sheet.png> <sprite index> [--small] [--png out.png]
 
 For each row: the row, its left and right edges relative to the sprite's centre column (12 for a
 2x2 sprite, 6 for a 1x1 one), the half-width (as tyrkit model scripts take it), and the row's
-pixels as brightness digits (0-9, '.' for transparent). --png writes the sprite enlarged 16 times.
+pixels as brightness digits (0-9, '.' for transparent). Then the rows' palette indices in hex,
+and the colours by use with their indices (for tyrkit.material(palette=...)). Tyrian's palettes
+come in ramps of 16 shades: index 16 * ramp + shade, dark to light. --png writes the sprite
+enlarged 16 times.
 """
+import os
 import collections
 import struct
 import sys
@@ -65,6 +70,16 @@ def sprite_pixels(sheet, index, large=True):
     return out
 
 
+def sprite_indices(sheet, index, large=True):
+    """The sprite's palette indices as rows of ints, or None for transparent, from <sheet>.idx."""
+    pixels = sprite_pixels(sheet, index, large)
+    width = 19 * 12
+    data = open(os.path.splitext(sheet)[0] + ".idx", "rb").read()
+    x0, y0 = (index - 1) % 19 * 12, (index - 1) // 19 * 14
+    return [[None if p is None else data[(y0 + y) * width + x0 + x] for x, p in enumerate(line)]
+            for y, line in enumerate(pixels)]
+
+
 def write_png(path, rows, scale=16):
     h, w = len(rows), len(rows[0])
     raw = b""
@@ -102,6 +117,16 @@ def main():
         else:
             print(f"{y:3}                   {digits}")
     print("colours:", ", ".join(f"{c}x{n}" for c, n in colours.most_common(12)))
+    if os.path.exists(os.path.splitext(sheet)[0] + ".idx"):
+        indices = sprite_indices(sheet, index, large)
+        print("palette indices:")
+        for y, line in enumerate(indices):
+            if any(i is not None for i in line):
+                print(f"{y:3}  " + " ".join(".." if i is None else f"{i:02x}" for i in line))
+        used = collections.Counter(i for line in indices for i in line if i is not None)
+        lookup = {i: p for line_i, line_p in zip(indices, pixels) for i, p in zip(line_i, line_p) if i is not None}
+        print("indices by use:", ", ".join(f"{i} (ramp {i >> 4} shade {i & 15}, {lookup[i]})x{n}"
+                                          for i, n in used.most_common(16)))
     if "--png" in args:
         write_png(args[args.index("--png") + 1], pixels)
 

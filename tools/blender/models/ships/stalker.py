@@ -22,12 +22,12 @@ def col_x(col):
 
 def build():
     k.reset()
-    body = k.material("stalker_body", (105, 109, 105), metallic=0.3, roughness=0.35)
-    light = k.material("stalker_light", (162, 166, 162), metallic=0.3, roughness=0.3)
-    dark = k.material("stalker_dark", (40, 40, 40), metallic=0.3, roughness=0.45)
-    red = k.material("stalker_red", (130, 0, 0), roughness=0.4)
+    body = k.material("stalker_body", palette=8, metallic=0.3, roughness=0.35)
+    light = k.material("stalker_light", palette=11, metallic=0.3, roughness=0.3)
+    dark = k.material("stalker_dark", palette=3, metallic=0.3, roughness=0.45)
+    red = k.material("stalker_red", palette=116, roughness=0.4)
     engine = k.material("stalker_engine", (90, 20, 0), roughness=0.5, emission=(255, 70, 20), emission_strength=3.0)
-    canopy = k.material("stalker_canopy", (20, 20, 26), roughness=0.15)
+    canopy = k.material("stalker_canopy", palette=2, roughness=0.15)
 
     # Fuselage, centred on the sprite's column 11.5: (row at pixel centre, half-width, top, bottom).
     cx = col_x(11.5)

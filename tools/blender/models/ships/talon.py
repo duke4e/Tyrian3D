@@ -1,15 +1,12 @@
 """USP Talon, the starting ship (ship 1; sprite 233 of the ships sheet, 24x28 pixels).
 
-A teardrop hull with a pointed nose, a dark canopy in its front third, a spine along the top and
-two engine pods that make the rear the widest part. The hull is one surface: its cross-sections
-follow the sprite's silhouette row by row (origin at the sprite's centre, pixel 12, 14), with the
-pods and the spine as bulges on top.
+A pear-shaped hull: a pointed nose with a dark canopy in its front third, then a fuselage
+flanked by two rounded pods that make the rear the widest part. The hull is one surface whose
+cross-sections are the union of the fuselage and the pods, so the creases between them show as
+in the sprite (origin at the sprite's centre, pixel 12, 14).
 """
-import math
 import os
 import sys
-
-from mathutils import Vector
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import tyrkit as k  # noqa: E402
@@ -20,67 +17,54 @@ def row_y(row):
     return 14 - (row + 0.5)
 
 
-def section(y, w, top, bottom, spine, pods, segments=40):
-    """Cross-section: an ellipse of half-width w (top/bottom half-heights) with a spine crest along
-    the middle and two pod bulges at 62% of the half-width."""
-    points = []
-    for i in range(segments):
-        a = 2 * math.pi * i / segments
-        c, s = math.cos(a), math.sin(a)
-        x = w * c
-        if s >= 0:
-            z = top * s
-            z += spine * math.exp(-(x / 0.9) ** 2)
-            z += pods * math.exp(-((abs(x) - 0.62 * w) / (0.22 * w + 0.01)) ** 2) * s
-        else:
-            z = bottom * s
-        points.append(Vector((x, y, z)))
-    return points
+POD_Z = 0.3
+
+# Sprite row: fuselage half-width, top, bottom; pod centre x, half-width, top, bottom. The
+# silhouette follows the sprite's (less its dark outline); the pods rise above the fuselage, so
+# the grooves between them run where the sprite has its dark lines.
+ROWS = [
+    (2.0, 0.7, 0.5, 0.35, 1.5, 0.0, 0.0, 0.0),
+    (3.0, 1.3, 0.9, 0.6, 1.5, 0.0, 0.0, 0.0),
+    (5.0, 2.2, 1.4, 0.9, 1.5, 0.0, 0.0, 0.0),
+    (8.0, 3.1, 1.9, 1.1, 1.8, 0.0, 0.0, 0.0),
+    (10.0, 3.5, 2.1, 1.3, 2.0, 0.0, 0.0, 0.0),
+    (11.5, 3.6, 2.2, 1.4, 2.3, 0.6, 0.6, 0.4),
+    (13.0, 3.4, 2.2, 1.4, 3.0, 2.0, 1.3, 0.8),
+    (15.0, 3.2, 2.1, 1.4, 3.9, 2.9, 1.9, 1.1),
+    (17.0, 3.1, 2.1, 1.4, 4.5, 3.4, 2.3, 1.3),
+    (19.0, 3.0, 2.1, 1.4, 4.9, 3.7, 2.5, 1.4),
+    (20.5, 3.0, 2.1, 1.4, 5.0, 3.7, 2.5, 1.4),
+    (22.0, 3.0, 2.0, 1.3, 5.0, 3.2, 2.3, 1.3),
+    (23.0, 2.8, 1.9, 1.3, 4.7, 2.6, 2.0, 1.2),
+    (24.0, 2.4, 1.6, 1.1, 4.2, 2.0, 1.6, 0.9),
+    (25.0, 1.8, 1.2, 0.8, 3.5, 1.3, 1.0, 0.6),
+    (25.6, 1.2, 0.8, 0.6, 3.0, 0.7, 0.5, 0.3),
+    (26.2, 0.5, 0.4, 0.3, 2.6, 0.0, 0.0, 0.0),
+]
+
+
+def section(y, bw, bt, bb, px, pw, pt, pb):
+    lobes = [
+        (0, 0, bw, bt, bb),        # fuselage
+        (-px, POD_Z, pw, pt, pb),  # pods
+        (px, POD_Z, pw, pt, pb),
+    ]
+    return k.lobed_ring(y, lobes, segments=64, origin_z=0.1)
 
 
 def build():
     k.reset()
 
-    # The sprite's colours. The scene's sky reflections are dim, so metals stay low.
-    hull = k.material("talon_hull", (154, 130, 85), metallic=0.2, roughness=0.32)
-    trim = k.material("talon_trim", (85, 60, 24), metallic=0.2, roughness=0.45)
-    canopy = k.material("talon_canopy", (28, 16, 0), roughness=0.2)
+    hull = k.material("talon_hull", palette=25, metallic=0.3, roughness=0.3)
+    canopy = k.material("talon_canopy", palette=16, roughness=0.12)
 
-    # (sprite row, half-width, top, bottom, spine, pods): the half-width is the silhouette's.
-    rows = [
-        (26.75, 2.2, 1.0, 0.6, 0.1, 0.0),
-        (26.0, 3.4, 1.6, 0.9, 0.2, 0.25),
-        (25.0, 4.9, 2.0, 1.1, 0.3, 0.6),
-        (24.0, 6.0, 2.2, 1.2, 0.4, 0.85),
-        (23, 6.6, 2.4, 1.3, 0.45, 1.0),
-        (21, 8.4, 2.6, 1.4, 0.7, 1.5),
-        (19.5, 8.9, 2.7, 1.5, 0.8, 1.6),
-        (18, 8.4, 2.8, 1.5, 0.8, 1.4),
-        (16.5, 7.4, 2.9, 1.5, 0.7, 0.9),
-        (15, 6.6, 2.9, 1.5, 0.45, 0.35),
-        (13.5, 5.8, 2.8, 1.5, 0.4, 0.1),
-        (12, 4.9, 2.7, 1.4, 0.3, 0.0),
-        (10, 4.1, 2.4, 1.3, 0.1, 0.0),
-        (7.5, 3.3, 2.0, 1.1, 0.25, 0.0),
-        (5.5, 2.8, 1.7, 0.9, 0.3, 0.0),
-        (3.5, 1.9, 1.2, 0.7, 0.2, 0.0),
-        (2.3, 0.9, 0.6, 0.4, 0.0, 0.0),
-    ]
-    rows.sort(key=lambda r: row_y(r[0]))
-    samples = k.profile([(row_y(r), *rest) for r, *rest in rows], step=0.4)
-    rings = [section(*sample) for sample in samples]
-    body = k.loft("hull", rings, hull, start_point=(0, row_y(27.0), 0.15), end_point=(0, row_y(1.7), 0.15))
-    k.smooth(body, 55)
+    samples = k.profile(sorted([(row_y(r[0]), *r[1:]) for r in ROWS]), step=0.3)
+    rings = [section(*s) for s in samples]
+    body = k.loft("hull", rings, hull, start_point=(0, row_y(26.5), 0.1), end_point=(0, row_y(1.5), 0.15))
+    k.smooth(body, 45)
 
     # Canopy: a dark glass dome in the front third.
-    k.smooth(k.ellipsoid("canopy", (0, row_y(9.7), 1.95), (1.25, 1.7, 0.85), canopy, segments=16, rings_count=10), 60)
-
-    # Panel seams across the rear: the sprite's dark bands at rows 19 and 22.
-    for r in (19.2, 22.2):
-        y = row_y(r)
-        _, w, top, bottom, spine, pods = min(samples, key=lambda sample: abs(sample[0] - y))
-        seam = [section(y + d, w + 0.06, top + 0.06, bottom + 0.06, spine + 0.02, pods) for d in (-0.2, 0.2)]
-        k.smooth(k.loft("seam", seam, trim), 55)
+    k.smooth(k.ellipsoid("canopy", (0, row_y(10.3), 1.7), (1.6, 1.8, 0.85), canopy, segments=16, rings_count=10), 60)
 
     here = os.path.dirname(os.path.abspath(__file__))
     k.finish(os.path.join(here, "..", "..", "..", "..", "assets", "models", "ships", "talon.glb"))

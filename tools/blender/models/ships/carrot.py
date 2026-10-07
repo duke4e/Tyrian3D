@@ -21,10 +21,10 @@ def col_x(col):
 
 def build():
     k.reset()
-    orange = k.material("carrot_orange", (231, 97, 12), roughness=0.45)
-    ridge = k.material("carrot_ridge", (186, 40, 0), roughness=0.5)
-    glass = k.material("carrot_canopy", (60, 40, 10), roughness=0.12)
-    green = k.material("carrot_leaf", (0, 109, 0), roughness=0.55)
+    orange = k.material("carrot_orange", palette=121, roughness=0.45)
+    ridge = k.material("carrot_ridge", palette=118, roughness=0.5)
+    glass = k.material("carrot_canopy", palette=179, roughness=0.12)
+    green = k.material("carrot_leaf", palette=196, roughness=0.55)
 
     cx = col_x(11.5)
     radius = [(18.9, 0.0), (18.4, 3.0), (17.5, 5.2), (15.5, 6.6), (13.5, 6.6), (11, 5.8), (8.5, 4.9),

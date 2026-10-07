@@ -21,9 +21,9 @@ def col_x(col):
 
 def build():
     k.reset()
-    scales = k.material("dragon_scales", (158, 8, 0), roughness=0.4)
-    dark = k.material("dragon_dark", (81, 0, 0), roughness=0.5)
-    membrane = k.material("dragon_membrane", (109, 4, 0), roughness=0.6)
+    scales = k.material("dragon_scales", palette=117, roughness=0.4)
+    dark = k.material("dragon_dark", palette=114, roughness=0.5)
+    membrane = k.material("dragon_membrane", palette=115, roughness=0.6)
     eyes = k.material("dragon_eyes", (255, 200, 40), emission=(255, 170, 30), emission_strength=4.0)
 
     # Body from tail to snout: (row at pixel centre, half-width, top, bottom).

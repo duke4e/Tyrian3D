@@ -19,10 +19,10 @@ def col_x(col):
 
 def build():
     k.reset()
-    bottle = k.material("bottle_glass", (101, 73, 32), roughness=0.12)
-    fins = k.material("bottle_fins", (73, 44, 16), roughness=0.4)
-    cork = k.material("bottle_cork", (154, 130, 85), roughness=0.7)
-    base = k.material("bottle_base", (230, 220, 190), roughness=0.4)
+    bottle = k.material("bottle_glass", palette=22, roughness=0.12)
+    fins = k.material("bottle_fins", palette=20, roughness=0.4)
+    cork = k.material("bottle_cork", palette=26, roughness=0.7)
+    base = k.material("bottle_base", palette=237, roughness=0.4)
 
     profile = [(26.8, 0.0), (26.4, 3.0), (25.5, 4.8), (24, 5.6), (19, 5.8), (16, 5.6), (13, 4.6),
                (10, 3.4), (8.5, 2.5), (4, 2.4), (1.6, 2.6), (1.0, 0.0)]

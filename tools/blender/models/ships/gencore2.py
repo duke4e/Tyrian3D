@@ -27,9 +27,9 @@ def mirrored(obj, name):
 
 def build():
     k.reset()
-    body = k.material("gencore2_body", (105, 109, 105), metallic=0.3, roughness=0.32)
-    dark = k.material("gencore2_dark", (40, 40, 40), metallic=0.3, roughness=0.45)
-    glass = k.material("gencore2_glass", (40, 70, 110), roughness=0.1)
+    body = k.material("gencore2_body", palette=8, metallic=0.3, roughness=0.32)
+    dark = k.material("gencore2_dark", palette=3, metallic=0.3, roughness=0.45)
+    glass = k.material("gencore2_glass", palette=212, roughness=0.1)
     blue = k.material("gencore2_lights", (77, 130, 200), roughness=0.3, emission=(90, 160, 255), emission_strength=3.0)
 
     # Fuselage: (row at pixel centre, half-width, top, bottom).

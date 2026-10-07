@@ -20,9 +20,9 @@ def col_x(col):
 
 def build():
     k.reset()
-    body = k.material("phoenix_body", (93, 93, 93), metallic=0.3, roughness=0.35)
-    dark = k.material("phoenix_dark", (40, 40, 40), metallic=0.3, roughness=0.45)
-    canopy = k.material("phoenix_canopy", (24, 24, 30), roughness=0.15)
+    body = k.material("phoenix_body", palette=7, metallic=0.3, roughness=0.35)
+    dark = k.material("phoenix_dark", palette=3, metallic=0.3, roughness=0.45)
+    canopy = k.material("phoenix_canopy", palette=2, roughness=0.15)
 
     # Fuselage: (row, half-width, top, bottom).
     rows = [(25.3, 1.2, 0.7, 0.5), (24.5, 2.6, 1.3, 0.9), (23, 4.2, 1.9, 1.2), (21, 4.8, 2.1, 1.3),

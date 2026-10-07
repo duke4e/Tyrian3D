@@ -21,9 +21,9 @@ def col_x(col):
 
 def build():
     k.reset()
-    frame = k.material("uship_frame", (40, 48, 44), metallic=0.3, roughness=0.45)
-    stripe = k.material("uship_stripe", (142, 142, 142), metallic=0.3, roughness=0.3)
-    tan = k.material("uship_tan", (142, 113, 69), metallic=0.25, roughness=0.35)
+    frame = k.material("uship_frame", palette=3, metallic=0.3, roughness=0.45)
+    stripe = k.material("uship_stripe", palette=10, metallic=0.3, roughness=0.3)
+    tan = k.material("uship_tan", palette=25, metallic=0.25, roughness=0.35)
 
     cx = col_x(11.5)
     # Arms: rounded bars down the sides (sprite columns 4-6 and 16-18, rows 7-22).

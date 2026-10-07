@@ -71,7 +71,9 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_WINDOWED=1` | Run in a window in the corner of the screen without taking the focus, and keep playing without it (`tools/capture_run.sh` sets it) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
-| `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light energies (for tuning; defaults 3, 0.6) |
+| `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
+| `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
+| `TYR3D_VIEWER=ships` | Model viewer: each ship's 3D look beside its sprite (see `src/viewer.h`), with `TYR3D_VIEWER_YAW`, `_ROLL`, `_SPIN` |
 
 ## How it works
 
@@ -122,9 +124,22 @@ Models are built in Blender by Python scripts in `tools/blender/models`, using t
 `--preview` also renders a top view framed like the sprite and a three-quarter view. Conventions:
 1 unit = 1 game pixel, the nose up the screen (+Y in Blender), the origin at the sprite's centre.
 Materials take the colour an up-facing surface should show in the game, so sprite colours can be
-used directly. The export reverses the triangles' winding (`tools/blender/glb_winding.py`):
+used directly. Better, `tyrkit.material(palette=<index>)` takes a palette index: the game then
+colours the material from the current palette, as it does the sprites, so models follow the
+level's palette, fades and filters (such materials are named `<name>@<index>`).
+`tools/blender/sprite_profile.py` lists a sprite's silhouette and palette indices, from sheets
+exported by `TYR3D_EXTRACT` (in the levels' palette, `tools/blender/palette_levels.txt`). The
+export reverses the triangles' winding (`tools/blender/glb_winding.py`):
 BTBH takes clockwise triangles as the front of static models, glTF counter-clockwise; models
 from elsewhere need the same treatment once.
+
+The model viewer shows the models in the game's view and light beside their sprites:
+
+```bash
+tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
+```
+
+(or run the game with `TYR3D_VIEWER=ships` and look; `TYR3D_VIEWER_ROLL=90` shows the side.)
 
 ## Roadmap
 

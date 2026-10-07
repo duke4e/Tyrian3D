@@ -250,7 +250,9 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
   tamne boje postaju sivkaste. Gdje boje moraju ostati vjerne (volumetrijski spriteovi), crta se
   unlit, a sjenčanje se peče u boje vertexa.
 - **Namotaj trokuta modela.** BTBH-ova scena uzima trokute u smjeru kazaljke na satu kao prednja lica statičkih modela, a normale stražnjih lica okreće. glTF koristi suprotan smjer, pa su svi modeli (i Kenney) bili osvijetljeni iznutra: sunce na njih nije djelovalo. `tools/blender/glb_winding.py` okreće namotaj (izvoz iz `tyrkit` to radi sam; Kenney modeli su okrenuti jednom). Pazi: Blender dijeli index buffer među meshovima iste topologije.
-- **Rasvjeta modela.** Sunce 3,0 i IBL proceduralno nebo (`set_environment`, SH9 irradijancija računata na CPU-u); refleksije neba su prigušene (0,3), jer bi tamne boje posivjele. Bez mape okoline metal je taman, zato su materijali uglavnom dielektrici. Ploha okrenuta gore dobiva oko 1,16× albedo (izmjereno testnim pločama); `tyrkit.material()` uzima boju kakva se vidi u igri.
+- **Rasvjeta modela.** Sunce 4,0 iz gornjeg lijevog kuta ekrana (kao na spriteovima) i IBL proceduralno nebo (`set_environment`, SH9 irradijancija računata na CPU-u) skalirano na 0,3 (`SKY_FILL`), za kontrast kakav imaju spriteovi; `ambient_energy` uz IBL ne djeluje. Refleksije neba su prigušene (0,3), jer bi tamne boje posivjele. Bez mape okoline metal je taman, zato su materijali uglavnom dielektrici. Ploha okrenuta gore dobiva oko 1,16× albedo (`MODEL_UP_FACING_LIGHT`; `tyrkit.material()` uzima boju kakva se vidi u igri). Provjera: srednja svjetlina modela prema spriteu (bez obruba) u pregledniku je 0,97.
+- **Boje modela iz palete.** Igra levele igra u paleti 5 (`pcxpal[2]`, paleta HUD slike), a ne 0. Materijali `ime@indeks` (`tyrkit.material(palette=...)`) dobivaju boju iz trenutne palete u svakom frameu (`read_palette_materials`, cgltf čita imena), pa prate fadeove i filtere.
+- **Galerija brodova u levelu je varljiva:** prvih ~100 tickova igrač je neranjiv (sprite se crta poluprozirno, model "bljeska" 2,5×), a `constantPlay` (TYR3D_START) sam pomiče brod i puca. Za usporedbu modela i spriteova koristi `TYR3D_VIEWER=ships`.
 - BTBH nema UV po instanci (`uv_transform` je po batchu), zato tileovi pozadine idu u batch po ćeliji atlasa. Boja instance (`instance.color`) množi boju, što se koristi za tamnjenje.
 - Present mode je IMMEDIATE (nema vsynca). Tempo određuje vlastiti timer igre.
 - Readback BMP-a je RGBA; boje su provjerene.
@@ -262,6 +264,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 3. **Sjene.** Objekti ne bacaju sjene na tlo; 2D sjena broda je isključena kad se crta 3D izgled (plan: M5.4).
 4. **Pikseli iste boje.** Kad sprite iscrta piksel iste boje kakva je već ispod, diff ga ne vidi, pa taj piksel ostaje u nižem sloju. Za pozadine to više ne vrijedi (tileovi su ispod snimljenog sloja). Vizualno je zanemarivo.
 5. **Specijalni brodovi.** `shipGr_ 0` i `1` (dvodijelni brodovi, Nortship) uvijek su spriteovi.
+10. **Neranjivost broda.** Original crta neranjivi brod poluprozirno (`blit_sprite2x2_blend`); model umjesto toga "bljeska" (svjetlina 2,5×). Prozirnost bi trebala alfa u BTBH-ovom MRT model shaderu (plan: M5.2 stanja).
 6. **Filteri izvan igrališta.** Pozadine koje igra filtrira (lava, voda, led) komponiraju se na CPU-u za vidljivo područje i prolaze kroz iste formule kao `lava_filter`/`water_filter` (`b3d_compose`), pa nema šava na rubu igrališta. Preostale razlike: igra za piksel iznad čita prošli frame (ovdje nefiltrirani piksel), vremensko zamućenje leda i blura je izostavljeno, a miješana pozadina 2 nacrtana nakon filtera miješa se samo s komponiranim pozadinama ispod (ne sa spriteovima i pozadinom 3). Trošak: oko 1–2 ms po frameu na tim razinama (RelWithDebInfo). `JE_darkenBackground` (SuperWild) i "astral" stanje izvan igrališta nisu preneseni.
 7. **Boja 0 pozadine 1 je prozirna** (kroz nju se vide zvijezde, kao u igri). Izvan igrališta se ondje vidi crna boja clear-a, a ne boja palete 0 (koja je inače crna).
 8. **Neprijatelji se pojavljuju naglo pri većem tiltu.** Tlo se vidi daleko naprijed, ali igra stvara neprijatelje tek kad im red dođe do vrha ekrana, a objekti se crtaju do 64 reda iznad njega. To je logika igre.
@@ -270,9 +273,8 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 ## 9. Predloženi sljedeći koraci (redom)
 
 1. Korisnik ručno isproba igru i kaže dojam o pozadinama i volumetrijskim spriteovima. Kalibrirati zadani tilt, FOV i visine slojeva (tipke za kameru ispisuju vrijednosti).
-2. Dovršiti M1.3: preglednik modela (`TYR3D_MODEL_VIEW`), Blender headless pipeline do `.glb`, jedan probni model kroz cijeli put.
+2. M3: korisnik odobrava set brodova (preglednik `TYR3D_VIEWER=ships`); doraditi Storm i ostale prema dojmu; sidekickovi.
 3. M2.2: semantika animacija (rotacija, ciklus, naginjanje) iz kataloga.
-4. M3: brodovi igrača u Blenderu.
 5. M4: HUD kao overlay (scena već puni prozor), posebne razine.
 6. M5.4 sjene: varijanta shadera "unlit + prima sjenu" za slojeve, tileove i volumetrijske spriteove.
 7. Vulkan (`TYR3D_GPU_BACKEND=vulkan`, na macOS-u preko MoltenVK) i build na Windowsu/Linuxu (M9).

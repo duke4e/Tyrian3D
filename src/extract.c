@@ -3,9 +3,12 @@
  *
  * TYR3D_EXTRACT=<dir> runs it after the game data is loaded, then exits:
  *
- *   <dir>/sheets/<name>.png    sprite sheets as 19x16 grids of 12x14 cells (palette 0, with alpha).
- *                              Sprite index i (1-based) is at column (i-1) % 19, row (i-1) / 19;
- *                              a 2x2 sprite covers cells i, i+1, i+19 and i+20.
+ *   <dir>/sheets/<name>.png    sprite sheets as 19x16 grids of 12x14 cells, in the palette the
+ *                              levels are played in, with alpha. Sprite index i (1-based) is at
+ *                              column (i-1) % 19, row (i-1) / 19; a 2x2 sprite covers cells i, i+1,
+ *                              i+19 and i+20.
+ *   <dir>/sheets/<name>.idx    the sheet's palette indices, a byte per pixel, row by row.
+ *   <dir>/palette.txt          the levels' palette: a line of "r g b" per index.
  *   <dir>/catalog.json         enemy types used by each episode's levels, with sheet, frames, size,
  *                              how often and where they appear; the player ships.
  *
@@ -20,6 +23,7 @@
 #include "lvlmast.h"
 #include "opentyr.h"
 #include "palette.h"
+#include "pcxmast.h"
 #include "sprite.h"
 #include "video.h"
 
@@ -47,7 +51,15 @@ static void sheet_file_name(char letter, char *out, size_t size)
 		snprintf(out, size, "enemy_x%02x", (unsigned char)letter);
 }
 
-// Draws every cell of a sprite2 sheet and writes it as a PNG with transparency.
+// The palette levels are played in: that of the in-game panel picture (JE_loadPic(3) at the start
+// of each level).
+static const SDL_Color *level_palette(void)
+{
+	return palettes[pcxpal[3 - 1]];
+}
+
+// Draws every cell of a sprite2 sheet and writes it as a PNG with transparency, and its palette
+// indices.
 static void export_sheet(const char *dir, const char *name, const Sprite2_array *sheet)
 {
 	if (sheet->data == NULL || sheet->size < 2)
@@ -73,13 +85,15 @@ static void export_sheet(const char *dir, const char *name, const Sprite2_array 
 	}
 
 	static Uint8 rgba[SHEET_W * SHEET_H * 4];
+	static Uint8 indices[SHEET_W * SHEET_H];
 	for (int y = 0; y < SHEET_H; ++y)
 		for (int x = 0; x < SHEET_W; ++x)
 		{
 			const Uint8 a = ((const Uint8 *)passes[0]->pixels)[y * passes[0]->pitch + x];
 			const Uint8 b = ((const Uint8 *)passes[1]->pixels)[y * passes[1]->pitch + x];
 			Uint8 *out = &rgba[(y * SHEET_W + x) * 4];
-			const SDL_Color c = palettes[0][a];
+			indices[y * SHEET_W + x] = a;
+			const SDL_Color c = level_palette()[a];
 			out[0] = c.r;
 			out[1] = c.g;
 			out[2] = c.b;
@@ -93,6 +107,13 @@ static void export_sheet(const char *dir, const char *name, const Sprite2_array 
 	snprintf(path, sizeof(path), "%s/sheets/%s.png", dir, name);
 	if (btbh_gpu_write_png_rgba8(path, SHEET_W, SHEET_H, rgba) != BTBH_GPU_OK)
 		fprintf(stderr, "warning: failed to write %s\n", path);
+
+	snprintf(path, sizeof(path), "%s/sheets/%s.idx", dir, name);
+	FILE *f = fopen(path, "wb");
+	if (f == NULL || fwrite(indices, sizeof(indices), 1, f) != 1)
+		fprintf(stderr, "warning: failed to write %s\n", path);
+	if (f != NULL)
+		fclose(f);
 }
 
 static void json_string(FILE *f, const char *s)
@@ -339,6 +360,15 @@ void dev_extract(const char *dir)
 	export_sheet(dir, "shots2", &spriteSheet12);
 	export_sheet(dir, "ships_t2000", &spriteSheetT2000);
 	export_sheet(dir, "explosions", &explosionSpriteSheet);
+
+	snprintf(path, sizeof(path), "%s/palette.txt", dir);
+	FILE *palette = fopen(path, "w");
+	if (palette != NULL)
+	{
+		for (int i = 0; i < 256; ++i)
+			fprintf(palette, "%d %d %d\n", level_palette()[i].r, level_palette()[i].g, level_palette()[i].b);
+		fclose(palette);
+	}
 
 	snprintf(path, sizeof(path), "%s/catalog.json", dir);
 	FILE *json = fopen(path, "w");

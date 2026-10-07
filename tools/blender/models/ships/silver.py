@@ -20,10 +20,10 @@ def col_x(col):
 
 def build():
     k.reset()
-    silver = k.material("silver_body", (162, 166, 162), metallic=0.35, roughness=0.28)
-    grey = k.material("silver_grey", (93, 93, 93), metallic=0.3, roughness=0.35)
-    red = k.material("silver_red", (130, 0, 0), roughness=0.35)
-    glass = k.material("silver_canopy", (24, 24, 30), roughness=0.12)
+    silver = k.material("silver_body", palette=11, metallic=0.35, roughness=0.28)
+    grey = k.material("silver_grey", palette=7, metallic=0.3, roughness=0.35)
+    red = k.material("silver_red", palette=115, roughness=0.35)
+    glass = k.material("silver_canopy", palette=2, roughness=0.12)
 
     cx = col_x(11.5)
     # Fuselage: (row at pixel centre, half-width, top, bottom), with a bright spine along the top.
