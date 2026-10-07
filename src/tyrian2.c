@@ -254,6 +254,7 @@ static bool draw_enemy_model(unsigned int i)
 		                                  ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f,
 		                                  enemy[i].filter);
 		l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
+		l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, NULL, NULL);
 		return added;
 	}
 
@@ -290,7 +291,9 @@ static bool draw_enemy_model(unsigned int i)
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
 	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
 	float vx, vy;
-	l3d_key_last_object(ENEMY_MOTION_KEY(i), &vx, &vy);
+	l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
+	// An enemy that has just appeared moves on as the game will move it.
+	l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, &vx, &vy);
 	if (look.glow_size != 0)
 	{
 		l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y,
@@ -388,10 +391,11 @@ static void draw_coming_enemies(int enemy_offset)
 	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
 	{
 		const struct JE_EventRecType *ev = &eventRec[e];
-		// The event happens in `ticks` + 1 ticks (events happen when the map has moved, before the
-		// enemies are drawn), and the enemy is first drawn a tick's movement from where it is made.
+		// The event happens `ticks` ticks from now: the map moves until it reaches the event, and
+		// events come at the start of a tick, before the map moves. The enemy is first drawn in that
+		// tick, a tick's movement from where it is made.
 		const int moves = ((int)ev->eventtime - (int)curLoc + event_step - 1) / event_step;
-		const float ticks = (slow ? map1YDelay + (moves - 1) * map1YDelayMax : moves) - 1;
+		const float ticks = 1 + (moves == 0 ? 0 : slow ? map1YDelay + (moves - 1) * map1YDelayMax : moves);
 		if (ticks > 400)
 			break;
 
@@ -4632,9 +4636,11 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	{
 		const int e = eventLoc - 1;
 		const Uint32 key = COMING_KEY + (Uint32)(e * 4 + enemyTypeOfs) * 4 + (tempW & 3);
-		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d %s; backMove %d/%d/%d delay %d (3D frame %u)\n",
+		float px = 0, py = 0;
+		const bool seen = l3d_key_seen(key) && l3d_key_position(key, &px, &py);
+		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
 		       e, eventRec[e].eventtype, enemyOffset, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
-		       enemy[b-1].fixedmovey, l3d_key_seen(key) ? "predicted" : "POPS", backMove, backMove2, backMove3, map1YDelayMax,
+		       enemy[b-1].fixedmovey, seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax,
 		       l3d_frame_number);
 	}
 }

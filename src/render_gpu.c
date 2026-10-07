@@ -810,6 +810,18 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 #define BACKGROUND_AHEAD 640.0f
 #define BACKGROUND_FADE 160.0f
 
+// The view last shown, for mapping the mouse pointer onto the player's plane.
+typedef struct
+{
+	bool valid;
+	Camera3D camera;
+	float reference;           // the player's plane's height
+	float window_w, window_h;  // window points
+	bool upside_down;
+} ShownView;
+
+static ShownView shown_view;
+
 /*
  * Layer alignment. The game draws every layer in the same screen coordinates, but in the view the
  * layers are planes at different heights, and with perspective the same position would be seen
@@ -1213,9 +1225,13 @@ static void hud_panel_hd(const SDL_Surface *hud)
 		for (int x = 0; x < W; ++x)
 		{
 			Uint32 c = screen_rgba[y * SCREEN_W + L3D_PLAYFIELD_W + x];
-			// Over the upscaled picture: only what the game drew over its own picture.
-			if (panel_art != NULL && ((const Uint8 *)hud->pixels)[y * hud->pitch + L3D_PLAYFIELD_W + x] ==
-			                         panel_picture[y * SCREEN_W + L3D_PLAYFIELD_W + x])
+			// Over the upscaled picture: only what the game drew over its own picture, and the
+			// green labels and their boxes (FRONT GUN, SHIELD...), which upscalers smear.
+			const Uint8 *rgb = (const Uint8 *)&c;
+			const bool label = rgb[1] > rgb[0] + 12 && rgb[1] > rgb[2] + 12;
+			if (panel_art != NULL && !label &&
+			    ((const Uint8 *)hud->pixels)[y * hud->pitch + L3D_PLAYFIELD_W + x] ==
+			    panel_picture[y * SCREEN_W + L3D_PLAYFIELD_W + x])
 				c = 0;
 			panel[y * W + x] = c;
 			hash = (hash ^ c) * 16777619u;
@@ -1236,6 +1252,43 @@ void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const 
 	ahead = ticks;
 	present_3d(hud, frame, dst);
 	ahead = 0;
+}
+
+bool rgpu_window_to_playfield(float wx, float wy, float *x, float *y)
+{
+	if (!shown_view.valid)
+		return false;
+	const Camera3D *camera = &shown_view.camera;
+	const float ndc[2] = { wx / shown_view.window_w * 2 - 1, 1 - wy / shown_view.window_h * 2 };
+	float slope[2], ray[3];
+	for (int i = 0; i < 2; ++i)
+		slope[i] = (ndc[i] - camera->ndc_offset[i]) / camera->ndc_scale[i] * camera->tan_half[i];
+	if (shown_view.upside_down)
+		slope[1] = -slope[1];
+	for (int i = 0; i < 3; ++i)
+		ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
+	if (ray[1] > -1e-6f)
+		return false;  // above the horizon
+	const float s = (shown_view.reference - camera->position[1]) / ray[1];
+	*x = camera->position[0] + ray[0] * s;
+	*y = camera->position[2] + ray[2] * s;
+	return true;
+}
+
+bool rgpu_playfield_to_window(float x, float y, float *wx, float *wy)
+{
+	if (!shown_view.valid)
+		return false;
+	const float *m = shown_view.camera.view_projection.m;
+	const float p[4] = { x, shown_view.reference, y, 1 };
+	float clip[4];
+	for (int r = 0; r < 4; ++r)
+		clip[r] = m[r] * p[0] + m[4 + r] * p[1] + m[8 + r] * p[2] + m[12 + r] * p[3];
+	if (clip[3] <= 1e-6f)
+		return false;
+	*wx = (clip[0] / clip[3] + 1) / 2 * shown_view.window_w;
+	*wy = (1 - clip[1] / clip[3]) / 2 * shown_view.window_h;
+	return true;
 }
 
 float rgpu_playfield_scale(void)
@@ -2563,6 +2616,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down);
 	set_alignment(&camera, reference_height);
+	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
 
 	int instance_count = 0;
 	int batch_count = 0;

@@ -49,8 +49,13 @@ void init_keyboard(void);
 void mouseSetRelative(bool enable);
 JE_word JE_mousePosition(JE_word *mouseX, JE_word *mouseY);
 void mouseGetRelativePosition(Sint32 *out_x, Sint32 *out_y);
-// Tyrian3D: the relative motion mouseGetRelativePosition hasn't taken yet, in screen pixels.
-void mouse_pending_motion(float *out_x, float *out_y);
+// Tyrian3D, for the direct mouse: the pointer's position as a game screen position (in the 3D
+// view, on the player's plane), whether it moved since the game last took the news, and putting
+// the pointer at a game position (where the ship is).
+bool mouse_pointer_game(float *out_x, float *out_y);
+bool mouse_pointer_moved(void);
+bool mouse_take_pointer_moved(void);
+void mouse_place_pointer(float x, float y);
 
 void service_SDL_events(JE_boolean clear_new);
 

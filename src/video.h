@@ -98,5 +98,9 @@ void mapWindowPointToScreen(Sint32 *inout_x, Sint32 *inout_y);
 void scaleWindowDistanceToScreen(Sint32 *inout_x, Sint32 *inout_y);
 // Window points per screen pixel as the screen is shown now (in the 3D view, the playfield's).
 void video_window_points_per_pixel(float *x, float *y);
+// A window point (points) as a game screen position as the screen is shown now (in the 3D view,
+// on the player's plane), and back.
+bool video_window_to_game(float wx, float wy, float *x, float *y);
+bool video_game_to_window(float x, float y, float *wx, float *wy);
 
 #endif /* VIDEO_H */

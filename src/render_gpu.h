@@ -43,5 +43,9 @@ void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const 
 
 // Window points per game pixel in the 3D view's playfield (at the player's height).
 float rgpu_playfield_scale(void);
+// A window point (points) as a position on the player's plane in the view shown last, in game
+// screen coordinates, and back. False before a 3D frame was shown (or above the horizon).
+bool rgpu_window_to_playfield(float wx, float wy, float *x, float *y);
+bool rgpu_playfield_to_window(float x, float y, float *wx, float *wy);
 
 #endif /* RENDER_GPU_H */

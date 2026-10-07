@@ -273,8 +273,11 @@ static struct
 	float x, y;
 } motion[MOTION_SLOTS];
 
+static bool last_key_new = false;
+
 void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 {
+	last_key_new = false;
 	float dx = 0, dy = 0;
 	if (l3d_capturing && l3d_frame.object_count > 0 && key != 0)
 	{
@@ -285,6 +288,7 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 			const bool stale = motion[slot].frame + 2 < l3d_frame_number;
 			if (motion[slot].key == key || motion[slot].key == 0 || stale)
 			{
+				last_key_new = !(motion[slot].key == key && motion[slot].frame + 1 == l3d_frame_number);
 				if (motion[slot].key == key && motion[slot].frame + 1 == l3d_frame_number)
 				{
 					dx = object->x - motion[slot].x;
@@ -314,6 +318,33 @@ void l3d_pointer_last_object(void)
 {
 	if (l3d_capturing && l3d_frame.object_count > 0)
 		l3d_frame.objects[l3d_frame.object_count - 1].pointer = true;
+}
+
+void l3d_new_object_velocity(float vx, float vy, float *out_vx, float *out_vy)
+{
+	L3DObject *object = l3d_capturing && l3d_frame.object_count > 0 ? &l3d_frame.objects[l3d_frame.object_count - 1] : NULL;
+	if (object != NULL && last_key_new)
+	{
+		object->vx = vx;
+		object->vy = vy;
+	}
+	if (out_vx != NULL)
+		*out_vx = object != NULL ? object->vx : 0;
+	if (out_vy != NULL)
+		*out_vy = object != NULL ? object->vy : 0;
+}
+
+bool l3d_key_position(Uint32 key, float *x, float *y)
+{
+	Uint32 slot = (key * 2654435761u) % MOTION_SLOTS;
+	for (int probe = 0; probe < 16; ++probe, slot = (slot + 1) % MOTION_SLOTS)
+		if (motion[slot].key == key)
+		{
+			*x = motion[slot].x;
+			*y = motion[slot].y;
+			return true;
+		}
+	return false;
 }
 
 bool l3d_key_seen(Uint32 key)

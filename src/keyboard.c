@@ -23,6 +23,7 @@
 #include "mouse.h"
 #include "network.h"
 #include "opentyr.h"
+#include "settings3d.h"
 #include "video.h"
 #include "video_scale.h"
 
@@ -52,6 +53,11 @@ static bool mouseRelativeEnabled;
 // Relative mouse position in window coordinates (SDL reports fractions of a point).
 static float mouseWindowXRelative;
 static float mouseWindowYRelative;
+
+// Tyrian3D: the pointer's position in the window (points), and whether it moved since the game
+// last looked (mouse_take_pointer_moved).
+static float pointerWindowX, pointerWindowY;
+static bool pointerMoved;
 
 void flush_events_buffer(void)
 {
@@ -106,7 +112,18 @@ void init_keyboard(void)
 
 void mouseSetRelative(bool enable)
 {
-	SDL_SetWindowRelativeMouseMode(main_window, enable && windowHasFocus);
+	// Tyrian3D: with the direct mouse the ship goes where the (hidden) pointer is, so the pointer
+	// keeps moving as on the desktop; it is only kept in the window.
+	if (settings3d.mouse_direct)
+	{
+		SDL_SetWindowRelativeMouseMode(main_window, false);
+		SDL_SetWindowMouseGrab(main_window, enable && windowHasFocus);
+	}
+	else
+	{
+		SDL_SetWindowMouseGrab(main_window, false);
+		SDL_SetWindowRelativeMouseMode(main_window, enable && windowHasFocus);
+	}
 
 	mouseRelativeEnabled = enable;
 
@@ -137,12 +154,32 @@ void mouseGetRelativePosition(Sint32 *const out_x, Sint32 *const out_y)
 	mouseWindowYRelative -= *out_y * points_y;
 }
 
-void mouse_pending_motion(float *const out_x, float *const out_y)
+bool mouse_pointer_game(float *const out_x, float *const out_y)
 {
-	float points_x, points_y;
-	video_window_points_per_pixel(&points_x, &points_y);
-	*out_x = mouseRelativeEnabled ? mouseWindowXRelative / points_x : 0;
-	*out_y = mouseRelativeEnabled ? mouseWindowYRelative / points_y : 0;
+	return video_window_to_game(pointerWindowX, pointerWindowY, out_x, out_y);
+}
+
+bool mouse_pointer_moved(void)
+{
+	return pointerMoved;
+}
+
+bool mouse_take_pointer_moved(void)
+{
+	const bool moved = pointerMoved;
+	pointerMoved = false;
+	return moved;
+}
+
+void mouse_place_pointer(float x, float y)
+{
+	float wx, wy;
+	if (windowHasFocus && video_game_to_window(x, y, &wx, &wy))
+	{
+		SDL_WarpMouseInWindow(main_window, wx, wy);
+		pointerWindowX = wx;
+		pointerWindowY = wy;
+	}
 }
 
 void service_SDL_events(JE_boolean clear_new)
@@ -203,6 +240,10 @@ void service_SDL_events(JE_boolean clear_new)
 				return;
 
 			case SDL_EVENT_MOUSE_MOTION:
+				pointerWindowX = ev.motion.x;
+				pointerWindowY = ev.motion.y;
+				if (ev.motion.xrel != 0 || ev.motion.yrel != 0)
+					pointerMoved = true;
 				mouse_x = (Sint32)ev.motion.x;
 				mouse_y = (Sint32)ev.motion.y;
 				mapWindowPointToScreen(&mouse_x, &mouse_y);

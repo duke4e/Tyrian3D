@@ -532,6 +532,26 @@ void mapWindowPointToScreen(Sint32 *const inout_x, Sint32 *const inout_y)
 	*inout_y = (2 * (*inout_y - last_output_rect.y) + 1) * VGAScreen->h / (2 * last_output_rect.h);
 }
 
+bool video_window_to_game(float wx, float wy, float *x, float *y)
+{
+	if (last_frame_was_3d)
+		return rgpu_window_to_playfield(wx, wy, x, y);
+	if (last_output_rect.w <= 0 || last_output_rect.h <= 0)
+		return false;
+	*x = (wx - last_output_rect.x) * VGAScreen->w / last_output_rect.w;
+	*y = (wy - last_output_rect.y) * VGAScreen->h / last_output_rect.h;
+	return true;
+}
+
+bool video_game_to_window(float x, float y, float *wx, float *wy)
+{
+	if (last_frame_was_3d)
+		return rgpu_playfield_to_window(x, y, wx, wy);
+	*wx = last_output_rect.x + x * last_output_rect.w / VGAScreen->w;
+	*wy = last_output_rect.y + y * last_output_rect.h / VGAScreen->h;
+	return true;
+}
+
 void video_window_points_per_pixel(float *x, float *y)
 {
 	if (last_frame_was_3d)

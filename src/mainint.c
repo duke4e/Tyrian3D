@@ -3501,8 +3501,10 @@ void JE_pauseGame(void)
 	mouseSetRelative(true);
 }
 
-// Tyrian3D: the ship the mouse moves directly (settings3d.mouse_direct), or NULL.
+// Tyrian3D: the ship the mouse moves directly (settings3d.mouse_direct), or NULL, and where the
+// pointer last put it (or was put at it).
 static Player *mouse_ship = NULL;
+static JE_integer pointer_placed_x = -1000, pointer_placed_y = -1000;
 
 // The ship's bounds, as JE_playerMovement keeps it in them.
 static int ship_max_y(int playerNum_)
@@ -3510,17 +3512,26 @@ static int ship_max_y(int playerNum_)
 	return isNetworkGame && playerNum_ == 1 ? 154 : 160;
 }
 
+// Where the pointer puts the ship (its top left, as the game keeps it, within its bounds).
+static bool pointer_ship_position(int playerNum_, float *x, float *y)
+{
+	float px, py;
+	if (!mouse_pointer_game(&px, &py))
+		return false;
+	*x = SDL_clamp(px - 7, 40.0f, 256.0f);  // the ship's centre is 7 pixels in
+	*y = SDL_clamp(py - 7, 10.0f, (float)ship_max_y(playerNum_));
+	return true;
+}
+
 void player_pointer_lead(float lead[2])
 {
 	lead[0] = lead[1] = 0;
-	if (mouse_ship == NULL || !settings3d.mouse_direct || endLevel)
+	float x, y;
+	if (mouse_ship == NULL || !settings3d.mouse_direct || endLevel || !mouse_pointer_moved() ||
+	    !pointer_ship_position(mouse_ship == &player[0] ? 1 : 2, &x, &y))
 		return;
-	float dx, dy;
-	mouse_pending_motion(&dx, &dy);
-	if (smoothies[9-1])
-		dy = -dy;
-	lead[0] = SDL_clamp(mouse_ship->x + dx, 40.0f, 256.0f) - mouse_ship->x;
-	lead[1] = SDL_clamp(mouse_ship->y + dy, 10.0f, (float)ship_max_y(mouse_ship == &player[0] ? 1 : 2)) - mouse_ship->y;
+	lead[0] = x - mouse_ship->x;
+	lead[1] = y - mouse_ship->y;
 }
 
 void JE_playerMovement(Player *this_player,
@@ -3532,7 +3543,7 @@ void JE_playerMovement(Player *this_player,
 {
 	JE_integer mouseXC, mouseYC;
 	JE_integer accelXC, accelYC;
-	Sint32 directXC, directYC;  // Tyrian3D: the mouse's motion, moving the ship directly
+	bool pointer_moved = false;  // Tyrian3D: the direct mouse's pointer moved this tick
 
 	if (playerNum_ == 2 || !twoPlayerMode)
 	{
@@ -3561,8 +3572,6 @@ redo:
 	mouseYC = 0;
 	accelXC = 0;
 	accelYC = 0;
-	directXC = 0;
-	directYC = 0;
 
 	bool link_gun_analog = false;
 	float link_gun_angle = 0;
@@ -3755,8 +3764,7 @@ redo:
 					mouseGetRelativePosition(&mouseXR, &mouseYR);
 					if (settings3d.mouse_direct && !isNetworkGame)
 					{
-						directXC += mouseXR;
-						directYC += mouseYR;
+						pointer_moved = mouse_take_pointer_moved();
 						mouse_ship = this_player;
 					}
 					else
@@ -3862,14 +3870,19 @@ redo:
 				else if (mouseYC < 0)
 					this_player->y += (mouseYC - 3) / 4;
 
-				// Tyrian3D: the mouse moves the ship as far as it moved, as it moves a desktop pointer,
-				// without the original's speed limit and momentum (settings3d.mouse_direct).
-				if (smoothies[9-1])
-					directYC = -directYC;
-				if (directXC != 0)
-					this_player->x = SDL_clamp(this_player->x + directXC, 40, 256);
-				if (directYC != 0)
-					this_player->y = SDL_clamp(this_player->y + directYC, 10, ship_max_y(playerNum_));
+				// Tyrian3D: the ship goes where the pointer is, which moves as on the desktop (it is
+				// hidden and kept in the window), without the original's speed limit and momentum
+				// (settings3d.mouse_direct).
+				float pointer_x, pointer_y;
+				if (pointer_moved && pointer_ship_position(playerNum_, &pointer_x, &pointer_y))
+				{
+					this_player->x = (JE_integer)lroundf(pointer_x);
+					this_player->y = (JE_integer)lroundf(pointer_y);
+					this_player->x_velocity = this_player->y_velocity = 0;
+					accelXC = accelYC = 0;
+					pointer_placed_x = this_player->x;
+					pointer_placed_y = this_player->y;
+				}
 
 				if (mouseXC > 3)
 					accelXC++;
@@ -4196,6 +4209,16 @@ redo:
 
 		if (this_player->y < 10)
 			this_player->y = 10;
+
+		// Tyrian3D: a ship the keyboard (or anything but the direct mouse) moved takes the pointer
+		// along, so the ship doesn't jump when the mouse moves again.
+		if (mouse_ship == this_player && settings3d.mouse_direct && !pointer_moved &&
+		    (this_player->x != pointer_placed_x || this_player->y != pointer_placed_y))
+		{
+			mouse_place_pointer(this_player->x + 7, this_player->y + 7);
+			pointer_placed_x = this_player->x;
+			pointer_placed_y = this_player->y;
+		}
 
 		// Determines the ship banking sprite to display, depending on horizontal velocity and acceleration
 		int ship_banking = this_player->x_velocity / 2 + (this_player->x - *mouseX_) / 6;

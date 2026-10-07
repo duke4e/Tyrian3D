@@ -191,6 +191,12 @@ void l3d_ghost_last_object(void);
 void l3d_key_last_object(Uint32 key, float *vx, float *vy);
 // Whether an object had the key in the last frame (or has it in this one).
 bool l3d_key_seen(Uint32 key);
+// Where the object with the key was last recorded (centre, game pixels); false if never.
+bool l3d_key_position(Uint32 key, float *x, float *y);
+// For the object keyed last when its key is new (an enemy that has just appeared, which has no
+// motion yet to go by): the velocity it will move with (game pixels a tick). Returns it, or the
+// measured one.
+void l3d_new_object_velocity(float vx, float vy, float *out_vx, float *out_vy);
 
 // The ship the mouse moves directly: in the frames shown between ticks it is drawn where the mouse
 // has moved it so far (l3d_pointer_lead, game pixels), rather than moved on by its velocity.
