@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <zlib.h>
+
 unsigned int b3d_map_generation = 0;
 
 typedef struct
@@ -224,49 +226,88 @@ static int make_side(const WFCRules *rules, const int *edge, int rows, bool left
 	return failed;
 }
 
-// The sides are kept in files in the user's directory, named by a hash of the map and of what
-// shapes the result, so each map is solved only once.
-#define SIDE_CACHE_VERSION 4
+// Sides are kept in files named by a hash of the map and of what shapes the result: first in
+// the game's assets (assets/sides, made ahead of time by tools/precompute_sides.sh), then in the
+// user's directory, where sides made while playing go. TYR3D_SIDES_WRITE=<dir> writes new ones
+// there instead (for precomputing). The files are zlib-compressed rows of Sint16 kinds, each row
+// the left side's columns, then the right side's.
+#define SIDE_CACHE_VERSION 5
 
-static bool side_cache_path(Uint64 hash, char *path, size_t size)
+static bool side_file_path(const char *dir, Uint64 hash, char *path, size_t size)
 {
-	const char *dir = get_user_directory();
 	if (dir == NULL)
 		return false;
-	snprintf(path, size, "%s/tyrian3d-sides", dir);
-	SDL_CreateDirectory(path);
-	snprintf(path, size, "%s/tyrian3d-sides/%016llx.bin", dir, (unsigned long long)hash);
+	snprintf(path, size, "%s/%016llx.bin", dir, (unsigned long long)hash);
+	return true;
+}
+
+static const char *shipped_sides_dir(void)
+{
+	const char *dir = SDL_getenv("TYR3D_SIDES_DIR");
+	return dir != NULL ? dir : TYR3D_SIDES_DIR;
+}
+
+static const char *user_sides_dir(char *buffer, size_t size)
+{
+	const char *dir = SDL_getenv("TYR3D_SIDES_WRITE");
+	if (dir != NULL)
+		return dir;
+	if (get_user_directory() == NULL)
+		return NULL;
+	snprintf(buffer, size, "%s/tyrian3d-sides", get_user_directory());
+	return buffer;
+}
+
+static bool read_sides_file(const char *path, int rows, MapSides *sides)
+{
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return false;
+	static Uint8 packed[SIDE_MAX_ROWS * 2 * SIDE_COLUMNS * sizeof(Sint16) + 1024];
+	static Sint16 data[SIDE_MAX_ROWS][2][SIDE_COLUMNS];
+	const size_t packed_size = fread(packed, 1, sizeof(packed), f);
+	fclose(f);
+	uLongf size = (uLongf)(rows * sizeof(data[0]));
+	if (uncompress((Bytef *)data, &size, packed, (uLong)packed_size) != Z_OK || size != rows * sizeof(data[0]))
+		return false;
+	for (int r = 0; r < rows; ++r)
+	{
+		memcpy(sides->left[r], data[r][0], sizeof(data[r][0]));
+		memcpy(sides->right[r], data[r][1], sizeof(data[r][1]));
+	}
 	return true;
 }
 
 static bool load_sides(Uint64 hash, int rows, MapSides *sides)
 {
-	char path[1024];
-	if (!side_cache_path(hash, path, sizeof(path)))
-		return false;
-	FILE *f = fopen(path, "rb");
-	if (f == NULL)
-		return false;
-	bool ok = true;
-	for (int r = 0; ok && r < rows; ++r)
-		ok = fread(sides->left[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS &&
-		     fread(sides->right[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS;
-	fclose(f);
-	return ok;
+	char path[1024], buffer[1024];
+	return (side_file_path(shipped_sides_dir(), hash, path, sizeof(path)) && read_sides_file(path, rows, sides)) ||
+	       (side_file_path(user_sides_dir(buffer, sizeof(buffer)), hash, path, sizeof(path)) &&
+	        read_sides_file(path, rows, sides));
 }
 
 static void save_sides(Uint64 hash, int rows, const MapSides *sides)
 {
-	char path[1024];
-	if (!side_cache_path(hash, path, sizeof(path)))
+	char path[1024], buffer[1024];
+	const char *dir = user_sides_dir(buffer, sizeof(buffer));
+	if (!side_file_path(dir, hash, path, sizeof(path)))
+		return;
+	SDL_CreateDirectory(dir);
+
+	static Sint16 data[SIDE_MAX_ROWS][2][SIDE_COLUMNS];
+	static Uint8 packed[SIDE_MAX_ROWS * 2 * SIDE_COLUMNS * sizeof(Sint16) + 1024];
+	for (int r = 0; r < rows; ++r)
+	{
+		memcpy(data[r][0], sides->left[r], sizeof(data[r][0]));
+		memcpy(data[r][1], sides->right[r], sizeof(data[r][1]));
+	}
+	uLongf packed_size = sizeof(packed);
+	if (compress2(packed, &packed_size, (const Bytef *)data, (uLong)(rows * sizeof(data[0])), 9) != Z_OK)
 		return;
 	FILE *f = fopen(path, "wb");
 	if (f == NULL)
 		return;
-	bool ok = true;
-	for (int r = 0; ok && r < rows; ++r)
-		ok = fwrite(sides->left[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS &&
-		     fwrite(sides->right[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS;
+	const bool ok = fwrite(packed, 1, packed_size, f) == packed_size;
 	if (fclose(f) != 0 || !ok)
 		remove(path);
 }

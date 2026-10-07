@@ -95,10 +95,11 @@ The camera keys work only while the 3D view is on screen.
   recorded, so the tiles line up with the game's own drawing, and scrolling further up follows
   the map's wrap points. Beside the map, 16 columns on each side are generated from the map's
   own tiles by wave function collapse (`src/wfc.c`): which tile may stand next to which is
-  learned from the map, and the columns next to it must fit its edge. They are made once per map
-  when it loads and kept in `tyrian3d-sides` in the user's directory. Further out the map
-  continues mirrored; everything beyond the map slowly darkens. `TYR3D_SIDES=mirror` mirrors
-  only, for comparison.
+  learned from the map, and the columns next to it must fit its edge. They are made ahead of
+  time for every level (`tools/precompute_sides.sh`, into `assets/sides`); a map without them
+  gets them when it loads, kept in `tyrian3d-sides` in the user's directory. Further out the
+  map continues mirrored; everything beyond the map slowly darkens. `TYR3D_SIDES=mirror`
+  mirrors only, for comparison.
   Inside the playfield the captured layer is drawn over the tiles. Backgrounds that the game
   filters (lava, water, ice) cannot be tiles, since the filters blur and waver across tile edges:
   they are composed on the CPU for the area the camera sees and run through the game's own
@@ -151,6 +152,18 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 ```
 
 (or run the game with `TYR3D_VIEWER=ships` and look; `TYR3D_VIEWER_ROLL=90` shows the side.)
+
+## Tools
+
+| Tool | What it does |
+| --- | --- |
+| `tools/capture_run.sh` | Runs the game in a background window and dumps frames (see the environment variables) |
+| `tools/sweep.sh`, `tools/levels.py` | Plays every level for a while and makes a contact sheet per level |
+| `tools/catalog_html.py` | Browsable page of the `TYR3D_EXTRACT` catalogue |
+| `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
+| `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
+| `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
+| `tools/blender/` | The model pipeline (see Models) |
 
 ## Roadmap
 
