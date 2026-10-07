@@ -20,6 +20,7 @@
 
 #include "animlib.h"
 #include "backgrnd.h"
+#include "background3d.h"
 #include "devtools.h"
 #include "layer3d.h"
 #include "models3d.h"
@@ -3307,6 +3308,8 @@ new_game:
 	}
 
 	fclose(level_f);
+
+	++b3d_map_generation;
 
 	/* Note: The map data is automatically calculated with the correct mapsh
 	value and then the pointer is calculated using the formula (MAPSH-1)*168.

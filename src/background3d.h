@@ -1,0 +1,85 @@
+/*
+ * Tyrian3D: background maps drawn directly in 3D.
+ *
+ * The original game draws only the background tiles that fit on its 320x200 screen. The tilted
+ * 3D camera sees more of the world: further up the level, and beyond the screen's sides. So the
+ * 3D view draws the background maps itself, as tiles, for whatever area the camera sees on each
+ * background's plane. The game still draws its own backgrounds as well; inside the playfield the
+ * captured layer is drawn on top of the tiles, which keeps effects such as water and blur exact.
+ *
+ * Every draw of a background is recorded with its scroll state (l3d_add_background), so the tiles
+ * line up with the game's own drawing. Outside the map's sides, the map continues mirrored and
+ * darkened; past the map's top, the background's wrap point (BKwrap) is followed.
+ */
+#ifndef BACKGROUND3D_H
+#define BACKGROUND3D_H
+
+#include "opentyr.h"
+
+#include "layer3d.h"
+
+#define B3D_TILE_W 24
+#define B3D_TILE_H 28
+
+// Tile atlas: the tiles of the three background maps, each in a cell with one pixel of padding
+// (copies of its edge pixels) so that sampling at a tile's edge never reaches a neighbour.
+#define B3D_SETS 3
+#define B3D_TILES_PER_SET 72
+#define B3D_CELL_W (B3D_TILE_W + 2)
+#define B3D_CELL_H (B3D_TILE_H + 2)
+#define B3D_ATLAS_COLUMNS 16
+#define B3D_CELLS (B3D_SETS * B3D_TILES_PER_SET)
+#define B3D_ATLAS_W (B3D_ATLAS_COLUMNS * B3D_CELL_W)
+#define B3D_ATLAS_H (((B3D_CELLS + B3D_ATLAS_COLUMNS - 1) / B3D_ATLAS_COLUMNS) * B3D_CELL_H)
+
+// Increases whenever a level's background maps are loaded, so the atlas can be rebuilt.
+extern unsigned int b3d_map_generation;
+
+// Fills the atlas with palette indices and opacity (B3D_ATLAS_W x B3D_ATLAS_H). Colour 0 is
+// transparent; under background 1 that shows the starfield or the black of the cleared screen,
+// as in the game.
+void b3d_build_atlas(Uint8 *indices, Uint8 *opaque);
+
+// Atlas cell position of a tile, in pixels (top-left of the tile itself, inside the padding).
+static inline void b3d_cell_origin(int cell, int *x, int *y)
+{
+	*x = (cell % B3D_ATLAS_COLUMNS) * B3D_CELL_W + 1;
+	*y = (cell / B3D_ATLAS_COLUMNS) * B3D_CELL_H + 1;
+}
+
+// Palette remap for a background's tiles that approximates how the game combines them with what
+// is below (draw_background_2_blend) and recolours them afterwards (water, lava and ice filters):
+// the hue and average brightness, without the detail, blur and waver those also add.
+void b3d_tile_remap(const L3DBackground *background, Uint8 remap[256]);
+
+// Beyond its sides the map continues mirrored, darkening by this factor per tile away from it.
+#define B3D_BEYOND_FADE 0.88f
+
+typedef struct
+{
+	Uint16 cell;        // atlas cell
+	bool flipped;       // mirrored left to right (the map continuing beyond its sides)
+	Sint8 fade;         // beyond the map: darkens across the tile, to the left (-1) or right (1)
+	float x, z;         // top-left corner in game screen coordinates
+	float brightness;   // at the tile's edge nearest the map (1 inside the map)
+} B3DTile;
+
+// Appends the tiles of a recorded background that overlap the rectangle [x0, x1] x [z0, z1]
+// (game screen coordinates). Returns the number of tiles written (at most capacity).
+int b3d_collect_tiles(const L3DBackground *background, float x0, float z0, float x1, float z1,
+                      B3DTile *tiles, int capacity);
+
+typedef struct
+{
+	float x, z;   // a pixel, in game screen coordinates
+	Uint8 color;  // palette index
+} B3DStar;
+
+// Appends the pixels of the frame's starfield that lie outside the playfield (inside it the game
+// draws the stars itself) and inside the rectangle [x0, x1] x [z0, z1]. The game's stars cycle
+// through a ring of 65536 pixels, 320 wide; the ring continues further up the screen, where the
+// stars will come from, and repeats every 320 pixels beside it.
+int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1,
+                      B3DStar *stars, int capacity);
+
+#endif /* BACKGROUND3D_H */

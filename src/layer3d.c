@@ -173,6 +173,8 @@ void l3d_frame_begin(L3DLayerType first_type)
 
 	l3d_frame.layer_count = 0;
 	l3d_frame.object_count = 0;
+	l3d_frame.background_count = 0;
+	l3d_frame.star_count = 0;
 	l3d_frame.filter_hue = -99;
 	l3d_frame.filter_brightness = -99;
 	memset(owner, 0xff, sizeof(owner));
@@ -263,6 +265,55 @@ bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int styl
 		}
 	}
 	return true;
+}
+
+void l3d_add_background(int set, Uint8 **top_row, Uint8 **position, Uint8 **wrap, Uint8 **wrap_to,
+                        int x, int top_y, bool blend)
+{
+	if (!l3d_capturing || l3d_frame.background_count == L3D_MAX_BACKGROUNDS)
+		return;
+
+	L3DBackground *background = &l3d_frame.backgrounds[l3d_frame.background_count++];
+	// The phase's layer exists from here on, even if the background changes no pixel on screen.
+	background->layer = (int)(new_layer(phase_type) - l3d_frame.layers);
+	background->set = (Uint8)set;
+	background->blend = blend;
+	background->top_row = top_row;
+	background->position = position;
+	background->wrap = wrap;
+	background->wrap_to = wrap_to;
+	background->x = x;
+	background->top_y = top_y;
+	background->effect_count = 0;
+}
+
+void l3d_add_star(Uint16 position, Uint8 color, bool bright)
+{
+	if (!l3d_capturing || l3d_frame.star_count == L3D_MAX_STARS)
+		return;
+
+	if (l3d_frame.star_count == 0)
+		l3d_frame.star_layer = (int)(new_layer(phase_type) - l3d_frame.layers);
+	L3DStar *star = &l3d_frame.stars[l3d_frame.star_count++];
+	star->position = position;
+	star->color = color;
+	star->bright = bright;
+}
+
+void l3d_add_effect(L3DEffect effect, int param)
+{
+	if (!l3d_capturing)
+		return;
+
+	for (int i = 0; i < l3d_frame.background_count; ++i)
+	{
+		L3DBackground *background = &l3d_frame.backgrounds[i];
+		if (background->effect_count == L3D_MAX_EFFECTS)
+			continue;
+		background->effects[background->effect_count] = (Uint8)effect;
+		background->effect_params[background->effect_count] = (Uint8)param;
+		++background->effect_count;
+	}
 }
 
 void l3d_set_filter(int hue, int brightness)

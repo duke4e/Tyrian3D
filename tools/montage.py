@@ -3,10 +3,15 @@
 
 usage: tools/montage.py out.png columns scale in1.bmp in2.bmp ...
 
-scale may be fractional (0.25 shrinks each image to a quarter of its size).
+scale may be fractional (0.25 shrinks each image to a quarter of its size). On macOS, sips does
+the shrinking, which is much faster than reading full-size dumps here.
 """
+import os
+import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 import zlib
 
 
@@ -63,9 +68,25 @@ def write_png(path, width, height, rows):
         f.write(png)
 
 
+def load(path, scale):
+    """Returns the image and the scale still to apply to it."""
+    if scale < 1 and shutil.which("sips"):
+        with open(path, "rb") as f:
+            width, height = struct.unpack_from("<ii", f.read(26), 18)
+        size = [str(max(1, int(abs(height) * scale))), str(max(1, int(width * scale)))]
+        with tempfile.TemporaryDirectory() as tmp:
+            small = os.path.join(tmp, "small.bmp")
+            subprocess.run(["sips", "-s", "format", "bmp", "-z", *size, path, "--out", small],
+                           check=True, capture_output=True)
+            return read_bmp(small), 1.0
+    return read_bmp(path), scale
+
+
 def main():
     out, columns, scale = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
-    images = [read_bmp(p) for p in sys.argv[4:]]
+    loaded = [load(p, scale) for p in sys.argv[4:]]
+    images = [image for image, _ in loaded]
+    scale = loaded[0][1]
     cell_w = int(max(w for w, _, _ in images) * scale)
     cell_h = int(max(h for _, h, _ in images) * scale)
     gap = 4

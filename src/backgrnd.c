@@ -154,79 +154,16 @@ void blit_background_row_blend(SDL_Surface *surface, int x, int y, Uint8 **map)
 	}
 }
 
-/*
- * Tyrian3D: background rows for the 3D view. Same output as blit_background_row(_blend) inside
- * the original screen, but also draws the rows above the top edge into the surface's overscan
- * area and the tile column left of the screen, both of which the tilted camera can see.
- *
- * map is the row pointer the original code uses for row -1; rows are map_width entries apart
- * and must stay inside [map_base, map_base + map_entries).
- */
-static void blit_background_rows_3d(SDL_Surface *surface, int x, int y, Uint8 **map, int map_width,
-                                    Uint8 **map_base, size_t map_entries, bool blend)
-{
-	const int top = surface_top(surface);
-	const int extra_rows = (-top + 27) / 28;
-
-	for (int i = -1 - extra_rows; i < 7; i++)
-	{
-		Uint8 **row_map = map + (i + 1) * map_width;
-		const int row_y = i * 28 + y;
-
-		int first_tile = 0;
-		if (row_map - 1 >= map_base && (row_map - map_base) % map_width >= 1)
-			first_tile = -1;
-		if (row_map + first_tile < map_base || row_map + 12 > map_base + map_entries)
-			continue;
-
-		for (int ty = 0; ty < 28; ty++)
-		{
-			const int py = row_y + ty;
-			if (py < top || py >= surface->h)
-				continue;
-
-			Uint8 *pixel_row = (Uint8 *)surface->pixels + py * surface->pitch;
-
-			for (int tile = first_tile; tile < 12; tile++)
-			{
-				const Uint8 *data = row_map[tile];
-				if (data == NULL)
-					continue;
-				data += ty * 24;
-
-				const int px0 = x + tile * 24;
-				for (int tx = 0; tx < 24; tx++)
-				{
-					const int px = px0 + tx;
-					if (px < 0 || px >= surface->w || data[tx] == 0)
-						continue;
-					pixel_row[px] = blend
-						? (data[tx] & 0xf0) | (((pixel_row[px] & 0x0f) + (data[tx] & 0x0f)) / 2)
-						: data[tx];
-				}
-			}
-		}
-	}
-}
-
-static bool use_3d_backgrounds(const SDL_Surface *surface)
-{
-	return surface_top(surface) < 0;
-}
-
 void draw_background_1(SDL_Surface *surface)
 {
 	SDL_FillSurfaceRect(surface, NULL, 0);
+	// Tyrian3D: also clear the rows above the screen, where sprites may have been drawn.
+	if (surface_top(surface) < 0)
+		memset(surface_pixels_ll(surface), 0, (size_t)-surface_top(surface) * surface->pitch);
 	
 	Uint8 **map = (Uint8 **)mapYPos + mapXbpPos - 12;
 	
-	if (use_3d_backgrounds(surface))
-	{
-		memset(surface_pixels_ll(surface), 0, (size_t)-surface_top(surface) * surface->pitch);
-		blit_background_rows_3d(surface, mapXPos, backPos, map, 14,
-		                        &megaData1.mainmap[0][0], COUNTOF(megaData1.mainmap) * 14, false);
-		return;
-	}
+	l3d_add_background(1, map, mapYPos, BKwrap1, BKwrap1to, mapXPos, backPos - 28, false);
 	
 	for (int i = -1; i < 7; i++)
 	{
@@ -248,19 +185,13 @@ void draw_background_2(SDL_Surface *surface)
 		
 		Uint8 **map = (Uint8 **)mapY2Pos + (smoothies[1] ? mapXbpPos : mapX2bpPos) - 12;
 		
-		if (use_3d_backgrounds(surface))
+		l3d_add_background(2, map, mapY2Pos, BKwrap2, BKwrap2to, x, backPos2 - 28, false);
+		
+		for (int i = -1; i < 7; i++)
 		{
-			blit_background_rows_3d(surface, x, backPos2, map, 14,
-			                        &megaData2.mainmap[0][0], COUNTOF(megaData2.mainmap) * 14, false);
-		}
-		else
-		{
-			for (int i = -1; i < 7; i++)
-			{
-				blit_background_row(surface, x, (i * 28) + backPos2, map);
-				
-				map += 14;
-			}
+			blit_background_row(surface, x, (i * 28) + backPos2, map);
+			
+			map += 14;
 		}
 	}
 	
@@ -287,19 +218,13 @@ void draw_background_2_blend(SDL_Surface *surface)
 	
 	Uint8 **map = (Uint8 **)mapY2Pos + mapX2bpPos - 12;
 	
-	if (use_3d_backgrounds(surface))
+	l3d_add_background(2, map, mapY2Pos, BKwrap2, BKwrap2to, mapX2Pos, backPos2 - 28, true);
+	
+	for (int i = -1; i < 7; i++)
 	{
-		blit_background_rows_3d(surface, mapX2Pos, backPos2, map, 14,
-		                        &megaData2.mainmap[0][0], COUNTOF(megaData2.mainmap) * 14, true);
-	}
-	else
-	{
-		for (int i = -1; i < 7; i++)
-		{
-			blit_background_row_blend(surface, mapX2Pos, (i * 28) + backPos2, map);
-			
-			map += 14;
-		}
+		blit_background_row_blend(surface, mapX2Pos, (i * 28) + backPos2, map);
+		
+		map += 14;
 	}
 	
 	/*Set Movement of background*/
@@ -332,12 +257,7 @@ void draw_background_3(SDL_Surface *surface)
 	
 	Uint8 **map = (Uint8 **)mapY3Pos + mapX3bpPos - 12;
 	
-	if (use_3d_backgrounds(surface))
-	{
-		blit_background_rows_3d(surface, mapX3Pos, backPos3, map, 15,
-		                        &megaData3.mainmap[0][0], COUNTOF(megaData3.mainmap) * 15, false);
-		return;
-	}
+	l3d_add_background(3, map, mapY3Pos, BKwrap3, BKwrap3to, mapX3Pos, backPos3 - 28, false);
 	
 	for (int i = -1; i < 7; i++)
 	{
@@ -422,6 +342,8 @@ void lava_filter(SDL_Surface *dst, SDL_Surface *src)
 {
 	assert(SDL_BITSPERPIXEL(src->format) == 8 && SDL_BITSPERPIXEL(dst->format) == 8);
 	
+	l3d_add_effect(L3D_EFFECT_LAVA, 0);
+	
 	/* we don't need to check for over-reading the pixel surfaces since we only
 	 * read from the top 185+1 scanlines, and there should be 320 */
 	
@@ -472,6 +394,8 @@ void water_filter(SDL_Surface *dst, SDL_Surface *src)
 	
 	Uint8 hue = smoothie_data[1] << 4;
 	
+	l3d_add_effect(L3D_EFFECT_WATER, hue);
+	
 	/* we don't need to check for over-reading the pixel surfaces since we only
 	 * read from the top 185+1 scanlines, and there should be 320 */
 	
@@ -517,6 +441,8 @@ void water_filter(SDL_Surface *dst, SDL_Surface *src)
 void iced_blur_filter(SDL_Surface *dst, SDL_Surface *src)
 {
 	assert(SDL_BITSPERPIXEL(src->format) == 8 && SDL_BITSPERPIXEL(dst->format) == 8);
+	
+	l3d_add_effect(L3D_EFFECT_ICE, 0);
 	
 	Uint8 *dst_pixel = dst->pixels;
 	const Uint8 *src_pixel = src->pixels;
@@ -598,6 +524,9 @@ void update_and_draw_starfield(SDL_Surface* surface, int move_speed)
 		StarfieldStar* star = &starfield_stars[i];
 
 		star->position += (star->speed + move_speed) * surface->pitch;
+
+		if (surface->pitch == 320)
+			l3d_add_star(star->position, star->color, star->color - 4 >= STARFIELD_HUE);
 
 		if (star->position < 177 * surface->pitch)
 		{

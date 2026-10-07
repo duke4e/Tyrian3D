@@ -78,6 +78,45 @@ typedef struct
 
 #define L3D_MAX_OBJECTS 256
 
+// Recolouring filters the game applies to what is already on screen. The 3D view repeats their
+// colours on the background tiles outside the playfield (background3d.h).
+typedef enum
+{
+	L3D_EFFECT_LAVA,   // lava_filter
+	L3D_EFFECT_WATER,  // water_filter; parameter: the water's hue
+	L3D_EFFECT_ICE,    // iced_blur_filter
+} L3DEffect;
+
+#define L3D_MAX_EFFECTS 4
+
+// A background map drawn in a phase, with the scroll state it was drawn with. The 3D view uses it
+// to draw all of the map the camera sees (background3d.h).
+typedef struct
+{
+	int layer;                // index of the layer it was drawn into
+	Uint8 set;                // which background map: 1, 2 or 3 (megaData1/2/3)
+	bool blend;               // averaged with what is below (draw_background_2_blend)
+	Uint8 **top_row;          // map entry drawn as the first tile of the topmost row
+	Uint8 **position;         // the map's scroll position (mapYPos & co.)
+	Uint8 **wrap, **wrap_to;  // scrolling up to wrap continues at wrap_to (BKwrap*)
+	int x, top_y;             // screen position of the topmost row's first tile
+	int effect_count;         // filters applied after it was drawn, in order
+	Uint8 effects[L3D_MAX_EFFECTS], effect_params[L3D_MAX_EFFECTS];
+} L3DBackground;
+
+#define L3D_MAX_BACKGROUNDS 4
+
+// A star of the background starfield (update_and_draw_starfield), as the game positions it:
+// row * 320 + column in a ring of 65536 pixels.
+typedef struct
+{
+	Uint16 position;
+	Uint8 color;  // palette index
+	bool bright;  // drawn with four dimmer neighbours
+} L3DStar;
+
+#define L3D_MAX_STARS 128
+
 typedef struct
 {
 	int layer_count;
@@ -85,6 +124,13 @@ typedef struct
 
 	int object_count;
 	L3DObject objects[L3D_MAX_OBJECTS];
+
+	int background_count;
+	L3DBackground backgrounds[L3D_MAX_BACKGROUNDS];
+
+	int star_count;
+	int star_layer;  // layer the starfield was drawn into
+	L3DStar stars[L3D_MAX_STARS];
 
 	// JE_filterScreen parameters, applied when layers are converted to colour.
 	int filter_hue;         // -99 for none
@@ -115,6 +161,16 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);
+
+// Records a background map drawn in the current phase (see L3DBackground).
+void l3d_add_background(int set, Uint8 **top_row, Uint8 **position, Uint8 **wrap, Uint8 **wrap_to,
+                        int x, int top_y, bool blend);
+
+// Records a star of the background starfield drawn in the current phase.
+void l3d_add_star(Uint16 position, Uint8 color, bool bright);
+
+// Records a recolouring filter applied to everything drawn so far in the frame.
+void l3d_add_effect(L3DEffect effect, int param);
 
 // Records full-screen filter parameters instead of applying them to the composite.
 void l3d_set_filter(int hue, int brightness);

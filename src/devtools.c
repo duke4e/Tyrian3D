@@ -61,6 +61,13 @@ void dev_on_layers_captured(void)
 			SDL_DestroySurface(surface);
 		}
 	}
+
+	for (int i = 0; i < l3d_frame.background_count; ++i)
+	{
+		const L3DBackground *b = &l3d_frame.backgrounds[i];
+		printf("frame %ld: background %d in layer %d (%s)%s at %d,%d, %d effects\n", frame + 1, b->set, b->layer,
+		       l3d_layer_name(l3d_frame.layers[b->layer].type), b->blend ? " blended" : "", b->x, b->top_y, b->effect_count);
+	}
 }
 
 bool dev_start_game(void)
