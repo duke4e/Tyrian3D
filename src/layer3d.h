@@ -73,7 +73,8 @@ typedef struct
 	float height;         // added to the layer's height, game pixels
 	float yaw;            // degrees; 0 = nose up the screen
 	float roll;           // degrees, positive banks right
-	Uint8 filter;         // enemy hit-flash filter (palette hue << 4), 0 for none
+	Uint8 filter;         // the sprite filter (blit_sprite2_filter: index = filter | shade), 0 for none
+	bool ghost;           // half transparent (the player's ship while invulnerable)
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 256
@@ -172,6 +173,9 @@ L3DLayerType l3d_current_layer(void);
 // Records a model object in the current phase. Returns false if the frame isn't being captured
 // (the caller should draw the sprite instead).
 bool l3d_add_object(int model, float x, float y, float height, float yaw, float roll, Uint8 filter);
+// Makes the object recorded last half transparent, as the game draws the invulnerable player's
+// ship (blit_sprite2x2_blend).
+void l3d_ghost_last_object(void);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);

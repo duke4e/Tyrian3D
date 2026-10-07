@@ -4159,20 +4159,29 @@ redo:
 
 		// Tyrian3D: regular ships can be shown as a 3D model, which replaces the sprite and its shadow.
 		const M3DAppearance ship_look = m3d_ship_appearance(this_player->items.ship);
-		const Uint8 ship_flash = this_player->invulnerable_ticks > 0 ? 0xf0 : 0;
+		const bool ship_ghost = this_player->invulnerable_ticks > 0;  // drawn half transparent
 		const bool ship_model = shipGr_ > 1 && (ship_look.model >= 0
 			? l3d_add_object(ship_look.model, this_player->x + 7, this_player->y + 7, ship_look.height,
-			                 ship_look.yaw, ship_look.banking ? ship_banking * 12.0f : 0.0f, ship_flash)
+			                 ship_look.yaw, ship_look.banking ? ship_banking * 12.0f : 0.0f, 0)
 			: ship_look.model == M3D_VOLUME &&
 			  l3d_add_volume(shipGrPtr_, ship_sprite, true, V3D_STYLE_RAISED, this_player->x + 7, this_player->y + 7,
-			                 ship_look.height, 0.0f, 0.0f, ship_flash));
+			                 ship_look.height, 0.0f, 0.0f, 0));
+		if (ship_model && ship_ghost)
+			l3d_ghost_last_object();
 		// Ships drawn in two halves (the Dragonwing, shipGr_ 0, and the Nort Ship, 1) get volume
 		// half by half.
-		const bool two_part_volume = shipGr_ <= 1 && ship_look.model == M3D_VOLUME &&
-			l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 13 : 220, true, V3D_STYLE_RAISED,
-			               this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, ship_flash) &&
-			l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 51 : 222, true, V3D_STYLE_RAISED,
-			               this_player->x + 19, this_player->y + 7, ship_look.height, 0.0f, 0.0f, ship_flash);
+		bool two_part_volume = false;
+		if (shipGr_ <= 1 && ship_look.model == M3D_VOLUME)
+		{
+			two_part_volume = l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 13 : 220, true, V3D_STYLE_RAISED,
+			                                 this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0);
+			if (two_part_volume && ship_ghost)
+				l3d_ghost_last_object();
+			if (two_part_volume && l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 51 : 222, true, V3D_STYLE_RAISED,
+			                                      this_player->x + 19, this_player->y + 7, ship_look.height, 0.0f, 0.0f, 0) &&
+			    ship_ghost)
+				l3d_ghost_last_object();
+		}
 
 		explosionFollowAmountX = this_player->x - this_player->last_x_explosion_follow;
 		explosionFollowAmountY = this_player->y - this_player->last_y_explosion_follow;
