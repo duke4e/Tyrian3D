@@ -113,7 +113,7 @@ static float glint_time = 0;  // seconds of game time, for the waves
 
 // Wave scale, strength, sharpness and tilt; TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>
 // overrides them, for tuning.
-static float glint_parameters[4] = { 1.0f, 0.8f, 110.0f, 3.0f };
+static float glint_parameters[4] = { 1.0f, 0.5f, 140.0f, 3.0f };
 
 // Whether a colour is water: blue to cyan and fairly bright (Tyrian's water and ice).
 static bool water_color(Uint32 color)
