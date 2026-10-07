@@ -328,6 +328,29 @@ def box(name, centre, size, mat=None):
     return obj
 
 
+def pillow(name, half_w, half_d, height, mat=None, rounding=3.6, dome=1.2, power=5.0, steps=7):
+    """A pillow-like block standing on z = 0: straight sides with rounded corners (a superellipse
+    of the given power in plan), the top edge rounded and the top bulging by `dome`."""
+    rings = []
+    for i in range(3):  # the sides
+        rings.append(ring(i * (height - rounding) / 2, half_w, half_d, 64, power=power))
+    edge_top = height + dome * 0.25
+    for i in range(1, steps + 1):  # the rounded edge
+        a = math.radians(90 * i / steps)
+        shrink = rounding * (1 - math.cos(a))
+        y = height - rounding + rounding * math.sin(a) + (edge_top - height) * (i / steps) ** 2
+        rings.append(ring(y, half_w - shrink, half_d - shrink, 64, power=power))
+    inner_w, inner_d = half_w - rounding, half_d - rounding
+    for j in range(1, 8):  # the bulge, smooth to the middle
+        f = 1 - j / 8
+        rings.append(ring(edge_top + (height + dome - edge_top) * (1 - f * f), inner_w * f, inner_d * f, 64,
+                          power=2 + (power - 2) * f))
+    body = loft(name, rings, mat, end_point=(0, height + dome, 0))
+    # Built along Y; turned to stand on the ground (Z up).
+    body.data.transform(Matrix.Rotation(math.radians(90), 4, "X"))
+    return smooth(body, 70)
+
+
 def recalc_normals(obj):
     bm = bmesh.new()
     bm.from_mesh(obj.data)

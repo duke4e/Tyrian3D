@@ -11,7 +11,6 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import tyrkit as k  # noqa: E402
-from mathutils import Matrix  # noqa: E402
 
 HALF_W, HALF_D = 11.0, 12.6   # the block's half width and half depth (the sprites leave gaps)
 HEIGHT = 9.0                   # to the top's edge; the top bulges a little more
@@ -19,27 +18,8 @@ DOME = 1.2
 TOP = HEIGHT + DOME
 
 
-def block(name, shell, rounding=3.6, steps=7):
-    """A pillow-like block: straight sides with rounded corners (a superellipse in plan), the top
-    edge rounded and the top bulging a little, so it catches the light as the sprite's does."""
-    rings = []
-    for i in range(3):  # the sides
-        rings.append(k.ring(i * (HEIGHT - rounding) / 2, HALF_W, HALF_D, 64, power=5))
-    edge_top = HEIGHT + DOME * 0.25
-    for i in range(1, steps + 1):  # the rounded edge
-        a = math.radians(90 * i / steps)
-        shrink = rounding * (1 - math.cos(a))
-        z = HEIGHT - rounding + rounding * math.sin(a) + (edge_top - HEIGHT) * (i / steps) ** 2
-        rings.append(k.ring(z, HALF_W - shrink, HALF_D - shrink, 64, power=5))
-    inner_w, inner_d = HALF_W - rounding, HALF_D - rounding
-    for j in range(1, 8):  # the bulge, smooth to the middle
-        f = 1 - j / 8
-        rings.append(k.ring(edge_top + (TOP - edge_top) * (1 - f * f), inner_w * f, inner_d * f, 64,
-                            power=2 + 3 * f))
-    body = k.loft(name, rings, shell, end_point=(0, TOP, 0))
-    # Built along Y; turned so that the block stands on the ground (Z up).
-    body.data.transform(Matrix.Rotation(math.radians(90), 4, "X"))
-    return k.smooth(body, 70)
+def block(name, shell):
+    return k.pillow(name, HALF_W, HALF_D, HEIGHT, shell, rounding=3.6, dome=DOME)
 
 
 def stroke(name, path, half_width, z0, z1, mat):
