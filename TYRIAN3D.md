@@ -73,6 +73,8 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
+| `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |
+| `TYR3D_WINDOW_SIZE=<w>x<h>` | With `TYR3D_WINDOWED`: the window's size, for checking other aspect ratios |
 | `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
 | `TYR3D_VIEWER=ships` | Model viewer: each ship's 3D look beside its sprite (see `src/viewer.h`), with `TYR3D_VIEWER_YAW`, `_ROLL`, `_SPIN`; `sidekicks` shows the sidekicks |
 
@@ -91,7 +93,12 @@ The camera keys work only while the 3D view is on screen.
   itself, as tiles on each background's plane, for the whole area the camera sees (up to 640
   pixels ahead, then fading out). Each time the game draws a background its scroll state is
   recorded, so the tiles line up with the game's own drawing, and scrolling further up follows
-  the map's wrap points. Beyond the map's sides the map continues mirrored and slowly darkening.
+  the map's wrap points. Beside the map, 16 columns on each side are generated from the map's
+  own tiles by wave function collapse (`src/wfc.c`): which tile may stand next to which is
+  learned from the map, and the columns next to it must fit its edge. They are made once per map
+  when it loads and kept in `tyrian3d-sides` in the user's directory. Further out the map
+  continues mirrored; everything beyond the map slowly darkens. `TYR3D_SIDES=mirror` mirrors
+  only, for comparison.
   Inside the playfield the captured layer is drawn over the tiles. Backgrounds that the game
   filters (lava, water, ice) cannot be tiles, since the filters blur and waver across tile edges:
   they are composed on the CPU for the area the camera sees and run through the game's own

@@ -3310,6 +3310,8 @@ new_game:
 	fclose(level_f);
 
 	++b3d_map_generation;
+	if (l3d_enabled)
+		b3d_prepare_sides();
 
 	/* Note: The map data is automatically calculated with the correct mapsh
 	value and then the pointer is calculated using the formula (MAPSH-1)*168.

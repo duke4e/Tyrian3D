@@ -3,10 +3,13 @@
  */
 #include "background3d.h"
 
+#include "config.h"
 #include "varz.h"
+#include "wfc.h"
 
 #include <math.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -157,6 +160,197 @@ static Uint8 **row_above(const L3DBackground *b, Uint8 **position, int width)
 	return position;
 }
 
+/*
+ * Beyond its sides the map continues with columns that wave function collapse (wfc.h) generates
+ * from the map's own tiles: the tiles' neighbours in the map say which may stand next to which,
+ * and the columns next to the map must fit its edge. They are made once per map, the same every
+ * time (the seed comes from the map). Further out, and in bands of rows the solver could not
+ * fill, the map continues mirrored.
+ */
+#define SIDE_COLUMNS 16
+#define SIDE_BAND_ROWS 24
+#define SIDE_MAX_ROWS 600
+#define SIDE_MIRROR (-2)  // not generated: mirror the map
+
+typedef struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	Sint16 left[SIDE_MAX_ROWS][SIDE_COLUMNS];   // tile kind (see tile_kind); SIDE_MIRROR
+	Sint16 right[SIDE_MAX_ROWS][SIDE_COLUMNS];
+} MapSides;
+
+static MapSides map_sides[B3D_SETS];
+
+// A map entry as a tile kind for the solver: the tile's index, or tile_count for an empty entry.
+static int tile_kind(const MapSet *m, const Uint8 *data)
+{
+	const ptrdiff_t offset = data != NULL ? data - m->first_tile : -1;
+	if (offset >= 0 && offset % m->tile_stride == 0 && offset / m->tile_stride < m->tile_count)
+		return (int)(offset / m->tile_stride);
+	return m->tile_count;
+}
+
+// Solves one side in bands of rows, each bound to the map's edge and to the band above it.
+// Returns how many bands the solver could not fill.
+static int make_side(const WFCRules *rules, const int *edge, int rows, bool left_side, uint32_t seed,
+                     Sint16 (*out)[SIDE_COLUMNS])
+{
+	int failed = 0;
+	int band[SIDE_BAND_ROWS * SIDE_COLUMNS];
+	int above[SIDE_COLUMNS];
+	bool have_above = false;
+	for (int r0 = 0; r0 < rows; r0 += SIDE_BAND_ROWS)
+	{
+		const int n = SDL_min(SIDE_BAND_ROWS, rows - r0);
+		// A few seeds bound to the map's edge and the band above, then a few free of the band above,
+		// then a few free of the edge (a seam is less visible than a mirrored band).
+		bool solved = false;
+		for (int attempt = 0; attempt < 24 && !solved; ++attempt)
+		{
+			const int *bound_edge = attempt < 16 ? edge + r0 : NULL;
+			solved = wfc_solve(rules, n, SIDE_COLUMNS, left_side ? NULL : bound_edge, left_side ? bound_edge : NULL,
+			                   have_above && (attempt < 8 || attempt >= 16) ? above : NULL,
+			                   seed ^ (Uint32)(r0 * 2654435761u) ^ (Uint32)(attempt * 40503u), band);
+		}
+		for (int r = 0; r < n; ++r)
+			for (int c = 0; c < SIDE_COLUMNS; ++c)
+				out[r0 + r][c] = solved ? (Sint16)band[r * SIDE_COLUMNS + c] : SIDE_MIRROR;
+		have_above = solved;
+		if (solved)
+			memcpy(above, band + (n - 1) * SIDE_COLUMNS, sizeof(above));
+		else
+			++failed;
+	}
+	return failed;
+}
+
+// The sides are kept in files in the user's directory, named by a hash of the map and of what
+// shapes the result, so each map is solved only once.
+#define SIDE_CACHE_VERSION 4
+
+static bool side_cache_path(Uint64 hash, char *path, size_t size)
+{
+	const char *dir = get_user_directory();
+	if (dir == NULL)
+		return false;
+	snprintf(path, size, "%s/tyrian3d-sides", dir);
+	SDL_CreateDirectory(path);
+	snprintf(path, size, "%s/tyrian3d-sides/%016llx.bin", dir, (unsigned long long)hash);
+	return true;
+}
+
+static bool load_sides(Uint64 hash, int rows, MapSides *sides)
+{
+	char path[1024];
+	if (!side_cache_path(hash, path, sizeof(path)))
+		return false;
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return false;
+	bool ok = true;
+	for (int r = 0; ok && r < rows; ++r)
+		ok = fread(sides->left[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS &&
+		     fread(sides->right[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS;
+	fclose(f);
+	return ok;
+}
+
+static void save_sides(Uint64 hash, int rows, const MapSides *sides)
+{
+	char path[1024];
+	if (!side_cache_path(hash, path, sizeof(path)))
+		return;
+	FILE *f = fopen(path, "wb");
+	if (f == NULL)
+		return;
+	bool ok = true;
+	for (int r = 0; ok && r < rows; ++r)
+		ok = fwrite(sides->left[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS &&
+		     fwrite(sides->right[r], sizeof(Sint16), SIDE_COLUMNS, f) == SIDE_COLUMNS;
+	if (fclose(f) != 0 || !ok)
+		remove(path);
+}
+
+static void mirror_sides(MapSides *sides)
+{
+	for (int r = 0; r < SIDE_MAX_ROWS; ++r)
+		for (int c = 0; c < SIDE_COLUMNS; ++c)
+			sides->left[r][c] = sides->right[r][c] = SIDE_MIRROR;
+}
+
+static void make_sides(int set, const MapSet *m, MapSides *sides)
+{
+	mirror_sides(sides);
+	const char *mode = SDL_getenv("TYR3D_SIDES");  // "mirror": the old way, for comparison
+	if (mode != NULL && SDL_strcmp(mode, "mirror") == 0)
+		return;
+
+	const int rows = SDL_min(m->rows, SIDE_MAX_ROWS);
+	int *grid = malloc(sizeof(int) * rows * m->width);
+	int *left_edge = malloc(sizeof(int) * rows), *right_edge = malloc(sizeof(int) * rows);
+	WFCRules *rules = malloc(sizeof(WFCRules));
+	if (grid != NULL && left_edge != NULL && right_edge != NULL && rules != NULL)
+	{
+		// FNV-1a of the map and of the settings, for the seed and the cache.
+		Uint64 hash = 14695981039346656037ull;
+		const int settings[] = { SIDE_CACHE_VERSION, SIDE_COLUMNS, SIDE_BAND_ROWS, m->tile_count, m->width, rows };
+		for (size_t i = 0; i < COUNTOF(settings); ++i)
+			hash = (hash ^ (Uint64)settings[i]) * 1099511628211ull;
+		for (int r = 0; r < rows; ++r)
+			for (int c = 0; c < m->width; ++c)
+			{
+				const int kind = tile_kind(m, m->map[r * m->width + c]);
+				grid[r * m->width + c] = kind;
+				hash = (hash ^ (Uint64)kind) * 1099511628211ull;
+			}
+
+		if (!load_sides(hash, rows, sides))
+		{
+			const Uint64 start = SDL_GetTicksNS();
+			wfc_learn(rules, m->tile_count + 1, grid, rows, m->width);
+
+			// The map's edge binds the columns beside it, unless a tile there never has a
+			// neighbour on that side in the map (it is only ever at the edge): nothing could fit.
+			for (int r = 0; r < rows; ++r)
+			{
+				const int left = grid[r * m->width], right = grid[r * m->width + m->width - 1];
+				left_edge[r] = wfc_has_any(&rules->left[left]) ? left : -1;
+				right_edge[r] = wfc_has_any(&rules->right[right]) ? right : -1;
+			}
+			const Uint32 seed = (Uint32)(hash ^ (hash >> 32));
+			const int failed = make_side(rules, left_edge, rows, true, seed, sides->left) +
+			                   make_side(rules, right_edge, rows, false, seed ^ 0x9e3779b9u, sides->right);
+			printf("background %d: sides generated in %.0f ms (%d of %d bands mirrored)\n", set,
+			       (SDL_GetTicksNS() - start) / 1e6, failed, 2 * ((rows + SIDE_BAND_ROWS - 1) / SIDE_BAND_ROWS));
+			save_sides(hash, rows, sides);
+		}
+	}
+	free(grid);
+	free(left_edge);
+	free(right_edge);
+	free(rules);
+}
+
+static const MapSides *sides_for(int set, const MapSet *m)
+{
+	MapSides *sides = &map_sides[set - 1];
+	if (sides->made_for != b3d_map_generation + 1)
+	{
+		sides->made_for = b3d_map_generation + 1;
+		make_sides(set, m, sides);
+	}
+	return sides;
+}
+
+void b3d_prepare_sides(void)
+{
+	for (int set = 1; set <= B3D_SETS; ++set)
+	{
+		const MapSet m = map_set(set);
+		sides_for(set, &m);
+	}
+}
+
 static int collect_row(const L3DBackground *b, const MapSet *m, bool fill_empty, Uint8 **row_entry, int row,
                        int first_tile, int last_tile, B3DTile *tiles, int count, int capacity)
 {
@@ -164,24 +358,37 @@ static int collect_row(const L3DBackground *b, const MapSet *m, bool fill_empty,
 	if (entry < 0 || entry >= (intptr_t)m->width * m->rows)
 		return count;  // past either end of the map
 
-	Uint8 **const row_start = m->map + entry / m->width * m->width;
+	const int map_row = (int)(entry / m->width);
+	Uint8 **const row_start = m->map + map_row * m->width;
 	const int first_column = (int)(entry % m->width);
+	const MapSides *sides = sides_for(b->set, m);
 
 	for (int t = first_tile; t <= last_tile && count < capacity; ++t)
 	{
-		// Beyond its sides the map continues mirrored.
 		const int c = first_column + t;
-		const int period = floor_div(c, m->width);
-		const bool flipped = (period & 1) != 0;
-		int column = c - period * m->width;
-		if (flipped)
-			column = m->width - 1 - column;
 
-		const Uint8 *data = row_start[column];
-		const ptrdiff_t offset = data != NULL ? data - m->first_tile : -1;
+		// Beside the map: the generated columns.
+		int kind = SIDE_MIRROR;
+		if (map_row < SIDE_MAX_ROWS && c < 0 && c >= -SIDE_COLUMNS)
+			kind = sides->left[map_row][SIDE_COLUMNS + c];
+		else if (map_row < SIDE_MAX_ROWS && c >= m->width && c < m->width + SIDE_COLUMNS)
+			kind = sides->right[map_row][c - m->width];
+
+		// Otherwise the map, continuing mirrored beyond its sides.
+		bool flipped = false;
+		if (kind == SIDE_MIRROR)
+		{
+			const int period = floor_div(c, m->width);
+			flipped = (period & 1) != 0;
+			int column = c - period * m->width;
+			if (flipped)
+				column = m->width - 1 - column;
+			kind = tile_kind(m, row_start[column]);
+		}
+
 		int cell;
-		if (offset >= 0 && offset % m->tile_stride == 0 && offset / m->tile_stride < m->tile_count)
-			cell = (b->set - 1) * B3D_TILES_PER_SET + (int)(offset / m->tile_stride);
+		if (kind < m->tile_count)
+			cell = (b->set - 1) * B3D_TILES_PER_SET + kind;
 		else if (fill_empty)
 			cell = B3D_BLANK_CELL;
 		else

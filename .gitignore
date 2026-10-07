@@ -39,3 +39,6 @@ tyrian.sav
 # CMake build output
 /build/
 __pycache__/
+
+# Sprite atlases for upscaling (tools/make_atlases.py), made from the game data
+/upscale/

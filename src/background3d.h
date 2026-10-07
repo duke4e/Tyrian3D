@@ -8,8 +8,10 @@
  * captured layer is drawn on top of the tiles, which keeps effects such as water and blur exact.
  *
  * Every draw of a background is recorded with its scroll state (l3d_add_background), so the tiles
- * line up with the game's own drawing. Outside the map's sides, the map continues mirrored and
- * darkened; past the map's top, the background's wrap point (BKwrap) is followed.
+ * line up with the game's own drawing. Beside the map, columns generated from the map's own tiles
+ * with wave function collapse continue it (cached in the user's directory), then the map
+ * continues mirrored; it darkens away from the map. Past the map's top, the background's wrap
+ * point (BKwrap) is followed.
  */
 #ifndef BACKGROUND3D_H
 #define BACKGROUND3D_H
@@ -36,6 +38,10 @@
 
 // Increases whenever a level's background maps are loaded, so the atlas can be rebuilt.
 extern unsigned int b3d_map_generation;
+
+// Makes (or loads from the cache) the columns beside the maps just loaded, so that drawing them
+// doesn't wait for it. Drawing would otherwise make them when first needed.
+void b3d_prepare_sides(void);
 
 // Fills the atlas with palette indices and opacity (B3D_ATLAS_W x B3D_ATLAS_H). Colour 0 is
 // transparent; under background 1 that shows the starfield or the black of the cleared screen,
