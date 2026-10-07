@@ -134,6 +134,10 @@ def main():
     # the ground).
     by_episode = {}
     for e in catalog["enemies"]:
+        # Only what levels place (items dropped by enemies came later to the catalogue; leaving them
+        # out keeps the atlases' layout, which upscaled atlases map back by).
+        if e["layers"] == ["drop"]:
+            continue
         group = "ground" if "ground" in e["layers"] else "air"
         by_episode.setdefault((group, e["episode"]), []).append(e)
     for (group, episode), enemies in sorted(by_episode.items()):
@@ -155,6 +159,13 @@ def main():
         if os.path.exists(sheet(name)):
             shutil.copyfile(sheet(name), os.path.join(out_dir, f"{name}.png"))
             whole[f"{name}.png"] = "the whole sheet: 19 columns of 12x14 cells, sprite i at column (i-1) % 19, row (i-1) // 19"
+
+    # The HUD panels (56x200, one and two players): the 3D view uses upscaled ones from
+    # upscale/out for the panel's unchanging parts.
+    for name in ("hud_1p", "hud_2p"):
+        if os.path.exists(sheet(name)):
+            shutil.copyfile(sheet(name), os.path.join(out_dir, f"{name}.png"))
+            whole[f"{name}.png"] = "the HUD panel's picture (56x200), for the unchanging parts of the panel"
 
     with open(os.path.join(out_dir, "atlases.json"), "w") as f:
         json.dump({"cell": [CELL_W, CELL_H], "cells": index, "whole_sheets": whole}, f, indent=1)

@@ -316,17 +316,17 @@ izvan mape).
 Gotovo na branchu `tyrian3d/m1-tools`: M1; M2 (volumetrijski spriteovi i semantika animacija);
 M3 u prvoj verziji (modeli svih brodova, uključivo dvodijelne Dragonwing i Nort Ship,
 sidekickovi kao volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
-HUD-a uz rub, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
+HUD-a uz rub u višoj rezoluciji, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
 M5.3 predmeti; M5.4 sjene; prvi modeli neprijatelja (M5.1: ring core, pod, U-luk, kugle, krhotine, marker); M7 u prvoj
 verziji (čestice eksplozija, sjaj metaka, bloom); M8 odsjaji na vodi i duboko zvjezdano polje; M9 macOS paket i svi modovi igre
-u 3D-u; M10 izvoz glazbe u MIDI i zvučni efekti upscalani AudioSR-om.
+u 3D-u; M10 glazba kao MIDI kroz SoundFont (uživo i izvoz) i zvučni efekti upscalani AudioSR-om;
+glatki prikaz na refreshu monitora između tickova, manji input lag, sistemski pokazivač miša.
 
-Na čekanju korisnika: odobrenje seta brodova; AI upscale spriteova (`upscale/in` →
-`upscale/out`) prije složenijih modela neprijatelja; dojam o upscalanim zvukovima; soundfont za
-reprodukciju MIDI-ja (M10).
+Na čekanju korisnika: AI upscale spriteova i panela HUD-a (`upscale/in` → `upscale/out`) prije
+složenijih modela neprijatelja; dojam o MIDI glazbi, odzivu i pokazivaču.
 
-Sljedeće: M5.1 dalje po učestalosti, M6 bossovi, M7 laseri, bloom i svjetla, M8 oblaci, M4.2
-iteracija 2 (HUD u višoj rezoluciji), M9 ostali modovi igre i platforme.
+Sljedeće: M5.1 dalje po učestalosti, M6 bossovi, M7 laseri i svjetla eksplozija, M8 oblaci, M9
+Windows i Linux.
 
 ## 5. Ideje korisnika (2026-10-07)
 

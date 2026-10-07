@@ -15,6 +15,7 @@
  * tools/catalog_html.py turns the result into a browsable page.
  */
 #include "extract.h"
+#include "picload.h"
 
 #include "episodes.h"
 #include "file.h"
@@ -387,6 +388,37 @@ static void write_episode_enemies(FILE *json, bool *first)
 	}
 }
 
+// The HUD panels' pictures (the screen's right column of pictures 3 and 6, one and two players),
+// as references and for upscaling (the 3D view uses upscaled ones, render_gpu.c).
+static void export_hud_panels(const char *dir)
+{
+	SDL_Surface *picture = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8);
+	if (picture == NULL)
+		return;
+	static const struct { int number; const char *name; } panels[] = { { 3, "hud_1p" }, { 6, "hud_2p" } };
+	for (size_t p = 0; p < COUNTOF(panels); ++p)
+	{
+		JE_loadPic(picture, (JE_byte)panels[p].number, false);
+		enum { X = 264, W = 320 - 264, H = 200 };
+		static Uint8 rgba[W * H * 4];
+		for (int y = 0; y < H; ++y)
+			for (int x = 0; x < W; ++x)
+			{
+				const SDL_Color c = level_palette()[((const Uint8 *)picture->pixels)[y * picture->pitch + X + x]];
+				Uint8 *out = &rgba[(y * W + x) * 4];
+				out[0] = c.r;
+				out[1] = c.g;
+				out[2] = c.b;
+				out[3] = 255;
+			}
+		char path[1024];
+		snprintf(path, sizeof(path), "%s/sheets/%s.png", dir, panels[p].name);
+		if (btbh_gpu_write_png_rgba8(path, W, H, rgba) != BTBH_GPU_OK)
+			fprintf(stderr, "warning: failed to write %s\n", path);
+	}
+	SDL_DestroySurface(picture);
+}
+
 void dev_extract(const char *dir)
 {
 	char path[1024];
@@ -419,6 +451,7 @@ void dev_extract(const char *dir)
 	export_sheet(dir, "shots2", &spriteSheet12);
 	export_sheet(dir, "ships_t2000", &spriteSheetT2000);
 	export_sheet(dir, "explosions", &explosionSpriteSheet);
+	export_hud_panels(dir);
 
 	snprintf(path, sizeof(path), "%s/palette.txt", dir);
 	FILE *palette = fopen(path, "w");

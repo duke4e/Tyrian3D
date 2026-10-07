@@ -110,6 +110,7 @@ target_compile_definitions(tyrian3d PRIVATE
     TYR3D_MODEL_DIR="${CMAKE_SOURCE_DIR}/assets/models"
     TYR3D_SIDES_DIR="${CMAKE_SOURCE_DIR}/assets/sides"
     TYR3D_SOUNDFONT_DIR="${CMAKE_SOURCE_DIR}/data/soundfonts"
+    TYR3D_UPSCALE_DIR="${CMAKE_SOURCE_DIR}/upscale/out"
 )
 target_compile_options(tyrian3d PRIVATE
     -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter

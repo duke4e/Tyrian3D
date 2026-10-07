@@ -88,6 +88,7 @@ change the first two as well.
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |
+| `TYR3D_UPSCALE_DIR=<dir>` | Where the upscaled HUD panel pictures are (default `upscale/out`) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |
@@ -142,7 +143,9 @@ change the first two as well.
   edge, as tall as the window, and the playfield is as large as fits beside it (on 16:9 it fills
   the window's height); messages from the bar below the playfield are shown as text in the
   playfield. Two-player games have the same layout. The HUD and in-playfield text are drawn flat
-  on top.
+  on top; the HUD panel at four times its resolution (Scale2x twice). If the panel's picture
+  has been upscaled (`upscale/out/hud_1p.png`, `hud_2p.png`, from `tools/make_atlases.py`), that
+  picture is drawn, and only the pixels the game changed on it (gauges, text) come from the game.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested

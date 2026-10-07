@@ -13,6 +13,7 @@
 #include "models3d.h"
 #include "palette.h"
 #include "particles3d.h"
+#include "picload.h"
 #include "paths3d.h"
 #include "settings3d.h"
 #include "sprite.h"
@@ -65,6 +66,12 @@ static BTBHGPUWindow *window = NULL;
 static BTBHGPUShaderFormat shader_format;
 
 static BTBHGPUTexture *screen_texture = NULL;  // 2D screen / HUD overlay, 320x200
+// The HUD panel in the 3D view, four times the screen's resolution (hud_panel_hd).
+#define PANEL_HD_SCALE 4
+#define PANEL_HD_W ((SCREEN_W - L3D_PLAYFIELD_W) * PANEL_HD_SCALE)
+#define PANEL_HD_H (SCREEN_H * PANEL_HD_SCALE)
+static BTBHGPUTexture *panel_texture = NULL;
+static BTBHGPUTexture *panel_art = NULL;  // an upscaled picture of the panel, or NULL (hud_panel_hd)
 static BTBHGPUTexture *layer_atlas = NULL;     // 3D layers, 320 x ATLAS_H
 static BTBHGPUTexture *tile_atlas = NULL;      // background map tiles (background3d.h)
 static BTBHGPUTexture *white_texture = NULL;   // 1x1, for flat-coloured quads
@@ -402,6 +409,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	rgpu_apply_camera_overrides();
 
 	screen_texture = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
+	panel_texture = create_texture_filtered(PANEL_HD_W, PANEL_HD_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR,
+	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	layer_atlas = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	layer_water = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
@@ -433,6 +442,8 @@ void rgpu_shutdown(void)
 		btbh_gpu_window_destroy(window);  // releases every resource the window owns
 	window = NULL;
 	screen_texture = NULL;
+	panel_texture = NULL;
+	panel_art = NULL;
 	layer_atlas = NULL;
 	layer_water = NULL;
 	tile_water = NULL;
@@ -481,6 +492,7 @@ typedef struct
 {
 	float x, y, w, h;
 	float source_x, source_y, source_w, source_h;
+	bool panel;  // from the high-resolution HUD panel (its source rectangle in screen pixels)
 } CanvasQuad;
 
 static CanvasQuad whole_screen_quad(const SDL_Rect *dst)
@@ -515,8 +527,8 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture
 static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlight, bool clear,
                            const BTBHGPUWindowReport *frame)
 {
-	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 1)];
-	BTBHGPUCanvasBatch batches_2d[2] = { { 0 } };
+	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 2)];
+	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 2] = { { 0 } };
 	int batch_count_2d = 0;
 	uint32_t vertex_count = 0;
 
@@ -534,13 +546,41 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 
 	quad_count = SDL_min(quad_count, MAX_CANVAS_QUADS);
 	for (int i = 0; i < quad_count; ++i)
-		push_quad(vertices + vertex_count + 6 * i, &quads[i], SCREEN_W, SCREEN_H);
-	BTBHGPUCanvasBatch *batch = &batches_2d[batch_count_2d++];
-	batch->first_vertex = vertex_count;
-	batch->vertex_count = 6 * (uint32_t)quad_count;
-	batch->texture = screen_texture;
-	batch->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
-	vertex_count += batch->vertex_count;
+	{
+		BTBHGPUCanvasBatch *batch = &batches_2d[batch_count_2d++];
+		batch->first_vertex = vertex_count;
+		batch->vertex_count = 6;
+		batch->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+		if (quads[i].panel)
+		{
+			// The upscaled picture of the panel under it (its size whatever the upscale's).
+			if (panel_art != NULL)
+			{
+				const CanvasQuad art = { quads[i].x, quads[i].y, quads[i].w, quads[i].h, 0, 0, 1, 1 };
+				push_quad(vertices + vertex_count, &art, 1, 1);
+				batch->texture = panel_art;
+				vertex_count += 6;
+				batch = &batches_2d[batch_count_2d++];
+				batch->first_vertex = vertex_count;
+				batch->vertex_count = 6;
+				batch->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+			}
+			// The panel texture holds the screen from the panel's column on, scaled up.
+			CanvasQuad q = quads[i];
+			q.source_x = (q.source_x - L3D_PLAYFIELD_W) * PANEL_HD_SCALE;
+			q.source_y *= PANEL_HD_SCALE;
+			q.source_w *= PANEL_HD_SCALE;
+			q.source_h *= PANEL_HD_SCALE;
+			push_quad(vertices + vertex_count, &q, PANEL_HD_W, PANEL_HD_H);
+			batch->texture = panel_texture;
+		}
+		else
+		{
+			push_quad(vertices + vertex_count, &quads[i], SCREEN_W, SCREEN_H);
+			batch->texture = screen_texture;
+		}
+		vertex_count += 6;
+	}
 
 	BTBHGPUCanvasPass pass = { 0 };
 	pass.first_batch = 0;
@@ -967,7 +1007,7 @@ static int layout_quads(const Layout3D *layout, const SDL_Rect *dst, CanvasQuad 
 		return 1;
 	}
 	const float *p = layout->panel, *f = layout->playfield;
-	quads[0] = (CanvasQuad){ p[0], p[1], p[2], p[3], PANEL_X, 0, SCREEN_W - PANEL_X, SCREEN_H };
+	quads[0] = (CanvasQuad){ p[0], p[1], p[2], p[3], PANEL_X, 0, SCREEN_W - PANEL_X, SCREEN_H, .panel = true };
 	quads[1] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
 	return 2;
 }
@@ -1031,6 +1071,98 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 			}
 		}
 	}
+}
+
+/*
+ * The HUD panel at four times the screen's resolution: the game's own drawing of it, magnified
+ * with Scale2x twice (each pixel becomes four, rounding diagonal edges and keeping straight ones
+ * and the colours as they are), and shown smoothly scaled. Made again only when the panel changes.
+ */
+static void scale2x(const Uint32 *src, int w, int h, Uint32 *dst)
+{
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			const Uint32 p = src[y * w + x];
+			const Uint32 a = y > 0 ? src[(y - 1) * w + x] : p;      // above
+			const Uint32 b = x < w - 1 ? src[y * w + x + 1] : p;    // right
+			const Uint32 c = x > 0 ? src[y * w + x - 1] : p;        // left
+			const Uint32 d = y < h - 1 ? src[(y + 1) * w + x] : p;  // below
+			Uint32 *out = dst + (2 * y) * (2 * w) + 2 * x;
+			out[0] = c == a && c != d && a != b ? a : p;
+			out[1] = a == b && a != c && b != d ? b : p;
+			out[2 * w] = d == c && d != b && c != a ? c : p;
+			out[2 * w + 1] = b == d && b != a && d != c ? d : p;
+		}
+}
+
+/*
+ * With an upscaled picture of the panel (upscale/out/hud_1p.png or hud_2p.png, see
+ * tools/make_atlases.py), the panel's unchanging parts come from it: the magnified panel keeps only
+ * what differs from the game's own picture of it (gauges, icons, text) and goes over it.
+ */
+static int panel_art_picture = 0;          // which picture it shows (3 or 6), 0 if none
+static Uint8 panel_picture[SCREEN_W * SCREEN_H];
+
+static void load_panel_art(int picture)
+{
+	if (panel_art_picture == picture)
+		return;
+	panel_art_picture = picture;
+	panel_art = NULL;  // a texture made before stays with the window
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/%s.png",
+	         tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir)),
+	         picture == 6 ? "hud_2p" : "hud_1p");
+	if (!SDL_GetPathInfo(path, NULL))
+		return;
+	BTBHGPUTextureReport report;
+	panel_art = btbh_gpu_window_texture_load_ex(window, path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+	                                            BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+	if (panel_art == NULL)
+		return;
+	SDL_Surface *surface = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL)
+	{
+		panel_art = NULL;
+		return;
+	}
+	JE_loadPic(surface, (JE_byte)picture, false);
+	for (int y = 0; y < SCREEN_H; ++y)
+		memcpy(panel_picture + y * SCREEN_W, (const Uint8 *)surface->pixels + y * surface->pitch, SCREEN_W);
+	SDL_DestroySurface(surface);
+	printf("hud: the panel's picture from %s\n", path);
+}
+
+static void hud_panel_hd(const SDL_Surface *hud)
+{
+	enum { W = SCREEN_W - L3D_PLAYFIELD_W, H = SCREEN_H };
+	static Uint32 panel[W * H], twice[W * 2 * H * 2], hd[PANEL_HD_W * PANEL_HD_H];
+	static Uint32 last_hash = 0;
+	static bool made = false;
+
+	load_panel_art(twoPlayerMode ? 6 : 3);
+
+	Uint32 hash = panel_art != NULL ? 1u : 2u;
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x)
+		{
+			Uint32 c = screen_rgba[y * SCREEN_W + L3D_PLAYFIELD_W + x];
+			// Over the upscaled picture: only what the game drew over its own picture.
+			if (panel_art != NULL && ((const Uint8 *)hud->pixels)[y * hud->pitch + L3D_PLAYFIELD_W + x] ==
+			                         panel_picture[y * SCREEN_W + L3D_PLAYFIELD_W + x])
+				c = 0;
+			panel[y * W + x] = c;
+			hash = (hash ^ c) * 16777619u;
+		}
+	if (made && hash == last_hash)
+		return;
+	scale2x(panel, W, H, twice);
+	scale2x(twice, W * 2, H * 2, hd);
+	btbh_gpu_texture_update_rgba8(panel_texture, (const uint8_t *)hd, 0, 0, PANEL_HD_W, PANEL_HD_H);
+	last_hash = hash;
+	made = true;
 }
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
@@ -2298,6 +2430,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	{
 		build_hud(hud, frame, layout.split);
 		btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
+		hud_panel_hd(hud);
 	}
 
 	// Levels with a special view, as JE_starShowVGA shows them.
