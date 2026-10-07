@@ -43,25 +43,28 @@ ROWS = [
 ]
 
 
-def section(y, bw, bt, bb, px, pw, pt, pb):
+def section(y, bw, bt, bb, px, pw, pt, pb, creases=None):
     lobes = [
         (0, 0, bw, bt, bb),        # fuselage
         (-px, POD_Z, pw, pt, pb),  # pods
         (px, POD_Z, pw, pt, pb),
     ]
-    return k.lobed_ring(y, lobes, segments=64, origin_z=0.1)
+    return k.lobed_ring(y, lobes, segments=64, origin_z=0.1, creases=creases)
 
 
 def build():
     k.reset()
 
     hull = k.material("talon_hull", palette=25, metallic=0.3, roughness=0.3)
+    seam = k.material("talon_seam", palette=19, metallic=0.2, roughness=0.6)
     canopy = k.material("talon_canopy", palette=16, roughness=0.12)
 
     samples = k.profile(sorted([(row_y(r[0]), *r[1:]) for r in ROWS]), step=0.3)
-    rings = [section(*s) for s in samples]
+    creases = [[] for _ in samples]
+    rings = [section(*s, creases=c) for s, c in zip(samples, creases)]
     body = k.loft("hull", rings, hull, start_point=(0, row_y(26.5), 0.1), end_point=(0, row_y(1.5), 0.15))
     k.smooth(body, 45)
+    k.crease_seams("seam", creases, seam)  # the grooves between the fuselage and the pods
 
     # Canopy: a dark glass dome in the front third.
     k.smooth(k.ellipsoid("canopy", (0, row_y(10.3), 1.7), (1.6, 1.8, 0.85), canopy, segments=16, rings_count=10), 60)

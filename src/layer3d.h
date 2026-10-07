@@ -117,6 +117,17 @@ typedef struct
 
 #define L3D_MAX_STARS 128
 
+// A glow around a shot (the 3D view draws it as additive light): its centre, the layer it was
+// drawn in, and the palette index of its colour.
+typedef struct
+{
+	float x, y;
+	Uint8 layer;
+	Uint8 color;
+} L3DGlow;
+
+#define L3D_MAX_GLOWS 256
+
 typedef struct
 {
 	int layer_count;
@@ -131,6 +142,9 @@ typedef struct
 	int star_count;
 	int star_layer;  // layer the starfield was drawn into
 	L3DStar stars[L3D_MAX_STARS];
+
+	int glow_count;
+	L3DGlow glows[L3D_MAX_GLOWS];
 
 	// JE_filterScreen parameters, applied when layers are converted to colour.
 	int filter_hue;         // -99 for none
@@ -168,6 +182,10 @@ void l3d_add_background(int set, Uint8 **top_row, Uint8 **position, Uint8 **wrap
 
 // Records a star of the background starfield drawn in the current phase.
 void l3d_add_star(Uint16 position, Uint8 color, bool bright);
+
+// Records a glow around a 1x1 sprite (a shot; sheet is a Sprite2_array *) drawn at x, y in the
+// current phase. Its colour is the sprite's brightest.
+void l3d_add_glow(const void *sheet, unsigned int sprite, int x, int y);
 
 // Records a recolouring filter applied to everything drawn so far in the frame.
 void l3d_add_effect(L3DEffect effect, int param);

@@ -1,7 +1,8 @@
 """Storm (ship 14; sprite 5 of the Tyrian 2000 ships sheet).
 
-A black stealth delta: a long narrow nose with a blue canopy, widening into flat wings, with
-two flat pods on the rear wings and a bar of blue lights at the tail.
+A black stealth craft: a long narrow neck with a pale light at its tip, then a wide flat disc
+with a ridge and a blue cockpit in the middle, two pods with blue lenses on its sides and a bar
+of blue lights at the tail.
 """
 import os
 import sys
@@ -20,22 +21,26 @@ def col_x(col):
 
 def build():
     k.reset()
-    hull = k.material("storm_hull", palette=82, metallic=0.4, roughness=0.28)
+    hull = k.material("storm_hull", palette=2, metallic=0.5, roughness=0.32)
     trim = k.material("storm_trim", palette=102, metallic=0.4, roughness=0.3)
+    nose = k.material("storm_nose", palette=10, metallic=0.3, roughness=0.2)
     glass = k.material("storm_glass", (77, 130, 146), roughness=0.1, emission=(77, 130, 146), emission_strength=0.6)
     lights = k.material("storm_lights", (77, 130, 146), roughness=0.3, emission=(110, 190, 230), emission_strength=3.0)
 
     # Hull: (row at pixel centre, half-width, top, bottom, crest).
-    rows = [(27.3, 1.2, 0.5, 0.3, 0.0), (26.5, 4.6, 0.9, 0.5, 0.2), (25.5, 6.8, 1.1, 0.6, 0.3), (24.5, 8.8, 1.2, 0.7, 0.4),
-            (23, 10.3, 1.2, 0.7, 0.5), (21, 10.9, 1.2, 0.7, 0.7), (19, 10.8, 1.2, 0.7, 0.9), (17, 9.6, 1.2, 0.7, 1.0),
-            (15, 7.9, 1.3, 0.7, 1.1), (13, 5.9, 1.4, 0.8, 1.1), (11, 3.9, 1.5, 0.8, 0.9), (8, 3.0, 1.5, 0.8, 0.5),
-            (5, 2.9, 1.4, 0.8, 0.3), (3, 2.6, 1.2, 0.7, 0.2), (1.5, 1.6, 0.8, 0.4, 0.0), (0.6, 0.8, 0.4, 0.3, 0.0)]
+    # The rear is a wide, flat disc with a ridge down the middle; the neck is narrow and round.
+    rows = [(27.3, 1.2, 0.4, 0.3, 0.0), (26.5, 4.6, 0.6, 0.4, 0.3), (25.5, 6.8, 0.7, 0.5, 0.5), (24.5, 8.8, 0.8, 0.5, 0.6),
+            (23, 10.3, 0.8, 0.5, 0.8), (21, 10.9, 0.8, 0.5, 1.0), (19, 10.8, 0.8, 0.5, 1.2), (17, 9.6, 0.9, 0.5, 1.3),
+            (15, 7.9, 1.0, 0.6, 1.2), (13, 5.9, 1.2, 0.7, 1.0), (11, 3.6, 1.4, 0.8, 0.6), (8, 2.6, 1.4, 0.8, 0.2),
+            (5, 2.5, 1.3, 0.8, 0.1), (3, 2.3, 1.1, 0.7, 0.0), (1.5, 1.5, 0.8, 0.4, 0.0), (0.6, 0.8, 0.4, 0.3, 0.0)]
     rows.sort(key=lambda r: row_y(r[0]))
     samples = k.profile([(row_y(r), w, t, b, c) for r, w, t, b, c in rows], step=0.4)
     rings = [k.ring(y, w, 1.0, 24, top=t, bottom=b, crest=c) for y, w, t, b, c in samples]
     k.smooth(k.loft("hull", rings, hull, start_point=(0, row_y(27.7), 0.0), end_point=(0, row_y(0.2), 0.1)), 40)
 
-    k.smooth(k.ellipsoid("canopy", (0, row_y(3.9), 1.05), (1.1, 1.6, 0.55), glass, 14, 8), 60)
+    k.smooth(k.ellipsoid("nose_light", (0, row_y(3.4), 0.95), (1.0, 1.3, 0.5), nose, 14, 8), 60)
+    # The cockpit: the sprite's cluster of blue windows in the middle of the disc.
+    k.smooth(k.ellipsoid("canopy", (0, row_y(18.3), 1.55), (2.4, 3.2, 0.75), glass, 16, 10), 60)
 
     # Rear pods with lights on their sides.
     for side in (-1, 1):
@@ -47,9 +52,6 @@ def build():
     # The tail's light bar.
     bar = [(-3.2, row_y(24.7)), (3.2, row_y(24.7)), (3.2, row_y(24.1)), (-3.2, row_y(24.1))]
     k.slab("light_bar", bar[::-1], 1.0, 1.55, lights, bevel_width=0.12)
-    # Lights along the middle (the sprite's blue windows).
-    for r, w in ((16.6, 1.0), (20.6, 1.2)):
-        k.smooth(k.ellipsoid("window", (0, row_y(r), 1.9), (w, 0.7, 0.35), lights, 10, 6), 60)
 
     here = os.path.dirname(os.path.abspath(__file__))
     k.finish(os.path.join(here, "..", "..", "..", "..", "assets", "models", "ships", "storm.glb"))

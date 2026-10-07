@@ -50,6 +50,7 @@
 #include "varz.h"
 #include "vga256d.h"
 #include "video.h"
+#include "settings3d.h"
 #include "video_scale.h"
 #include "viewer.h"
 #include "xmas.h"
@@ -105,6 +106,41 @@ static const char *getScalingModePickerItem(size_t i, char *buffer, size_t buffe
 	return scaling_mode_names[i];
 }
 
+// Tyrian3D's settings (settings3d.h): pickers of the "3D" menu.
+static size_t getTwoItemsCount(void)
+{
+	return 2;
+}
+
+static const char *getViewPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "3D" : "Original 2D";
+}
+
+static const char *getModelsPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "3D" : "Flat sprites";
+}
+
+static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "On" : "Off";
+}
+
+static size_t getCameraPickerItemsCount(void)
+{
+	return (size_t)settings3d_camera_count();
+}
+
+static const char *getCameraPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return settings3d_camera_name((int)i);
+}
+
 void setupMenu(void)
 {
 	typedef enum
@@ -120,6 +156,12 @@ void setupMenu(void)
 		MENU_ITEM_SCALING_MODE,
 		MENU_ITEM_MUSIC_VOLUME,
 		MENU_ITEM_SOUND_VOLUME,
+		MENU_ITEM_3D,
+		MENU_ITEM_VIEW_3D,
+		MENU_ITEM_MODELS,
+		MENU_ITEM_SHADOWS,
+		MENU_ITEM_EFFECTS,
+		MENU_ITEM_CAMERA,
 	} MenuItemId;
 
 	typedef enum
@@ -128,6 +170,7 @@ void setupMenu(void)
 		MENU_SETUP,
 		MENU_GRAPHICS,
 		MENU_SOUND,
+		MENU_3D,
 	} MenuId;
 
 	typedef struct
@@ -142,7 +185,7 @@ void setupMenu(void)
 	typedef struct
 	{
 		const char *header;
-		const MenuItem items[6];
+		const MenuItem items[8];
 	} Menu;
 
 	static const Menu menus[] = {
@@ -150,6 +193,7 @@ void setupMenu(void)
 			.header = "Setup",
 			.items = {
 				{ MENU_ITEM_GRAPHICS, "Graphics...", "Change the graphics settings." },
+				{ MENU_ITEM_3D, "3D...", "Change the 3D settings." },
 				{ MENU_ITEM_SOUND, "Sound...", "Change the sound settings." },
 				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
 				// { MENU_ITEM_DESTRUCT, "Destruct", "Play a bonus mini-game." },
@@ -163,6 +207,18 @@ void setupMenu(void)
 				{ MENU_ITEM_DISPLAY, "Display:", "Change the display mode.", getDisplayPickerItemsCount, getDisplayPickerItem },
 				{ MENU_ITEM_SCALER, "Scaler:", "Change the pixel art scaling algorithm.", getScalerPickerItemsCount, getScalerPickerItem },
 				{ MENU_ITEM_SCALING_MODE, "Scaling Mode:", "Change the scaling mode.", getScalingModePickerItemsCount, getScalingModePickerItem },
+				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
+				{ -1 }
+			},
+		},
+		[MENU_3D] = {
+			.header = "3D",
+			.items = {
+				{ MENU_ITEM_VIEW_3D, "View:", "Play in 3D or on the original screen.", getTwoItemsCount, getViewPickerItem },
+				{ MENU_ITEM_MODELS, "Objects:", "Ships and enemies in 3D, or flat sprites.", getTwoItemsCount, getModelsPickerItem },
+				{ MENU_ITEM_SHADOWS, "Shadows:", "Shadows of ships and enemies.", getTwoItemsCount, getOnOffPickerItem },
+				{ MENU_ITEM_EFFECTS, "Effects:", "Explosion particles and glowing shots.", getTwoItemsCount, getOnOffPickerItem },
+				{ MENU_ITEM_CAMERA, "Camera:", "How the 3D camera looks at the playfield.", getCameraPickerItemsCount, getCameraPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -268,6 +324,21 @@ void setupMenu(void)
 			case MENU_ITEM_SCALING_MODE:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, scaling_mode_names[scaling_mode], normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 				break;
+
+			case MENU_ITEM_VIEW_3D:
+			case MENU_ITEM_MODELS:
+			case MENU_ITEM_SHADOWS:
+			case MENU_ITEM_EFFECTS:
+			case MENU_ITEM_CAMERA:
+			{
+				const size_t choice =
+					menuItem->id == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
+					menuItem->id == MENU_ITEM_MODELS ? !settings3d.models :
+					menuItem->id == MENU_ITEM_SHADOWS ? !settings3d.shadows :
+					menuItem->id == MENU_ITEM_EFFECTS ? !settings3d.effects : (size_t)settings3d.camera;
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, menuItem->getPickerItem(choice, buffer, sizeof(buffer)), normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				break;
+			}
 
 			case MENU_ITEM_MUSIC_VOLUME:
 				JE_barDrawShadow(VGAScreen, xMenuItemValue, y, 1, music_disabled ? 170 : 174, (tyrMusicVolume + 4) / 8, 2, 10);
@@ -537,6 +608,30 @@ void setupMenu(void)
 					selectedMenuItemIndexes[currentMenu] = 0;
 					break;
 				}
+				case MENU_ITEM_3D:
+				{
+					JE_playSampleNum(S_SELECT);
+
+					menuParents[MENU_3D] = currentMenu;
+					currentMenu = MENU_3D;
+					break;
+				}
+				case MENU_ITEM_VIEW_3D:
+				case MENU_ITEM_MODELS:
+				case MENU_ITEM_SHADOWS:
+				case MENU_ITEM_EFFECTS:
+				case MENU_ITEM_CAMERA:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					currentPicker = selectedMenuItemId;
+					pickerSelectedIndex =
+						selectedMenuItemId == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
+						selectedMenuItemId == MENU_ITEM_MODELS ? !settings3d.models :
+						selectedMenuItemId == MENU_ITEM_SHADOWS ? !settings3d.shadows :
+						selectedMenuItemId == MENU_ITEM_EFFECTS ? !settings3d.effects : (size_t)settings3d.camera;
+					break;
+				}
 				case MENU_ITEM_SOUND:
 				{
 					JE_playSampleNum(S_SELECT);
@@ -743,6 +838,29 @@ void setupMenu(void)
 					scaling_mode = pickerSelectedIndex;
 					break;
 				}
+				case MENU_ITEM_VIEW_3D:
+					settings3d.view_3d = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_VIEW);
+					settings3d_apply();
+					break;
+				case MENU_ITEM_MODELS:
+					settings3d.models = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_MODELS);
+					settings3d_apply();
+					break;
+				case MENU_ITEM_SHADOWS:
+					settings3d.shadows = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_SHADOWS);
+					break;
+				case MENU_ITEM_EFFECTS:
+					settings3d.effects = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_EFFECTS);
+					break;
+				case MENU_ITEM_CAMERA:
+					settings3d.camera = (int)pickerSelectedIndex;
+					settings3d_changed(S3D_CAMERA);
+					settings3d_apply();
+					break;
 				default:
 					break;
 				}
@@ -772,7 +890,6 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	l3d_enabled = SDL_getenv("TYR3D_2D") == NULL;
 	m3d_init();
 
 	// Note for this reorganization:
@@ -788,6 +905,7 @@ int main(int argc, char *argv[])
 	/*debuginfo("Help text complete");*/
 
 	JE_loadConfiguration();
+	settings3d_apply();  // Tyrian3D: the 3D settings just loaded
 
 	JE_scanForEpisodes();
 

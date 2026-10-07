@@ -12,6 +12,7 @@
 #include "models3d.h"
 #include "palette.h"
 #include "particles3d.h"
+#include "settings3d.h"
 #include "sprite.h"
 #include "volume3d.h"
 
@@ -101,6 +102,56 @@ static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
 static BTBHGPUTexture *spot_texture = NULL;
 static Uint32 spot_rgba[SPOT_W * SPOT_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
+
+// Water glints (the renderer's GLINTS surface): masks of the water in the layers and the tiles,
+// in the blue channel, laid out as layer_atlas and tile_atlas.
+static BTBHGPUTexture *layer_water = NULL;
+static BTBHGPUTexture *tile_water = NULL;
+static BTBHGPUTexture *composed_water = NULL;
+static Uint32 layer_water_rgba[L3D_WIDTH * ATLAS_H];
+static float glint_time = 0;  // seconds of game time, for the waves
+
+// Wave scale, strength, sharpness and tilt; TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>
+// overrides them, for tuning.
+static float glint_parameters[4] = { 1.0f, 0.8f, 110.0f, 3.0f };
+
+// Whether a colour is water: blue to cyan and fairly bright (Tyrian's water and ice).
+static bool water_color(Uint32 color)
+{
+	const Uint8 *c = (const Uint8 *)&color;
+	const int r = c[0], g = c[1], b = c[2];
+	const int max = SDL_max(r, SDL_max(g, b)), min = SDL_min(r, SDL_min(g, b));
+	if (max < 90 || max - min < max / 4 || b < r)
+		return false;
+	// Hue in degrees, for blue-dominant colours: from cyan (180) to blue (240).
+	const float hue = max == b ? 240.0f - 60.0f * (g - r) / (float)(max - min) : 180.0f - 60.0f * (b - r) / (float)(max - min);
+	return hue >= 175.0f && hue <= 235.0f;
+}
+
+static Uint32 water_mask(Uint32 color)
+{
+	const Uint8 rgba[4] = { 0, 0, water_color(color) ? 255 : 0, 255 };
+	Uint32 mask;
+	memcpy(&mask, rgba, 4);
+	return mask;
+}
+
+// Layers of background maps (where water is), as opposed to sprites and text.
+static bool background_layer(L3DLayerType type)
+{
+	return type == L3D_GROUND || type == L3D_BG2_LOW || type == L3D_BG2 || type == L3D_BG3 ||
+	       type == L3D_BG2_OVER || type == L3D_BG3_OVER;
+}
+
+static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
+{
+	if (!settings3d.effects)
+		return;
+	b->surface_variant = BTBH_GPU_SCENE_SURFACE_GLINTS;
+	b->orm_texture = mask;
+	b->surface_time = glint_time;
+	memcpy(b->surface_parameters0, glint_parameters, sizeof(glint_parameters));
+}
 
 // The tile atlas has pages coloured with different palettes: the frame's colours, and those
 // colours as recoloured by a level's filters (water, lava, ice).
@@ -278,7 +329,7 @@ static void init_shader_paths(BTBHGPUBackendRequest backend)
 		snprintf(shader_paths[i], sizeof(shader_paths[i]), "%s/%s.%s", shader_dir, shader_names[i], ext);
 }
 
-static void init_camera_from_env(void)
+void rgpu_apply_camera_overrides(void)
 {
 	const char *value;
 	if ((value = SDL_getenv("TYR3D_TILT")) != NULL)
@@ -289,6 +340,8 @@ static void init_camera_from_env(void)
 		rgpu_camera.height_scale = (float)SDL_atof(value);
 	if ((value = SDL_getenv("TYR3D_SUN")) != NULL)
 		sscanf(value, "%f,%f,%f", &sun_direction[0], &sun_direction[1], &sun_direction[2]);
+	if ((value = SDL_getenv("TYR3D_GLINTS")) != NULL)
+		sscanf(value, "%f,%f,%f,%f", &glint_parameters[0], &glint_parameters[1], &glint_parameters[2], &glint_parameters[3]);
 }
 
 SDL_Window *rgpu_init(const char *title, int width, int height)
@@ -329,14 +382,17 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 
 	shader_format = btbh_gpu_backend_shader_format(backend);
 	init_shader_paths(backend);
-	init_camera_from_env();
+	rgpu_apply_camera_overrides();
 
 	screen_texture = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	layer_atlas = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	layer_water = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	tile_atlas = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	tile_water = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	white_texture = create_texture(1, 1, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_texture = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	composed_water = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	const Uint32 white = 0xffffffff;
 	btbh_gpu_texture_update_rgba8(white_texture, (const uint8_t *)&white, 0, 0, 1, 1);
 	quad_mesh = create_quad_mesh(1, 1);
@@ -361,6 +417,9 @@ void rgpu_shutdown(void)
 	window = NULL;
 	screen_texture = NULL;
 	layer_atlas = NULL;
+	layer_water = NULL;
+	tile_water = NULL;
+	composed_water = NULL;
 	tile_atlas = NULL;
 	white_texture = NULL;
 	particle_texture = NULL;
@@ -784,6 +843,9 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 					if (layer->cover[i])
 						dst[i] = colors[layer->index[i]];
 				}
+			Uint32 *water = layer_water_rgba + (slots) * ATLAS_SLOT_H * L3D_WIDTH;
+			for (int i = 0; i < L3D_WIDTH * L3D_ROWS; ++i)
+				water[i] = background_layer(layer->type) && dst[i] != 0 ? water_mask(dst[i]) : 0;
 			++slots;
 			continue;
 		}
@@ -805,6 +867,9 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 			}
 			dst[i] = color;
 		}
+		Uint32 *water = layer_water_rgba + slots * ATLAS_SLOT_H * L3D_WIDTH;
+		for (int i = 0; i < L3D_WIDTH * L3D_ROWS; ++i)
+			water[i] = background_layer(layer->type) && layer->cover[i] ? water_mask(colors[layer->index[i]]) : 0;
 		++slots;
 	}
 	*slot_count = slots;
@@ -1047,10 +1112,10 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
-#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES)
+#define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + L3D_MAX_GLOWS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1364,6 +1429,9 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
 		tile_rgba[i] = tile_opaque[i] || (ground_zero && tile_ground[i]) ? colors[tile_indices[i]] : 0;
 	btbh_gpu_texture_update_rgba8(tile_atlas, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
+	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
+		tile_rgba[i] = tile_rgba[i] != 0 ? water_mask(tile_rgba[i]) : 0;
+	btbh_gpu_texture_update_rgba8(tile_water, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
 	tile_pages[page].valid = true;
 	tile_pages[page].generation = b3d_map_generation;
 	tile_pages[page].colors_hash = hash;
@@ -1449,6 +1517,13 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 			composed_rgba[p] = color;
 		}
 		btbh_gpu_texture_update_rgba8(composed_texture, (const uint8_t *)composed_rgba, 0, i * COMPOSED_SIZE, w, h);
+		const bool glints = settings3d.effects;
+		if (glints)
+		{
+			for (int p = 0; p < w * h; ++p)
+				composed_rgba[p] = composed_rgba[p] != 0 ? water_mask(composed_rgba[p]) : 0;
+			btbh_gpu_texture_update_rgba8(composed_water, (const uint8_t *)composed_rgba, 0, i * COMPOSED_SIZE, w, h);
+		}
 
 		Mat4 transform = mat4_identity();
 		transform.m[0] = (float)w;
@@ -1470,6 +1545,8 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 		b->uv_offset_y = i * COMPOSED_SIZE / texture_h;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		if (glints)
+			set_glints(b, composed_water);
 	}
 }
 
@@ -1580,6 +1657,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->uv_offset_y = oy / atlas_h;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		set_glints(b, tile_water);
 	}
 	*instance_count = next;
 }
@@ -1793,11 +1871,48 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 	}
 }
 
-// Shadows can be turned off with TYR3D_SHADOWS=0.
+// Shots glow (L3DGlow): additive light around each, in its colour, a little above its layer.
+#define GLOW_SIZE 13.0f
+#define GLOW_STRENGTH 0.7f
+
+static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int *instance_count, int *batch_count)
+{
+	const int first = *instance_count;
+	for (int g = 0; g < frame->glow_count && *instance_count < MAX_INSTANCES; ++g)
+	{
+		const L3DGlow *glow = &frame->glows[g];
+		Mat4 transform = mat4_identity();
+		transform.m[0] = transform.m[5] = transform.m[10] = GLOW_SIZE;
+		transform.m[12] = glow->x;
+		transform.m[13] = l3d_layer_height(glow->layer) * rgpu_camera.height_scale + 0.5f;
+		transform.m[14] = glow->y;
+		float *instance = instances + *instance_count * 24;
+		write_instance(instance, &transform, 1.0f);
+		const Uint8 *c = (const Uint8 *)&colors[glow->color];
+		for (int i = 0; i < 3; ++i)
+			instance[16 + i] = srgb_to_linear(c[i]) * GLOW_STRENGTH;
+		instance[19] = 1.0f;
+		++*instance_count;
+	}
+	if (*instance_count == first || *batch_count >= MAX_BATCHES)
+		return;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = particle_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
 static bool shadows_enabled(void)
 {
-	const char *value = SDL_getenv("TYR3D_SHADOWS");
-	return value == NULL || SDL_atoi(value) != 0;
+	return settings3d.shadows;
 }
 
 // The sun's shadow map covers the ground the window shows around the playfield (an orthographic
@@ -1887,7 +2002,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	int slot_count = 0;
 	build_layer_atlas(frame, colors, native, slot_of_layer, &slot_count);
 	if (slot_count > 0)
+	{
 		btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
+		btbh_gpu_texture_update_rgba8(layer_water, (const uint8_t *)layer_water_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
+	}
+	glint_time += 1.0f / 35.0f;  // about the game's frame rate
 
 	const float logical_w = (float)window_frame.logical_width, logical_h = (float)window_frame.logical_height;
 	const Layout3D layout = layout_3d(logical_w, logical_h, dst);
@@ -1960,6 +2079,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		b->uv_offset_y = (float)(slot * ATLAS_SLOT_H) / ATLAS_H;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		if (background_layer(frame->layers[l].type))
+			set_glints(b, layer_water);
 	}
 
 	bool composed[L3D_MAX_BACKGROUNDS];
@@ -1984,7 +2105,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	// Particles last: they neither cast nor receive shadows.
 	const int first_particle_batch = batch_count;
-	add_particle_batches(&instance_count, &batch_count);
+	if (settings3d.effects)
+	{
+		add_particle_batches(&instance_count, &batch_count);
+		add_glow_batch(frame, colors, &instance_count, &batch_count);
+	}
 	for (int i = first_particle_batch; i < batch_count; ++i)
 		casts_shadow[i] = 0;
 

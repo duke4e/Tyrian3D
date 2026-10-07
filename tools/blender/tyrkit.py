@@ -120,36 +120,106 @@ def ring(y, half_width, half_height, segments=16, z=0.0, x=0.0, top=1.0, bottom=
     return points
 
 
-def lobed_ring(y, lobes, segments=64, origin_z=0.0):
+def _lobed_hit(angle, lobes, origin_z):
+    """The farthest point of a union of lobes along the ray from (0, origin_z) at angle: its
+    distance and the lobe it lies on."""
+    dx, dz = math.cos(angle), math.sin(angle)
+    best, owner = 0.0, 0
+    for lobe, (cx, cz, w, top, bottom) in enumerate(lobes):
+        if w < 0.05:
+            continue
+        for h, upper in ((top, True), (bottom, False)):
+            if h < 0.05:
+                continue
+            # Points origin + t * direction on the ellipse ((x - cx) / w)^2 + ((z - cz) / h)^2 = 1.
+            ox, oz = -cx, origin_z - cz
+            qa = (dx / w) ** 2 + (dz / h) ** 2
+            qb = 2 * (ox * dx / w ** 2 + oz * dz / h ** 2)
+            qc = (ox / w) ** 2 + (oz / h) ** 2 - 1
+            disc = qb * qb - 4 * qa * qc
+            if disc < 0:
+                continue
+            for t in ((-qb + math.sqrt(disc)) / (2 * qa), (-qb - math.sqrt(disc)) / (2 * qa)):
+                if t > best and (origin_z + t * dz >= cz) == upper:
+                    best, owner = t, lobe
+    return best, owner
+
+
+def lobed_ring(y, lobes, segments=64, origin_z=0.0, owners=None, creases=None):
     """A cross-section in the XZ plane at y: the outline of a union of lobes, for hulls with pods
     or ridges whose creases should show. Each lobe (x, z, half_width, top, bottom) is an ellipse
     centred at (x, z) whose upper and lower halves have the given heights; lobes with a
     half-width or height near 0 are left out. The outline is traced along rays from
-    (0, origin_z), which must be inside the union. Points run counter-clockwise seen from +Y."""
-    points = []
+    (0, origin_z), which must be inside the union. Points run counter-clockwise seen from +Y.
+    If owners is a list, the index of the lobe each point lies on is appended to it; if creases
+    is a list, ((lobe, lobe), point) is appended for every point where one lobe meets another
+    (found exactly, between the samples), for seams (crease_seams)."""
+    points, hits = [], []
     for k in range(segments):
         a = 2 * math.pi * k / segments
-        dx, dz = math.cos(a), math.sin(a)
-        best = 0.0
-        for cx, cz, w, top, bottom in lobes:
-            if w < 0.05:
+        t, owner = _lobed_hit(a, lobes, origin_z)
+        hits.append((a, owner))
+        points.append(Vector((t * math.cos(a), y, origin_z + t * math.sin(a))))
+        if owners is not None:
+            owners.append(owner)
+    if creases is not None:
+        for k in range(segments):
+            (a0, o0), (a1, o1) = hits[k], hits[(k + 1) % segments]
+            if o0 == o1:
                 continue
-            for h, upper in ((top, True), (bottom, False)):
-                if h < 0.05:
-                    continue
-                # Points origin + t * direction on the ellipse ((x - cx) / w)^2 + ((z - cz) / h)^2 = 1.
-                ox, oz = -cx, origin_z - cz
-                qa = (dx / w) ** 2 + (dz / h) ** 2
-                qb = 2 * (ox * dx / w ** 2 + oz * dz / h ** 2)
-                qc = (ox / w) ** 2 + (oz / h) ** 2 - 1
-                disc = qb * qb - 4 * qa * qc
-                if disc < 0:
-                    continue
-                for t in ((-qb + math.sqrt(disc)) / (2 * qa), (-qb - math.sqrt(disc)) / (2 * qa)):
-                    if t > best and (origin_z + t * dz >= cz) == upper:
-                        best = t
-        points.append(Vector((best * dx, y, origin_z + best * dz)))
+            if a1 < a0:
+                a1 += 2 * math.pi
+            for _ in range(16):  # bisect to where the owner changes
+                mid = (a0 + a1) / 2
+                if _lobed_hit(mid, lobes, origin_z)[1] == o0:
+                    a0 = mid
+                else:
+                    a1 = mid
+            a = (a0 + a1) / 2
+            t, _ = _lobed_hit(a, lobes, origin_z)
+            creases.append(((min(o0, o1), max(o0, o1)), Vector((t * math.cos(a), y, origin_z + t * math.sin(a)))))
     return points
+
+
+def crease_seams(name, ring_creases, mat, radius=0.25, sink=0.05, min_z=0.3, max_jump=0.5):
+    """Dark seams along the upper creases of a hull lofted from lobed rings: a thin tube follows
+    each line where one lobe meets another on top (above min_z; ring_creases: the creases lists
+    of lobed_ring, ring by ring), sunk a little into the hull so a narrow line shows, as the
+    sprites draw such grooves. Returns the tube objects."""
+    curves = {}
+    for creases in ring_creases:
+        top = {}  # the upper crease of each pair and side in this ring (the camera sees the top)
+        for pair, point in creases:
+            key = (pair, point.x > 0)
+            if point.z > min_z and (key not in top or point.z > top[key].z):
+                top[key] = point
+        for key, point in top.items():
+            curves.setdefault(key, []).append(point)
+    # Each line, cut where the crease jumps (where lobes stop meeting cleanly), into runs.
+    runs = []
+    for key, line in sorted(curves.items(), key=lambda kv: str(kv[0])):
+        line.sort(key=lambda p: p.y)
+        run = [line[0]]
+        for p in line[1:]:
+            if abs(p.x - run[-1].x) < max_jump and abs(p.z - run[-1].z) < max_jump:
+                run.append(p)
+            else:
+                runs.append(run)
+                run = [p]
+        runs.append(run)
+    tubes = []
+    for i, run in enumerate(r for r in runs if len(r) >= 4):
+        tube_rings = []
+        for p in run:
+            inward = Vector((-p.x, 0, -p.z))
+            if inward.length > 1e-6:
+                inward.normalize()
+            c = p + inward * sink
+            tube_rings.append(ring(c.y, radius, radius, 8, z=c.z, x=c.x))
+        tube = loft(f"{name}_{i}", tube_rings, mat)
+        smooth(tube, 60)
+        tubes.append(tube)
+    return tubes
 
 
 def loft(name, rings, mat=None, cap_start=True, cap_end=True, start_point=None, end_point=None):

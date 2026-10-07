@@ -82,6 +82,9 @@ void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
 void JE_showVGA3D(void);
 
+// Tyrian3D: switches between the 3D view and the original 2D screen.
+void video_set_3d_enabled(bool enabled);
+
 // Tyrian3D view controls (2D/3D toggle, camera). Returns true if the key was consumed.
 bool video_handle_key(SDL_Scancode scancode);  // presents the captured 3D layers with the HUD from VGAScreenSeg
 

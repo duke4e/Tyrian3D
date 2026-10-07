@@ -28,6 +28,7 @@
 #include "player.h"
 #include "varz.h"
 #include "vga256d.h"
+#include "settings3d.h"
 #include "video.h"
 #include "video_scale.h"
 
@@ -215,6 +216,7 @@ bool load_opentyrian_config(void)
 	set_scaler_by_name("3x");
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));
+	settings3d_load(NULL);  // defaults and the environment's overrides
 	
 	Config *config = &opentyrian_config;
 	
@@ -244,6 +246,8 @@ bool load_opentyrian_config(void)
 		if (config_get_string_option(section, "scaling_mode", &scaling_mode))
 			set_scaling_mode_by_name(scaling_mode);
 	}
+
+	settings3d_load(config_find_section(config, "tyrian3d", NULL));
 
 	section = config_find_section(config, "keyboard", NULL);
 	if (section != NULL)
@@ -300,6 +304,11 @@ bool save_opentyrian_config(void)
 	config_set_string_option(section, "scaler", scalers[scaler].name);
 	
 	config_set_string_option(section, "scaling_mode", scaling_mode_names[scaling_mode]);
+
+	section = config_find_or_add_section(config, "tyrian3d", NULL);
+	if (section == NULL)
+		exit(EXIT_FAILURE);  // out of memory
+	settings3d_save(section);
 
 	section = config_find_or_add_section(config, "keyboard", NULL);
 	if (section == NULL)

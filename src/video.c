@@ -25,6 +25,7 @@
 #include "models3d.h"
 #include "palette.h"
 #include "render_gpu.h"
+#include "settings3d.h"
 #include "video_scale.h"
 
 #include <assert.h>
@@ -377,11 +378,12 @@ void JE_showVGA3D(void)
 	last_frame_was_3d = true;
 }
 
-static void set_3d_enabled(bool enabled)
+void video_set_3d_enabled(bool enabled)
 {
+	if (l3d_enabled != enabled)
+		printf("view: %s\n", enabled ? "3D" : "2D");
 	l3d_enabled = enabled;
 	screen_overscan_rows = enabled ? SCREEN_OVERSCAN_MAX : 0;
-	printf("view: %s\n", enabled ? "3D" : "2D");
 }
 
 static void print_camera(void)
@@ -394,12 +396,15 @@ bool video_handle_key(SDL_Scancode scancode)
 {
 	if (scancode == SDL_SCANCODE_F3)
 	{
-		set_3d_enabled(!l3d_enabled);
+		settings3d.view_3d = !l3d_enabled;
+		settings3d_changed(S3D_VIEW);
+		video_set_3d_enabled(settings3d.view_3d);
 		return true;
 	}
 	if (scancode == SDL_SCANCODE_F4)
 	{
-		m3d_enabled = !m3d_enabled;
+		settings3d.models = m3d_enabled = !m3d_enabled;
+		settings3d_changed(S3D_MODELS);
 		printf("models: %s\n", m3d_enabled ? "on" : "off");
 		return true;
 	}

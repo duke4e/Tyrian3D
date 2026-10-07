@@ -1966,9 +1966,15 @@ draw_player_shot_loop_end:
 						}
 
 						if (enemyShot[z].sgr >= 500)
+						{
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500);
+							l3d_add_glow(&spriteSheet12, enemyShot[z].sgr + enemyShot[z].animate - 500, enemyShot[z].sx, enemyShot[z].sy);  // Tyrian3D
+						}
 						else
+						{
 							blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate);
+							l3d_add_glow(&spriteSheet8, enemyShot[z].sgr + enemyShot[z].animate, enemyShot[z].sx, enemyShot[z].sy);  // Tyrian3D
+						}
 					}
 				}
 

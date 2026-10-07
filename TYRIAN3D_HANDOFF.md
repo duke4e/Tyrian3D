@@ -273,6 +273,9 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 
 12. **Particlei (M7, prva verzija).** `src/particles3d.c`: svaka eksplozija (`JE_setupExplosion`) u 3D-u dobiva bljesak, iskre, dim i na tlu krhotine; originalni sprite eksplozije ostaje. Vlastiti RNG (ne dira `mt_rand`), pomiču se s `explodeMove`, crtaju se kao billboardi (aditivno i alfa, `transparency_enabled`, ne bacaju ni primaju sjenu). Izgled je prva procjena; treba ga dotjerati po dojmu.
 
+13. **Sjaj metaka i odsjaji na vodi (M7, M8).** Svaki metak (igračev i neprijateljski) bilježi `l3d_add_glow` (boja = najsvjetliji piksel spritea, indeks palete), a renderer crta aditivni billboard. Voda u pozadinskim slojevima (tlo, pozadine 2 i 3), u tileovima i u komponiranim pozadinama dobiva sunčeve odsjaje na animiranim valovima (u prvoj razini voda je pozadina 2, ne tlo): nova površina `BTBH_GPU_SCENE_SURFACE_GLINTS` u rendereru (branch `tyrian3d`) dodaje odsjaj na boju (radi i za unlit) gdje plavi kanal ORM teksture kaže; maske vode (`layer_water`, `tile_water`) računaju se iz boje piksela (plavo do cijan, `water_color`). Oboje se gasi postavkom Effects.
+14. **Postavke (M4.3).** `src/settings3d.c`: izbornik Setup → 3D (prikaz, objekti, sjene, efekti, kamera: Standard/Steep/Overhead), sekcija `[tyrian3d]` u `opentyrian.cfg`; env varijable ih nadjačavaju; F3/F4 ih mijenjaju.
+
 ## 9. Predloženi sljedeći koraci (redom)
 
 1. Korisnik ručno isproba igru i kaže dojam o pozadinama i volumetrijskim spriteovima. Kalibrirati zadani tilt, FOV i visine slojeva (tipke za kameru ispisuju vrijednosti).

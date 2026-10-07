@@ -3,6 +3,7 @@
  */
 #include "layer3d.h"
 
+#include "sprite.h"
 #include "video.h"
 
 #include <assert.h>
@@ -175,6 +176,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	l3d_frame.object_count = 0;
 	l3d_frame.background_count = 0;
 	l3d_frame.star_count = 0;
+	l3d_frame.glow_count = 0;
 	l3d_frame.filter_hue = -99;
 	l3d_frame.filter_brightness = -99;
 	memset(owner, 0xff, sizeof(owner));
@@ -298,6 +300,74 @@ void l3d_add_star(Uint16 position, Uint8 color, bool bright)
 	star->position = position;
 	star->color = color;
 	star->bright = bright;
+}
+
+// The palette index of a 1x1 sprite's brightest pixel (by the palette's shade within its ramp,
+// then by the ramp's own brightness), cached per sheet and sprite.
+static Uint8 sprite_glow_color(const Sprite2_array *sheet, unsigned int sprite)
+{
+	enum { SHEETS = 4, SPRITES = 1024 };
+	static const void *cached_sheet[SHEETS];
+	static const Uint8 *cached_data[SHEETS];
+	static Uint8 cached_color[SHEETS][SPRITES];
+	static bool cached[SHEETS][SPRITES];
+	static SDL_Surface *scratch = NULL;
+
+	int slot = -1;
+	for (int i = 0; i < SHEETS; ++i)
+		if (cached_sheet[i] == sheet && cached_data[i] == sheet->data)
+			slot = i;
+	if (slot < 0)
+	{
+		static int next = 0;
+		slot = next;
+		next = (next + 1) % SHEETS;
+		cached_sheet[slot] = sheet;
+		cached_data[slot] = sheet->data;
+		memset(cached[slot], 0, sizeof(cached[slot]));
+	}
+	if (sprite >= SPRITES)
+		return 0;
+	if (cached[slot][sprite])
+		return cached_color[slot][sprite];
+
+	if (scratch == NULL)
+		scratch = SDL_CreateSurface(32, 32, SDL_PIXELFORMAT_INDEX8);
+	Uint8 best = 0;
+	if (scratch != NULL)
+	{
+		SDL_FillSurfaceRect(scratch, NULL, 0);
+		blit_sprite2(scratch, 8, 8, *sheet, sprite);
+		int best_score = -1;
+		for (int y = 0; y < scratch->h; ++y)
+			for (int x = 0; x < scratch->w; ++x)
+			{
+				const Uint8 index = ((const Uint8 *)scratch->pixels)[y * scratch->pitch + x];
+				const int score = (index & 0x0f) * 16 + (index >> 4 != 0);  // a bright shade, coloured if possible
+				if (index != 0 && score > best_score)
+				{
+					best_score = score;
+					best = index;
+				}
+			}
+	}
+	cached[slot][sprite] = true;
+	cached_color[slot][sprite] = best;
+	return best;
+}
+
+void l3d_add_glow(const void *sheet, unsigned int sprite, int x, int y)
+{
+	if (!l3d_capturing || l3d_frame.glow_count == L3D_MAX_GLOWS)
+		return;
+	const Uint8 color = sprite_glow_color(sheet, sprite);
+	if (color == 0)
+		return;
+	L3DGlow *glow = &l3d_frame.glows[l3d_frame.glow_count++];
+	glow->x = x + 6.0f;
+	glow->y = y + 7.0f;
+	glow->layer = (Uint8)phase_type;
+	glow->color = color;
 }
 
 void l3d_add_effect(L3DEffect effect, int param)

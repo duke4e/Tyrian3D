@@ -18,6 +18,7 @@
  */
 #include "shots.h"
 
+#include "layer3d.h"
 #include "player.h"
 #include "sprite.h"
 #include "video.h"
@@ -292,12 +293,14 @@ bool player_shot_move_and_draw(
 				if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 					blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet12, sprite_frame - 500);
 				blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet12, sprite_frame - 500);
+				l3d_add_glow(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty);  // Tyrian3D
 			}
 			else
 			{
 				if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 					blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet8, sprite_frame);
 				blit_sprite2(VGAScreen, *out_shotx+1, *out_shoty, spriteSheet8, sprite_frame);
+				l3d_add_glow(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty);  // Tyrian3D
 			}
 		}
 	}

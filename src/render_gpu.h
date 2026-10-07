@@ -24,6 +24,10 @@ typedef struct
 
 extern RGPUCamera rgpu_camera;
 
+// Applies the camera settings given in the environment (TYR3D_TILT, TYR3D_FOV,
+// TYR3D_HEIGHT_SCALE, TYR3D_SUN) over the current ones.
+void rgpu_apply_camera_overrides(void);
+
 // Creates the GPU device and a hidden window. Exits on failure.
 SDL_Window *rgpu_init(const char *title, int width, int height);
 void rgpu_shutdown(void);

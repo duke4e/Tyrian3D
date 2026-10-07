@@ -52,6 +52,11 @@ The original controls are unchanged. These are added:
 
 The camera keys work only while the 3D view is on screen.
 
+The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
+sprites), shadows, effects (explosion particles, glowing shots) and a camera preset (Standard,
+Steep, Overhead). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
+change the first two as well.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -74,9 +79,10 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
-| `TYR3D_SHADOWS=0` | No shadows |
+| `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |
 | `TYR3D_WINDOW_SIZE=<w>x<h>` | With `TYR3D_WINDOWED`: the window's size, for checking other aspect ratios |
+| `TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>` | Tune the sun's glints on water (defaults 1, 0.8, 110, 3) |
 | `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
 | `TYR3D_VIEWER=ships` | Model viewer: each ship's 3D look beside its sprite (see `src/viewer.h`), with `TYR3D_VIEWER_YAW`, `_ROLL`, `_SPIN`; `sidekicks` shows the sidekicks |
 
