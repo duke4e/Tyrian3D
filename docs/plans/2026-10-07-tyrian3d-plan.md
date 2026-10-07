@@ -317,8 +317,9 @@ Gotovo na branchu `tyrian3d/m1-tools`: M1; M2 (volumetrijski spriteovi i semanti
 M3 u prvoj verziji (modeli svih brodova, uključivo dvodijelne Dragonwing i Nort Ship,
 sidekickovi kao volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
 HUD-a uz rub u višoj rezoluciji, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
-M5.3 predmeti; M5.4 sjene; prvi modeli neprijatelja (M5.1: ring core, pod, U-luk, kugle, krhotine, marker); M7 u prvoj
-verziji (čestice eksplozija, sjaj metaka, bloom); M8 odsjaji na vodi i duboko zvjezdano polje; M9 macOS paket i svi modovi igre
+M5.3 predmeti; M5.4 sjene; prvi val modela neprijatelja (M5.1: oko 30 tipova, 50 % pojavljivanja u epizodi 1 — blokovi, kupole, mine, mlažnjaci,
+mjehurići, projektil, ornament...; reference su Lady0101 upscaleovi u `upscale/out`); M7 u prvoj
+verziji (čestice eksplozija i njihova svjetla, sjaj metaka, bloom); M8 odsjaji na vodi i duboko zvjezdano polje; M9 macOS paket i svi modovi igre
 u 3D-u; M10 glazba kao MIDI kroz SoundFont (uživo i izvoz) i zvučni efekti upscalani AudioSR-om;
 glatki prikaz na refreshu monitora između tickova, manji input lag, sistemski pokazivač miša.
 
