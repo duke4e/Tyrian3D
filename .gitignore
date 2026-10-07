@@ -42,3 +42,6 @@ __pycache__/
 
 # Sprite atlases for upscaling (tools/make_atlases.py), made from the game data
 /upscale/
+
+# Exports made from the game data (TYR3D_EXPORT_MUSIC, ...)
+/export/

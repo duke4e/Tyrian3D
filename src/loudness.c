@@ -285,6 +285,18 @@ static void load_song(unsigned int song_num)  // FKA NortSong.loadSong
 	}
 }
 
+unsigned int music_song_count(void)
+{
+	load_music();
+	return song_count;
+}
+
+void music_load_song(unsigned int song_num)
+{
+	load_music();
+	load_song(song_num);
+}
+
 void play_song(unsigned int song_num)  // FKA NortSong.playSong
 {
 	if (audio_disabled)

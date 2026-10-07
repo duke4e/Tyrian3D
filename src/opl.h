@@ -44,6 +44,10 @@ void adlib_getsample(Bit16s* sndptr, Bits numsamples);
 Bitu adlib_reg_read(Bitu port);
 void adlib_write_index(Bitu port, Bit8u val);
 
+// Tyrian3D: called with every register write before it is made (the music exporter listens to
+// them), or NULL.
+extern void (*opl_write_hook)(unsigned int reg, unsigned int value);
+
 #define opl_init() adlib_init(audioSampleRate)
 #define opl_write(reg, val) adlib_write(reg, val)
 #define opl_update(buf, num) adlib_getsample(buf, num)

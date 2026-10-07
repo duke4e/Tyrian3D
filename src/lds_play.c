@@ -84,6 +84,7 @@ static Uint16 *patterns = NULL;
 static Uint16 numpatch, numposi, mainvolume;
 
 bool playing, songlooped;
+int lds_channel_sound[9];  // Tyrian3D: the instrument each channel last started a note with
 
 bool lds_load(FILE *f, unsigned int music_offset, unsigned int music_size)
 {
@@ -684,6 +685,8 @@ void lds_playsound(int inst_number, int channel_number, int tunehigh)
 		c->glideto = c->finetune = 0;
 		return;
 	}
+
+	lds_channel_sound[channel_number] = inst_number;
 	
 	/* set modulator registers */
 	lds_setregs(0x20 + regnum, i->mod_misc);
@@ -769,4 +772,9 @@ void lds_playsound(int inst_number, int channel_number, int tunehigh)
 	memcpy(c->arp_tab, i->arp_tab, 12);
 	c->keycount = i->keyoff;
 	c->nextvol = c->glideto = c->finetune = c->vibcount = c->arp_pos = c->arp_count = 0;
+}
+
+const SoundBank *lds_sound(int inst_number)
+{
+	return soundbank != NULL && inst_number >= 0 && inst_number < numpatch ? &soundbank[inst_number] : NULL;
 }

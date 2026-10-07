@@ -34,6 +34,11 @@ bool init_audio(void);
 void deinit_audio(void);
 
 void load_music(void);
+
+// Tyrian3D, for the music exporter: the number of songs, and loading one into the player without
+// playing it.
+unsigned int music_song_count(void);
+void music_load_song(unsigned int song_num);
 void play_song(unsigned int song_num);
 void restart_song(void);
 void stop_song(void);

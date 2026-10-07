@@ -751,7 +751,11 @@ void adlib_init(Bit32u samplerate) {
 
 
 
+void (*opl_write_hook)(unsigned int reg, unsigned int value) = NULL;
+
 void adlib_write(Bitu idx, Bit8u val) {
+	if (opl_write_hook != NULL)
+		opl_write_hook((unsigned int)idx, val);
 	Bit32u second_set = idx&ARC_SECONDSET_MASK;
 	adlibreg[idx] = val;
 

@@ -37,6 +37,7 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "mtrand.h"
+#include "music_export.h"
 #include "network.h"
 #include "nortsong.h"
 #include "nortvars.h"
@@ -808,6 +809,12 @@ int main(int argc, char *argv[])
 	if (SDL_getenv("TYR3D_EXTRACT") != NULL)
 	{
 		dev_extract(SDL_getenv("TYR3D_EXTRACT"));
+		JE_tyrianHalt(0);
+	}
+
+	if (SDL_getenv("TYR3D_EXPORT_MUSIC") != NULL)
+	{
+		dev_export_music(SDL_getenv("TYR3D_EXPORT_MUSIC"));
 		JE_tyrianHalt(0);
 	}
 

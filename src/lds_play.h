@@ -66,6 +66,11 @@ typedef struct {
 } Position;
 
 void lds_playsound(int inst_number, int channel_number, int tunehigh);
+
+// Tyrian3D, for the music exporter: the instrument each channel last started a note with, and an
+// instrument of the loaded song.
+extern int lds_channel_sound[9];
+const SoundBank *lds_sound(int inst_number);
 void lds_setregs(unsigned char reg, unsigned char val);
 void lds_setregs_adv(unsigned char reg, unsigned char mask, unsigned char val);
 
