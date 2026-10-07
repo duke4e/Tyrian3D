@@ -60,5 +60,7 @@ void m3d_reload(void);
 M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool large, L3DLayerType layer);
 // Appearance of a player ship (ship id as in the shop, 1-based).
 M3DAppearance m3d_ship_appearance(unsigned int ship_id);
+// Appearance of a sidekick (option id as in the shop, 1-based).
+M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
 
 #endif /* MODELS3D_H */

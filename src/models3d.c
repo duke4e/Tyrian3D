@@ -41,7 +41,7 @@ typedef struct
 
 typedef struct
 {
-	unsigned int ship;  // 0 = any ship
+	unsigned int ship;  // 0 = any ship (or sidekick)
 	M3DAppearance appearance;
 } ShipRule;
 
@@ -51,6 +51,8 @@ static int override_count;
 static SpriteOverride overrides[512];
 static int ship_rule_count;
 static ShipRule ship_rules[32];
+static int sidekick_rule_count;
+static ShipRule sidekick_rules[64];
 static M3DAppearance enemy_default;
 
 static const M3DAppearance sprite_appearance = { .model = M3D_SPRITE };
@@ -176,8 +178,9 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
-	// player <model> [options] is "ship any".
-	if ((strcmp(tokens[0], "player") == 0 && count >= 2) || (strcmp(tokens[0], "ship") == 0 && count >= 3))
+	// player <model> [options] is "ship any". sidekick <id|any> <model> [options] works the same.
+	const bool sidekick = strcmp(tokens[0], "sidekick") == 0 && count >= 3;
+	if ((strcmp(tokens[0], "player") == 0 && count >= 2) || (strcmp(tokens[0], "ship") == 0 && count >= 3) || sidekick)
 	{
 		const bool any = tokens[0][0] == 'p' || strcmp(tokens[1], "any") == 0;
 		const int first_option = tokens[0][0] == 'p' ? 2 : 3;
@@ -191,7 +194,13 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		for (int i = first_option; i < count; ++i)
 			if (!parse_option(tokens[i], &rule.appearance))
 				WARN("unknown option '%s'", tokens[i]);
-		if (ship_rule_count < (int)COUNTOF(ship_rules))
+		if (sidekick)
+		{
+			rule.appearance.banking = false;
+			if (sidekick_rule_count < (int)COUNTOF(sidekick_rules))
+				sidekick_rules[sidekick_rule_count++] = rule;
+		}
+		else if (ship_rule_count < (int)COUNTOF(ship_rules))
 			ship_rules[ship_rule_count++] = rule;
 		return;
 	}
@@ -272,6 +281,7 @@ static void load(void)
 	rule_count = 0;
 	override_count = 0;
 	ship_rule_count = 0;
+	sidekick_rule_count = 0;
 	enemy_default = enemy_options_default();
 	++m3d_generation;
 
@@ -344,18 +354,28 @@ M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool l
 	return enemy_default;
 }
 
-M3DAppearance m3d_ship_appearance(unsigned int ship_id)
+static M3DAppearance find_rule(const ShipRule *rules, int count, unsigned int id)
 {
 	if (!m3d_enabled)
 		return sprite_appearance;
 
 	const ShipRule *any = NULL;
-	for (int i = 0; i < ship_rule_count; ++i)
+	for (int i = 0; i < count; ++i)
 	{
-		if (ship_rules[i].ship == ship_id)
-			return ship_rules[i].appearance;
-		if (ship_rules[i].ship == 0 && any == NULL)
-			any = &ship_rules[i];
+		if (rules[i].ship == id)
+			return rules[i].appearance;
+		if (rules[i].ship == 0 && any == NULL)
+			any = &rules[i];
 	}
 	return any != NULL ? any->appearance : sprite_appearance;
+}
+
+M3DAppearance m3d_ship_appearance(unsigned int ship_id)
+{
+	return find_rule(ship_rules, ship_rule_count, ship_id);
+}
+
+M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
+{
+	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
 }

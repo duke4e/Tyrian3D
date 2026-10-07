@@ -98,6 +98,13 @@ bool dev_start_game(void)
 	const char *ship = SDL_getenv("TYR3D_SHIP");  // ship id as in the shop (1-18)
 	if (ship != NULL)
 		player[0].items.ship = (JE_byte)SDL_atoi(ship);
+	const char *sidekicks = SDL_getenv("TYR3D_SIDEKICKS");  // "<left>,<right>" ids as in the shop
+	int left = 0, right = 0;
+	if (sidekicks != NULL && sscanf(sidekicks, "%d,%d", &left, &right) >= 1)
+	{
+		player[0].items.sidekick[LEFT_SIDEKICK] = (JE_byte)SDL_clamp(left, 0, OPTION_NUM);
+		player[0].items.sidekick[RIGHT_SIDEKICK] = (JE_byte)SDL_clamp(right, 0, OPTION_NUM);
+	}
 
 	constantPlay = true;  // skip shops: they jump straight to the next level
 	mainLevel = (JE_byte)section;

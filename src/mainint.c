@@ -4667,7 +4667,19 @@ redo:
 				          y = this_player->sidekick[i].y;
 				const uint sprite = this_option->gr[this_player->sidekick[i].animation_frame] + this_player->sidekick[i].charge;
 
-				if (this_player->sidekick[i].style == 1 || this_player->sidekick[i].style == 2)
+				// Tyrian3D: the sidekick's 3D appearance, centred where its sprite would be.
+				const bool large = this_player->sidekick[i].style == 1 || this_player->sidekick[i].style == 2;
+				const M3DAppearance look = m3d_sidekick_appearance(this_player->items.sidekick[i]);
+				const float centre_y = large ? y + 14 : y + 7;
+				const bool sidekick_3d = look.model >= 0
+					? l3d_add_object(look.model, x + 6, centre_y, look.height, look.yaw, 0.0f, 0)
+					: look.model == M3D_VOLUME &&
+					  l3d_add_volume(large ? &spriteSheet10 : &spriteSheet9, sprite, large, V3D_STYLE_RAISED, x + 6, centre_y,
+					                 look.height, 0.0f, 0.0f, 0);
+
+				if (sidekick_3d)
+					;
+				else if (large)
 					blit_sprite2x2(VGAScreen, x - 6, y, spriteSheet10, sprite);
 				else
 					blit_sprite2(VGAScreen, x, y, spriteSheet9, sprite);

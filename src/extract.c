@@ -398,6 +398,19 @@ void dev_extract(const char *dir)
 		fprintf(json, ", \"sheet\": \"%s\", \"index\": %d}", graphic >= 500 ? "ships_t2000" : "ships",
 		        graphic >= 500 ? graphic - 500 : graphic);
 	}
+	fprintf(json, "\n  ],\n  \"sidekicks\": [");
+	for (int i = 1; i <= OPTION_NUM; ++i)
+	{
+		const JE_OptionType *o = &options[i];
+		const bool large = o->tr == 1 || o->tr == 2;  // drawn 2x2 from the power-ups sheet
+		fprintf(json, "%s\n    {\"id\": %d, \"name\": ", i > 1 ? "," : "", i);
+		json_string(json, o->name);
+		fprintf(json, ", \"style\": %d, \"animation\": %d, \"sheet\": \"%s\", \"size\": \"%s\", \"frames\": [",
+		        o->tr, o->option, large ? "powerups" : "ships", large ? "2x2" : "1x1");
+		for (int k = 0; k < SDL_max(1, SDL_min(o->ani, 20)); ++k)
+			fprintf(json, "%s%d", k ? ", " : "", o->gr[k]);
+		fprintf(json, "], \"charge\": %d}", o->pwr);
+	}
 	fprintf(json, "\n  ]\n}\n");
 	fclose(json);
 

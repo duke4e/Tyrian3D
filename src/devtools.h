@@ -10,6 +10,8 @@
  *                        section of the episode script (tools/levels.py lists level sections);
  *                        shops are skipped
  *   TYR3D_AUTOPILOT      the player ship weaves across the screen and fires constantly
+ *   TYR3D_SHIP           with TYR3D_START: the player's ship (id as in the shop)
+ *   TYR3D_SIDEKICKS      with TYR3D_START: "<left>,<right>" sidekick ids (as in the shop)
  *   TYR3D_GODMODE        the player takes no damage
  *   TYR3D_WINDOWED       run in a window in the corner of the screen without taking the focus
  *                        (and without pausing for the lack of it); tools/capture_run.sh sets it

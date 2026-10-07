@@ -6,6 +6,7 @@
 #include "episodes.h"
 #include "keyboard.h"
 #include "layer3d.h"
+#include "lvlmast.h"
 #include "models3d.h"
 #include "opentyr.h"
 #include "palette.h"
@@ -19,14 +20,23 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_ENTRIES 16
+#define MAX_ENTRIES 48
 
 typedef struct
 {
 	Sprite2_array *sheet;
-	unsigned int sprite;    // 2x2 sprite, as blit_sprite2x2 takes it
+	unsigned int sprite;  // as blit_sprite2x2 (large) or blit_sprite2 takes it
+	bool large;
 	M3DAppearance look;
 } Entry;
+
+static bool seen_before(const Entry *entries, int count, const Sprite2_array *sheet, unsigned int sprite)
+{
+	for (int i = 0; i < count; ++i)
+		if (entries[i].sheet == sheet && entries[i].sprite == sprite)
+			return true;
+	return false;
+}
 
 // Each player ship sprite once, with the appearance of the first ship using it.
 static int ship_entries(Entry *entries)
@@ -41,14 +51,28 @@ static int ship_entries(Entry *entries)
 			continue;
 		Sprite2_array *sheet = graphic > 500 ? &spriteSheetT2000 : &spriteSheet9;
 		const unsigned int sprite = graphic > 500 ? graphic - 500 : graphic;
+		if (!seen_before(entries, count, sheet, sprite))
+			entries[count++] = (Entry){ sheet, sprite, true, m3d_ship_appearance(id) };
+	}
+	return count;
+}
 
-		bool seen = false;
-		for (int i = 0; i < count; ++i)
-			seen |= entries[i].sheet == sheet && entries[i].sprite == sprite;
-		if (seen)
+// Each sidekick's first frame once (sidekicks of styles 1 and 2 are drawn 2x2 from the power-ups
+// sheet, the others 1x1 from the ships sheet, as player_drawSidekicks does).
+static int sidekick_entries(Entry *entries)
+{
+	JE_initEpisode(1);  // loads the sidekicks
+
+	int count = 0;
+	for (unsigned int id = 1; id <= OPTION_NUM && count < MAX_ENTRIES; ++id)
+	{
+		const JE_OptionType *option = &options[id];
+		if (option->option == 0 || option->gr[0] == 0)
 			continue;
-
-		entries[count++] = (Entry){ sheet, sprite, m3d_ship_appearance(id) };
+		const bool large = option->tr == 1 || option->tr == 2;
+		Sprite2_array *sheet = large ? &spriteSheet10 : &spriteSheet9;
+		if (!seen_before(entries, count, sheet, option->gr[0]))
+			entries[count++] = (Entry){ sheet, option->gr[0], large, m3d_sidekick_appearance(id) };
 	}
 	return count;
 }
@@ -72,9 +96,11 @@ void dev_model_viewer(const char *what)
 	int count = 0;
 	if (strcmp(what, "ships") == 0)
 		count = ship_entries(entries);
+	else if (strcmp(what, "sidekicks") == 0)
+		count = sidekick_entries(entries);
 	if (count == 0)
 	{
-		fprintf(stderr, "warning: TYR3D_VIEWER: nothing to show for '%s' (try 'ships')\n", what);
+		fprintf(stderr, "warning: TYR3D_VIEWER: nothing to show for '%s' (try 'ships' or 'sidekicks')\n", what);
 		return;
 	}
 
@@ -86,9 +112,15 @@ void dev_model_viewer(const char *what)
 	const float roll = env_float("TYR3D_VIEWER_ROLL", 0);
 	const float spin = env_float("TYR3D_VIEWER_SPIN", 0);
 
-	// Pairs of 3D appearance (left) and sprite (right), four to a row, centred in the playfield.
-	const int columns = 4, pair_w = 62, row_h = 40;
+	// Pairs of 3D appearance (left) and sprite (right), in rows centred in the playfield.
+	bool any_large = false;
+	for (int i = 0; i < count; ++i)
+		any_large |= entries[i].large;
+	const int cell_w = any_large ? 24 : 12, cell_h = any_large ? 28 : 14;
+	const int pair_w = 2 * cell_w + 14;
+	const int columns = L3D_PLAYFIELD_W / pair_w;
 	const int rows = (count + columns - 1) / columns;
+	const int row_h = SDL_min(cell_h + 12, (L3D_PLAYFIELD_H + 20) / rows);  // tighter when there are many
 	const int left = L3D_PLAYFIELD_X + (L3D_PLAYFIELD_W - columns * pair_w) / 2;
 	const int top = (L3D_PLAYFIELD_H - rows * row_h) / 2;
 
@@ -103,20 +135,20 @@ void dev_model_viewer(const char *what)
 		for (int i = 0; i < count; ++i)
 		{
 			const Entry *e = &entries[i];
-			// Centre of the left cell; sprites are drawn from their top left corner, 12 and 14
-			// pixels from their centre, as the game draws the player's ship.
-			const int x = left + (i % columns) * pair_w + 12 + 5;
-			const int y = top + (i / columns) * row_h + 14 + 6;
+			// Centre of the left cell; sprites are drawn from their top left corner, half a
+			// sprite from their centre.
+			const int half_w = e->large ? 12 : 6, half_h = e->large ? 14 : 7;
+			const int x = left + (i % columns) * pair_w + cell_w / 2 + 5;
+			const int y = top + (i / columns) * row_h + cell_h / 2 + 6;
 			const float turn = e->look.yaw + yaw + spin * frame;
 
 			if (e->look.model >= 0)
 				l3d_add_object(e->look.model, x, y, e->look.height, turn, roll, 0);
-			else if (e->look.model == M3D_VOLUME)
-				l3d_add_volume(e->sheet, e->sprite, true, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0);
-			else
-				blit_sprite2x2(VGAScreen, x - 12, y - 14, *e->sheet, e->sprite);
+			else if (e->look.model != M3D_VOLUME ||
+			         !l3d_add_volume(e->sheet, e->sprite, e->large, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0))
+				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x - half_w, y - half_h, *e->sheet, e->sprite);
 
-			blit_sprite2x2(VGAScreen, x + 28 - 12, y - 14, *e->sheet, e->sprite);
+			(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x + cell_w + 4 - half_w, y - half_h, *e->sheet, e->sprite);
 		}
 
 		l3d_frame_end();
