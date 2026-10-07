@@ -43,7 +43,16 @@ typedef struct
 	float height;       // added to the layer's height, game pixels
 	bool banking;       // player ships: roll with the banking sprite
 	float roll_step;    // degrees of roll per animation frame (the animation is a roll), or 0
+	float spin;         // degrees turned every frame, on top of the yaw (items turning)
+	bool recolor;       // palette materials take the colour ramp of the sprite's current frame
+	float glow_size;    // a glow in the sprite's colour this wide (game pixels); 0 none
+	float glow_strength;
 } M3DAppearance;
+
+// Sheet letters for the enemies drawn from the coins and gems sheet and from the power-ups sheet
+// (the shape files' letters are digits, letters and a few signs).
+#define M3D_SHEET_COINS    '$'
+#define M3D_SHEET_POWERUPS '+'
 
 extern bool m3d_enabled;  // appearances other than M3D_SPRITE are used (toggled at runtime)
 
@@ -56,8 +65,9 @@ void m3d_init(void);
 // Reloads models.cfg (F5).
 void m3d_reload(void);
 
-// Appearance of an enemy. sheet is the enemy shape file letter (0 for other sheets) and
-// first_sprite the first sprite of its animation.
+// Appearance of an enemy. sheet is the enemy shape file letter (M3D_SHEET_COINS and
+// M3D_SHEET_POWERUPS for those sheets, 0 for others) and first_sprite the first sprite of its
+// animation.
 M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool large, L3DLayerType layer);
 // Appearance of a player ship (ship id as in the shop, 1-based).
 M3DAppearance m3d_ship_appearance(unsigned int ship_id);

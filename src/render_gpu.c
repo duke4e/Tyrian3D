@@ -82,6 +82,7 @@ typedef struct
 	BTBHGPUModelMaterialInfo materials[16];
 	int palette_index[16];  // per material: the palette index that colours it, or -1
 	float center[3];
+	float half[3];    // half the size of its bounds, model units
 	float footprint;  // larger of width and depth, model units
 } LoadedModel;
 
@@ -1075,6 +1076,9 @@ static LoadedModel *get_model(int index)
 		loaded->center[0] = (report.minimum_x + report.maximum_x) / 2;
 		loaded->center[1] = (report.minimum_y + report.maximum_y) / 2;
 		loaded->center[2] = (report.minimum_z + report.maximum_z) / 2;
+		loaded->half[0] = (report.maximum_x - report.minimum_x) / 2;
+		loaded->half[1] = (report.maximum_y - report.minimum_y) / 2;
+		loaded->half[2] = (report.maximum_z - report.minimum_z) / 2;
 		loaded->footprint = SDL_max(report.maximum_x - report.minimum_x, report.maximum_z - report.minimum_z);
 		loaded->material_count = SDL_min(report.material_count, (uint32_t)COUNTOF(loaded->materials));
 		for (uint32_t m = 0; m < loaded->material_count; ++m)
@@ -1168,7 +1172,13 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					mat4_scaling(scale),
 					mat4_translation(-loaded->center[0], -loaded->center[1], -loaded->center[2]),
 				};
-				const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+				Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+				// Nothing sinks into the ground: models centred on their layer's height (items on
+				// the ground enemies' layer) are lifted by what their turned bounds reach below it.
+				const float reach = fabsf(transform.m[1]) * loaded->half[0] + fabsf(transform.m[5]) * loaded->half[1] +
+				                    fabsf(transform.m[9]) * loaded->half[2];
+				if (height - reach < 0.3f)
+					transform.m[13] += 0.3f - (height - reach);
 				write_instance(instances + *instance_count * 24, &transform, 1.0f);
 				++*instance_count;
 			}
@@ -1218,6 +1228,8 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 						b->albedo_blue = palette_albedo(c[2]);
 					}
 				}
+				if (b->albedo_alpha < 255)  // see-through materials (glass)
+					b->transparency_enabled = 1;
 				if (state->ghost)
 				{
 					b->transparency_enabled = 1;
@@ -1942,9 +1954,8 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 	}
 }
 
-// Shots glow (L3DGlow): additive light around each, in its colour, a little above its layer.
-#define GLOW_SIZE 13.0f
-#define GLOW_STRENGTH 0.7f
+// Shots and items glow (L3DGlow): additive light around each, in its colour, a little above its
+// layer.
 
 static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
@@ -1953,7 +1964,7 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 	{
 		const L3DGlow *glow = &frame->glows[g];
 		Mat4 transform = mat4_identity();
-		transform.m[0] = transform.m[5] = transform.m[10] = GLOW_SIZE;
+		transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
 		transform.m[12] = glow->x;
 		transform.m[13] = l3d_layer_height(glow->layer) * rgpu_camera.height_scale + 0.5f;
 		transform.m[14] = glow->y;
@@ -1961,7 +1972,7 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 		write_instance(instance, &transform, 1.0f);
 		const Uint8 *c = (const Uint8 *)&colors[glow->color];
 		for (int i = 0; i < 3; ++i)
-			instance[16 + i] = srgb_to_linear(c[i]) * GLOW_STRENGTH;
+			instance[16 + i] = srgb_to_linear(c[i]) * glow->strength;
 		instance[19] = 1.0f;
 		++*instance_count;
 	}

@@ -67,9 +67,12 @@ def level_palette():
     return _level_palette
 
 
-def material(name, color=None, metallic=0.0, roughness=0.5, emission=None, emission_strength=1.0, palette=None):
+def material(name, color=None, metallic=0.0, roughness=0.5, emission=None, emission_strength=1.0, palette=None,
+             alpha=None):
     """A Principled BSDF material. color is 0-255 sRGB, the colour an up-facing surface shows in
     the game (a sprite's colour): the albedo is that divided by the game's light.
+
+    alpha (0-1) makes it see-through (glass): exported with alphaMode BLEND, drawn blended.
 
     palette=<index> colours the material with that palette index instead, as the game colours
     sprites: the game takes the colour from the current palette (so it follows the level's
@@ -88,6 +91,9 @@ def material(name, color=None, metallic=0.0, roughness=0.5, emission=None, emiss
     if emission is not None:
         bsdf.inputs["Emission Color"].default_value = (*srgb(emission), 1.0)
         bsdf.inputs["Emission Strength"].default_value = emission_strength
+    if alpha is not None:
+        bsdf.inputs["Alpha"].default_value = alpha
+        m.surface_render_method = "BLENDED"
     return m
 
 

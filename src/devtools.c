@@ -162,6 +162,9 @@ void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 			snprintf(path, sizeof(path), "%s/frame_%06ld.bmp", dump_dir, frame);
 			SDL_SaveBMP(surface, path);
 			SDL_DestroySurface(surface);
+			// To find what TYR3D_LOG_ENEMIES reports by 3D frame.
+			if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL)
+				printf("dump: frame %ld is 3D frame %u\n", frame, l3d_frame_number);
 		}
 	}
 

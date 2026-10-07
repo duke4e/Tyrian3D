@@ -78,7 +78,7 @@ change the first two as well.
 | `TYR3D_GPU_BACKEND=vulkan` | Use Vulkan instead of Metal (macOS needs MoltenVK) |
 | `TYR3D_DEMO_IDLE_MS` | Title-screen idle time before the demo starts (default 30000) |
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
-| `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` |
+| `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage |
@@ -162,6 +162,10 @@ exported by `TYR3D_EXTRACT` (in the levels' palette, `tools/blender/palette_leve
 export reverses the triangles' winding (`tools/blender/glb_winding.py`):
 BTBH takes clockwise triangles as the front of static models, glTF counter-clockwise; models
 from elsewhere need the same treatment once.
+
+Items (coins, gems, crystals, data cubes, armour, power-ups) are grey models that take the colour
+of the sprite's current frame (`color=sprite` in `models.cfg`), so one model serves every colour
+and follows animations that cycle colours; see the options at the top of `models.cfg`.
 
 The model viewer shows the models in the game's view and light beside their sprites:
 

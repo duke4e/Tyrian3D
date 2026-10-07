@@ -96,9 +96,19 @@ static float option_float(const char *value, float fallback)
 	return end != value ? (float)v : fallback;
 }
 
+#define DEFAULT_GLOW_SIZE 1.25f     // glow alone: times the sprite's width
+#define DEFAULT_GLOW_STRENGTH 0.3f
+
 // key=value options shared by enemy, sprite and ship lines.
 static bool parse_option(const char *token, M3DAppearance *a)
 {
+	if (strcmp(token, "glow") == 0)
+	{
+		a->glow_size = -DEFAULT_GLOW_SIZE;  // negative: relative to the sprite's width
+		a->glow_strength = DEFAULT_GLOW_STRENGTH;
+		return true;
+	}
+
 	const char *eq = strchr(token, '=');
 	if (eq == NULL)
 		return false;
@@ -148,7 +158,36 @@ static bool parse_option(const char *token, M3DAppearance *a)
 		a->banking = strcmp(value, "off") != 0 && strcmp(value, "0") != 0;
 		return true;
 	}
+	if (key_length == 4 && strncmp(token, "spin", 4) == 0)
+	{
+		a->spin = option_float(value, 0.0f);
+		return true;
+	}
+	if (key_length == 5 && strncmp(token, "color", 5) == 0 && strcmp(value, "sprite") == 0)
+	{
+		a->recolor = true;
+		return true;
+	}
+	if (key_length == 4 && strncmp(token, "glow", 4) == 0)
+	{
+		// glow=<size>[:<strength>]
+		a->glow_size = option_float(value, 0.0f);
+		const char *colon = strchr(value, ':');
+		a->glow_strength = colon != NULL ? option_float(colon + 1, DEFAULT_GLOW_STRENGTH) : DEFAULT_GLOW_STRENGTH;
+		return true;
+	}
 	return false;
+}
+
+// The sheet of a "sprite" line: a shape file letter, or "coins" and "powerups" (the catalogue
+// calls the latter "twoplayer").
+static char parse_sheet(const char *token)
+{
+	if (strcmp(token, "coins") == 0)
+		return M3D_SHEET_COINS;
+	if (strcmp(token, "powerups") == 0 || strcmp(token, "twoplayer") == 0)
+		return M3D_SHEET_POWERUPS;
+	return (char)SDL_tolower((unsigned char)token[0]);
 }
 
 static M3DAppearance enemy_options_default(void)
@@ -255,7 +294,7 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 			return;
 		}
 		SpriteOverride *o = &overrides[override_count];
-		o->sheet = (char)SDL_tolower((unsigned char)tokens[1][0]);
+		o->sheet = parse_sheet(tokens[1]);
 		o->sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
 		o->appearance = enemy_options_default();
 		if (!parse_kind(tokens[3], &o->appearance.model))

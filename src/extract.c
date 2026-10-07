@@ -143,6 +143,14 @@ static int enemy_event_slot(Uint8 type)
 	}
 }
 
+// Event types that make an enemy leave another one when destroyed (power-ups, weapons, coins).
+static bool drop_event(Uint8 type)
+{
+	return type == 33 || type == 45 || type == 85;
+}
+
+#define SLOT_DROP (-3)
+
 static const char *slot_layer(int slot)
 {
 	switch (slot)
@@ -151,6 +159,7 @@ static const char *slot_layer(int slot)
 	case 25: return "ground";
 	case 50: return "top";
 	case 75: return "ground";
+	case SLOT_DROP: return "drop";
 	default: return "any";
 	}
 }
@@ -158,7 +167,7 @@ static const char *slot_layer(int slot)
 typedef struct
 {
 	unsigned int count;
-	unsigned int layer_mask;  // 1 sky, 2 ground, 4 top, 8 any
+	unsigned int layer_mask;  // 1 sky, 2 ground, 4 top, 8 any, 16 dropped by another enemy
 	char levels[256];
 } EnemyUse;
 
@@ -171,13 +180,26 @@ static void note_use(int id, int slot, const char *level_name)
 	EnemyUse *use = &uses[id];
 	use->count += 1;
 	const char *layer = slot_layer(slot);
-	use->layer_mask |= strcmp(layer, "sky") == 0 ? 1 : strcmp(layer, "ground") == 0 ? 2 : strcmp(layer, "top") == 0 ? 4 : 8;
+	use->layer_mask |= strcmp(layer, "sky") == 0 ? 1 : strcmp(layer, "ground") == 0 ? 2 : strcmp(layer, "top") == 0 ? 4 :
+	                   strcmp(layer, "drop") == 0 ? 16 : 8;
 	if (strstr(use->levels, level_name) == NULL && strlen(use->levels) + strlen(level_name) + 2 < sizeof(use->levels))
 	{
 		if (use->levels[0] != '\0')
 			strcat(use->levels, ",");
 		strcat(use->levels, level_name);
 	}
+}
+
+// An enemy left by another one when destroyed, with the ones the game puts in its place.
+static void note_drop(int id, const char *level_name)
+{
+	note_use(id, SLOT_DROP, level_name);
+	if (id == 533)  // a random special weapon instead, by the player's lives
+		for (int k = 829; k < 835; ++k)
+			note_use(k, SLOT_DROP, level_name);
+	if (id == 534)  // Super Tyrian and Super Arcade specials
+		for (int k = 827; k < 835; ++k)
+			note_use(k, SLOT_DROP, level_name);
 }
 
 // Level names by level file number, from the episode script's ]L lines.
@@ -269,6 +291,12 @@ static void scan_episode_levels(void)
 					SDL_strlcat(special_views, entry, sizeof(special_views));
 			}
 
+			if (drop_event(type))
+			{
+				note_drop(dat, names[level]);
+				continue;
+			}
+
 			const int slot = enemy_event_slot(type);
 			if (slot == -1)
 				continue;
@@ -280,6 +308,25 @@ static void scan_episode_levels(void)
 		}
 	}
 	fclose(f);
+
+	// What the used enemies leave when destroyed (and what that leaves, and so on).
+	for (bool changed = true; changed; )
+	{
+		changed = false;
+		for (int id = 1; id <= ENEMY_NUM; ++id)
+		{
+			const int drop = enemyDat[id].eenemydie;
+			if (uses[id].count > 0 && drop > 0 && drop <= ENEMY_NUM && uses[drop].count == 0)
+			{
+				note_drop(drop, uses[id].levels);
+				changed = true;
+			}
+		}
+	}
+	// The ship that brings armour when the player is low on it (JE_main), and its drops.
+	note_use(560, 0, "any");
+	for (int k = 561; k <= 563; ++k)
+		note_use(k, SLOT_DROP, "any");
 }
 
 static void write_episode_enemies(FILE *json, bool *first)
@@ -321,9 +368,9 @@ static void write_episode_enemies(FILE *json, bool *first)
 		fprintf(json, ", \"large\": %s, \"ani\": %d, \"animate\": %d, \"armor\": %d, \"value\": %d, \"count\": %u, \"layers\": [",
 		        enemyDat[id].esize == 1 ? "true" : "false", enemyDat[id].ani, enemyDat[id].animate,
 		        enemyDat[id].armor, enemyDat[id].value, use->count);
-		const char *layer_names[4] = { "sky", "ground", "top", "any" };
+		const char *layer_names[5] = { "sky", "ground", "top", "any", "drop" };
 		bool first_layer = true;
-		for (int l = 0; l < 4; ++l)
+		for (int l = 0; l < 5; ++l)
 			if (use->layer_mask & (1u << l))
 			{
 				fprintf(json, "%s\"%s\"", first_layer ? "" : ", ", layer_names[l]);

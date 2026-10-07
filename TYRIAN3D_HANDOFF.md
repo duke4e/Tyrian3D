@@ -275,15 +275,19 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 
 13. **Sjaj metaka i odsjaji na vodi (M7, M8).** Svaki metak (igračev i neprijateljski) bilježi `l3d_add_glow` (boja = najsvjetliji piksel spritea, indeks palete), a renderer crta aditivni billboard. Voda u pozadinskim slojevima (tlo, pozadine 2 i 3), u tileovima i u komponiranim pozadinama dobiva sunčeve odsjaje na animiranim valovima (u prvoj razini voda je pozadina 2, ne tlo): nova površina `BTBH_GPU_SCENE_SURFACE_GLINTS` u rendereru (branch `tyrian3d`) dodaje odsjaj na boju (radi i za unlit) gdje plavi kanal ORM teksture kaže; maske vode (`layer_water`, `tile_water`) računaju se iz boje piksela (plavo do cijan, `water_color`). Oboje se gasi postavkom Effects.
 14. **Postavke (M4.3).** `src/settings3d.c`: izbornik Setup → 3D (prikaz, objekti, sjene, efekti, kamera: Standard/Steep/Overhead), sekcija `[tyrian3d]` u `opentyrian.cfg`; env varijable ih nadjačavaju; F3/F4 ih mijenjaju.
+15. **Predmeti (M5.3).** Novčići, dragulji, kristali, data cubeovi, oklop, power-up kapsule i ljubičasta kugla imaju modele (`tools/blender/models/items`). Pravila `sprite coins …` / `sprite powerups …` u `models.cfg` (u kodu slova `$` i `+`, `enemy_sheet_letter`); jedan sivi model po vrsti dobiva boju trenutnog frejma spritea (`color=sprite`: rampa glavne boje kao sprite filter, pa data cube mijenja boje kao u originalu), `spin=` ih okreće (`l3d_frame_number`), `glow` dodaje svjetlo u boji rampe. Novčići se prevrću (`roll=frames:12`), kristali kotrljaju, dragulji okreću s iskrom. Katalog (`TYR3D_EXTRACT`) sada navodi i predmete koje ostavljaju uništeni neprijatelji (sloj `drop`: eventi 33/45/85, `eenemydie`, nasumične zamjene 533/534, brod s oklopom 560). Oružja u kuglama (powerups sheet) i posebna oružja ostaju volumetrijski spriteovi. Renderer diže modele koji bi zbog rotacije zašli ispod tla (`reach` u `add_object_batches`).
 
 ## 9. Predloženi sljedeći koraci (redom)
 
-1. Korisnik ručno isproba igru i kaže dojam o pozadinama i volumetrijskim spriteovima. Kalibrirati zadani tilt, FOV i visine slojeva (tipke za kameru ispisuju vrijednosti).
-2. M3: korisnik odobrava set brodova (preglednik `TYR3D_VIEWER=ships`); doraditi Storm i ostale prema dojmu; sidekickovi.
-3. M2.2: semantika animacija (rotacija, ciklus, naginjanje) iz kataloga.
-5. M4: HUD kao overlay (scena već puni prozor), posebne razine.
-6. M5.4 sjene: varijanta shadera "unlit + prima sjenu" za slojeve, tileove i volumetrijske spriteove.
-7. Vulkan (`TYR3D_GPU_BACKEND=vulkan`, na macOS-u preko MoltenVK) i build na Windowsu/Linuxu (M9).
+1. Korisnik isproba igru i odobri set brodova (`TYR3D_VIEWER=ships`) i izgled razine 1.
+2. M5.1: modeli neprijatelja po učestalosti iz kataloga; složeniji tek s korisnikovim AI upscaleom
+   spriteova (`upscale/out`, atlasi iz `tools/make_atlases.py`).
+3. M3: modeli za dvodijelne brodove (Dragonwing, Nort Ship).
+4. M6: bossovi i višedijelni neprijatelji, epizode 2–5.
+5. M7: laseri kao trake, bloom i tonemapping, svjetla eksplozija; M8: oblaci (BG2/BG3).
+6. M4.2 iteracija 2: HUD iz stanja igre u višoj rezoluciji.
+7. M9: ostali modovi (2 igrača, Galaga, timed battle, Super Arcade), Windows i Linux.
+8. M10: reprodukcija MIDI-ja sa soundfontom (čeka korisnikovo odobrenje skidanja).
 
 **Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 2–4,3 ms CPU-a po frameu (najviše spotlight i razine s filterima). Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
 

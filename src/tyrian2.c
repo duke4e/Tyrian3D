@@ -188,6 +188,10 @@ inline static void blit_enemy(SDL_Surface *surface, unsigned int i, signed int x
 
 static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 {
+	if (sprite2s == &spriteSheet11)
+		return M3D_SHEET_COINS;
+	if (sprite2s == &spriteSheet10)
+		return M3D_SHEET_POWERUPS;
 	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
 		if (sprite2s == &enemySpriteSheets[k] && enemySpriteSheetIds[k] > 0 && enemySpriteSheetIds[k] <= COUNTOF(shapeFile))
 			return shapeFile[enemySpriteSheetIds[k] - 1];
@@ -215,8 +219,8 @@ static bool draw_enemy_model(unsigned int i)
 			if (logged[k] == 0)
 			{
 				logged[k] = key + 1;
-				printf("enemy: sheet '%c' sprite %u %s layer %s -> %d\n", sheet ? sheet : '?', first_sprite,
-				       enemy[i].size == 1 ? "2x2" : "1x1", l3d_layer_name(l3d_current_layer()), look.model);
+				printf("enemy: sheet '%c' sprite %u %s layer %s -> %d (3D frame %u)\n", sheet ? sheet : '?', first_sprite,
+				       enemy[i].size == 1 ? "2x2" : "1x1", l3d_layer_name(l3d_current_layer()), look.model, l3d_frame_number);
 				break;
 			}
 	}
@@ -239,6 +243,18 @@ static bool draw_enemy_model(unsigned int i)
 		                      ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f, enemy[i].filter);
 	}
 
+	const bool large = enemy[i].size == 1;
+	const unsigned int sprite = enemy[i].egr[enemy[i].enemycycle - 1];
+	if (look.glow_size != 0)
+		l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y,
+		                    look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size, look.glow_strength);
+
+	// Palette materials can take the colour of the current frame (items whose animation cycles
+	// colours); a sprite filter (hit) wins.
+	Uint8 filter = enemy[i].filter;
+	if (filter == 0 && look.recolor)
+		filter = (Uint8)(l3d_sprite_ramp(enemy[i].sprite2s, sprite, large) << 4);
+
 	float yaw = look.yaw;
 	switch (look.yaw_mode)
 	{
@@ -256,8 +272,12 @@ static bool draw_enemy_model(unsigned int i)
 		break;
 	}
 
+	// Turning items: each slot a little ahead of the previous one, so they don't turn in step.
+	if (look.spin != 0)
+		yaw += fmodf(look.spin * l3d_frame_number + i * 47.0f, 360.0f);
+
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
-	return l3d_add_object(look.model, x, y, look.height, yaw, roll, enemy[i].filter);
+	return l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
 }
 
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing

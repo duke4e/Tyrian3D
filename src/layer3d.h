@@ -118,11 +118,12 @@ typedef struct
 
 #define L3D_MAX_STARS 128
 
-// A glow around a shot (the 3D view draws it as additive light): its centre, the layer it was
-// drawn in, and the palette index of its colour.
+// A glow around a shot or an item (the 3D view draws it as additive light): its centre, size and
+// strength, the layer it was drawn in, and the palette index of its colour.
 typedef struct
 {
 	float x, y;
+	float size, strength;  // diameter in game pixels; fraction of the colour added at the centre
 	Uint8 layer;
 	Uint8 color;
 } L3DGlow;
@@ -157,6 +158,9 @@ extern bool l3d_capturing; // inside an in-game frame between begin and end
 
 extern L3DFrame l3d_frame;
 
+// Frames captured so far: a clock for things that only show (models spinning), apart from the game's.
+extern Uint32 l3d_frame_number;
+
 // Starts capturing a frame if the 3D view is enabled. The first phase is always a fully opaque layer.
 void l3d_frame_begin(L3DLayerType first_type);
 // Ends the current phase; drawing that follows belongs to a layer of the given type.
@@ -190,6 +194,14 @@ void l3d_add_star(Uint16 position, Uint8 color, bool bright);
 // Records a glow around a 1x1 sprite (a shot; sheet is a Sprite2_array *) drawn at x, y in the
 // current phase. Its colour is the sprite's brightest.
 void l3d_add_glow(const void *sheet, unsigned int sprite, int x, int y);
+// Records a glow of the given size and strength centred on x, y, in a light shade of a sprite's
+// main colour (large: a 2x2 sprite).
+void l3d_add_sprite_glow(const void *sheet, unsigned int sprite, bool large, float x, float y, float size,
+                         float strength);
+
+// The palette ramp (index >> 4) of a sprite's main colour: the most used, not counting dark
+// outlines (large: a 2x2 sprite).
+Uint8 l3d_sprite_ramp(const void *sheet, unsigned int sprite, bool large);
 
 // Records a recolouring filter applied to everything drawn so far in the frame.
 void l3d_add_effect(L3DEffect effect, int param);

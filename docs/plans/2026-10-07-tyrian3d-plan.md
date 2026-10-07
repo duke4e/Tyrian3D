@@ -313,11 +313,19 @@ izvan mape).
 
 ## 4. Stanje
 
-Gotovo na branchu `tyrian3d/m1-tools`: M1 (uključivo preglednik modela `TYR3D_VIEWER` i Blender
-pipeline), M2.1, 3D pozadine, M3 u prvoj verziji (modeli svih brodova, sidekickovi kao
-volumetrijski spriteovi, boje modela iz palete), M4.1/M4.2 iteracija 1 (igralište što veće,
-panel HUD-a uz rub prozora) i M4.4 (naopake i spotlight razine). Na čekanju: korisnikovo
-odobrenje seta brodova. Sljedeće: popuna strana mape s WFC-om (vidi 5.), M2.2, M5.
+Gotovo na branchu `tyrian3d/m1-tools`: M1; M2 (volumetrijski spriteovi i semantika animacija);
+M3 u prvoj verziji (modeli svih brodova osim dvodijelnih Dragonwing i Nort Ship, sidekickovi kao
+volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
+HUD-a uz rub, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
+M5.3 predmeti; M5.4 sjene; prvi modeli neprijatelja (M5.1: ring core, pod, U-luk); M7 u prvoj
+verziji (čestice eksplozija, sjaj metaka); M8 odsjaji na vodi; M9 macOS paket; M10 izvoz glazbe
+u MIDI.
+
+Na čekanju korisnika: odobrenje seta brodova; AI upscale spriteova (`upscale/in` →
+`upscale/out`) prije složenijih modela neprijatelja; soundfont i AudioSR za M10.
+
+Sljedeće: M5.1 dalje po učestalosti, M6 bossovi, M7 laseri, bloom i svjetla, M8 oblaci, M4.2
+iteracija 2 (HUD u višoj rezoluciji), M9 ostali modovi igre i platforme.
 
 ## 5. Ideje korisnika (2026-10-07)
 

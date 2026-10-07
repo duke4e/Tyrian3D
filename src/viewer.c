@@ -89,8 +89,9 @@ static int enemy_entries(Entry *entries)
 			for (int id = 1; id <= ENEMY_NUM && !found; ++id)
 			{
 				const int bank = enemyDat[id].shapebank;
-				if (bank < 1 || bank > (int)COUNTOF(shapeFile) || shapeFile[bank - 1] != letter ||
-				    enemyDat[id].egraphic[0] != first)
+				const char bank_letter = bank == 21 ? M3D_SHEET_COINS : bank == 26 ? M3D_SHEET_POWERUPS :
+				                         bank >= 1 && bank <= (int)COUNTOF(shapeFile) ? (char)SDL_tolower((unsigned char)shapeFile[bank - 1]) : 0;
+				if (bank_letter != letter || enemyDat[id].egraphic[0] != first)
 					continue;
 				found = true;
 				e.large = enemyDat[id].esize == 1;
@@ -102,7 +103,13 @@ static int enemy_entries(Entry *entries)
 		if (!found)
 			continue;
 
-		// Its shape file, loaded once.
+		// Its shape file, loaded once (the coins and power-ups sheets are always loaded).
+		if (letter == M3D_SHEET_COINS || letter == M3D_SHEET_POWERUPS)
+		{
+			e.sheet = letter == M3D_SHEET_COINS ? &spriteSheet11 : &spriteSheet10;
+			entries[count++] = e;
+			continue;
+		}
 		int s = 0;
 		while (s < sheet_count && sheet_letters[s] != letter)
 			++s;
@@ -209,13 +216,18 @@ void dev_model_viewer(const char *what)
 			// Enemies animate as in the game, a frame every few ticks; models turn or roll with it.
 			const int k = e->frame_count > 1 ? (int)(frame / 4) % e->frame_count : 0;
 			const unsigned int sprite = e->frame_count > 1 ? e->frames[k] : e->sprite;
-			float turn = e->look.yaw + yaw + spin * frame;
+			float turn = e->look.yaw + yaw + (spin + e->look.spin) * frame;
 			if (e->look.yaw_mode == M3D_YAW_FRAMES)
 				turn += k * e->look.yaw_step;
 			const float model_roll = roll + k * e->look.roll_step;
+			const Uint8 filter = e->look.recolor ? (Uint8)(l3d_sprite_ramp(e->sheet, sprite, e->large) << 4) : 0;
+			if (e->look.model >= 0 && e->look.glow_size != 0)
+				l3d_add_sprite_glow(e->sheet, sprite, e->large, x, y,
+				                    e->look.glow_size < 0 ? -e->look.glow_size * (e->large ? 24 : 12) : e->look.glow_size,
+				                    e->look.glow_strength);
 
 			if (e->look.model >= 0)
-				l3d_add_object(e->look.model, x, y, e->look.height, turn, model_roll, 0);
+				l3d_add_object(e->look.model, x, y, e->look.height, turn, model_roll, filter);
 			else if (e->look.model != M3D_VOLUME ||
 			         !l3d_add_volume(e->sheet, sprite, e->large, V3D_STYLE_RAISED, x, y, e->look.height, turn, roll, 0))
 				(e->large ? blit_sprite2x2 : blit_sprite2)(VGAScreen, x - half_w, y - half_h, *e->sheet, sprite);
