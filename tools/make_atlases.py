@@ -8,7 +8,9 @@ Writes to <out dir>:
 
   ships.png         every player ship sprite in its five banking frames (hard left .. hard right)
   sidekicks.png     every sidekick's animation frames
-  enemies_e<N>.png  the enemy types of episode N, a row each with their animation frames
+  ground_e<N>.png   the ground objects of episode N (enemies on the ground layers: buildings,
+                    turrets, vehicles), a row each with their animation frames
+  air_e<N>.png      the flying enemies of episode N, the same way
   powerups.png, coins.png, shots.png, shots2.png, explosions.png
                     whole sheets as exported (their 2x2 sprites span four 12x14 cells)
   atlases.json      what is in each cell: sheet, sprite index, size, and what it belongs to
@@ -128,11 +130,14 @@ def main():
                            for i, f in enumerate(frames)])
     sidekicks.write(out_dir, index)
 
+    # Enemies by episode, ground objects apart from flying ones (an enemy seen on both goes with
+    # the ground).
     by_episode = {}
     for e in catalog["enemies"]:
-        by_episode.setdefault(e["episode"], []).append(e)
-    for episode, enemies in sorted(by_episode.items()):
-        atlas = Atlas(f"enemies_e{episode}", 20)
+        group = "ground" if "ground" in e["layers"] else "air"
+        by_episode.setdefault((group, e["episode"]), []).append(e)
+    for (group, episode), enemies in sorted(by_episode.items()):
+        atlas = Atlas(f"{group}_e{episode}", 20)
         seen = set()
         for e in enemies:
             frames = list(dict.fromkeys(f for f in e["frames"] if f > 0))

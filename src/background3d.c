@@ -4,8 +4,12 @@
 #include "background3d.h"
 
 #include "config.h"
+#include "palette.h"
+#include "pcxmast.h"
 #include "varz.h"
 #include "wfc.h"
+
+#include <btbh_gpu/btbh_gpu.h>
 
 #include <math.h>
 #include <stddef.h>
@@ -698,5 +702,97 @@ void b3d_compose(const L3DFrame *frame, const bool composed[L3D_MAX_BACKGROUNDS]
 				break;
 			}
 		}
+	}
+}
+
+static char tileset_letter;
+static Uint16 tile_shapes[B3D_SETS][128];
+
+void b3d_note_tileset(char letter, const Uint16 shape_numbers[3][128])
+{
+	tileset_letter = letter;
+	memcpy(tile_shapes, shape_numbers, sizeof(tile_shapes));
+}
+
+#define EXPORT_PART_ROWS 72
+
+void b3d_export_maps(const char *dir)
+{
+	SDL_CreateDirectory(dir);
+	const SDL_Color *palette = palettes[pcxpal[3 - 1]];  // the levels' palette
+	for (int set = 1; set <= B3D_SETS; ++set)
+	{
+		const MapSet m = map_set(set);
+
+		// Name the map by its tiles' shape numbers.
+		Uint64 hash = 14695981039346656037ull;
+		hash = (hash ^ (Uint64)(unsigned char)tileset_letter) * 1099511628211ull;
+		for (int i = 0; i < m.rows * m.width; ++i)
+		{
+			const int kind = tile_kind(&m, m.map[i]);
+			const int shape = kind < m.tile_count ? tile_shapes[set - 1][kind] : 0;
+			hash = (hash ^ (Uint64)shape) * 1099511628211ull;
+		}
+		char path[1024];
+		snprintf(path, sizeof(path), "%s/map_%016llx.json", dir, (unsigned long long)hash);
+		FILE *probe = fopen(path, "r");
+		if (probe != NULL)
+		{
+			fclose(probe);
+			continue;
+		}
+
+		const int width = m.width * B3D_TILE_W;
+		static Uint8 rgba[EXPORT_PART_ROWS * B3D_TILE_H * 15 * B3D_TILE_W * 4];
+		const int parts = (m.rows + EXPORT_PART_ROWS - 1) / EXPORT_PART_ROWS;
+		for (int part = 0; part < parts; ++part)
+		{
+			const int first = part * EXPORT_PART_ROWS, rows = SDL_min(EXPORT_PART_ROWS, m.rows - first);
+			memset(rgba, 0, sizeof(rgba));
+			for (int r = 0; r < rows; ++r)
+				for (int c = 0; c < m.width; ++c)
+				{
+					const Uint8 *data = m.map[(first + r) * m.width + c];
+					if (tile_kind(&m, data) >= m.tile_count)
+						continue;
+					for (int y = 0; y < B3D_TILE_H; ++y)
+						for (int x = 0; x < B3D_TILE_W; ++x)
+						{
+							const Uint8 index = data[y * B3D_TILE_W + x];
+							Uint8 *out = &rgba[((r * B3D_TILE_H + y) * width + c * B3D_TILE_W + x) * 4];
+							out[0] = palette[index].r;
+							out[1] = palette[index].g;
+							out[2] = palette[index].b;
+							out[3] = index != 0 || set == 1 ? 255 : 0;  // colour 0 of backgrounds 2 and 3 is clear
+						}
+				}
+			char image[1024];
+			snprintf(image, sizeof(image), "%s/map_%016llx_%d.png", dir, (unsigned long long)hash, part + 1);
+			btbh_gpu_write_png_rgba8(image, width, rows * B3D_TILE_H, rgba);
+		}
+
+		FILE *json = fopen(path, "w");
+		if (json == NULL)
+			continue;
+		fprintf(json, "{\"background\": %d, \"tileset\": \"%c\", \"columns\": %d, \"rows\": %d, \"tile\": [%d, %d],\n",
+		        set, SDL_tolower((unsigned char)tileset_letter), m.width, m.rows, B3D_TILE_W, B3D_TILE_H);
+		fprintf(json, " \"parts\": [");
+		for (int part = 0; part < parts; ++part)
+			fprintf(json, "%s{\"file\": \"map_%016llx_%d.png\", \"first_row\": %d}", part ? ", " : "",
+			        (unsigned long long)hash, part + 1, part * EXPORT_PART_ROWS);
+		fprintf(json, "],\n \"shapes\": [");
+		for (int r = 0; r < m.rows; ++r)
+		{
+			fprintf(json, "%s\n  [", r ? "," : "");
+			for (int c = 0; c < m.width; ++c)
+			{
+				const int kind = tile_kind(&m, m.map[r * m.width + c]);
+				fprintf(json, "%s%d", c ? "," : "", kind < m.tile_count ? tile_shapes[set - 1][kind] : 0);
+			}
+			fprintf(json, "]");
+		}
+		fprintf(json, "\n]}\n");
+		fclose(json);
+		printf("background %d: map written to %s\n", set, path);
 	}
 }

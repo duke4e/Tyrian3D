@@ -3310,8 +3310,11 @@ new_game:
 	fclose(level_f);
 
 	++b3d_map_generation;
+	b3d_note_tileset(char_shapeFile, (const Uint16 (*)[128])mapSh);
 	if (l3d_enabled)
 		b3d_prepare_sides();
+	if (SDL_getenv("TYR3D_EXPORT_MAPS") != NULL)
+		b3d_export_maps(SDL_getenv("TYR3D_EXPORT_MAPS"));
 
 	/* Note: The map data is automatically calculated with the correct mapsh
 	value and then the pointer is calculated using the formula (MAPSH-1)*168.

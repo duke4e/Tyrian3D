@@ -43,6 +43,15 @@ extern unsigned int b3d_map_generation;
 // doesn't wait for it. Drawing would otherwise make them when first needed.
 void b3d_prepare_sides(void);
 
+// The tile set the maps just loaded use: the shapes file's letter, and for each background the
+// shape number (1-based, in shapes<letter>.dat) of each of its tiles (JE_loadMap's mapSh).
+void b3d_note_tileset(char letter, const Uint16 shape_numbers[3][128]);
+
+// Dev tool (TYR3D_EXPORT_MAPS=<dir>): writes the maps just loaded as images in the levels'
+// palette, in parts of at most 72 rows, with a JSON index naming every cell's tile; maps already
+// written are skipped. For upscaling the tiles in context (tools/export_maps.sh).
+void b3d_export_maps(const char *dir);
+
 // Fills the atlas with palette indices and opacity (B3D_ATLAS_W x B3D_ATLAS_H). Colour 0 is
 // transparent; under background 1 that shows the starfield or the black of the cleared screen,
 // as in the game. `ground` marks the cells of background 1 and the blank cell: where a filter
