@@ -25,30 +25,31 @@ Korisnikove odluke:
 - Kenney modeli nisu preuzimani s interneta. Kopirani su iz korisnikova lokalnog projekta
   (`~/Documents/GitHub/QIX Rouguelike (GPT 5.3)/assets/kenney/space-kit`), CC0.
 
-**Ništa nije commitano.** Sav rad je u working treeju na `master`. To vrijedi i za submodule.
-Na kraju razgovora korisnika sam pitao smije li se commitati na novi branch, i u Tyrian3D i u
-fork renderera. **Odgovor još nije stigao.** Ne commitaj i ne pushaj bez izričitog odobrenja.
+**Git (stanje 2026-10-07):**
 
-Ako commit bude odobren:
+- Rad je commitan i pushan na branch `tyrian3d/poc` repoa `https://github.com/duke4e/Tyrian3D`.
+  Repo je privatan.
+- Upstream OpenTyrian2000 je remote `upstream`.
+- Renderer je na branchu `tyrian3d` repoa `duke4e/btbh-renderer` (commit `bba9f4a`).
+- Korisnik je odobrio commit i push nakon svakog završenog koraka.
+- Commit poruke završavaju s `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
-- Napravi branch, npr. `tyrian3d/poc`. Ne commitaj na `master`.
-- Na kraj commit poruke stavi:
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
+**Plan:** [docs/plans/2026-10-07-tyrian3d-plan.md](docs/plans/2026-10-07-tyrian3d-plan.md),
+milestonei M1–M9. Korisnikove odluke: vjerni remaster, widescreen + HUD overlay, prvo brodovi i
+neprijatelji.
 
 ## 2. Repozitoriji i okruženje
 
 **Tyrian3D (root)**
 
-- Remote `origin` je upstream `https://github.com/KScl/opentyrian2000.git`, shallow clone (depth 50).
-- Korisnik još nema vlastiti remote za Tyrian3D.
+- Remote `origin` je `https://github.com/duke4e/Tyrian3D.git`.
+- Remote `upstream` je `https://github.com/KScl/opentyrian2000.git`. Puna povijest; klon više nije shallow.
 
 **`external/btbh-renderer`** (git submodule)
 
 - Klonirano iz korisnikove lokalne kopije, zatim je URL prebačen na
   `https://github.com/duke4e/btbh-renderer.git`.
-- Lokalni branch `tyrian3d` polazi od `f75a25f`.
-- Tri datoteke su izmijenjene i nisu commitane (vidi odjeljak 5).
-- `f75a25f` mora postojati na GitHubu da bi drugi mogli klonirati submodule. To nije provjereno.
+- Branch `tyrian3d` (commit `bba9f4a`, iznad `f75a25f`) je pushan na GitHub.
 - Korisnikova radna kopija renderera je
   `~/Documents/GitHub/Be-The-Bullet-Hell/City Generator (r3d)/Vendor/BTBHRenderer`.
   **Nju ne diraj.** Ondje traje drugi aktivni posao. Sve izmjene renderera idu na branch
@@ -165,7 +166,7 @@ Naredba za build shadercrossa nalazi se u TYRIAN3D.md.
 | `tools/capture_run.sh` | Pokreće igru u demo modu i dumpa frameove (vidi odjeljak 6). |
 | `tools/montage.py` | Slaže BMP dumpove u jedan PNG (samo stdlib; PIL nije instaliran). |
 
-## 5. Izmjene u fork rendereru (branch `tyrian3d`, nije commitano)
+## 5. Izmjene u fork rendereru (branch `tyrian3d`, commit `bba9f4a`)
 
 - `include/btbh_gpu/btbh_gpu.h`, `src/gpu/btbh_gpu_texture.c`:
   - `btbh_gpu_window_texture_create_rgba8_ex()`: RGBA tekstura iz memorije, sRGB ili linear, opcionalno s mipovima.
@@ -215,7 +216,7 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 
 ## 9. Predloženi sljedeći koraci (redom)
 
-1. Dobiti odluku o commitu (odjeljak 1) i, ako treba, vlastiti remote za Tyrian3D.
+1. Slijediti plan u `docs/plans/2026-10-07-tyrian3d-plan.md`. Prvi korak je M1.1.
 2. Korisnik ručno isproba igru. Kalibrirati zadani tilt, FOV i visine slojeva prema njegovom dojmu (tipke za kameru ispisuju vrijednosti u stdout).
 3. Bolji PoC2:
    - Mapiranje po tipu neprijatelja preko `sprite` pravila u `models.cfg`; `TYR3D_LOG_ENEMIES=1` daje popis.
