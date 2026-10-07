@@ -55,7 +55,12 @@ void v3d_decode_sheet(const Sprite2_array *sheet, Uint8 *indices, Uint8 *cover);
 // Builds the mesh of sprite `index` (1-based; a 2x2 sprite also uses index+1, +19 and +20)
 // from a decoded sheet. The mesh is centred on the sprite, in game pixels: X right, Z down the
 // screen, Y up. Returns the number of indices (0 if the sprite is empty).
+//
+// The shading is baked into the vertex colours, for drawing unlit: diffuse light from the
+// direction `light` (a unit vector towards the light) plus fill light, scaled so that faces
+// pointing straight up keep exactly the sprite's colours. (Lit, the scene's ambient and specular
+// terms would lift dark colours towards grey.)
 int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigned int index, bool large,
-                   V3DStyle style, V3DVertex *vertices, int *vertex_count, Uint32 *indices);
+                   V3DStyle style, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices);
 
 #endif /* VOLUME3D_H */

@@ -64,8 +64,19 @@ static float luminance(Uint8 palette_index)
 	return (0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]) / 255.0f;
 }
 
+// Share of fill light in the shading; the rest follows the angle to the light.
+#define FILL_LIGHT 0.45f
+
+// Vertex colour for a normal: 1 for faces pointing straight up.
+static float shade(const float normal[3], const float light[3])
+{
+	const float lambert = normal[0] * light[0] + normal[1] * light[1] + normal[2] * light[2];
+	const float up = SDL_max(light[1], 0.0f);
+	return (FILL_LIGHT + (1 - FILL_LIGHT) * SDL_max(lambert, 0.0f)) / (FILL_LIGHT + (1 - FILL_LIGHT) * up);
+}
+
 int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigned int index, bool large,
-                   V3DStyle style, V3DVertex *vertices, int *vertex_count, Uint32 *indices)
+                   V3DStyle style, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices)
 {
 	*vertex_count = 0;
 	if (index == 0 || index > V3D_COLUMNS * V3D_ROWS)
@@ -111,12 +122,14 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 
 	// The silhouette is a short wall (rim) so edge pixels stay flat and crisp; inside it the top
 	// rises in a rounded profile to full height a few pixels in, plus a little relief from the
-	// brightness of the surrounding pixels (dark detail sits lower).
+	// brightness of the surrounding pixels (dark detail sits lower). Flat objects have no rounded
+	// edge: their sprites include the ground around them, which must not shade differently from
+	// the ground itself.
 	const bool flat = style == V3D_STYLE_FLAT;
-	const float rim = flat ? 0.25f : (large ? 1.5f : 1.0f);
-	const float max_height = flat ? (large ? 1.5f : 1.0f) : (large ? 5.0f : 3.0f);
+	const float max_height = flat ? 0.6f : (large ? 5.0f : 3.0f);
+	const float rim = flat ? max_height : (large ? 1.5f : 1.0f);
 	const float round_distance = large ? 4.0f : 2.5f;
-	const float relief = flat ? 0.8f : (large ? 1.0f : 0.6f);
+	const float relief = flat ? 0.5f : (large ? 1.0f : 0.6f);
 	float height[V3D_MAX_VERTICES];
 	for (int cy = 0; cy <= h; ++cy)
 		for (int cx = 0; cx <= w; ++cx)
@@ -164,7 +177,8 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 			v->uv[1] = (float)(oy + cy) / V3D_ATLAS_H;
 			v->tangent[0] = 1;
 			v->tangent[3] = 1;
-			v->color[0] = v->color[1] = v->color[2] = v->color[3] = 1;
+			v->color[0] = v->color[1] = v->color[2] = shade(v->normal, light);
+			v->color[3] = 1;
 		}
 
 	// Two triangles per covered pixel.
@@ -221,7 +235,8 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 					wv->uv[1] = v;
 					wv->tangent[0] = 1;
 					wv->tangent[3] = 1;
-					wv->color[0] = wv->color[1] = wv->color[2] = wv->color[3] = 1;
+					wv->color[0] = wv->color[1] = wv->color[2] = shade(wv->normal, light);
+					wv->color[3] = 1;
 				}
 				// k: 0 top-start, 1 top-end, 2 base-end, 3 base-start
 				indices[ic++] = base;

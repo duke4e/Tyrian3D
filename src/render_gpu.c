@@ -33,6 +33,9 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 
+// Direction the sun's light travels: from the upper left, slightly from the bottom of the screen.
+static const float sun_direction[3] = { 0.45f, -1.0f, -0.35f };
+
 RGPUCamera rgpu_camera = {
 	.tilt_degrees = 20.0f,
 	.fov_degrees = 30.0f,
@@ -976,7 +979,10 @@ static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprit
 		static V3DVertex vertices[V3D_MAX_VERTICES];
 		static Uint32 indices[V3D_MAX_INDICES];
 		int vertex_count = 0;
-		const int index_count = v3d_build_mesh(entry->indices, entry->cover, sprite, large, (V3DStyle)style,
+		const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+		                           sun_direction[2] * sun_direction[2]);
+		const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
+		const int index_count = v3d_build_mesh(entry->indices, entry->cover, sprite, large, (V3DStyle)style, light,
 		                                       vertices, &vertex_count, indices);
 		if (index_count > 0)
 		{
@@ -989,12 +995,6 @@ static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprit
 	}
 	return *mesh;
 }
-
-// Volumetric sprites keep their original colours on surfaces facing up: part of the colour is
-// emitted, the rest comes from the scene's light (scaled down through the albedo), so the relief
-// still shades. Calibrated by comparing flat areas against the plain sprites (ratio 1.0).
-#define VOLUME_EMISSION 0.35f
-#define VOLUME_ALBEDO 125
 
 static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *batch_count)
 {
@@ -1046,11 +1046,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 		b->first_instance = first_instance;
 		b->instance_count = count;
 		b->albedo_texture = entry->texture;
-		b->albedo_red = b->albedo_green = b->albedo_blue = VOLUME_ALBEDO;
-		b->emission_texture = entry->texture;
-		b->emission_red = b->emission_green = b->emission_blue = b->emission_alpha = 255;
-		b->emission_energy = VOLUME_EMISSION;
-		b->roughness = 0.75f;
+		b->unlit_enabled = 1;  // shaded by the mesh's vertex colours (v3d_build_mesh)
 		b->alpha_cutoff = 0.5f;
 	}
 }
@@ -1339,7 +1335,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_object_batches(frame, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 
-	// Models are lit by a sun from the upper left and a cool ambient term; layers are unlit.
+	// Models are lit by a sun and a cool ambient term; layers and volumetric sprites are unlit.
 	BTBHGPUSceneLighting lighting = { 0 };
 	lighting.spot_falloff = 1.0f;
 	lighting.spot_inner_cutoff = 0.92388f;
@@ -1349,7 +1345,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	lighting.ambient_green = 0.58f;
 	lighting.ambient_blue = 0.68f;
 	lighting.ambient_energy = 0.9f;
-	const float sun[3] = { 0.45f, -1.0f, -0.35f };
+	const float *sun = sun_direction;
 	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
 	lighting.directional_x = sun[0] / sun_length;
 	lighting.directional_y = sun[1] / sun_length;
