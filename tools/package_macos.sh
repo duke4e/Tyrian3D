@@ -26,6 +26,10 @@ cp "$BUILD/tyrian3d" "$APP/Contents/MacOS/tyrian3d"
 cp "$BUILD"/shaders/*.metallib "$BUILD"/shaders/*.raw "$APP/Contents/Resources/shaders/"
 cp -R "$ROOT/assets/models" "$APP/Contents/Resources/models"
 cp -R "$ROOT/assets/sides" "$APP/Contents/Resources/sides"
+# The SoundFont for the music as MIDI (tools/fetch_soundfont.sh), if there is one.
+if [ -f "$ROOT/data/soundfonts/GeneralUser-GS.sf2" ]; then
+	cp -R "$ROOT/data/soundfonts" "$APP/Contents/Resources/soundfonts"
+fi
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

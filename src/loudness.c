@@ -20,6 +20,8 @@
 
 #include "file.h"
 #include "lds_play.h"
+#include "music_midi.h"
+#include "opl.h"
 #include "nortsong.h"
 #include "opentyr.h"
 #include "params.h"
@@ -117,6 +119,10 @@ bool init_audio(void)
 
 	opl_init();
 
+	// Tyrian3D: the music as MIDI through a SoundFont when there is one (music_midi.h).
+	if (music_midi_init(audioSampleRate))
+		opl_write_hook = midi_opl_write;
+
 	SDL_ResumeAudioStreamDevice(audioStream);
 
 	return true;
@@ -135,6 +141,22 @@ static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int add
 
 		audioCallback(userdata, (Uint8 *)buffer, size);
 		SDL_PutAudioStreamData(stream, buffer, size);
+
+		// Tyrian3D dev tool: TYR3D_RECORD_AUDIO=<file> writes the output as raw 16-bit mono samples.
+		static FILE *record = NULL;
+		static bool record_checked = false;
+		if (!record_checked)
+		{
+			record_checked = true;
+			const char *path = SDL_getenv("TYR3D_RECORD_AUDIO");
+			if (path != NULL)
+				record = fopen(path, "wb");
+		}
+		if (record != NULL)
+		{
+			fwrite(buffer, 1, size, record);
+			fflush(record);
+		}
 		additional_amount -= size;
 	}
 }
@@ -155,6 +177,8 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 			if (samplesUntilLdsUpdate == 0)
 			{
 				lds_update();
+				if (music_midi_active())
+					music_midi_update();
 
 				// The number of samples that should be produced per Loudness
 				// update is not an integer, but we can only produce an integer
@@ -171,7 +195,10 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 
 			int count = MIN(samplesUntilLdsUpdate, remainingCount);
 
-			opl_update(remaining, count);
+			if (music_midi_active())
+				music_midi_render(remaining, count);
+			else
+				opl_update(remaining, count);
 
 			remaining += count;
 			remainingCount -= count;
@@ -186,7 +213,8 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	}
 
 	Sint32 musicVolumeFactor = volumeFactorTable[musicVolume];
-	musicVolumeFactor *= 2;  // OPL emulator is too quiet
+	if (!music_midi_active())
+		musicVolumeFactor *= 2;  // OPL emulator is too quiet
 
 	if (samples_disabled && !music_disabled)
 	{
@@ -278,6 +306,12 @@ static void load_song(unsigned int song_num)  // FKA NortSong.loadSong
 	{
 		unsigned int song_size = song_offset[song_num + 1] - song_offset[song_num];
 		lds_load(music_file, song_offset[song_num], song_size);
+		if (audioStream != NULL)
+		{
+			SDL_LockAudioStream(audioStream);
+			music_midi_reset();
+			SDL_UnlockAudioStream(audioStream);
+		}
 	}
 	else
 	{
@@ -330,6 +364,7 @@ void restart_song(void)  // FKA Player.selectSong(1)
 	SDL_LockAudioStream(audioStream);
 
 	lds_rewind();
+	music_midi_reset();
 
 	music_stopped = false;
 
@@ -344,6 +379,7 @@ void stop_song(void)  // FKA Player.selectSong(0)
 	SDL_LockAudioStream(audioStream);
 
 	music_stopped = true;
+	music_midi_reset();
 
 	SDL_UnlockAudioStream(audioStream);
 }

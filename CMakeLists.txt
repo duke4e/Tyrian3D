@@ -100,6 +100,8 @@ add_dependencies(tyrian3d tyrian3d_shaders)
 target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 ZLIB::ZLIB m)
 # cgltf (compiled into btbh_gpu) reads the models' material names.
 target_include_directories(tyrian3d PRIVATE "${BTBH_DIR}/external/raylib/src/external")
+# TinySoundFont (MIT, external/tinysoundfont) plays the music as MIDI (src/music_midi.c).
+target_include_directories(tyrian3d PRIVATE "${CMAKE_SOURCE_DIR}/external/tinysoundfont")
 # Upstream OpenTyrian always builds with NDEBUG; some of its asserts fire on valid Tyrian 2000 data.
 target_compile_definitions(tyrian3d PRIVATE
     NDEBUG
@@ -107,6 +109,7 @@ target_compile_definitions(tyrian3d PRIVATE
     TYR3D_SHADER_DIR="${TYR3D_SHADER_DIR}"
     TYR3D_MODEL_DIR="${CMAKE_SOURCE_DIR}/assets/models"
     TYR3D_SIDES_DIR="${CMAKE_SOURCE_DIR}/assets/sides"
+    TYR3D_SOUNDFONT_DIR="${CMAKE_SOURCE_DIR}/data/soundfonts"
 )
 target_compile_options(tyrian3d PRIVATE
     -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter

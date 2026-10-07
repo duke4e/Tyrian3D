@@ -83,6 +83,9 @@ change the first two as well.
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
+| `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music) |
+| `TYR3D_SOUNDFONT=<file>` | Another SoundFont for the music |
+| `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
@@ -193,6 +196,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
 | `tools/package_macos.sh` | Builds the macOS app bundle |
+| `tools/fetch_soundfont.sh` | Downloads the GeneralUser GS SoundFont the music plays through into `data/soundfonts` |
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/blender/` | The model pipeline (see Models) |
@@ -215,3 +219,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 - Tyrian: Eclipse Software / Jason Emery (freeware data).
 - OpenTyrian / OpenTyrian2000: the OpenTyrian team and Kaito Sinclaire (GPL-2.0).
 - Placeholder models: Kenney Space Kit, CC0 (`assets/models/kenney-space-kit/License.txt`).
+- Music synth: TinySoundFont by Bernhard Schelling, MIT (`external/tinysoundfont/LICENSE`).
+- SoundFont: GeneralUser GS by S. Christian Collins, free to use (downloaded by
+  `tools/fetch_soundfont.sh` with its license; not in git).
+- Sound effect upscaling: AudioSR by Haohe Liu et al. (run locally, results not in git).
