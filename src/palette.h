@@ -21,14 +21,23 @@
 
 #include "opentyr.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 typedef SDL_Color Palette[256];
 
 extern Palette palettes[];
 extern int palette_count;
 
-extern Uint32 rgb_palette[256], yuv_palette[256];
+// Current palette as packed RGBA8 (byte order R, G, B, A in memory).
+extern Uint32 rgb_palette[256];
+
+static inline Uint32 pack_rgba(Uint8 r, Uint8 g, Uint8 b)
+{
+	const Uint8 bytes[4] = { r, g, b, 255 };
+	Uint32 packed;
+	SDL_memcpy(&packed, bytes, sizeof(packed));
+	return packed;
+}
 
 extern Palette colors; // TODO: get rid of this
 

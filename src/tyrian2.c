@@ -20,6 +20,9 @@
 
 #include "animlib.h"
 #include "backgrnd.h"
+#include "devtools.h"
+#include "layer3d.h"
+#include "models3d.h"
 #include "episodes.h"
 #include "file.h"
 #include "font.h"
@@ -147,7 +150,15 @@ void JE_starShowVGA(void)
 				src += game_screen->pitch;
 			}
 		}
-		JE_showVGA();
+		if (l3d_take_frame())
+		{
+			dev_on_layers_captured();
+			JE_showVGA3D();
+		}
+		else
+		{
+			JE_showVGA();
+		}
 	}
 
 	quitRequested = false;
@@ -170,6 +181,52 @@ inline static void blit_enemy(SDL_Surface *surface, unsigned int i, signed int x
 		blit_sprite2_filter(surface, x, y, *enemy[i].sprite2s, index, enemy[i].filter);
 	else
 		blit_sprite2(surface, x, y, *enemy[i].sprite2s, index);
+}
+
+static char enemy_sheet_letter(const Sprite2_array *sprite2s)
+{
+	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
+		if (sprite2s == &enemySpriteSheets[k] && enemySpriteSheetIds[k] > 0 && enemySpriteSheetIds[k] <= COUNTOF(shapeFile))
+			return shapeFile[enemySpriteSheetIds[k] - 1];
+	return 0;
+}
+
+// Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
+static bool draw_enemy_model(unsigned int i)
+{
+	if (!l3d_capturing || enemy[i].sprite2s == NULL)
+		return false;
+
+	// Keyed by the first animation frame, so the model stays the same while the sprite animates.
+	const unsigned int index = enemy[i].egr[0];
+	const char sheet = enemy_sheet_letter(enemy[i].sprite2s);
+	const int model = m3d_enemy_model(sheet, index, enemy[i].size == 1, l3d_current_layer());
+	if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL)
+	{
+		static Uint32 logged[256];
+		const Uint32 key = ((Uint32)(Uint8)sheet << 16) | index;
+		bool seen = false;
+		for (size_t k = 0; k < COUNTOF(logged) && logged[k] != 0; ++k)
+			seen |= logged[k] == key + 1;
+		for (size_t k = 0; !seen && k < COUNTOF(logged); ++k)
+			if (logged[k] == 0)
+			{
+				logged[k] = key + 1;
+				const Sprite2_array *s2 = enemy[i].sprite2s;
+				printf("enemy sprite: sheet '%c' index %u %s layer %s -> model %d%s\n", sheet ? sheet : '?', index,
+				       enemy[i].size == 1 ? "2x2" : "1x1", l3d_layer_name(l3d_current_layer()), model,
+				       s2 == &spriteSheet10 ? " (sheet10)" : s2 == &spriteSheet11 ? " (sheet11)" : "");
+				break;
+			}
+	}
+	if (model < 0)
+		return false;
+
+	if (enemy[i].ey <= -26 - screen_overscan_rows || enemy[i].ey >= 200)
+		return true;  // off screen
+
+	// Both 1x1 and 2x2 sprites are centred on (ex + 6, ey + 7).
+	return l3d_add_object(model, enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, 180.0f, 0.0f, enemy[i].filter);
 }
 
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing
@@ -225,14 +282,18 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 				if (enemy[i].egr[enemy[i].enemycycle - 1] == 999)
 					goto enemy_gone;
 
-				if (enemy[i].size == 1) // 2x2 enemy
+				if (draw_enemy_model(i))
 				{
-					if (enemy[i].ey > -13)
+					// drawn as a 3D model
+				}
+				else if (enemy[i].size == 1) // 2x2 enemy
+				{
+					if (enemy[i].ey > -13 - screen_overscan_rows)
 					{
 						blit_enemy(VGAScreen, i, -6, -7, 0);
 						blit_enemy(VGAScreen, i,  6, -7, 1);
 					}
-					if (enemy[i].ey > -26 && enemy[i].ey < 182)
+					if (enemy[i].ey > -26 - screen_overscan_rows && enemy[i].ey < 182)
 					{
 						blit_enemy(VGAScreen, i, -6,  7, 19);
 						blit_enemy(VGAScreen, i,  6,  7, 20);
@@ -240,7 +301,7 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 				}
 				else
 				{
-					if (enemy[i].ey > -13)
+					if (enemy[i].ey > -13 - screen_overscan_rows)
 						blit_enemy(VGAScreen, i, 0, 0, 0);
 				}
 
@@ -1279,6 +1340,7 @@ level_loop:
 		backMove = (map1YDelay == 1) ? 1 : 0;
 
 	/*Draw background*/
+	l3d_frame_begin(L3D_GROUND);
 	if (astralDuration == 0)
 		draw_background_1(VGAScreen);
 	else
@@ -1306,12 +1368,14 @@ level_loop:
 
 	if (processorType > 1 && smoothies[5-1])
 	{
+		l3d_modify();
 		iced_blur_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
 
 	/*-----------------------BACKGROUNDS------------------------*/
 	/*-----------------------BACKGROUND 2------------------------*/
+	l3d_phase(L3D_BG2_LOW);
 	if (background2over == 3)
 	{
 		draw_background_2(VGAScreen);
@@ -1331,16 +1395,19 @@ level_loop:
 
 	if (smoothies[0] && processorType > 2 && smoothie_data[0] == 0)
 	{
+		l3d_modify();
 		lava_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
 	if (smoothies[2-1] && processorType > 2)
 	{
+		l3d_modify();
 		water_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
 
 	/*-----------------------Ground Enemy------------------------*/
+	l3d_phase(L3D_GROUND_ENEMY);
 	lastEnemyOnScreen = enemyOnScreen;
 
 	tempMapXOfs = mapXOfs;
@@ -1356,6 +1423,7 @@ level_loop:
 
 	if (smoothies[0] && processorType > 2 && smoothie_data[0] > 0)
 	{
+		l3d_modify();
 		lava_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
@@ -1363,11 +1431,13 @@ level_loop:
 	if (superWild)
 	{
 		neat += 3;
+		l3d_modify();
 		JE_darkenBackground(neat);
 	}
 
 	/*-----------------------BACKGROUNDS------------------------*/
 	/*-----------------------BACKGROUND 2------------------------*/
+	l3d_phase(L3D_BG2);
 	if (!(smoothies[2-1] && processorType < 4) &&
 	    !(smoothies[1-1] && processorType == 3))
 	{
@@ -1383,9 +1453,11 @@ level_loop:
 	if (superWild)
 	{
 		neat++;
+		l3d_modify();
 		JE_darkenBackground(neat);
 	}
 
+	l3d_phase(L3D_BG3);
 	if (background3over == 2)
 		draw_background_3(VGAScreen);
 
@@ -1400,16 +1472,19 @@ level_loop:
 
 	if (processorType > 1 && smoothies[3-1])
 	{
+		l3d_modify();
 		iced_blur_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
 	if (processorType > 1 && smoothies[4-1])
 	{
+		l3d_modify();
 		blur_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}
 
 	/* Draw Sky Enemy */
+	l3d_phase(L3D_SKY_ENEMY);
 	if (!skyEnemyOverAll)
 	{
 		lastEnemyOnScreen = enemyOnScreen;
@@ -1425,16 +1500,20 @@ level_loop:
 		}
 	}
 
+	l3d_phase(L3D_BG3);
 	if (background3over == 0)
 		draw_background_3(VGAScreen);
 
 	/* Draw Top Enemy */
+	l3d_phase(L3D_TOP_ENEMY);
 	if (!topEnemyOver)
 	{
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : mapXOfs;
 		tempBackMove = backMove3;
 		JE_drawEnemy(75);
 	}
+
+	l3d_phase(L3D_PLAYER);
 
 	/* Player Shot Images */
 	for (int z = 0; z < MAX_PWEAPON; z++)
@@ -1867,10 +1946,12 @@ draw_player_shot_loop_end:
 		}
 	}
 
+	l3d_phase(L3D_BG3_OVER);
 	if (background3over == 1)
 		draw_background_3(VGAScreen);
 
 	/* Draw Top Enemy */
+	l3d_phase(L3D_TOP_ENEMY);
 	if (topEnemyOver)
 	{
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : oldMapXOfs;
@@ -1879,6 +1960,7 @@ draw_player_shot_loop_end:
 	}
 
 	/* Draw Sky Enemy */
+	l3d_phase(L3D_SKY_ENEMY);
 	if (skyEnemyOverAll)
 	{
 		lastEnemyOnScreen = enemyOnScreen;
@@ -1937,6 +2019,7 @@ draw_player_shot_loop_end:
 	}
 
 	/*---------------------------- Draw Explosions ----------------------------*/
+	l3d_phase(L3D_EXPLOSION);
 	for (int j = 0; j < MAX_EXPLOSIONS; j++)
 	{
 		if (explosions[j].ttl != 0)
@@ -1977,6 +2060,7 @@ draw_player_shot_loop_end:
 	if (!(smoothies[2-1] && processorType < 4) &&
 	    !(smoothies[1-1] && processorType == 3))
 	{
+		l3d_phase(L3D_BG2_OVER);
 		if (background2over == 2)
 		{
 			if (wild && !background2notTransparent)
@@ -1987,6 +2071,7 @@ draw_player_shot_loop_end:
 	}
 
 	/*-------------------------Warning---------------------------*/
+	l3d_phase(L3D_OVERLAY);
 	if ((player[0].is_alive && player[0].armor < 6) ||
 	    (twoPlayerMode && !galagaMode && player[1].is_alive && player[1].armor < 6))
 	{
@@ -2322,7 +2407,9 @@ draw_player_shot_loop_end:
 #endif
 
 	/** Test **/
+	l3d_phase(L3D_EXPLOSION);
 	JE_drawSP();
+	l3d_phase(L3D_OVERLAY);
 
 	/*Filtration*/
 	if (filterActive)
@@ -2333,6 +2420,8 @@ draw_player_shot_loop_end:
 	draw_boss_bar();
 
 	JE_inGameDisplays();
+
+	l3d_frame_end();
 
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
 
@@ -3387,7 +3476,7 @@ bool titleScreen(void)
 		do
 		{
 			// Play demo after idle for 30 seconds.
-			if (SDL_GetTicks() - idleStartTick > 30000)
+			if (SDL_GetTicks() - idleStartTick > dev_demo_idle_ms())
 			{
 				fade_black(15);
 
@@ -3778,7 +3867,7 @@ void intro_logos(void)
 {
 	moveTyrianLogoUp = true;
 
-	SDL_FillRect(VGAScreen, NULL, 0);
+	SDL_FillSurfaceRect(VGAScreen, NULL, 0);
 
 	fade_white(25);
 

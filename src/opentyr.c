@@ -27,6 +27,8 @@
 #include "fonthand.h"
 #include "helptext.h"
 #include "joystick.h"
+#include "layer3d.h"
+#include "models3d.h"
 #include "jukebox.h"
 #include "keyboard.h"
 #include "loudness.h"
@@ -48,7 +50,7 @@
 #include "video_scale.h"
 #include "xmas.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -61,7 +63,9 @@ const char *opentyrian_version = OPENTYRIAN_VERSION;
 
 static size_t getDisplayPickerItemsCount(void)
 {
-	return 1 + (size_t)SDL_GetNumVideoDisplays();
+	int count = 0;
+	SDL_free(SDL_GetDisplays(&count));
+	return 1 + (size_t)count;
 }
 
 static const char *getDisplayPickerItem(size_t i, char *buffer, size_t bufferSize)
@@ -758,11 +762,14 @@ int main(int argc, char *argv[])
 	printf("This is free software, and you are welcome to redistribute it\n");
 	printf("under certain conditions.  See the file COPYING for details.\n\n");
 
-	if (SDL_Init(0))
+	if (!SDL_Init(0))
 	{
 		printf("Failed to initialize SDL: %s\n", SDL_GetError());
 		return -1;
 	}
+
+	l3d_enabled = SDL_getenv("TYR3D_2D") == NULL;
+	m3d_init();
 
 	// Note for this reorganization:
 	// Tyrian 2000 requires help text to be loaded before the configuration,

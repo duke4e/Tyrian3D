@@ -212,7 +212,7 @@ bool load_opentyrian_config(void)
 {
 	// defaults
 	fullscreen_display = -1;
-	set_scaler_by_name("Scale2x");
+	set_scaler_by_name("3x");
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));
 	
@@ -850,18 +850,18 @@ void JE_loadConfiguration(void)
 		for (z = 0; z < SAVE_FILES_NUM; z++)
 		{
 			memcpy(&saveFiles[z].encode, p, sizeof(JE_word)); p += 2;
-			saveFiles[z].encode = SDL_SwapLE16(saveFiles[z].encode);
+			saveFiles[z].encode = SDL_Swap16LE(saveFiles[z].encode);
 			
 			memcpy(&saveFiles[z].level, p, sizeof(JE_word)); p += 2;
-			saveFiles[z].level = SDL_SwapLE16(saveFiles[z].level);
+			saveFiles[z].level = SDL_Swap16LE(saveFiles[z].level);
 			
 			memcpy(&saveFiles[z].items, p, sizeof(JE_PItemsType)); p += sizeof(JE_PItemsType);
 			
 			memcpy(&saveFiles[z].score, p, sizeof(JE_longint)); p += 4;
-			saveFiles[z].score = SDL_SwapLE32(saveFiles[z].score);
+			saveFiles[z].score = SDL_Swap32LE(saveFiles[z].score);
 			
 			memcpy(&saveFiles[z].score2, p, sizeof(JE_longint)); p += 4;
-			saveFiles[z].score2 = SDL_SwapLE32(saveFiles[z].score2);
+			saveFiles[z].score2 = SDL_Swap32LE(saveFiles[z].score2);
 			
 			/* SYN: Pascal strings are prefixed by a byte holding the length! */
 			memset(&saveFiles[z].levelName, 0, sizeof(saveFiles[z].levelName));
@@ -889,10 +889,10 @@ void JE_loadConfiguration(void)
 			memcpy(&saveFiles[z].initialDifficulty, p, sizeof(JE_byte)); p++;
 			
 			memcpy(&saveFiles[z].highScore1, p, sizeof(JE_longint)); p += 4;
-			saveFiles[z].highScore1 = SDL_SwapLE32(saveFiles[z].highScore1);
+			saveFiles[z].highScore1 = SDL_Swap32LE(saveFiles[z].highScore1);
 			
 			memcpy(&saveFiles[z].highScore2, p, sizeof(JE_longint)); p += 4;
-			saveFiles[z].highScore2 = SDL_SwapLE32(saveFiles[z].highScore2);
+			saveFiles[z].highScore2 = SDL_Swap32LE(saveFiles[z].highScore2);
 			
 			memset(&saveFiles[z].highScoreName, 0, sizeof(saveFiles[z].highScoreName));
 			memcpy(&saveFiles[z].highScoreName, &p[1], *p);
@@ -913,7 +913,7 @@ void JE_loadConfiguration(void)
 			for (y = 0; y < 3; ++y)
 			{
 				fread_s32_die(&t2kHighScores[z][y].score, 1, fi);
-				t2kHighScores[z][y].score = SDL_SwapLE32(t2kHighScores[z][y].score);
+				t2kHighScores[z][y].score = SDL_Swap32LE(t2kHighScores[z][y].score);
 
 				fread_u8_die(&len, 1, fi);
 				fread_die(t2kHighScores[z][y].playerName, 1, 29, fi);
@@ -929,7 +929,7 @@ void JE_loadConfiguration(void)
 			for (y = 0; y < 3; ++y)
 			{
 				fread_s32_die(&t2kHighScores[z][y].score, 1, fi);
-				t2kHighScores[z][y].score = SDL_SwapLE32(t2kHighScores[z][y].score);
+				t2kHighScores[z][y].score = SDL_Swap32LE(t2kHighScores[z][y].score);
 
 				fseek(fi, 4, SEEK_CUR); // Unknown long int that seems to have no effect
 				fread_u8_die(&len, 1, fi);
@@ -1018,18 +1018,18 @@ void JE_saveConfiguration(void)
 		JE_SaveFileType tempSaveFile;
 		memcpy(&tempSaveFile, &saveFiles[z], sizeof(tempSaveFile));
 		
-		tempSaveFile.encode = SDL_SwapLE16(tempSaveFile.encode);
+		tempSaveFile.encode = SDL_Swap16LE(tempSaveFile.encode);
 		memcpy(p, &tempSaveFile.encode, sizeof(JE_word)); p += 2;
 		
-		tempSaveFile.level = SDL_SwapLE16(tempSaveFile.level);
+		tempSaveFile.level = SDL_Swap16LE(tempSaveFile.level);
 		memcpy(p, &tempSaveFile.level, sizeof(JE_word)); p += 2;
 		
 		memcpy(p, &tempSaveFile.items, sizeof(JE_PItemsType)); p += sizeof(JE_PItemsType);
 		
-		tempSaveFile.score = SDL_SwapLE32(tempSaveFile.score);
+		tempSaveFile.score = SDL_Swap32LE(tempSaveFile.score);
 		memcpy(p, &tempSaveFile.score, sizeof(JE_longint)); p += 4;
 		
-		tempSaveFile.score2 = SDL_SwapLE32(tempSaveFile.score2);
+		tempSaveFile.score2 = SDL_Swap32LE(tempSaveFile.score2);
 		memcpy(p, &tempSaveFile.score2, sizeof(JE_longint)); p += 4;
 		
 		/* SYN: Pascal strings are prefixed by a byte holding the length! */
@@ -1057,10 +1057,10 @@ void JE_saveConfiguration(void)
 		
 		memcpy(p, &tempSaveFile.initialDifficulty, sizeof(JE_byte)); p++;
 		
-		tempSaveFile.highScore1 = SDL_SwapLE32(tempSaveFile.highScore1);
+		tempSaveFile.highScore1 = SDL_Swap32LE(tempSaveFile.highScore1);
 		memcpy(p, &tempSaveFile.highScore1, sizeof(JE_longint)); p += 4;
 		
-		tempSaveFile.highScore2 = SDL_SwapLE32(tempSaveFile.highScore2);
+		tempSaveFile.highScore2 = SDL_Swap32LE(tempSaveFile.highScore2);
 		memcpy(p, &tempSaveFile.highScore2, sizeof(JE_longint)); p += 4;
 		
 		memset(p, 0, sizeof(tempSaveFile.highScoreName));
@@ -1095,7 +1095,7 @@ void JE_saveConfiguration(void)
 
 			for (y = 0; y < 3; ++y)
 			{
-				templi = SDL_SwapLE32(t2kHighScores[z][y].score);
+				templi = SDL_Swap32LE(t2kHighScores[z][y].score);
 				len = strlen(t2kHighScores[z][y].playerName);
 				fwrite_s32_die(&templi, f);
 
@@ -1111,7 +1111,7 @@ void JE_saveConfiguration(void)
 
 			for (y = 0; y < 3; ++y)
 			{
-				templi = SDL_SwapLE32(t2kHighScores[z][y].score);
+				templi = SDL_Swap32LE(t2kHighScores[z][y].score);
 				len = strlen(t2kHighScores[z][y].playerName);
 				fwrite_s32_die(&templi, f);
 

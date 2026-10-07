@@ -18,9 +18,13 @@
  */
 #include "video.h"
 
+#include "devtools.h"
 #include "keyboard.h"
 #include "opentyr.h"
+#include "layer3d.h"
+#include "models3d.h"
 #include "palette.h"
+#include "render_gpu.h"
 #include "video_scale.h"
 
 #include <assert.h>
@@ -44,29 +48,56 @@ SDL_Surface *VGAScreen, *VGAScreenSeg;
 SDL_Surface *VGAScreen2;
 SDL_Surface *game_screen;
 
+int screen_overscan_rows = 0;
+
+static bool last_frame_was_3d = false;
+
 SDL_Window *main_window = NULL;
-static SDL_Renderer *main_window_renderer = NULL;
-SDL_PixelFormat *main_window_tex_format = NULL;
-static SDL_Texture *main_window_texture = NULL;
 
-static ScalerFunction scaler_function;
+static SDL_DisplayID display_id_from_index(int display_index);
+static void window_center_in_display(SDL_DisplayID display);
+static void calc_dst_render_rect(SDL_Rect *dst_rect);
+static void present_screen(SDL_Surface *);
 
-static void init_renderer(void);
-static void deinit_renderer(void);
-static void init_texture(void);
-static void deinit_texture(void);
+// A screen surface whose pixels are preceded by SCREEN_OVERSCAN_MAX rows of memory.
+static SDL_Surface *create_overscan_screen_surface(void)
+{
+	Uint8 *buffer = calloc((size_t)vga_width * (vga_height + SCREEN_OVERSCAN_MAX), 1);
+	SDL_Surface *surface = buffer != NULL
+		? SDL_CreateSurfaceFrom(vga_width, vga_height, SDL_PIXELFORMAT_INDEX8, buffer + SCREEN_OVERSCAN_MAX * vga_width, vga_width)
+		: NULL;
+	if (surface == NULL)
+	{
+		fprintf(stderr, "error: failed to create screen surface: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	return surface;
+}
 
-static int window_get_display_index(void);
-static void window_center_in_display(int display_index);
-static void calc_dst_render_rect(SDL_Surface *src_surface, SDL_Rect *dst_rect);
-static void scale_and_flip(SDL_Surface *);
+static void destroy_overscan_screen_surface(SDL_Surface *surface)
+{
+	Uint8 *buffer = (Uint8 *)surface->pixels - SCREEN_OVERSCAN_MAX * surface->pitch;
+	SDL_DestroySurface(surface);
+	free(buffer);
+}
+
+static SDL_Surface *create_screen_surface(void)
+{
+	SDL_Surface *surface = SDL_CreateSurface(vga_width, vga_height, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL)
+	{
+		fprintf(stderr, "error: failed to create screen surface: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+	return surface;
+}
 
 void init_video(void)
 {
 	if (SDL_WasInit(SDL_INIT_VIDEO))
 		return;
 
-	if (SDL_InitSubSystem(SDL_INIT_VIDEO) == -1)
+	if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
 	{
 		fprintf(stderr, "error: failed to initialize SDL video: %s\n", SDL_GetError());
 		exit(1);
@@ -74,9 +105,10 @@ void init_video(void)
 
 	// Create the software surfaces that the game renders to. These are all 320x200x8 regardless
 	// of the window size or monitor resolution.
-	VGAScreen = VGAScreenSeg = SDL_CreateRGBSurface(0, vga_width, vga_height, 8, 0, 0, 0, 0);
-	VGAScreen2 = SDL_CreateRGBSurface(0, vga_width, vga_height, 8, 0, 0, 0, 0);
-	game_screen = SDL_CreateRGBSurface(0, vga_width, vga_height, 8, 0, 0, 0, 0);
+	VGAScreen = VGAScreenSeg = create_screen_surface();
+	VGAScreen2 = create_overscan_screen_surface();
+	game_screen = create_overscan_screen_surface();
+	screen_overscan_rows = l3d_enabled ? SCREEN_OVERSCAN_MAX : 0;
 
 	// The game code writes to surface->pixels directly without locking, so make sure that we
 	// indeed created software surfaces that support this.
@@ -86,136 +118,80 @@ void init_video(void)
 
 	JE_clr256(VGAScreen);
 
-	// Create the window with a temporary initial size, hidden until we set up the
-	// scaler and find the true window size
-	main_window = SDL_CreateWindow(opentyrian_str,
-		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-		vga_width, vga_height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
-
-	if (main_window == NULL)
-	{
-		fprintf(stderr, "error: failed to create window: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
+	main_window = rgpu_init(opentyrian_str, scalers[scaler].width, scalers[scaler].height);
 
 	reinit_fullscreen(fullscreen_display);
-	init_renderer();
-	init_texture();
-	init_scaler(scaler);
 
 	SDL_ShowWindow(main_window);
 
-	SDL_SetRenderDrawColor(main_window_renderer, 0, 0, 0, 255);
-	SDL_RenderClear(main_window_renderer);
-	SDL_RenderPresent(main_window_renderer);
+	JE_showVGA();
 }
 
 void deinit_video(void)
 {
-	deinit_texture();
-	deinit_renderer();
+	rgpu_shutdown();  // destroys the window
+	main_window = NULL;
 
-	SDL_DestroyWindow(main_window);
-
-	SDL_FreeSurface(VGAScreenSeg);
-	SDL_FreeSurface(VGAScreen2);
-	SDL_FreeSurface(game_screen);
+	SDL_DestroySurface(VGAScreenSeg);
+	destroy_overscan_screen_surface(VGAScreen2);
+	destroy_overscan_screen_surface(game_screen);
 
 	SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
-static void init_renderer(void)
+static SDL_DisplayID display_id_from_index(int display_index)
 {
-	main_window_renderer = SDL_CreateRenderer(main_window, -1, 0);
-
-	if (main_window_renderer == NULL)
-	{
-		fprintf(stderr, "error: failed to create renderer: %s\n", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
+	int count = 0;
+	SDL_DisplayID *displays = SDL_GetDisplays(&count);
+	SDL_DisplayID id = 0;
+	if (displays != NULL && count > 0)
+		id = displays[(display_index >= 0 && display_index < count) ? display_index : 0];
+	SDL_free(displays);
+	return id;
 }
 
-static void deinit_renderer(void)
+static int display_index_from_id(SDL_DisplayID id)
 {
-	if (main_window_renderer != NULL)
-	{
-		SDL_DestroyRenderer(main_window_renderer);
-		main_window_renderer = NULL;
-	}
+	int count = 0;
+	SDL_DisplayID *displays = SDL_GetDisplays(&count);
+	int index = 0;
+	for (int i = 0; displays != NULL && i < count; ++i)
+		if (displays[i] == id)
+			index = i;
+	SDL_free(displays);
+	return index;
 }
 
-static void init_texture(void)
+static void window_center_in_display(SDL_DisplayID display)
 {
-	assert(main_window_renderer != NULL);
-
-	int bpp = 32; // TODOSDL2
-	Uint32 format = bpp == 32 ? SDL_PIXELFORMAT_RGB888 : SDL_PIXELFORMAT_RGB565;
-	int scaler_w = scalers[scaler].width;
-	int scaler_h = scalers[scaler].height;
-
-	main_window_tex_format = SDL_AllocFormat(format);
-
-	main_window_texture = SDL_CreateTexture(main_window_renderer, format, SDL_TEXTUREACCESS_STREAMING, scaler_w, scaler_h);
-
-	if (main_window_texture == NULL)
-	{
-		fprintf(stderr, "error: failed to create scaler texture %dx%dx%s: %s\n", scaler_w, scaler_h, SDL_GetPixelFormatName(format), SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-}
-
-static void deinit_texture(void)
-{
-	if (main_window_texture != NULL)
-	{
-		SDL_DestroyTexture(main_window_texture);
-		main_window_texture = NULL;
-	}
-
-	if (main_window_tex_format != NULL)
-	{
-		SDL_FreeFormat(main_window_tex_format);
-		main_window_tex_format = NULL;
-	}
-}
-
-static int window_get_display_index(void)
-{
-	return SDL_GetWindowDisplayIndex(main_window);
-}
-
-static void window_center_in_display(int display_index)
-{
-	int win_w, win_h;
-	SDL_GetWindowSize(main_window, &win_w, &win_h);
-
-	SDL_Rect bounds;
-	SDL_GetDisplayBounds(display_index, &bounds);
-
-	SDL_SetWindowPosition(main_window, bounds.x + (bounds.w - win_w) / 2, bounds.y + (bounds.h - win_h) / 2);
+	SDL_SetWindowPosition(main_window, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
 }
 
 void reinit_fullscreen(int new_display)
 {
+	int count = 0;
+	SDL_free(SDL_GetDisplays(&count));
+
 	fullscreen_display = new_display;
 
-	if (fullscreen_display >= SDL_GetNumVideoDisplays())
+	if (fullscreen_display >= count)
 	{
 		fullscreen_display = 0;
 	}
 
-	SDL_SetWindowFullscreen(main_window, SDL_FALSE);
+	SDL_SetWindowFullscreen(main_window, false);
 	SDL_SetWindowSize(main_window, scalers[scaler].width, scalers[scaler].height);
 
 	if (fullscreen_display == -1)
 	{
-		window_center_in_display(window_get_display_index());
+		window_center_in_display(SDL_GetDisplayForWindow(main_window));
 	}
 	else
 	{
-		window_center_in_display(fullscreen_display);
+		window_center_in_display(display_id_from_index(fullscreen_display));
 
-		if (SDL_SetWindowFullscreen(main_window, SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+		SDL_SetWindowFullscreenMode(main_window, NULL); // borderless desktop fullscreen
+		if (!SDL_SetWindowFullscreen(main_window, true))
 		{
 			reinit_fullscreen(-1);
 			return;
@@ -228,12 +204,11 @@ void video_on_win_resize(void)
 	int w, h;
 	int scaler_w, scaler_h;
 
-	// Tell video to reinit if the window was manually resized by the user.
-	// Also enforce a minimum size on the window.
+	// Enforce a minimum size on the window.
 
 	SDL_GetWindowSize(main_window, &w, &h);
-	scaler_w = scalers[scaler].width;
-	scaler_h = scalers[scaler].height;
+	scaler_w = vga_width;
+	scaler_h = vga_height;
 
 	if (w < scaler_w || h < scaler_h)
 	{
@@ -249,45 +224,22 @@ void toggle_fullscreen(void)
 	if (fullscreen_display != -1)
 		reinit_fullscreen(-1);
 	else
-		reinit_fullscreen(SDL_GetWindowDisplayIndex(main_window));
+		reinit_fullscreen(display_index_from_id(SDL_GetDisplayForWindow(main_window)));
 }
 
 bool init_scaler(unsigned int new_scaler)
 {
-	int w = scalers[new_scaler].width,
-	    h = scalers[new_scaler].height;
-	int bpp = main_window_tex_format->BitsPerPixel; // TODOSDL2
+	if (new_scaler >= scalers_count)
+		return false;
 
 	scaler = new_scaler;
-
-	deinit_texture();
-	init_texture();
 
 	if (fullscreen_display == -1)
 	{
 		// Changing scalers, when not in fullscreen mode, forces the window
 		// to resize to exactly match the scaler's output dimensions.
-		SDL_SetWindowSize(main_window, w, h);
-		window_center_in_display(window_get_display_index());
-	}
-
-	switch (bpp)
-	{
-	case 32:
-		scaler_function = scalers[scaler].scaler32;
-		break;
-	case 16:
-		scaler_function = scalers[scaler].scaler16;
-		break;
-	default:
-		scaler_function = NULL;
-		break;
-	}
-
-	if (scaler_function == NULL)
-	{
-		assert(false);
-		return false;
+		SDL_SetWindowSize(main_window, scalers[scaler].width, scalers[scaler].height);
+		window_center_in_display(SDL_GetDisplayForWindow(main_window));
 	}
 
 	return true;
@@ -308,18 +260,17 @@ bool set_scaling_mode_by_name(const char *name)
 
 void JE_clr256(SDL_Surface *screen)
 {
-	SDL_FillRect(screen, NULL, 0);
+	SDL_FillSurfaceRect(screen, NULL, 0);
 }
 
-void JE_showVGA(void) 
-{ 
-	scale_and_flip(VGAScreen); 
-}
-
-static void calc_dst_render_rect(SDL_Surface *const src_surface, SDL_Rect *const dst_rect)
+void JE_showVGA(void)
 {
-	// Decides how the logical output texture (after software scaling applied) will fit
-	// in the window.
+	present_screen(VGAScreen);
+}
+
+static void calc_dst_render_rect(SDL_Rect *const dst_rect)
+{
+	// Decides how the logical 320x200 output will fit in the window (in window coordinates).
 
 	int win_w, win_h;
 	SDL_GetWindowSize(main_window, &win_w, &win_h);
@@ -329,15 +280,16 @@ static void calc_dst_render_rect(SDL_Surface *const src_surface, SDL_Rect *const
 	switch (scaling_mode)
 	{
 	case SCALE_CENTER:
-		SDL_QueryTexture(main_window_texture, NULL, NULL, &dst_rect->w, &dst_rect->h);
+		dst_rect->w = scalers[scaler].width;
+		dst_rect->h = scalers[scaler].height;
 		break;
 	case SCALE_INTEGER:
-		dst_rect->w = src_surface->w;
-		dst_rect->h = src_surface->h;
-		while (dst_rect->w + src_surface->w <= win_w && dst_rect->h + src_surface->h <= win_h)
+		dst_rect->w = vga_width;
+		dst_rect->h = vga_height;
+		while (dst_rect->w + vga_width <= win_w && dst_rect->h + vga_height <= win_h)
 		{
-			dst_rect->w += src_surface->w;
-			dst_rect->h += src_surface->h;
+			dst_rect->w += vga_width;
+			dst_rect->h += vga_height;
 		}
 		break;
 	case SCALE_ASPECT_8_5:
@@ -379,25 +331,87 @@ static void calc_dst_render_rect(SDL_Surface *const src_surface, SDL_Rect *const
 	dst_rect->y = (win_h - dst_rect->h) / 2;
 }
 
-static void scale_and_flip(SDL_Surface *src_surface)
+static void present_screen(SDL_Surface *src_surface)
 {
-	assert(src_surface->format->BitsPerPixel == 8);
-
-	// Do software scaling
-	assert(scaler_function != NULL);
-	scaler_function(src_surface, main_window_texture);
+	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
 
 	SDL_Rect dst_rect;
-	calc_dst_render_rect(src_surface, &dst_rect);
+	calc_dst_render_rect(&dst_rect);
 
-	// Clear the window and blit the output texture to it
-	SDL_SetRenderDrawColor(main_window_renderer, 0, 0, 0, 255);
-	SDL_RenderClear(main_window_renderer);
-	SDL_RenderCopy(main_window_renderer, main_window_texture, NULL, &dst_rect);
-	SDL_RenderPresent(main_window_renderer);
+	rgpu_present_2d(src_surface, &dst_rect);
 
 	// Save output rect to be used by mouse functions
 	last_output_rect = dst_rect;
+	last_frame_was_3d = false;
+}
+
+void JE_showVGA3D(void)
+{
+	SDL_Rect dst_rect;
+	calc_dst_render_rect(&dst_rect);
+
+	rgpu_present_3d(VGAScreenSeg, &l3d_frame, &dst_rect);
+
+	last_output_rect = dst_rect;
+	last_frame_was_3d = true;
+}
+
+static void set_3d_enabled(bool enabled)
+{
+	l3d_enabled = enabled;
+	screen_overscan_rows = enabled ? SCREEN_OVERSCAN_MAX : 0;
+	printf("view: %s\n", enabled ? "3D" : "2D");
+}
+
+static void print_camera(void)
+{
+	printf("camera: tilt %.1f deg, fov %.1f deg, height scale %.2f\n",
+	       rgpu_camera.tilt_degrees, rgpu_camera.fov_degrees, rgpu_camera.height_scale);
+}
+
+bool video_handle_key(SDL_Scancode scancode)
+{
+	if (scancode == SDL_SCANCODE_F3)
+	{
+		set_3d_enabled(!l3d_enabled);
+		return true;
+	}
+	if (scancode == SDL_SCANCODE_F4 && m3d_model_count > 0)
+	{
+		m3d_enabled = !m3d_enabled;
+		printf("models: %s\n", m3d_enabled ? "on" : "off");
+		return true;
+	}
+
+	// Camera keys only while the 3D view is on screen; menus use some of them.
+	if (!l3d_enabled || !last_frame_was_3d)
+		return false;
+
+	switch (scancode)
+	{
+	case SDL_SCANCODE_PAGEUP:
+		rgpu_camera.tilt_degrees = SDL_min(rgpu_camera.tilt_degrees + 2.5f, 60.0f);
+		break;
+	case SDL_SCANCODE_PAGEDOWN:
+		rgpu_camera.tilt_degrees = SDL_max(rgpu_camera.tilt_degrees - 2.5f, 0.0f);
+		break;
+	case SDL_SCANCODE_HOME:
+		rgpu_camera.fov_degrees = SDL_min(rgpu_camera.fov_degrees + 2.5f, 90.0f);
+		break;
+	case SDL_SCANCODE_END:
+		rgpu_camera.fov_degrees = SDL_max(rgpu_camera.fov_degrees - 2.5f, 5.0f);
+		break;
+	case SDL_SCANCODE_INSERT:
+		rgpu_camera.height_scale = SDL_min(rgpu_camera.height_scale + 0.25f, 4.0f);
+		break;
+	case SDL_SCANCODE_DELETE:
+		rgpu_camera.height_scale = SDL_max(rgpu_camera.height_scale - 0.25f, 0.0f);
+		break;
+	default:
+		return false;
+	}
+	print_camera();
+	return true;
 }
 
 /** Maps a specified point in game screen coordinates to window coordinates. */

@@ -21,7 +21,7 @@
 
 #include "opentyr.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #include <stdbool.h>
 
@@ -35,12 +35,12 @@ extern Uint8 lastmouse_but;
 extern Sint32 lastmouse_x, lastmouse_y;
 extern JE_boolean mouse_pressed[4];
 extern Sint32 mouse_x, mouse_y;
-extern Uint8 keysactive[SDL_NUM_SCANCODES];
+extern Uint8 keysactive[SDL_SCANCODE_COUNT];
 
 extern bool windowHasFocus;
 
 extern bool new_text;
-extern char last_text[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+extern char last_text[32];
 
 void flush_events_buffer(void);
 void wait_input(JE_boolean keyboard, JE_boolean mouse, JE_boolean joystick);

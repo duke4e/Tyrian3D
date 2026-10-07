@@ -1,6 +1,6 @@
-/* 
+/*
  * OpenTyrian: A modern cross-platform port of Tyrian
- * Copyright (C) 2007-2010  The OpenTyrian Development Team
+ * Copyright (C) 2007-2009  The OpenTyrian Development Team
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,14 +21,10 @@
 
 #include "opentyr.h"
 
-#include "SDL.h"
-
-typedef void (*ScalerFunction)(SDL_Surface *src, SDL_Texture *dst);
-
+// Scaling is done on the GPU; a "scaler" now only selects the initial window size.
 struct Scalers
 {
 	int width, height;
-	ScalerFunction scaler16, scaler32;
 	const char *name;
 };
 

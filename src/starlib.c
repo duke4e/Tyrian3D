@@ -153,7 +153,7 @@ void JE_starlib_main(void)
 	{
 		char key = 0;
 
-		if ((lastkey_mod & (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT | KMOD_GUI)) == KMOD_NONE)
+		if ((lastkey_mod & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI)) == SDL_KMOD_NONE)
 		{
 			switch (lastkey_scan)
 			{
@@ -191,8 +191,8 @@ void JE_starlib_main(void)
 			default: break;
 			}
 		}
-		else if ((lastkey_mod & KMOD_SHIFT) != KMOD_NONE &&
-		         (lastkey_mod & (KMOD_CTRL | KMOD_ALT | KMOD_GUI)) == KMOD_NONE)
+		else if ((lastkey_mod & SDL_KMOD_SHIFT) != SDL_KMOD_NONE &&
+		         (lastkey_mod & (SDL_KMOD_CTRL | SDL_KMOD_ALT | SDL_KMOD_GUI)) == SDL_KMOD_NONE)
 		{
 			switch (lastkey_scan)
 			{

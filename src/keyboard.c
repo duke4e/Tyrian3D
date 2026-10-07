@@ -26,7 +26,7 @@
 #include "video.h"
 #include "video_scale.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #include <stdio.h>
 
@@ -42,10 +42,10 @@ Sint32 mouse_x, mouse_y;
 
 bool windowHasFocus;
 
-Uint8 keysactive[SDL_NUM_SCANCODES];
+Uint8 keysactive[SDL_SCANCODE_COUNT];
 
 bool new_text;
-char last_text[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+char last_text[32];
 
 static bool mouseRelativeEnabled;
 
@@ -99,16 +99,14 @@ void init_keyboard(void)
 	newkey = newmouse = false;
 	keydown = mousedown = false;
 
-	SDL_ShowCursor(SDL_FALSE);
+	SDL_HideCursor();
 
-#if SDL_VERSION_ATLEAST(2, 26, 0)
 	SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_SYSTEM_SCALE, "1");
-#endif
 }
 
 void mouseSetRelative(bool enable)
 {
-	SDL_SetRelativeMouseMode(enable && windowHasFocus);
+	SDL_SetWindowRelativeMouseMode(main_window, enable && windowHasFocus);
 
 	mouseRelativeEnabled = enable;
 
@@ -151,53 +149,51 @@ void service_SDL_events(JE_boolean clear_new)
 	{
 		switch (ev.type)
 		{
-			case SDL_WINDOWEVENT:
-				switch (ev.window.event)
-				{
-				case SDL_WINDOWEVENT_FOCUS_LOST:
-					windowHasFocus = false;
+			case SDL_EVENT_WINDOW_FOCUS_LOST:
+				windowHasFocus = false;
 
-					mouseSetRelative(mouseRelativeEnabled);
-					break;
-
-				case SDL_WINDOWEVENT_FOCUS_GAINED:
-					windowHasFocus = true;
-
-					mouseSetRelative(mouseRelativeEnabled);
-					break;
-
-				case SDL_WINDOWEVENT_RESIZED:
-					video_on_win_resize();
-					break;
-				}
+				mouseSetRelative(mouseRelativeEnabled);
 				break;
 
-			case SDL_KEYDOWN:
+			case SDL_EVENT_WINDOW_FOCUS_GAINED:
+				windowHasFocus = true;
+
+				mouseSetRelative(mouseRelativeEnabled);
+				break;
+
+			case SDL_EVENT_WINDOW_RESIZED:
+				video_on_win_resize();
+				break;
+
+			case SDL_EVENT_KEY_DOWN:
 				/* <alt><enter> toggle fullscreen */
-				if (ev.key.keysym.mod & KMOD_ALT && ev.key.keysym.scancode == SDL_SCANCODE_RETURN)
+				if (ev.key.mod & SDL_KMOD_ALT && ev.key.scancode == SDL_SCANCODE_RETURN)
 				{
 					toggle_fullscreen();
 					break;
 				}
 
-				keysactive[ev.key.keysym.scancode] = 1;
+				if (!ev.key.repeat && video_handle_key(ev.key.scancode))
+					break;
+
+				keysactive[ev.key.scancode] = 1;
 
 				newkey = true;
-				lastkey_scan = ev.key.keysym.scancode;
-				lastkey_mod = ev.key.keysym.mod;
+				lastkey_scan = ev.key.scancode;
+				lastkey_mod = ev.key.mod;
 				keydown = true;
 
 				mouseInactive = true;
 				return;
 
-			case SDL_KEYUP:
-				keysactive[ev.key.keysym.scancode] = 0;
+			case SDL_EVENT_KEY_UP:
+				keysactive[ev.key.scancode] = 0;
 				keydown = false;
 				return;
 
-			case SDL_MOUSEMOTION:
-				mouse_x = ev.motion.x;
-				mouse_y = ev.motion.y;
+			case SDL_EVENT_MOUSE_MOTION:
+				mouse_x = (Sint32)ev.motion.x;
+				mouse_y = (Sint32)ev.motion.y;
 				mapWindowPointToScreen(&mouse_x, &mouse_y);
 
 				if (mouseRelativeEnabled && windowHasFocus)
@@ -207,25 +203,34 @@ void service_SDL_events(JE_boolean clear_new)
 				}
 
 				// Show system mouse pointer if outside screen.
-				SDL_ShowCursor(mouse_x < 0 || mouse_x >= vga_width ||
-				               mouse_y < 0 || mouse_y >= vga_height ? SDL_TRUE : SDL_FALSE);
+				if (mouse_x < 0 || mouse_x >= vga_width || mouse_y < 0 || mouse_y >= vga_height)
+					SDL_ShowCursor();
+				else
+					SDL_HideCursor();
 
 				if (ev.motion.xrel != 0 || ev.motion.yrel != 0)
 					mouseInactive = false;
 				break;
 
-			case SDL_MOUSEBUTTONDOWN:
+			case SDL_EVENT_MOUSE_BUTTON_DOWN:
 				mouseInactive = false;
 
 				// fall through
-			case SDL_MOUSEBUTTONUP:
-				mapWindowPointToScreen(&ev.button.x, &ev.button.y);
-				if (ev.type == SDL_MOUSEBUTTONDOWN)
+			case SDL_EVENT_MOUSE_BUTTON_UP:
+				{
+					Sint32 button_x = (Sint32)ev.button.x;
+					Sint32 button_y = (Sint32)ev.button.y;
+					mapWindowPointToScreen(&button_x, &button_y);
+					if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+					{
+						lastmouse_x = button_x;
+						lastmouse_y = button_y;
+					}
+				}
+				if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
 				{
 					newmouse = true;
 					lastmouse_but = ev.button.button;
-					lastmouse_x = ev.button.x;
-					lastmouse_y = ev.button.y;
 					mousedown = true;
 				}
 				else
@@ -264,15 +269,15 @@ void service_SDL_events(JE_boolean clear_new)
 				}
 				break;
 
-			case SDL_TEXTINPUT:
+			case SDL_EVENT_TEXT_INPUT:
 				SDL_strlcpy(last_text, ev.text.text, COUNTOF(last_text));
 				new_text = true;
 				break;
 
-			case SDL_TEXTEDITING:
+			case SDL_EVENT_TEXT_EDITING:
 				break;
 
-			case SDL_QUIT:
+			case SDL_EVENT_QUIT:
 				/* TODO: Call the cleanup code here. */
 				exit(0);
 				break;

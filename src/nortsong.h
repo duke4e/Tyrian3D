@@ -24,7 +24,7 @@
 #include "musmast.h"
 #include "sndmast.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 extern JE_word frameCountMax;
 

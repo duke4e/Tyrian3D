@@ -21,7 +21,7 @@
 
 #include "opentyr.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 #define vga_width 320
 #define vga_height 200
@@ -43,8 +43,30 @@ extern SDL_Surface *VGAScreen, *VGAScreenSeg;
 extern SDL_Surface *game_screen;
 extern SDL_Surface *VGAScreen2;
 
+// game_screen and VGAScreen2 have rows of memory above row 0. When the 3D view is active the
+// game also draws into them (backgrounds and enemies above the top edge), since the tilted
+// camera sees past the top of the original screen.
+#define SCREEN_OVERSCAN_MAX 64
+extern int screen_overscan_rows;
+
+static inline bool surface_has_overscan(const SDL_Surface *surface)
+{
+	return surface == game_screen || surface == VGAScreen2;
+}
+
+// Topmost row that may be drawn to (0, or negative with overscan).
+static inline int surface_top(const SDL_Surface *surface)
+{
+	return surface_has_overscan(surface) ? -screen_overscan_rows : 0;
+}
+
+// Lowest pixel address that may be drawn to.
+static inline Uint8 *surface_pixels_ll(const SDL_Surface *surface)
+{
+	return (Uint8 *)surface->pixels + surface_top(surface) * surface->pitch;
+}
+
 extern SDL_Window *main_window;
-extern SDL_PixelFormat *main_window_tex_format;
 
 void init_video(void);
 
@@ -58,6 +80,10 @@ void deinit_video(void);
 
 void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
+void JE_showVGA3D(void);
+
+// Tyrian3D view controls (2D/3D toggle, camera). Returns true if the key was consumed.
+bool video_handle_key(SDL_Scancode scancode);  // presents the captured 3D layers with the HUD from VGAScreenSeg
 
 void mapScreenPointToWindow(Sint32 *inout_x, Sint32 *inout_y);
 void mapWindowPointToScreen(Sint32 *inout_x, Sint32 *inout_y);

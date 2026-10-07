@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Arrange BMP frame dumps into a single PNG grid (stdlib only).
+
+usage: tools/montage.py out.png columns scale in1.bmp in2.bmp ...
+"""
+import struct
+import sys
+import zlib
+
+
+def read_bmp(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    offset = struct.unpack_from("<I", data, 10)[0]
+    width, height = struct.unpack_from("<ii", data, 18)
+    bpp = struct.unpack_from("<H", data, 28)[0]
+    compression = struct.unpack_from("<I", data, 30)[0]
+    masks = None
+    if compression == 3 or compression == 6:  # BI_BITFIELDS / BI_ALPHABITFIELDS
+        masks = struct.unpack_from("<IIII", data, 54)
+    bottom_up = height > 0
+    height = abs(height)
+    stride = ((width * bpp + 31) // 32) * 4
+    pixels = []
+    for row in range(height):
+        src_row = (height - 1 - row) if bottom_up else row
+        base = offset + src_row * stride
+        line = []
+        for x in range(width):
+            if bpp == 32:
+                (value,) = struct.unpack_from("<I", data, base + x * 4)
+                if masks:
+                    def channel(mask):
+                        if mask == 0:
+                            return 255
+                        shift = (mask & -mask).bit_length() - 1
+                        return (value & mask) >> shift
+                    line.append((channel(masks[0]), channel(masks[1]), channel(masks[2])))
+                else:
+                    line.append(((value >> 16) & 255, (value >> 8) & 255, value & 255))
+            elif bpp == 24:
+                b, g, r = data[base + x * 3: base + x * 3 + 3]
+                line.append((r, g, b))
+            else:
+                raise ValueError(f"unsupported bpp {bpp} in {path}")
+        pixels.append(line)
+    return width, height, pixels
+
+
+def write_png(path, width, height, rows):
+    raw = b"".join(b"\x00" + bytes(c for px in row for c in px) for row in rows)
+
+    def chunk(tag, payload):
+        return struct.pack(">I", len(payload)) + tag + payload + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+
+    png = b"\x89PNG\r\n\x1a\n"
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(raw, 6))
+    png += chunk(b"IEND", b"")
+    with open(path, "wb") as f:
+        f.write(png)
+
+
+def main():
+    out, columns, scale = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    images = [read_bmp(p) for p in sys.argv[4:]]
+    cell_w = max(w for w, _, _ in images) * scale
+    cell_h = max(h for _, h, _ in images) * scale
+    gap = 4
+    rows_n = (len(images) + columns - 1) // columns
+    width = columns * cell_w + (columns - 1) * gap
+    height = rows_n * cell_h + (rows_n - 1) * gap
+    canvas = [[(40, 40, 40)] * width for _ in range(height)]
+    for i, (w, h, px) in enumerate(images):
+        ox = (i % columns) * (cell_w + gap)
+        oy = (i // columns) * (cell_h + gap)
+        for y in range(h * scale):
+            row = canvas[oy + y]
+            src = px[y // scale]
+            for x in range(w * scale):
+                row[ox + x] = src[x // scale]
+    write_png(out, width, height, canvas)
+
+
+if __name__ == "__main__":
+    main()

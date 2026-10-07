@@ -85,7 +85,7 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 
 		setDelay(1);
 
-		SDL_FillRect(VGAScreenSeg, NULL, 0);
+		SDL_FillSurfaceRect(VGAScreenSeg, NULL, 0);
 
 		// starlib input needs to be rewritten
 		JE_starlib_main();

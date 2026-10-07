@@ -28,7 +28,7 @@
 #include "sndmast.h"
 #include "vga256d.h"
 
-#include "SDL.h"
+#include <SDL3/SDL.h>
 
 JE_word frameCountMax;
 
@@ -194,29 +194,15 @@ void loadSndFile(bool xmas)
 
 	// Convert samples to output sample format and rate.
 
-	SDL_AudioCVT cvt;
-	if (SDL_BuildAudioCVT(&cvt, AUDIO_S8, 1, 11025, AUDIO_S16SYS, 1, audioSampleRate) < 0)
-	{
-		fprintf(stderr, "error: Failed to build audio converter: %s\n", SDL_GetError());
-
-		for (int i = 0; i < SOUND_COUNT; ++i)
-			soundSampleCount[i] = 0;
-
-		return;
-	}
-
-	size_t maxSampleSize = 0;
-	for (size_t i = 0; i < SOUND_COUNT; ++i)
-		maxSampleSize = MAX(maxSampleSize, soundSampleCount[i]);
-
-	cvt.buf = malloc(maxSampleSize * cvt.len_mult);
+	const SDL_AudioSpec srcSpec = { .format = SDL_AUDIO_S8, .channels = 1, .freq = 11025 };
+	const SDL_AudioSpec dstSpec = { .format = SDL_AUDIO_S16, .channels = 1, .freq = audioSampleRate };
 
 	for (size_t i = 0; i < SOUND_COUNT; ++i)
 	{
-		cvt.len = soundSampleCount[i];
-		memcpy(cvt.buf, soundSamples[i], cvt.len);
+		Uint8 *converted = NULL;
+		int convertedSize = 0;
 
-		if (SDL_ConvertAudio(&cvt))
+		if (!SDL_ConvertAudioSamples(&srcSpec, (const Uint8 *)soundSamples[i], (int)soundSampleCount[i], &dstSpec, &converted, &convertedSize))
 		{
 			fprintf(stderr, "error: Failed to convert audio: %s\n", SDL_GetError());
 
@@ -226,13 +212,13 @@ void loadSndFile(bool xmas)
 		}
 
 		free(soundSamples[i]);
-		soundSamples[i] = malloc(cvt.len_cvt);
+		soundSamples[i] = malloc(convertedSize);
 
-		memcpy(soundSamples[i], cvt.buf, cvt.len_cvt);
-		soundSampleCount[i] = cvt.len_cvt / sizeof (Sint16);
+		memcpy(soundSamples[i], converted, convertedSize);
+		soundSampleCount[i] = convertedSize / sizeof (Sint16);
+
+		SDL_free(converted);
 	}
-
-	free(cvt.buf);
 
 	return;
 
