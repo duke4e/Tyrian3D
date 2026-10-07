@@ -83,11 +83,11 @@ static float env_float(const char *name, float fallback)
 	return value != NULL ? (float)SDL_atof(value) : fallback;
 }
 
-// Clears a screen surface including its overscan rows, which the 3D view shows too.
-static void clear_with_overscan(SDL_Surface *surface)
+// Fills a screen surface including its overscan rows, which the 3D view shows too.
+static void fill_with_overscan(SDL_Surface *surface, Uint8 color)
 {
 	Uint8 *first = (Uint8 *)surface->pixels - SCREEN_OVERSCAN_MAX * surface->pitch;
-	memset(first, 0, (size_t)surface->pitch * (surface->h + SCREEN_OVERSCAN_MAX));
+	memset(first, color, (size_t)surface->pitch * (surface->h + SCREEN_OVERSCAN_MAX));
 }
 
 void dev_model_viewer(const char *what)
@@ -111,6 +111,7 @@ void dev_model_viewer(const char *what)
 	const float yaw = env_float("TYR3D_VIEWER_YAW", 0);
 	const float roll = env_float("TYR3D_VIEWER_ROLL", 0);
 	const float spin = env_float("TYR3D_VIEWER_SPIN", 0);
+	const Uint8 ground = (Uint8)env_float("TYR3D_VIEWER_GROUND", 0);
 
 	// Pairs of 3D appearance (left) and sprite (right), in rows centred in the playfield.
 	bool any_large = false;
@@ -129,7 +130,7 @@ void dev_model_viewer(const char *what)
 	{
 		VGAScreen = game_screen;
 		l3d_frame_begin(L3D_GROUND);
-		clear_with_overscan(game_screen);
+		fill_with_overscan(game_screen, ground);
 		l3d_phase(L3D_PLAYER);
 
 		for (int i = 0; i < count; ++i)

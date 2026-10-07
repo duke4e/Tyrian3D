@@ -9,6 +9,8 @@
  *   TYR3D_VIEWER_YAW=<degrees>   turn the models (default 0: as in the game)
  *   TYR3D_VIEWER_ROLL=<degrees>  roll them, e.g. 90 to see them from the side
  *   TYR3D_VIEWER_SPIN=<degrees>  turn them by that much every frame
+ *   TYR3D_VIEWER_GROUND=<index>  the ground's palette colour (default 0, black), e.g. 7 to see
+ *                                shadows
  */
 #ifndef VIEWER_H
 #define VIEWER_H

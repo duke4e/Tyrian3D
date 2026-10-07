@@ -73,6 +73,7 @@ The camera keys work only while the 3D view is on screen.
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
+| `TYR3D_SHADOWS=0` | No shadows |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |
 | `TYR3D_WINDOW_SIZE=<w>x<h>` | With `TYR3D_WINDOWED`: the window's size, for checking other aspect ratios |
 | `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
@@ -172,7 +173,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 3. ~~Volumetric sprites for every enemy and player ship; per-enemy appearance rules with yaw modes.~~
 4. ~~Background maps drawn for everything the 3D camera sees.~~
 5. Next steps (see `docs/plans/2026-10-07-tyrian3d-plan.md`):
-   - Shadows from models onto the ground layer.
+   - ~~Shadows from models onto the ground layer.~~
    - Models for shots, power-ups and explosions (particles).
    - ~~Upside-down levels (`starShowVGASpecialCode` 1) and spotlight levels (2) in 3D.~~
    - Custom models matching the original sprites, and higher-resolution background tiles.

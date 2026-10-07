@@ -1697,6 +1697,82 @@ static void build_spotlight(const Layout3D *layout, float window_w, float window
 	btbh_gpu_texture_update_rgba8(spot_texture, (const uint8_t *)spot_rgba, 0, 0, SPOT_W, SPOT_H);
 }
 
+// Shadows can be turned off with TYR3D_SHADOWS=0.
+static bool shadows_enabled(void)
+{
+	const char *value = SDL_getenv("TYR3D_SHADOWS");
+	return value == NULL || SDL_atoi(value) != 0;
+}
+
+// The sun's shadow map covers the ground the window shows around the playfield (an orthographic
+// view along the sun's light; further away nothing is shadowed).
+#define SHADOW_REACH_UP 160.0f    // game pixels above the playfield's top edge
+#define SHADOW_REACH_SIDE 120.0f  // and beside it
+
+static void shadow_view_projection(const Camera3D *camera, float out[16])
+{
+	float rect[4];
+	plane_footprint(camera, 0.0f, rect);
+	rect[0] = SDL_max(rect[0], L3D_PLAYFIELD_X - SHADOW_REACH_SIDE);
+	rect[2] = SDL_min(rect[2], L3D_PLAYFIELD_X + L3D_PLAYFIELD_W + SHADOW_REACH_SIDE);
+	rect[1] = SDL_max(rect[1], -SHADOW_REACH_UP);
+	rect[3] = SDL_min(rect[3], L3D_PLAYFIELD_H + SHADOW_REACH_SIDE);
+	const float centre[3] = { (rect[0] + rect[2]) / 2, 0.0f, (rect[1] + rect[3]) / 2 };
+	const float radius = 0.5f * sqrtf((rect[2] - rect[0]) * (rect[2] - rect[0]) + (rect[3] - rect[1]) * (rect[3] - rect[1]));
+
+	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+	                           sun_direction[2] * sun_direction[2]);
+	const float forward[3] = { sun_direction[0] / length, sun_direction[1] / length, sun_direction[2] / length };
+	// right = normalize(hint x forward), up = forward x right, with the hint pointing up the screen.
+	const float hint[3] = { 0.0f, 0.0f, -1.0f };
+	float right[3] = {
+		hint[1] * forward[2] - hint[2] * forward[1],
+		hint[2] * forward[0] - hint[0] * forward[2],
+		hint[0] * forward[1] - hint[1] * forward[0],
+	};
+	const float right_length = sqrtf(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+	for (int i = 0; i < 3; ++i)
+		right[i] /= right_length;
+	const float up[3] = {
+		forward[1] * right[2] - forward[2] * right[1],
+		forward[2] * right[0] - forward[0] * right[2],
+		forward[0] * right[1] - forward[1] * right[0],
+	};
+
+	const float depth = 400.0f;  // from the eye to the centre, along the light
+	float eye[3];
+	for (int i = 0; i < 3; ++i)
+		eye[i] = centre[i] - forward[i] * depth;
+
+	Mat4 view = mat4_identity();
+	float dots[3] = { 0, 0, 0 };
+	for (int i = 0; i < 3; ++i)
+	{
+		view.m[i * 4 + 0] = right[i];
+		view.m[i * 4 + 1] = up[i];
+		view.m[i * 4 + 2] = forward[i];
+		view.m[i * 4 + 3] = 0;
+		dots[0] += right[i] * eye[i];
+		dots[1] += up[i] * eye[i];
+		dots[2] += forward[i] * eye[i];
+	}
+	view.m[12] = -dots[0];
+	view.m[13] = -dots[1];
+	view.m[14] = -dots[2];
+	view.m[15] = 1;
+
+	const float near_plane = 0.0f, far_plane = 2 * depth;
+	Mat4 projection = { { 0 } };
+	projection.m[0] = 1.0f / radius;
+	projection.m[5] = 1.0f / radius;
+	projection.m[10] = 1.0f / (far_plane - near_plane);
+	projection.m[14] = -near_plane / (far_plane - near_plane);
+	projection.m[15] = 1.0f;
+
+	const Mat4 result = mat4_mul(&projection, &view);
+	memcpy(out, result.m, sizeof(result.m));
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -1795,8 +1871,20 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
+
+	// Shadows: objects (models and volumetric sprites) cast the sun's shadow; the unlit surfaces
+	// (layers, background tiles, volumetric sprites) darken in it, lit models are shaded by it.
+	static Uint8 casts_shadow[MAX_BATCHES];
+	const bool shadows = shadows_enabled();
+	for (int i = 0; i < batch_count; ++i)
+	{
+		casts_shadow[i] = shadows && i >= first_object_batch;
+		if (shadows && batches[i].unlit_enabled == 1)
+			batches[i].unlit_enabled = 2;
+	}
 
 	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
 	// strong against the sky, as in the sprites' own shading: lit from the upper left, with
@@ -1826,6 +1914,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		sscanf(energies, "%f,%f", &lighting.directional_energy, &sky_fill);
 	for (int i = 0; i < 27; ++i)
 		lighting.irradiance_sh[i] *= sky_fill;
+	if (shadows)
+	{
+		lighting.directional_shadow_enabled = 1;
+		lighting.directional_shadow_softness = 1.0f;
+		shadow_view_projection(&camera, lighting.directional_shadow_view_projection);
+	}
 
 	BTBHGPUScenePost post = { 0 };
 	post.tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;
@@ -1841,7 +1935,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	post.highlight_threshold = 0.7f;
 
 	BTBHGPUSceneReport scene_report;
-	if (btbh_gpu_window_scene_present_instances(window,
+	if (btbh_gpu_window_scene_present_instances_with_visibility(window,
 	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
 	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
 	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
@@ -1849,7 +1943,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
 	        shader_format, window_frame.drawable_width, window_frame.drawable_height,
 	        camera.view_projection.m, camera.right, camera.up, camera.position,
-	        &lighting, &post, instances, instance_count, instance_count, batches, batch_count,
+	        &lighting, &post, instances, instance_count, instance_count, batches, NULL, casts_shadow, batch_count,
 	        0, 0, 0, 255, &scene_report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
