@@ -4166,6 +4166,13 @@ redo:
 			: ship_look.model == M3D_VOLUME &&
 			  l3d_add_volume(shipGrPtr_, ship_sprite, true, V3D_STYLE_RAISED, this_player->x + 7, this_player->y + 7,
 			                 ship_look.height, 0.0f, 0.0f, ship_flash));
+		// Ships drawn in two halves (the Dragonwing, shipGr_ 0, and the Nort Ship, 1) get volume
+		// half by half.
+		const bool two_part_volume = shipGr_ <= 1 && ship_look.model == M3D_VOLUME &&
+			l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 13 : 220, true, V3D_STYLE_RAISED,
+			               this_player->x - 5, this_player->y + 7, ship_look.height, 0.0f, 0.0f, ship_flash) &&
+			l3d_add_volume(shipGrPtr_, shipGr_ == 0 ? ship_sprite + 51 : 222, true, V3D_STYLE_RAISED,
+			               this_player->x + 19, this_player->y + 7, ship_look.height, 0.0f, 0.0f, ship_flash);
 
 		explosionFollowAmountX = this_player->x - this_player->last_x_explosion_follow;
 		explosionFollowAmountY = this_player->y - this_player->last_y_explosion_follow;
@@ -4176,7 +4183,9 @@ redo:
 		this_player->last_x_explosion_follow = this_player->x;
 		this_player->last_y_explosion_follow = this_player->y;
 
-		if (shipGr_ == 0)
+		if (two_part_volume)
+			;  // the volumes have real shadows
+		else if (shipGr_ == 0)
 		{
 			if (background2)
 			{
@@ -4213,7 +4222,9 @@ redo:
 		{
 			--this_player->invulnerable_ticks;
 
-			if (shipGr_ == 0)
+			if (two_part_volume)
+				;
+			else if (shipGr_ == 0)
 			{
 				blit_sprite2x2_blend(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, ship_sprite + 13);
 				blit_sprite2x2_blend(VGAScreen, this_player->x + 7 , this_player->y - 7, *shipGrPtr_, ship_sprite + 51);
@@ -4230,13 +4241,19 @@ redo:
 		{
 			if (shipGr_ == 0)
 			{
-				blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, ship_sprite + 13);
-				blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, ship_sprite + 51);
+				if (!two_part_volume)
+				{
+					blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, ship_sprite + 13);
+					blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, ship_sprite + 51);
+				}
 			}
 			else if (shipGr_ == 1)
 			{
-				blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, 220);
-				blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, 222);
+				if (!two_part_volume)
+				{
+					blit_sprite2x2(VGAScreen, this_player->x - 17, this_player->y - 7, *shipGrPtr_, 220);
+					blit_sprite2x2(VGAScreen, this_player->x + 7, this_player->y - 7, *shipGrPtr_, 222);
+				}
 
 				int ship_banking = 0;
 				switch (ship_sprite)
