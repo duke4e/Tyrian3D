@@ -20,6 +20,7 @@
 
 #include "backgrnd.h"
 #include "config.h"
+#include "devtools.h"
 #include "editship.h"
 #include "episodes.h"
 #include "file.h"
@@ -3744,6 +3745,16 @@ redo:
 					button[3] = button[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
 					button[1] = button[1] || keysactive[keySettings[KEY_SETTING_LEFT_SIDEKICK]];
 					button[2] = button[2] || keysactive[keySettings[KEY_SETTING_RIGHT_SIDEKICK]];
+
+					if (dev_autopilot())
+					{
+						int dx = 0, dy = 0;
+						bool fire = false;
+						dev_autopilot_steer(this_player->x, this_player->y, CURRENT_KEY_SPEED, &dx, &dy, &fire);
+						this_player->x += dx;
+						this_player->y += dy;
+						button[0] = button[0] || fire;
+					}
 
 					if (constantPlay)
 					{

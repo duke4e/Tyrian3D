@@ -19,6 +19,7 @@
 #include "varz.h"
 
 #include "config.h"
+#include "devtools.h"
 #include "editship.h"
 #include "episodes.h"
 #include "joystick.h"
@@ -1043,6 +1044,9 @@ JE_byte JE_playerDamage(JE_byte temp,
 {
 	int playerDamage = 0;
 	soundQueue[7] = S_SHIELD_HIT;
+
+	if (dev_godmode())
+		return 0;
 
 	/* Player Damage Routines */
 	if (this_player->shield < temp)

@@ -3,8 +3,13 @@
  */
 #include "devtools.h"
 
+#include "config.h"
+#include "episodes.h"
 #include "layer3d.h"
 #include "palette.h"
+#include "params.h"
+#include "player.h"
+#include "varz.h"
 
 #include <SDL3/SDL.h>
 
@@ -56,6 +61,69 @@ void dev_on_layers_captured(void)
 			SDL_DestroySurface(surface);
 		}
 	}
+}
+
+bool dev_start_game(void)
+{
+	static bool started = false;
+	const char *start = SDL_getenv("TYR3D_START");
+	if (started || start == NULL)
+		return false;
+	started = true;
+
+	int episode = 0, section = 0;
+	if (sscanf(start, "%d:%d", &episode, &section) != 2 || episode < 1 || episode > EPISODE_MAX ||
+	    section < 1 || section > 255)
+	{
+		fprintf(stderr, "warning: TYR3D_START must be <episode>:<section>, got '%s'\n", start);
+		return false;
+	}
+
+	// As newGame() does for a one-player full game.
+	onePlayerAction = false;
+	twoPlayerMode = false;
+	timedBattleMode = false;
+	JE_initEpisode((JE_byte)episode);
+	initial_episode_num = episodeNum;
+	difficultyLevel = DIFFICULTY_NORMAL;
+	initialDifficulty = difficultyLevel;
+	player[0].cash = 10000;
+
+	constantPlay = true;  // skip shops: they jump straight to the next level
+	mainLevel = (JE_byte)section;
+	gameLoaded = true;
+
+	printf("devtools: starting episode %d at section %d\n", episode, section);
+	return true;
+}
+
+bool dev_godmode(void)
+{
+	return SDL_getenv("TYR3D_GODMODE") != NULL;
+}
+
+bool dev_autopilot(void)
+{
+	return SDL_getenv("TYR3D_AUTOPILOT") != NULL;
+}
+
+void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
+{
+	// Weave across the playfield with a slow vertical drift; always fire.
+	const double t = SDL_GetTicks() / 1000.0;
+	const int target_x = 140 + (int)(100 * SDL_sin(t * 0.9));
+	const int target_y = 140 + (int)(25 * SDL_sin(t * 0.37));
+
+	if (x < target_x - speed)
+		*dx += speed;
+	else if (x > target_x + speed)
+		*dx -= speed;
+	if (y < target_y - speed)
+		*dy += speed;
+	else if (y > target_y + speed)
+		*dy -= speed;
+
+	*fire = true;
 }
 
 void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)

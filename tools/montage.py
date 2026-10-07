@@ -2,6 +2,8 @@
 """Arrange BMP frame dumps into a single PNG grid (stdlib only).
 
 usage: tools/montage.py out.png columns scale in1.bmp in2.bmp ...
+
+scale may be fractional (0.25 shrinks each image to a quarter of its size).
 """
 import struct
 import sys
@@ -62,10 +64,10 @@ def write_png(path, width, height, rows):
 
 
 def main():
-    out, columns, scale = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    out, columns, scale = sys.argv[1], int(sys.argv[2]), float(sys.argv[3])
     images = [read_bmp(p) for p in sys.argv[4:]]
-    cell_w = max(w for w, _, _ in images) * scale
-    cell_h = max(h for _, h, _ in images) * scale
+    cell_w = int(max(w for w, _, _ in images) * scale)
+    cell_h = int(max(h for _, h, _ in images) * scale)
     gap = 4
     rows_n = (len(images) + columns - 1) // columns
     width = columns * cell_w + (columns - 1) * gap
@@ -74,11 +76,11 @@ def main():
     for i, (w, h, px) in enumerate(images):
         ox = (i % columns) * (cell_w + gap)
         oy = (i // columns) * (cell_h + gap)
-        for y in range(h * scale):
+        for y in range(int(h * scale)):
             row = canvas[oy + y]
-            src = px[y // scale]
-            for x in range(w * scale):
-                row[ox + x] = src[x // scale]
+            src = px[min(h - 1, int(y / scale))]
+            for x in range(int(w * scale)):
+                row[ox + x] = src[min(w - 1, int(x / scale))]
     write_png(out, width, height, canvas)
 
 

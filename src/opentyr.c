@@ -19,6 +19,8 @@
 #include "opentyr.h"
 
 #include "config.h"
+#include "devtools.h"
+#include "extract.h"
 #include "destruct.h"
 #include "editship.h"
 #include "episodes.h"
@@ -802,6 +804,12 @@ int main(int argc, char *argv[])
 	JE_loadPals();
 	JE_loadMainShapeTables(xmas ? "tyrianc.shp" : "tyrian.shp");
 
+	if (SDL_getenv("TYR3D_EXTRACT") != NULL)
+	{
+		dev_extract(SDL_getenv("TYR3D_EXTRACT"));
+		JE_tyrianHalt(0);
+	}
+
 	if (xmas && !override_xmas && !xmas_prompt())
 	{
 		xmas = false;
@@ -849,7 +857,7 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef NDEBUG
-	if (!isNetworkGame)
+	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL)
 		intro_logos();
 #endif
 
@@ -872,7 +880,11 @@ int main(int argc, char *argv[])
 		else
 #endif
 		{
-			if (!titleScreen())
+			if (dev_start_game())
+			{
+				// Tyrian3D dev tool: started a game at a requested level.
+			}
+			else if (!titleScreen())
 			{
 				// Player quit from title screen.
 				break;

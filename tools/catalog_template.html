@@ -1,0 +1,250 @@
+<title>Tyrian3D katalog neprijatelja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: header with per-episode totals, sticky filter bar, then a dense grid of sprite cards on dark "game screen" wells. */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --fg: #1b2129;
+  --muted: #5d6875;
+  --line: #d5dbe3;
+  --brass: #8a6526;
+  --brass-soft: #f1e6d2;
+  --well: #0d1016;
+  --good: #1f7a4d;
+  --good-soft: #dcefe4;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --font-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --sprite-scale: 3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151b; --surface: #1a1f27; --fg: #e4e8ee; --muted: #8d98a6; --line: #2a313c;
+    --brass: #d1a65a; --brass-soft: #2e2618; --well: #07090c; --good: #4fd18b; --good-soft: #14291e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1f27; --fg: #e4e8ee; --muted: #8d98a6; --line: #2a313c;
+  --brass: #d1a65a; --brass-soft: #2e2618; --well: #07090c; --good: #4fd18b; --good-soft: #14291e;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.page { max-width: 1280px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
+h2 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--brass); }
+.lede { margin: 6px 0 0; max-width: 68ch; color: var(--muted); }
+.lede code, .note code { font-family: var(--font-data); font-size: 0.85em; }
+.totals { display: flex; flex-wrap: wrap; gap: 10px 24px; margin-top: 16px; font-family: var(--font-data); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.totals b { color: var(--fg); font-weight: 600; }
+.totals span { color: var(--muted); }
+
+section { display: grid; gap: 14px; }
+.ships { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.ship { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: grid; }
+.ship .well { height: 96px; }
+.ship .label { padding: 8px 10px; font-size: 0.82rem; line-height: 1.25; min-width: 0; }
+.ship .label small { display: block; color: var(--muted); font-family: var(--font-data); font-size: 0.72rem; }
+
+.toolbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 0.85rem; padding: 6px 10px; border: 0; background: var(--surface); color: var(--fg); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--brass-soft); color: var(--brass); font-weight: 600; }
+.seg button:focus-visible, .toolbar input:focus-visible, .more:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; font-size: 0.85rem; color: var(--muted); }
+.toolbar input[type="search"] { font: inherit; font-size: 0.85rem; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); min-width: 0; width: 16rem; max-width: 100%; }
+.count { margin-left: auto; font-family: var(--font-data); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(164px, 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
+.well { background: var(--well); display: grid; place-items: center; height: 104px; }
+.sprite { image-rendering: pixelated; background-repeat: no-repeat; }
+.info { padding: 8px 10px 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.idline { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-data); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.idline .spawns { color: var(--brass); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.chip.model { border-color: var(--good); color: var(--good); background: var(--good-soft); }
+.chip.scenery { border-style: dashed; }
+.levels { font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.more { justify-self: center; font: inherit; padding: 8px 18px; border-radius: 6px; border: 1px solid var(--brass); background: transparent; color: var(--brass); cursor: pointer; }
+.empty { color: var(--muted); padding-block: 24px; }
+.note { font-size: 0.82rem; color: var(--muted); max-width: 80ch; }
+@media (max-width: 520px) { .count { margin-left: 0; width: 100%; } .toolbar input[type="search"] { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .sprite { transition: none; } }
+/*SHEETS*/
+</style>
+
+<div class="page">
+  <header>
+    <h1>Tyrian3D katalog neprijatelja</h1>
+    <p class="lede">Svi tipovi neprijatelja koje razine Tyrian 2000 stvaraju, izvučeni iz podataka igre. Služi za dodjelu 3D modela: ključ u <code>models.cfg</code> je slovo sheeta (<code>newsh?.shp</code>) i prvi sprite animacije. Prijeđi mišem preko kartice za animaciju.</p>
+    <div class="totals" id="totals"></div>
+  </header>
+
+  <section aria-labelledby="ships-title">
+    <h2 id="ships-title">Brodovi igrača</h2>
+    <div class="ships" id="ships"></div>
+  </section>
+
+  <section aria-labelledby="enemies-title">
+    <h2 id="enemies-title">Neprijatelji</h2>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Epizoda" id="episodes"></div>
+      <div class="seg" role="group" aria-label="Sloj" id="layers"></div>
+      <div class="seg" role="group" aria-label="Veličina" id="sizes"></div>
+      <label><input type="checkbox" id="hide-scenery" checked> sakrij scenografiju</label>
+      <input type="search" id="search" placeholder="Razina, ID ili sheet" aria-label="Traži po razini, ID-u ili sheetu">
+      <span class="count" id="count"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <button class="more" id="more" type="button" hidden>Prikaži još</button>
+    <p class="note">Broj uz karticu je broj evenata koji stvaraju tog neprijatelja u razinama (uključujući nasumične spawn liste). "Scenografija" su neuništivi objekti (oklop 254–255), npr. zidovi i markeri. Boje su iz palete 0; u igri neke razine koriste drukčiju paletu.</p>
+  </section>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const CELL_W = DATA.cell[0], CELL_H = DATA.cell[1], COLUMNS = DATA.columns;
+const PAGE = 240;
+const state = { episode: "all", layer: "all", size: "all", hideScenery: true, query: "", limit: PAGE };
+
+function spriteStyle(el, sheet, index, large, scale) {
+  const col = (index - 1) % COLUMNS, row = Math.floor((index - 1) / COLUMNS);
+  el.className = "sprite sh-" + sheet;
+  el.style.width = (large ? 2 : 1) * CELL_W * scale + "px";
+  el.style.height = (large ? 2 : 1) * CELL_H * scale + "px";
+  el.style.backgroundSize = COLUMNS * CELL_W * scale + "px " + 16 * CELL_H * scale + "px";
+  el.style.backgroundPosition = -col * CELL_W * scale + "px " + -row * CELL_H * scale + "px";
+}
+
+function validFrames(e) {
+  return e.frames.filter(f => f > 0 && f < 999 && f <= COLUMNS * 16);
+}
+
+function isScenery(e) { return e.armor >= 254; }
+
+function renderTotals() {
+  const byEpisode = {};
+  for (const e of DATA.enemies) byEpisode[e.episode] = (byEpisode[e.episode] || 0) + 1;
+  const parts = Object.keys(byEpisode).sort().map(ep => `<span>Epizoda ${ep}: <b>${byEpisode[ep]}</b></span>`);
+  const withModel = DATA.enemies.filter(e => e.model).length;
+  parts.push(`<span>S modelom: <b>${withModel}</b></span>`);
+  document.getElementById("totals").innerHTML = parts.join("");
+}
+
+function renderShips() {
+  const host = document.getElementById("ships");
+  for (const ship of DATA.ships) {
+    const card = document.createElement("div");
+    card.className = "ship";
+    const well = document.createElement("div");
+    well.className = "well";
+    const sprite = document.createElement("div");
+    spriteStyle(sprite, ship.sheet, ship.index, true, 3);
+    well.appendChild(sprite);
+    const label = document.createElement("div");
+    label.className = "label";
+    label.innerHTML = `${ship.name}<small>#${ship.id} · ${ship.sheet} ${ship.index}</small>`;
+    card.append(well, label);
+    host.appendChild(card);
+  }
+}
+
+function makeSegment(hostId, key, options) {
+  const host = document.getElementById(hostId);
+  for (const [value, text] of options) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = text;
+    b.setAttribute("aria-pressed", String(state[key] === value));
+    b.addEventListener("click", () => {
+      state[key] = value;
+      state.limit = PAGE;
+      for (const other of host.children) other.setAttribute("aria-pressed", String(other === b));
+      renderGrid();
+    });
+    host.appendChild(b);
+  }
+}
+
+function matches(e) {
+  if (state.episode !== "all" && e.episode !== Number(state.episode)) return false;
+  if (state.layer !== "all" && !e.layers.includes(state.layer)) return false;
+  if (state.size !== "all" && e.large !== (state.size === "large")) return false;
+  if (state.hideScenery && isScenery(e)) return false;
+  if (state.query) {
+    const q = state.query.toLowerCase();
+    const hay = `${e.id} ${e.sheet} ${e.levels}`.toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+let animTimer = null;
+function animate(sprite, e, frames) {
+  stopAnimation();
+  let k = 0;
+  animTimer = setInterval(() => {
+    k = (k + 1) % frames.length;
+    spriteStyle(sprite, e.sheet_file, frames[k], e.large, 3);
+  }, 110);
+}
+function stopAnimation() { if (animTimer) clearInterval(animTimer); animTimer = null; }
+
+function renderGrid() {
+  const list = DATA.enemies.filter(matches).sort((a, b) => b.count - a.count || a.episode - b.episode || a.id - b.id);
+  const grid = document.getElementById("grid");
+  grid.textContent = "";
+  document.getElementById("count").textContent = `${Math.min(list.length, state.limit)} / ${list.length}`;
+  if (list.length === 0) {
+    grid.innerHTML = '<p class="empty">Nijedan neprijatelj ne odgovara filterima.</p>';
+  }
+  for (const e of list.slice(0, state.limit)) {
+    const frames = validFrames(e);
+    const card = document.createElement("article");
+    card.className = "card";
+    const well = document.createElement("div");
+    well.className = "well";
+    if (frames.length && e.sheet_file) {
+      const sprite = document.createElement("div");
+      spriteStyle(sprite, e.sheet_file, frames[0], e.large, 3);
+      well.appendChild(sprite);
+      if (frames.length > 1) {
+        card.addEventListener("mouseenter", () => animate(sprite, e, frames));
+        card.addEventListener("mouseleave", () => { stopAnimation(); spriteStyle(sprite, e.sheet_file, frames[0], e.large, 3); });
+      }
+    }
+    const chips = [`<span class="chip">E${e.episode}</span>`]
+      .concat(e.layers.map(l => `<span class="chip">${l}</span>`))
+      .concat([`<span class="chip">${e.large ? "2×2" : "1×1"}</span>`]);
+    if (frames.length > 1) chips.push(`<span class="chip">${frames.length} fr.</span>`);
+    if (isScenery(e)) chips.push('<span class="chip scenery">scenografija</span>');
+    if (e.model) chips.push(`<span class="chip model">${e.model}</span>`);
+    const info = document.createElement("div");
+    info.className = "info";
+    info.innerHTML = `<div class="idline"><span>#${e.id} · sheet ${e.sheet} · ${frames[0] ?? "–"}</span><span class="spawns">×${e.count}</span></div>
+      <div class="chips">${chips.join("")}</div>
+      <div class="levels">${e.levels.split(",").join(", ")}</div>`;
+    card.append(well, info);
+    grid.appendChild(card);
+  }
+  const more = document.getElementById("more");
+  more.hidden = list.length <= state.limit;
+}
+
+renderTotals();
+renderShips();
+makeSegment("episodes", "episode", [["all", "Sve"], ["1", "E1"], ["2", "E2"], ["3", "E3"], ["4", "E4"], ["5", "E5"]]);
+makeSegment("layers", "layer", [["all", "Svi slojevi"], ["sky", "Nebo"], ["ground", "Tlo"], ["top", "Vrh"]]);
+makeSegment("sizes", "size", [["all", "Sve veličine"], ["small", "1×1"], ["large", "2×2"]]);
+document.getElementById("hide-scenery").addEventListener("change", ev => { state.hideScenery = ev.target.checked; state.limit = PAGE; renderGrid(); });
+document.getElementById("search").addEventListener("input", ev => { state.query = ev.target.value.trim(); state.limit = PAGE; renderGrid(); });
+document.getElementById("more").addEventListener("click", () => { state.limit += PAGE; renderGrid(); });
+renderGrid();
+</script>
