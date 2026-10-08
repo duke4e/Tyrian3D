@@ -370,6 +370,17 @@ static void scan_episode_levels(void)
 			}
 		}
 	}
+	// The damaged look an enemy switches to when hit hard (dgr, without a damage animation): its
+	// own enemy type for models (keyed by its first sprite), as a custom enemy of the same bank.
+	for (int id = 1; id <= ENEMY_NUM; ++id)
+		if (uses[id].count > 0 && enemyDat[id].dgr > 0 && enemyDat[id].dani == 0)
+		{
+			char levels[sizeof(uses[id].levels)];
+			SDL_strlcpy(levels, uses[id].levels, sizeof(levels));
+			const int slot = (uses[id].layer_mask & 1) ? 0 : (uses[id].layer_mask & 4) ? 50 : 25;
+			for (char *level = strtok(levels, ","); level != NULL; level = strtok(NULL, ","))
+				note_custom(enemyDat[id].shapebank, enemyDat[id].dgr, slot, level);
+		}
 	// The ship that brings armour when the player is low on it (JE_main), and its drops.
 	note_use(560, 0, "any");
 	for (int k = 561; k <= 563; ++k)
