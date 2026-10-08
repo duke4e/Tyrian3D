@@ -99,6 +99,7 @@ change the first two as well.
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it) when that frame shows, then each next one so many milliseconds after the one before |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
+| `TYR3D_DARK_LIGHTING=0` | Spotlight levels show the game's lit cone as an overlay, instead of being dark and lit by the ship's lamp |
 | `TYR3D_RC=off\|low\|high` | The radiance cascades: light of what glows spreads over the playfield (default low, with Effects) |
 | `TYR3D_RC_INTENSITY=<0-2>` | How much light they add (default 1) |
 | `TYR3D_LOG_RC=1` | Print the radiance cascades' state now and then |

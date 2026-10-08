@@ -5390,6 +5390,20 @@ static void add_radiance_cascades(BTBHGPUScenePost *post)
 	field->samples = samples;
 }
 
+// Spotlight levels (the game draws them dark but for a cone ahead of the ship): really dark, lit
+// by the ship's lamp (a spot light), explosions and shots; the brightest pixels glow on. With the
+// Effects setting; TYR3D_DARK_LIGHTING=0: the game's cone as an overlay instead (build_spotlight).
+#define DARK_LEVEL_DARKNESS 0.95f
+#define DARK_LEVEL_GLOW 0.7f  // linear luminance
+
+static bool dark_lighting(void)
+{
+	static int on = -1;
+	if (on < 0)
+		on = SDL_getenv("TYR3D_DARK_LIGHTING") == NULL || SDL_atoi(SDL_getenv("TYR3D_DARK_LIGHTING")) != 0;
+	return on && settings3d.effects;
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -5520,7 +5534,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;
-	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2;
+	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2 && !dark_lighting();
 	if (spotlight && new_frame)
 		build_spotlight(&layout, logical_w, logical_h);
 
@@ -5624,6 +5638,17 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	}
 	for (int i = first_particle_batch; i < batch_count; ++i)
 		casts_shadow[i] = 0;
+	// Dark levels: what the shader's darkness doesn't reach (see-through unlit surfaces: clouds,
+	// smoke) darkens as much.
+	if (starShowVGASpecialCode == 2 && processorType >= 2 && dark_lighting())
+		for (int i = 0; i < first_particle_batch; ++i)
+			if (batches[i].unlit_enabled != 0 && batches[i].transparency_enabled)
+			{
+				const float keep = 1.0f - DARK_LEVEL_DARKNESS * 0.8f;
+				batches[i].albedo_red = (Uint8)(batches[i].albedo_red * keep);
+				batches[i].albedo_green = (Uint8)(batches[i].albedo_green * keep);
+				batches[i].albedo_blue = (Uint8)(batches[i].albedo_blue * keep);
+			}
 	// With the radiance cascades, the pixel art (unlit) takes their light instead of giving it:
 	// the light comes from what glows (particles, glows, emissive parts of models).
 	if (radiance_cascades_tier() != BTBH_GPU_SCENE_RC_OFF)
@@ -5657,6 +5682,21 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		lighting.spot_falloff = 1.0f;
 		lighting.spot_inner_cutoff = cosf(38.0f * (float)M_PI / 180.0f);
 		lighting.spot_outer_cutoff = cosf(46.0f * (float)M_PI / 180.0f);
+		if (dark_lighting())
+		{
+			// The level is dark: the lamp lights it, explosions and shots light their
+			// surroundings, the brightest pixels (lava, lamps) glow on; the models keep a little
+			// of the sky's light.
+			lighting.unlit_darkness = DARK_LEVEL_DARKNESS;
+			lighting.unlit_glow_threshold = DARK_LEVEL_GLOW;
+			lighting.spot_energy = 2.6f;
+			lighting.spot_range = 280.0f;
+			lighting.spot_falloff = 1.2f;
+			lighting.directional_energy *= 1.0f - DARK_LEVEL_DARKNESS;
+			lighting.ambient_energy *= 1.0f - DARK_LEVEL_DARKNESS;
+			for (int i = 0; i < 27; ++i)
+				lighting.irradiance_sh[i] *= 1.0f - DARK_LEVEL_DARKNESS;
+		}
 	}
 
 	static int explosion_lights = -1;  // TYR3D_EXPLOSION_LIGHTS=0 leaves them out
