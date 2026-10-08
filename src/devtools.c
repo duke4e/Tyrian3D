@@ -14,6 +14,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +35,8 @@ static long frame = 0;
 static bool dumping_this_frame(void)
 {
 	const long dump_every = env_long("TYR3D_DUMP_EVERY", 60);
-	return SDL_getenv("TYR3D_DUMP_DIR") != NULL && dump_every > 0 && (frame + 1) % dump_every == 0;
+	return SDL_getenv("TYR3D_DUMP_DIR") != NULL && dump_every > 0 && (frame + 1) % dump_every == 0 &&
+	       frame + 1 >= env_long("TYR3D_DUMP_FROM", 0);
 }
 
 bool dev_capture_next_frame(void)
@@ -225,9 +227,86 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	*fire = true;
 }
 
+/*
+ * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
+ * Return, Down...) when that frame is presented, then each next one so many milliseconds after the
+ * one before (menus wait for keys without presenting frames).
+ */
+static char test_keys[256];
+static const char *next_test_key = NULL;
+
+static Uint32 SDLCALL release_key(void *userdata, SDL_TimerID timer, Uint32 interval)
+{
+	(void)timer, (void)interval;
+	SDL_Event event = { 0 };
+	event.type = SDL_EVENT_KEY_UP;
+	event.key.scancode = (SDL_Scancode)(intptr_t)userdata;
+	event.key.key = SDL_GetKeyFromScancode(event.key.scancode, SDL_KMOD_NONE, false);
+	SDL_PushEvent(&event);
+	return 0;
+}
+
+static void press_key(const char *name)
+{
+	const SDL_Scancode scancode = SDL_GetScancodeFromName(name);
+	if (scancode == SDL_SCANCODE_UNKNOWN)
+	{
+		fprintf(stderr, "devtools: no key %s\n", name);
+		return;
+	}
+	printf("devtools: pressing %s\n", name);
+	SDL_Event event = { 0 };
+	event.type = SDL_EVENT_KEY_DOWN;
+	event.key.scancode = scancode;
+	event.key.key = SDL_GetKeyFromScancode(scancode, SDL_KMOD_NONE, false);
+	event.key.down = true;
+	SDL_PushEvent(&event);
+	// Released a little later, so the game sees it held.
+	SDL_AddTimer(100, release_key, (void *)(intptr_t)scancode);
+}
+
+// Presses the key at next_test_key ("<n>:<key>"), returns the delay to the next one, or 0.
+static Uint32 SDLCALL press_test_key(void *userdata, SDL_TimerID timer, Uint32 interval)
+{
+	(void)userdata, (void)timer, (void)interval;
+	const char *colon = strchr(next_test_key, ':');
+	if (colon == NULL)
+		return 0;
+	char name[32];
+	const size_t length = strcspn(colon + 1, ",");
+	snprintf(name, sizeof(name), "%.*s", (int)SDL_min(length, sizeof(name) - 1), colon + 1);
+	press_key(name);
+	const char *comma = strchr(colon, ',');
+	if (comma == NULL)
+		return 0;
+	next_test_key = comma + 1;
+	return (Uint32)SDL_max(strtol(next_test_key, NULL, 10), 1);
+}
+
+static void test_keys_on_frame(void)
+{
+	if (next_test_key == NULL)
+	{
+		const char *value = SDL_getenv("TYR3D_TEST_KEYS");
+		if (value == NULL)
+			return;
+		snprintf(test_keys, sizeof(test_keys), "%s", value);
+		next_test_key = test_keys;
+	}
+	if (next_test_key == test_keys && strtol(test_keys, NULL, 10) == frame)
+	{
+		const Uint32 delay = press_test_key(NULL, 0, 0);
+		if (delay > 0)
+			SDL_AddTimer(delay, press_test_key, NULL);
+		else
+			next_test_key = "";
+	}
+}
+
 void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 {
 	++frame;
+	test_keys_on_frame();
 
 	const char *dump_dir = SDL_getenv("TYR3D_DUMP_DIR");
 	if (dump_dir != NULL && rgba != NULL)

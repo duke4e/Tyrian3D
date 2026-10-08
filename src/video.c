@@ -356,12 +356,97 @@ static void calc_dst_render_rect(SDL_Rect *const dst_rect)
 	dst_rect->y = (win_h - dst_rect->h) / 2;
 }
 
+/*
+ * Tyrian3D: in a level, the menus and messages the game draws over the playfield (the pause, the
+ * in-game options, the level's end) show over the 3D view's last frame (rgpu_present_3d_menu): the
+ * screen as it was when that frame showed (the backdrop), the boxes JE_barShade has darkened on it
+ * since, and the palette then, for its fades. Until the screen is something else: its panel no
+ * longer the level's.
+ */
+#define BACKDROP_SHADES 16
+
+static Uint8 backdrop[320 * 200];
+static bool backdrop_valid = false;
+static int backdrop_shades[BACKDROP_SHADES][4];
+static int backdrop_shade_count = 0;
+static Uint32 backdrop_palette[256];
+
+static void take_backdrop(void)
+{
+	for (int y = 0; y < 200 && y < VGAScreenSeg->h; ++y)
+		memcpy(backdrop + y * 320, (const Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch, 320);
+	memcpy(backdrop_palette, rgb_palette, sizeof(backdrop_palette));
+	backdrop_shade_count = 0;
+	backdrop_valid = true;
+}
+
+void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2)
+{
+	if (backdrop_valid && surface->pixels == VGAScreenSeg->pixels && backdrop_shade_count < BACKDROP_SHADES)
+	{
+		int *r = backdrop_shades[backdrop_shade_count++];
+		r[0] = x1;
+		r[1] = y1;
+		r[2] = x2;
+		r[3] = y2;
+	}
+}
+
+// The screen still shows the level: its panel (the right column) much as it was.
+static bool backdrop_holds(const SDL_Surface *screen)
+{
+	if (!backdrop_valid || !l3d_enabled || screen->pixels != VGAScreenSeg->pixels)
+		return false;
+	int changed = 0;
+	for (int y = 0; y < 200; ++y)
+		for (int x = L3D_PLAYFIELD_W; x < 320; ++x)
+			changed += ((const Uint8 *)screen->pixels)[y * screen->pitch + x] != backdrop[y * 320 + x];
+	return changed < (320 - L3D_PLAYFIELD_W) * 200 / 4;
+}
+
+// The palette's fade since the backdrop: towards black or white, how far.
+static void backdrop_fade(float fade[4])
+{
+	float was = 0, now = 0;
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *a = (const Uint8 *)&backdrop_palette[i], *b = (const Uint8 *)&rgb_palette[i];
+		was += a[0] + a[1] + a[2];
+		now += b[0] + b[1] + b[2];
+	}
+	const float white = now > was;
+	fade[0] = fade[1] = fade[2] = white;
+	if (white)
+		fade[3] = (now - was) / SDL_max(256 * 3 * 255 - was, 1.0f);
+	else
+		fade[3] = was > 0 ? 1 - now / was : 0;
+	fade[3] = SDL_clamp(fade[3], 0.0f, 1.0f);
+}
+
 static void present_screen(SDL_Surface *src_surface)
 {
 	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
 
 	SDL_Rect dst_rect;
 	calc_dst_render_rect(&dst_rect);
+
+	if (backdrop_holds(src_surface))
+	{
+		// (Shown mid-tick, the frame being captured ends here: what's drawn of the tick after the
+		// menu shows in it only in 2D.)
+		if (l3d_capturing)
+			l3d_frame_end();
+		float fade[4];
+		backdrop_fade(fade);
+		SDL_Rect screen_rect;
+		rgpu_present_3d_menu(src_surface, backdrop, (const int (*)[4])backdrop_shades, backdrop_shade_count, fade,
+		                     &l3d_frame, &dst_rect, &screen_rect);
+		last_output_rect = screen_rect;
+		last_frame_was_3d = false;
+		mouse_frame_shown();
+		return;
+	}
+	backdrop_valid = false;
 
 	rgpu_present_2d(src_surface, &dst_rect);
 
@@ -380,6 +465,8 @@ int video_pointer_scale(void)
 
 void JE_showVGA3D(void)
 {
+	take_backdrop();
+
 	// TYR3D_TURBO (dev): only every so many ticks shows, so the game isn't held up by the display.
 	static int turbo = -1, skipped = 0;
 	if (turbo < 0)

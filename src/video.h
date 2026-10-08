@@ -81,6 +81,7 @@ void deinit_video(void);
 void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
 void JE_showVGA3D(void);
+void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2);  // JE_barShade darkened a box
 // Tyrian3D: waits for the game's next tick (the delay set with setDelay*), showing the last 3D
 // frame again as often as the display refreshes, moved on in time (rgpu_present_3d_ahead).
 void video_wait_tick_3d(void);

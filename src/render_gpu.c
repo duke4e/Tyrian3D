@@ -700,6 +700,16 @@ static void convert_screen(const SDL_Surface *screen, Uint32 *dst)
 	}
 }
 
+// A menu or message shown over the 3D view's last frame (rgpu_present_3d_menu), while it presents.
+static struct
+{
+	bool on;
+	const Uint8 *backdrop;    // the screen as it was when the frame showed (SCREEN_W x SCREEN_H)
+	const int (*shades)[4];   // the boxes the menu darkened: x1, y1, x2, y2 (JE_barShade's)
+	int shade_count;
+	float fade[4];            // a colour over everything, straight alpha
+} menu;
+
 // A rectangle of the screen texture (in screen pixels) drawn to a rectangle of the window.
 typedef struct
 {
@@ -740,8 +750,8 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture
 static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlight, bool clear,
                            const BTBHGPUWindowReport *frame)
 {
-	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 2)];
-	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 2] = { { 0 } };
+	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 3)];
+	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 3] = { { 0 } };
 	int batch_count_2d = 0;
 	uint32_t vertex_count = 0;
 
@@ -792,6 +802,27 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 			push_quad(vertices + vertex_count, &quads[i], SCREEN_W, SCREEN_H);
 			batch->texture = screen_texture;
 		}
+		vertex_count += 6;
+	}
+
+	// A menu's fade (the palette's) over everything.
+	if (menu.on && menu.fade[3] > 0)
+	{
+		const CanvasQuad whole = { 0, 0, (float)frame->logical_width, (float)frame->logical_height, 0, 0, 1, 1 };
+		push_quad(vertices + vertex_count, &whole, 1, 1);
+		for (int i = 0; i < 6; ++i)
+		{
+			BTBHGPUCanvasVertex *v = &vertices[vertex_count + i];
+			v->red = menu.fade[0];
+			v->green = menu.fade[1];
+			v->blue = menu.fade[2];
+			v->alpha = menu.fade[3];
+		}
+		BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
+		b->first_vertex = vertex_count;
+		b->vertex_count = 6;
+		b->texture = NULL;
+		b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
 		vertex_count += 6;
 	}
 
@@ -1376,6 +1407,42 @@ static void add_message(void)
 			}
 }
 
+#define MENU_SHADE 0.45f  // what's left of the scene's light under each box it darkens
+
+// What the menu changed of the playfield: drawn over the scene; what it darkened darkens it.
+static void add_menu(const SDL_Surface *screen)
+{
+	static Uint8 level[L3D_PLAYFIELD_W * L3D_PLAYFIELD_H];
+	memset(level, 0, sizeof(level));
+	for (int i = 0; i < menu.shade_count; ++i)
+	{
+		const int *r = menu.shades[i];
+		for (int y = SDL_max(r[1], 0); y <= SDL_min(r[3], L3D_PLAYFIELD_H - 1); ++y)
+			for (int x = SDL_max(r[0], 0); x <= SDL_min(r[2], L3D_PLAYFIELD_W - 1); ++x)
+				++level[y * L3D_PLAYFIELD_W + x];
+	}
+	Uint32 shade[8];
+	for (int k = 0; k < 8; ++k)
+	{
+		const Uint8 rgba[4] = { 0, 0, 0, (Uint8)(255 * (1 - powf(MENU_SHADE, (float)k))) };
+		memcpy(&shade[k], rgba, sizeof(rgba));
+	}
+	for (int y = 0; y < L3D_PLAYFIELD_H; ++y)
+		for (int x = 0; x < L3D_PLAYFIELD_W; ++x)
+		{
+			const Uint8 now = ((const Uint8 *)screen->pixels)[y * screen->pitch + x];
+			const int k = SDL_min(level[y * L3D_PLAYFIELD_W + x], 7);
+			Uint8 expected = menu.backdrop[y * SCREEN_W + x];
+			for (int i = 0; i < k; ++i)
+				expected = ((expected & 0x0f) >> 1) | (expected & 0xf0);
+			Uint32 *out = &screen_rgba[y * SCREEN_W + x];
+			if (now != expected)
+				*out = rgb_palette[now];
+			else if (k > 0)
+				*out = shade[k];
+		}
+}
+
 static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 {
 	convert_screen(hud, screen_rgba);
@@ -1402,6 +1469,8 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 			}
 		}
 	}
+	if (menu.on)
+		add_menu(hud);
 }
 
 /*
@@ -1544,6 +1613,33 @@ bool rgpu_playfield_to_window(float x, float y, float *wx, float *wy)
 	*wx = (clip[0] / clip[3] + 1) / 2 * shown_view.window_w;
 	*wy = (1 - clip[1] / clip[3]) / 2 * shown_view.window_h;
 	return true;
+}
+
+void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, const int (*shades)[4], int shade_count,
+                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect)
+{
+	menu.on = true;
+	menu.backdrop = backdrop;
+	menu.shades = shades;
+	menu.shade_count = shade_count;
+	memcpy(menu.fade, fade, sizeof(menu.fade));
+	ahead = 0;
+	present_3d(screen, frame, dst);
+	menu.on = false;
+
+	// The screen's pixels where the playfield's part of them shows.
+	int w = 0, h = 0;
+	SDL_GetWindowSize(btbh_gpu_window_sdl_window(window), &w, &h);
+	const Layout3D layout = layout_3d((float)w, (float)h, dst);
+	if (!layout.split)
+	{
+		*screen_rect = *dst;
+		return;
+	}
+	screen_rect->x = (int)layout.playfield[0];
+	screen_rect->y = (int)layout.playfield[1];
+	screen_rect->w = (int)(layout.playfield[2] * SCREEN_W / L3D_PLAYFIELD_W + 0.5f);
+	screen_rect->h = (int)(layout.playfield[3] * SCREEN_H / L3D_PLAYFIELD_H + 0.5f);
 }
 
 float rgpu_playfield_scale(void)
@@ -4759,7 +4855,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// A frame the game has just captured, or one of those shown between ticks (rgpu_present_3d_ahead),
 	// which reuse what was made of the frame.
 	static Uint32 presented_frame = 0;
-	const bool new_frame = presented_frame != l3d_frame_number || ahead == 0;
+	const bool new_frame = presented_frame != l3d_frame_number || (ahead == 0 && !menu.on);
 	b3d_clouds = clouds_enabled();  // blended backgrounds of clouds aren't composed
 	cloud_frame = frame;
 	{
@@ -4867,7 +4963,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	CanvasQuad quads[MAX_CANVAS_QUADS];
 	const int quad_count = layout_quads(&layout, dst, quads);
 
-	if (new_frame)
+	if (new_frame || menu.on)
 	{
 		build_hud(hud, frame, layout.split);
 		btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);

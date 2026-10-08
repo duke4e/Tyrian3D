@@ -42,6 +42,14 @@ void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Re
 void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst, float ticks);
 
 // Window points per game pixel in the 3D view's playfield (at the player's height).
+// A menu or message the game shows over the playfield in a level (pause, the in-game options, the
+// level's end), over the 3D view's last frame: what differs from the screen as it was when that
+// frame showed (backdrop) is drawn over it, the boxes the menu darkened (x1, y1, x2, y2, as
+// JE_barShade takes them) darken it, fade (RGBA 0-1) goes over the whole window. *screen_rect:
+// where the screen's pixels show in the window (the playfield's part of them as laid out), for the mouse.
+void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, const int (*shades)[4], int shade_count,
+                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect);
+
 float rgpu_playfield_scale(void);
 // A window point (points) as a position on the player's plane in the view shown last, in game
 // screen coordinates, and back. False before a 3D frame was shown (or above the horizon).

@@ -99,6 +99,7 @@ void JE_barShade(SDL_Surface *surface, int a, int b, int c, int d) /* x1, y1, x2
 		int i, j, width;
 
 		width = c - a + 1;
+		video_backdrop_shade(surface, a, b, c, d);  // Tyrian3D: menus over the 3D view
 
 		for (i = b * surface->pitch + a; i <= d * surface->pitch + a; i += surface->pitch)
 		{
