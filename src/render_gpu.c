@@ -4091,6 +4091,51 @@ static void erase_painted_palms(Uint32 *rgba, int width, int map_row)
 }
 
 // Puts a map row into its slot of the ring, unless it is there already.
+// A map pixel's palette index (the exported map's pixels, the generated columns included), or -1
+// where it is clear.
+static int map_pixel(const B3DTerrain *t, int set, int x, int y)
+{
+	if (x < 0 || y < 0)
+		return -1;
+	bool flipped;
+	const int cell = b3d_map_cell(set, y / B3D_TILE_H, x / B3D_TILE_W - t->side_columns, &flipped);
+	if (cell < 0)
+		return -1;
+	int ox, oy;
+	b3d_cell_origin(cell, &ox, &oy);
+	const int tx = x % B3D_TILE_W;
+	const int i = (oy + y % B3D_TILE_H) * B3D_ATLAS_W + ox + (flipped ? B3D_TILE_W - 1 - tx : tx);
+	return tile_opaque[i] ? tile_indices[i] : -1;
+}
+
+// The objects of ground enemies painted into the map's tiles under their models (b3d_erasures):
+// replaced in a row of the map's texture by the map's own ground further away.
+static void erase_painted_enemies(Uint32 *rgba, int width, const B3DTerrain *t, int set, int map_row,
+                                  const Uint32 colors[256])
+{
+	const B3DErasures *erasures = b3d_erasures(set);
+	if (erasures == NULL)
+		return;
+	const int top = map_row * B3D_TILE_H, bottom = top + B3D_TILE_H;
+	for (int i = 0; i < erasures->count; ++i)
+	{
+		const B3DErasure *e = &erasures->erasures[i];
+		if (e->y >= bottom)
+			break;  // in order of y
+		if (e->y + e->h <= top)
+			continue;
+		for (int y = SDL_max(e->y, top); y < SDL_min(e->y + e->h, bottom); ++y)
+			for (int x = e->x; x < SDL_min(e->x + e->w, width); ++x)
+			{
+				if (!e->mask[(y - e->y) * e->w + (x - e->x)])
+					continue;
+				const int index = map_pixel(t, set, x + e->dx, y + e->dy);
+				if (index >= 0)
+					rgba[(y - top) * width + x] = colors[index];
+			}
+	}
+}
+
 static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
 {
 	const int slot = map_row % TERRAIN_RING_ROWS;
@@ -4128,6 +4173,7 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 	}
 	if (set == 1)
 		erase_painted_palms(rgba, ring->width, map_row);
+	erase_painted_enemies(rgba, ring->width, t, set, map_row, colors);
 	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
 	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
 	                              B3D_TILE_H);

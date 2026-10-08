@@ -1305,6 +1305,89 @@ static struct
 	int *row_start;
 } vegetation_state;
 
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	bool present;
+	B3DErasures erasures;
+	B3DErasure *list;
+	Uint8 *data;
+} erasure_state[B3D_SETS];
+
+const B3DErasures *b3d_erasures(int set)
+{
+	static int enabled = -1;
+	if (enabled < 0)
+		enabled = SDL_getenv("TYR3D_ERASE") == NULL || SDL_atoi(SDL_getenv("TYR3D_ERASE")) != 0;
+	if (!enabled || set < 1 || set > B3D_SETS)
+		return NULL;
+	typeof(erasure_state[0]) *state = &erasure_state[set - 1];
+	if (state->made_for == b3d_map_generation + 1)
+		return state->present ? &state->erasures : NULL;
+	state->made_for = b3d_map_generation + 1;
+	state->present = false;
+	free(state->list);
+	free(state->data);
+	state->list = NULL;
+	state->data = NULL;
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/%016llx.era",
+	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
+	         (unsigned long long)b3d_map_hash(set));
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return NULL;
+	Uint8 header[12];
+	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYER", 4) == 0;
+	fseek(f, 0, SEEK_END);
+	const long packed_size = ftell(f) - (long)sizeof(header);
+	fseek(f, (long)sizeof(header), SEEK_SET);
+	Uint8 *packed = header_read && packed_size > 0 ? malloc((size_t)packed_size) : NULL;
+	const bool read = packed != NULL && fread(packed, 1, (size_t)packed_size, f) == (size_t)packed_size;
+	fclose(f);
+	Uint32 count = 0;
+	if (read)
+		memcpy(&count, header + 8, sizeof(count));
+	count = SDL_Swap32LE(count);
+	// At most 24 x 28 mask bytes and 10 bytes of fields each.
+	uLongf size = (uLongf)count * (10 + 24 * 28);
+	state->data = read && count > 0 ? malloc(size) : NULL;
+	state->list = state->data != NULL ? malloc(sizeof(B3DErasure) * count) : NULL;
+	if (state->list == NULL || uncompress(state->data, &size, packed, (uLong)packed_size) != Z_OK)
+	{
+		free(packed);
+		free(state->list);
+		free(state->data);
+		state->list = NULL;
+		state->data = NULL;
+		return NULL;
+	}
+	free(packed);
+	uLongf at = 0;
+	int n = 0;
+	for (Uint32 i = 0; i < count && at + 10 <= size; ++i)
+	{
+		const Uint8 *r = state->data + at;
+		B3DErasure *e = &state->list[n];
+		e->x = (Uint16)(r[0] | r[1] << 8);
+		e->y = (Uint16)(r[2] | r[3] << 8);
+		e->w = r[4];
+		e->h = r[5];
+		e->dx = (Sint16)(r[6] | r[7] << 8);
+		e->dy = (Sint16)(r[8] | r[9] << 8);
+		e->mask = r + 10;
+		at += 10 + (uLongf)e->w * e->h;
+		if (at > size)
+			break;
+		++n;
+	}
+	state->erasures.count = n;
+	state->erasures.erasures = state->list;
+	state->present = n > 0;
+	return state->present ? &state->erasures : NULL;
+}
+
 const B3DVegetation *b3d_vegetation(void)
 {
 	static int enabled = -1;

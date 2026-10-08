@@ -208,6 +208,29 @@ typedef struct
 // The current ground map's vegetation, or NULL if it has none (or TYR3D_VEGETATION=0).
 const B3DVegetation *b3d_vegetation(void);
 
+/*
+ * Erasures (tools/terrain/make_erasures.py, assets/terrain/<map>.era): where a map has a ground
+ * enemy's object painted into its tiles (or the ground around it its sprite carries), under its
+ * model, the pixels to replace with the map's own pixels at an offset (a whole number of tiles away).
+ * Positions in the exported map's pixels (the generated columns included), in order of y.
+ */
+typedef struct
+{
+	Uint16 x, y;
+	Uint8 w, h;
+	Sint16 dx, dy;
+	const Uint8 *mask;  // w x h, 1: replace
+} B3DErasure;
+
+typedef struct
+{
+	int count;
+	const B3DErasure *erasures;
+} B3DErasures;
+
+// The erasures of a background's current map, or NULL (none, or TYR3D_ERASE=0).
+const B3DErasures *b3d_erasures(int set);
+
 // The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
 // collected), or -1 for an empty entry.
 int b3d_map_cell(int set, int map_row, int map_column, bool *flipped);
