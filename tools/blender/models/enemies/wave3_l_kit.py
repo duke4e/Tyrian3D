@@ -88,16 +88,18 @@ class Art:
         return int(ch, 16) if ch in "0123456789abcdef" else default
 
 
-def shade_field(art, blur=1, letters=None):
+def shade_field(art, blur=1, letters=None, skip=""):
     """A function (x, y) -> the art's shade at a point: bilinear between pixel centres, blurred `blur`
-    times; letters count as letters.get(char) (default: not known); outside the art, the nearest
-    known pixel's."""
+    times; letters count as letters.get(char) (default: not known), characters in skip are not known
+    either (outlines); outside the known pixels, the nearest one's."""
     letters = letters or {}
     h, w = art.h, art.w
     field = np.full((h, w), np.nan)
     for r in range(h):
         for c in range(w):
             ch = art.rows[r][c]
+            if ch in skip:
+                continue
             if ch in "0123456789abcdef":
                 field[r, c] = int(ch, 16)
             elif ch in letters:
@@ -118,6 +120,18 @@ def shade_field(art, blur=1, letters=None):
                 out[r, c] = np.average(vals, weights=wts)
         field = out
     known = np.array([(r, c) for r in range(h) for c in range(w) if not np.isnan(field[r, c])])
+    # The unknown pixels take the mean of their known neighbours, ring by ring (a smooth extension).
+    for _ in range(6):
+        out = field.copy()
+        for r in range(h):
+            for c in range(w):
+                if not np.isnan(field[r, c]):
+                    continue
+                vals = [field[r + dr, c + dc] for dr in (-1, 0, 1) for dc in (-1, 0, 1)
+                        if 0 <= r + dr < h and 0 <= c + dc < w and not np.isnan(field[r + dr, c + dc])]
+                if vals:
+                    out[r, c] = sum(vals) / len(vals)
+        field = out
 
     def at(x, y):
         c, r = x + art.ox - 0.5, art.oy - y - 0.5
@@ -165,6 +179,16 @@ def gauss(x, y, cx, cy, rx, ry, angle=0.0):
     c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
     u, v = (x - cx) * c + (y - cy) * s, -(x - cx) * s + (y - cy) * c
     return math.exp(-((u / rx) ** 2 + (v / ry) ** 2))
+
+
+def rounded_rect(cx, cy, hx, hy, power=6.0, count=40):
+    """A rounded rectangle (a superellipse of the given power) as a polygon."""
+    out = []
+    for i in range(count):
+        a = 2 * math.pi * i / count
+        c, s = math.cos(a), math.sin(a)
+        out.append((cx + math.copysign(abs(c) ** (2 / power), c) * hx, cy + math.copysign(abs(s) ** (2 / power), s) * hy))
+    return out
 
 
 def poly_px(art, points):
@@ -290,46 +314,6 @@ def mirror_objects(objects, axis_x=0.0):
         obj.data.transform(m)
         obj.data.flip_normals()
     return objects
-
-
-def copies(objects, matrix, suffix="_c"):
-    """Transformed copies of objects (the originals stay)."""
-    out = []
-    flip = matrix.determinant() < 0
-    for obj in objects:
-        sh.apply_modifiers(obj)
-        copy = obj.copy()
-        copy.data = obj.data.copy()
-        copy.name = obj.name + suffix
-        bpy.context.scene.collection.objects.link(copy)
-        copy.data.transform(matrix)
-        if flip:
-            copy.data.flip_normals()
-        out.append(copy)
-    return out
-
-
-def merge_materials(obj):
-    """Drops duplicate material slots (after joining or painting)."""
-    names = []
-    remap = []
-    mats = []
-    for m in obj.data.materials:
-        if m.name in names:
-            remap.append(names.index(m.name))
-        else:
-            remap.append(len(names))
-            names.append(m.name)
-            mats.append(m)
-    if len(mats) == len(obj.data.materials):
-        return obj
-    indices = [remap[p.material_index] for p in obj.data.polygons]
-    obj.data.materials.clear()
-    for m in mats:
-        obj.data.materials.append(m)
-    for p, i in zip(obj.data.polygons, indices):
-        p.material_index = i
-    return obj
 
 
 def decimate(obj, target):
