@@ -126,4 +126,16 @@ void b3d_compose(const L3DFrame *frame, const bool composed[L3D_MAX_BACKGROUNDS]
                  Uint8 *index, Uint8 *owner, Uint8 *const images[L3D_MAX_BACKGROUNDS],
                  Uint8 *const shades[L3D_MAX_BACKGROUNDS]);
 
+// Clouds (M8): whether a tile of background 2 or 3 (index within its set) is a cloud, to be shown
+// as a volumetric puff.
+bool b3d_tile_is_cloud(int set, int tile);
+// The set's tiles laid out as 2x2 sprites of a volumetric sprite sheet (volume3d.h:
+// V3D_ATLAS_W x V3D_ATLAS_H), and the sprite index of a tile in it.
+void b3d_tile_sprites(int set, Uint8 *indices, Uint8 *cover);
+unsigned int b3d_tile_sprite(int tile);
+// Which pixels along a tile's side (0 top, 1 right, 2 bottom, 3 left) are covered, as bits.
+Uint32 b3d_tile_edge(int set, int tile, int side);
+// Marks (1) the layer pixels (L3D_WIDTH x L3D_ROWS) that a background's cloud tiles cover.
+void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask);
+
 #endif /* BACKGROUND3D_H */

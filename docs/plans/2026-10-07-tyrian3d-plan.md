@@ -324,7 +324,7 @@ Gotovo na branchu `tyrian3d/m1-tools`, po milestoneima:
 | M5 Neprijatelji epizode 1, predmeti, sjene | gotovo (oko 30 modela, 50 % pojavljivanja; stanja; predmeti; sjene) |
 | M6 Bossovi i ostale epizode | gotovo uz odluku: model ima svaki tip epizoda 2–5 koji se pojavljuje više od 100 puta, osim plamenova, lave i dijelova velikih struktura; bossovi i višedijelni neprijatelji su volumetrijski dijelovi spojeni bez šava |
 | M7 Efekti i svjetlo | gotovo (metci kao svjetleći 3D objekti — to su i "laseri kao trake", čestice i svjetla eksplozija, superpixeli kao iskre, bloom, SMAA; tonemapping ostaje Reinhard i bez gradinga jer boje moraju ostati paletne; tilt-shift izostavljen) |
-| M8 Okruženje | gotovo uz odluku: reljef tla iz svjetline (vidi se pod svjetlima eksplozija), odsjaji na vodi, duboko zvjezdano polje, WFC strane; 3D propovi za strukture u tileovima prelaze u fazu uljepšavanja (plan ih je i označio dugoročnima) |
+| M8 Okruženje | gotovo uz odluku: oblaci kao volumetrijski puffovi sa sjenom (SAVARA), reljef tla iz svjetline (vidi se pod svjetlima eksplozija), odsjaji na vodi, duboko zvjezdano polje, WFC strane; 3D propovi za strukture u tileovima prelaze u fazu uljepšavanja (plan ih je i označio dugoročnima) |
 | M9 Robustnost i izdanje | macOS: svi modovi, sweep svih epizoda, Vulkan (MoltenVK), `.app` s licencama (`LICENSES.md`); Windows i Linux kasnije na Windows stroju (odluka korisnika, bez GitHub Actions) |
 | M10 Zvuk | gotovo (MIDI kroz SoundFont, upscalani zvučni efekti) |
 

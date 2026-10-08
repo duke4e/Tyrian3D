@@ -293,18 +293,17 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 22. **Superpixeli i iskre.** `JE_drawSP` u 3D-u ne mijenja piksele nego bilježi sjaj u boji iskre (`l3d_add_color_glow`), koji se kreće između tickova i gasne kao pikseli.
 23. **Modeli neprijatelja.** Epizoda 1: oko 30 tipova (50 % pojavljivanja); epizode 2–5: svaki tip koji se pojavljuje više od 100 puta (osim plamenova, lave i dijelova velikih struktura, koji namjerno ostaju volumetrijski). Skripte u `tools/blender/models/enemies` (`blocks`, `jets`, `rounds`, `misc`, `later_episodes`); siluete iz spriteova (`tools/blender/silhouette.py`: obrub piksela pojednostavljen Douglas-Peuckerom). Pregled bez igre: učitati GLB-ove u Blender i renderirati odozgo.
 24. **Sweep (M9).** `tools/sweep.sh` igra svaku sekciju epizoda s autopilotom; log razine (`level: ...`) iz `tyrian2.c`.
+25. **Oblaci (M8).** Tileovi pozadina 2 i 3 koji su svijetli, mekih boja i bez tamnog obruba (`b3d_tile_is_cloud`; u praksi oblaci SAVARE — voda razine 1 i WINDY je miješana pozadina 2, pa je izuzeta) postaju volumetrijski "puffovi": tileovi složeni kao 2x2 spriteovi (`b3d_tile_sprites`) idu kroz isti graditelj kao spriteovi, spojeni sa susjednim oblačnim tileovima (otvorene strane), na visini svog sloja, i bacaju sjenu; njihovi pikseli u igralištu se izostavljaju iz sloja (`b3d_cloud_mask`). Samo za pozadine koje nisu miješane ni filtrirane, s postavkom Objects. `TYR3D_LOG_CLOUDS` ispisuje klasifikaciju.
 
 ## 9. Predloženi sljedeći koraci (redom)
 
-1. Korisnik isproba igru i odobri set brodova (`TYR3D_VIEWER=ships`) i izgled razine 1.
-2. M5.1: modeli neprijatelja po učestalosti iz kataloga; složeniji tek s korisnikovim AI upscaleom
-   spriteova (`upscale/out`, atlasi iz `tools/make_atlases.py`).
-3. M6: bossovi i višedijelni neprijatelji, epizode 2–5.
-4. M7: laseri kao trake, bloom i tonemapping, svjetla eksplozija; M8: oblaci (BG2/BG3).
-5. M4.2: mjerači HUD-a iz stanja igre (glatki, u punoj rezoluciji) kad stigne upscalani panel.
-6. M9: Windows i Linux. Modovi 2 igrača, arcade, timed battle i Super Arcade rade u 3D-u
-   (`TYR3D_MODE`); Super Arcade zatamni dio ekrana kao spotlight, isto kao original. Galaga
-   (tajna razina) još nije isproban.
+Plan je gotov (vidi `docs/plans/2026-10-07-tyrian3d-plan.md`, odjeljak 4). Dalje, korisnikovim redom:
+
+1. Korisnik isproba: blokovi u WINDY, svjetla eksplozija, oblaci u SAVARI, miš (Direct), HUD.
+2. Uljepšavanje: složeniji modeli neprijatelja i bossova (reference u `upscale/out`), 3D propovi za
+   strukture u tileovima, mjerači HUD-a iz stanja igre, oblaci i u drugim razinama ako ih ima.
+3. Novi sadržaj: brodovi, oružja, neprijatelji, proceduralna epizoda.
+4. Windows (kasnije, na Windows stroju; kod je bez GCC built-insa).
 
 **Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 1,1–1,2 ms CPU-a po frameu na običnim razinama, do ~3,7 ms na razinama s filterima (LAVA RUN) i spotlightom; bloom i duboko zvjezdano polje su uključeni. Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
 

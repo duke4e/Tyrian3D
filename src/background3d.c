@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "palette.h"
+#include "volume3d.h"
 #include "paths3d.h"
 #include "pcxmast.h"
 #include "varz.h"
@@ -794,5 +795,135 @@ void b3d_export_maps(const char *dir)
 		fprintf(json, "\n]}\n");
 		fclose(json);
 		printf("background %d: map written to %s\n", set, path);
+	}
+}
+
+/*
+ * Clouds (M8). Tiles of backgrounds 2 and 3 that are light, soft colours with no dark outline
+ * (clouds, mist) are shown as volumetric puffs instead of flat tiles: the renderer builds them
+ * with the volumetric sprites' builder (volume3d.h) from the tiles laid out as 2x2 sprites.
+ */
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	bool cloud[B3D_TILES_PER_SET];
+} clouds[B3D_SETS];
+
+static float saturation(const Uint8 c[3])
+{
+	const int hi = SDL_max(c[0], SDL_max(c[1], c[2])), lo = SDL_min(c[0], SDL_min(c[1], c[2]));
+	return hi > 0 ? (float)(hi - lo) / hi : 0.0f;
+}
+
+static bool classify_cloud(const Uint8 *data)
+{
+	int opaque = 0, light = 0, dark = 0;
+	float sat = 0;
+	for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+	{
+		if (data[p] == 0)
+			continue;
+		const Uint8 *c = (const Uint8 *)&rgb_palette[data[p]];
+		const float lum = (0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]) / 255.0f;
+		++opaque;
+		light += lum > 0.5f;
+		dark += lum < 0.12f;
+		sat += saturation(c);
+	}
+	// Enough of the tile, mostly light, hardly any outline, soft colours.
+	return opaque >= 40 && light * 10 >= opaque * 7 && dark * 25 <= opaque && sat / opaque < 0.45f;
+}
+
+bool b3d_tile_is_cloud(int set, int tile)
+{
+	if (set < 2 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
+		return false;
+	if (clouds[set - 1].made_for != b3d_map_generation + 1)
+	{
+		const MapSet m = map_set(set);
+		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
+			clouds[set - 1].cloud[t] = t < m.tile_count && classify_cloud(m.first_tile + t * m.tile_stride);
+		clouds[set - 1].made_for = b3d_map_generation + 1;
+		if (SDL_getenv("TYR3D_LOG_CLOUDS") != NULL)
+		{
+			printf("clouds: set %d tiles", set);
+			for (int t = 0; t < B3D_TILES_PER_SET; ++t)
+				if (clouds[set - 1].cloud[t])
+					printf(" %d", t);
+			printf("\n");
+		}
+	}
+	return clouds[set - 1].cloud[tile];
+}
+
+unsigned int b3d_tile_sprite(int tile)
+{
+	// 2x2 sprites of 12x14 cells in a sheet of 19 columns: 9 tiles a row, 8 rows (72 tiles).
+	return (unsigned int)((tile / 9) * 2 * V3D_COLUMNS + (tile % 9) * 2 + 1);
+}
+
+void b3d_tile_sprites(int set, Uint8 *indices, Uint8 *cover)
+{
+	memset(indices, 0, V3D_ATLAS_W * V3D_ATLAS_H);
+	memset(cover, 0, V3D_ATLAS_W * V3D_ATLAS_H);
+	if (set < 1 || set > B3D_SETS)
+		return;
+	const MapSet m = map_set(set);
+	for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
+	{
+		const Uint8 *data = m.first_tile + t * m.tile_stride;
+		const int ox = (t % 9) * B3D_TILE_W, oy = (t / 9) * B3D_TILE_H;
+		for (int y = 0; y < B3D_TILE_H; ++y)
+			for (int x = 0; x < B3D_TILE_W; ++x)
+			{
+				const Uint8 v = data[y * B3D_TILE_W + x];
+				indices[(oy + y) * V3D_ATLAS_W + ox + x] = v;
+				cover[(oy + y) * V3D_ATLAS_W + ox + x] = v != 0;
+			}
+	}
+}
+
+Uint32 b3d_tile_edge(int set, int tile, int side)
+{
+	if (set < 1 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
+		return 0;
+	const MapSet m = map_set(set);
+	if (tile >= m.tile_count)
+		return 0;
+	const Uint8 *data = m.first_tile + tile * m.tile_stride;
+	Uint32 bits = 0;
+	const int n = side == 0 || side == 2 ? B3D_TILE_W : B3D_TILE_H;
+	for (int i = 0; i < n; ++i)
+	{
+		const int x = side == 1 ? B3D_TILE_W - 1 : side == 3 ? 0 : i;
+		const int y = side == 0 ? 0 : side == 2 ? B3D_TILE_H - 1 : i;
+		bits |= (Uint32)(data[y * B3D_TILE_W + x] != 0) << i;
+	}
+	return bits;
+}
+
+void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask)
+{
+	static B3DTile tiles[512];
+	const int count = b3d_collect_tiles(b, false, 0.0f, (float)-L3D_OVERSCAN, (float)(L3D_WIDTH - 1),
+	                                    (float)(L3D_ROWS - L3D_OVERSCAN - 1), tiles, (int)COUNTOF(tiles));
+	for (int t = 0; t < count; ++t)
+	{
+		const B3DTile *tile = &tiles[t];
+		if (tile->cell / B3D_TILES_PER_SET + 1 != b->set || !b3d_tile_is_cloud(b->set, tile->cell % B3D_TILES_PER_SET))
+			continue;
+		const Uint8 *data = cell_pixels(tile->cell);
+		for (int y = 0; y < B3D_TILE_H; ++y)
+		{
+			const int row = (int)tile->z + y + L3D_OVERSCAN;
+			if (row < 0 || row >= L3D_ROWS)
+				continue;
+			for (int x = 0; x < B3D_TILE_W; ++x)
+			{
+				const int column = (int)tile->x + x;
+				if (column >= 0 && column < L3D_WIDTH && data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)] != 0)
+					mask[row * L3D_WIDTH + column] = 1;
+			}
+		}
 	}
 }
