@@ -20,6 +20,7 @@
 
 #include "fonthand.h"
 #include "sprite.h"
+#include "text_record.h"
 
 /**
  * \file font.c
@@ -56,9 +57,12 @@
  */
 void draw_font_hv_shadow(SDL_Surface *surface, int x, int y, const char *text, Font font, FontAlignment alignment, Uint8 hue, Sint8 value, bool black, int shadow_dist)
 {
+	text_record_begin(surface, x, y, text, font, alignment, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	draw_font_dark(surface, x + shadow_dist, y + shadow_dist, text, font, alignment, black);
 	
 	draw_font_hv(surface, x, y, text, font, alignment, hue, value);
+	text_record_end();
 }
 
 /**
@@ -89,12 +93,15 @@ void draw_font_hv_shadow(SDL_Surface *surface, int x, int y, const char *text, F
  */
 void draw_font_hv_full_shadow(SDL_Surface *surface, int x, int y, const char *text, Font font, FontAlignment alignment, Uint8 hue, Sint8 value, bool black, int shadow_dist)
 {
+	text_record_begin(surface, x, y, text, font, alignment, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	draw_font_dark(surface, x,               y - shadow_dist, text, font, alignment, black);
 	draw_font_dark(surface, x + shadow_dist, y,               text, font, alignment, black);
 	draw_font_dark(surface, x,               y + shadow_dist, text, font, alignment, black);
 	draw_font_dark(surface, x - shadow_dist, y,               text, font, alignment, black);
 	
 	draw_font_hv(surface, x, y, text, font, alignment, hue, value);
+	text_record_end();
 }
 
 /**
@@ -118,6 +125,8 @@ void draw_font_hv_full_shadow(SDL_Surface *surface, int x, int y, const char *te
  */
 void draw_font_hv(SDL_Surface *surface, int x, int y, const char *text, Font font, FontAlignment alignment, Uint8 hue, Sint8 value)
 {
+	text_record_begin(surface, x, y, text, font, alignment, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	switch (alignment)
 	{
 	case left_aligned:
@@ -160,6 +169,7 @@ void draw_font_hv(SDL_Surface *surface, int x, int y, const char *text, Font fon
 			break;
 		}
 	}
+	text_record_end();
 }
 
 /**
@@ -181,6 +191,8 @@ void draw_font_hv(SDL_Surface *surface, int x, int y, const char *text, Font fon
  */
 void draw_font_hv_blend(SDL_Surface *surface, int x, int y, const char *text, Font font, FontAlignment alignment, Uint8 hue, Sint8 value)
 {
+	text_record_begin(surface, x, y, text, font, alignment, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	switch (alignment)
 	{
 	case left_aligned:
@@ -216,6 +228,7 @@ void draw_font_hv_blend(SDL_Surface *surface, int x, int y, const char *text, Fo
 			break;
 		}
 	}
+	text_record_end();
 }
 
 /**
@@ -237,6 +250,8 @@ void draw_font_hv_blend(SDL_Surface *surface, int x, int y, const char *text, Fo
  */
 void draw_font_dark(SDL_Surface *surface, int x, int y, const char *text, Font font, FontAlignment alignment, bool black)
 {
+	text_record_begin(surface, x, y, text, font, alignment, true);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	switch (alignment)
 	{
 	case left_aligned:
@@ -272,4 +287,5 @@ void draw_font_dark(SDL_Surface *surface, int x, int y, const char *text, Font f
 			break;
 		}
 	}
+	text_record_end();
 }

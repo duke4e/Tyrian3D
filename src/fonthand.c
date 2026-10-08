@@ -24,6 +24,7 @@
 #include "opentyr.h"
 #include "params.h"
 #include "sprite.h"
+#include "text_record.h"
 #include "vga256d.h"
 #include "video.h"
 
@@ -64,6 +65,8 @@ JE_shortint warningColChange;
 
 void JE_dString(SDL_Surface * screen, int x, int y, const char *s, unsigned int font)
 {
+	text_record_begin(screen, x, y, s, font, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	const int defaultBrightness = -3;
 
 	int bright = 0;
@@ -93,6 +96,7 @@ void JE_dString(SDL_Surface * screen, int x, int y, const char *s, unsigned int 
 			break;
 		}
 	}
+	text_record_end();
 }
 
 int JE_fontCenter(const char *s, unsigned int font)
@@ -119,6 +123,8 @@ int JE_textWidth(const char *s, unsigned int font)
 
 void JE_textShade(SDL_Surface * screen, int x, int y, const char *s, unsigned int colorbank, int brightness, unsigned int shadetype)
 {
+	text_record_begin(screen, x, y, s, TINY_FONT, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	switch (shadetype)
 	{
 		case PART_SHADE:
@@ -139,10 +145,13 @@ void JE_textShade(SDL_Surface * screen, int x, int y, const char *s, unsigned in
 			JE_outTextModify(screen, x, y, s, colorbank, brightness, TINY_FONT);
 			break;
 	}
+	text_record_end();
 }
 
 void JE_outText(SDL_Surface * screen, int x, int y, const char *s, unsigned int colorbank, int brightness)
 {
+	text_record_begin(screen, x, y, s, TINY_FONT, 0, brightness < 0);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	int bright = 0;
 
 	for (int i = 0; s[i] != '\0'; ++i)
@@ -172,10 +181,13 @@ void JE_outText(SDL_Surface * screen, int x, int y, const char *s, unsigned int 
 			break;
 		}
 	}
+	text_record_end();
 }
 
 void JE_outTextModify(SDL_Surface * screen, int x, int y, const char *s, unsigned int filter, unsigned int brightness, unsigned int font)
 {
+	text_record_begin(screen, x, y, s, font, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	for (int i = 0; s[i] != '\0'; ++i)
 	{
 		int sprite_id = font_ascii[(unsigned char)s[i]];
@@ -191,10 +203,13 @@ void JE_outTextModify(SDL_Surface * screen, int x, int y, const char *s, unsigne
 			x += sprite(font, sprite_id)->width + 1;
 		}
 	}
+	text_record_end();
 }
 
 void JE_outTextAdjust(SDL_Surface * screen, int x, int y, const char *s, unsigned int filter, int brightness, unsigned int font, JE_boolean shadow)
 {
+	text_record_begin(screen, x, y, s, font, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	int bright = 0;
 
 	for (int i = 0; s[i] != '\0'; ++i)
@@ -223,10 +238,13 @@ void JE_outTextAdjust(SDL_Surface * screen, int x, int y, const char *s, unsigne
 			break;
 		}
 	}
+	text_record_end();
 }
 
 void JE_outTextAndDarken(SDL_Surface * screen, int x, int y, const char *s, unsigned int colorbank, unsigned int brightness, unsigned int font)
 {
+	text_record_begin(screen, x, y, s, font, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	int bright = 0;
 
 	for (int i = 0; s[i] != '\0'; ++i)
@@ -254,6 +272,7 @@ void JE_outTextAndDarken(SDL_Surface * screen, int x, int y, const char *s, unsi
 			break;
 		}
 	}
+	text_record_end();
 }
 
 void JE_updateWarning(SDL_Surface * screen)
@@ -286,6 +305,8 @@ void JE_updateWarning(SDL_Surface * screen)
 
 void JE_outTextGlow(SDL_Surface * screen, int x, int y, const char *s)
 {
+	text_record_begin(screen, x, y, s, textGlowFont, 0, false);  // Tyrian3D: the 3D view draws it again (text_record.h)
+
 	JE_integer z;
 	JE_byte c = 15;
 
@@ -330,4 +351,5 @@ void JE_outTextGlow(SDL_Surface * screen, int x, int y, const char *s)
 		wait_delay();
 	}
 	textGlowBrightness = 6;
+	text_record_end();
 }
