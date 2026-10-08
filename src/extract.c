@@ -139,7 +139,7 @@ static int enemy_event_slot(Uint8 type)
 	case 6:  case 17:          return 25;  // ground
 	case 7:  case 23: case 32: return 50;  // top
 	case 10: case 56:          return 75;  // ground 2
-	case 12: case 52:          return -2;  // slot chosen by the event
+	case 12:                   return -2;  // slot chosen by the event
 	default:                   return -1;
 	}
 }
@@ -173,6 +173,46 @@ typedef struct
 } EnemyUse;
 
 static EnemyUse uses[ENEMY_NUM + 1];
+
+// Custom enemies (events 49-52): enemy 0 with the event's sprite from the event's shape bank.
+#define MAX_CUSTOM 512
+static struct
+{
+	int bank, sprite;
+	EnemyUse use;
+} customs[MAX_CUSTOM];
+static int custom_count = 0;
+
+static void add_level_name(EnemyUse *use, const char *level_name)
+{
+	if (strstr(use->levels, level_name) == NULL && strlen(use->levels) + strlen(level_name) + 2 < sizeof(use->levels))
+	{
+		if (use->levels[0] != '\0')
+			strcat(use->levels, ",");
+		strcat(use->levels, level_name);
+	}
+}
+
+static void note_custom(int bank, int sprite, int slot, const char *level_name)
+{
+	if (bank <= 0)
+		bank = enemyDat[0].shapebank;
+	int i = 0;
+	while (i < custom_count && !(customs[i].bank == bank && customs[i].sprite == sprite))
+		++i;
+	if (i == custom_count)
+	{
+		if (custom_count == MAX_CUSTOM)
+			return;
+		memset(&customs[i], 0, sizeof(customs[i]));
+		customs[i].bank = bank;
+		customs[i].sprite = sprite;
+		++custom_count;
+	}
+	customs[i].use.count += 1;
+	customs[i].use.layer_mask |= slot == 0 ? 1 : slot == 50 ? 4 : 2;
+	add_level_name(&customs[i].use, level_name);
+}
 
 static void note_use(int id, int slot, const char *level_name)
 {
@@ -242,6 +282,7 @@ static char special_views[2048];
 static void scan_episode_levels(void)
 {
 	memset(uses, 0, sizeof(uses));
+	custom_count = 0;
 
 	const int level_count = (episodeNum >= 4 ? lvlNum - 1 : lvlNum) / 2;
 	char names[64][16];
@@ -298,6 +339,11 @@ static void scan_episode_levels(void)
 				continue;
 			}
 
+			if (type >= 49 && type <= 52)
+			{
+				note_custom(dat3, dat, (const int[]){ 25, 0, 50, 75 }[type - 49], names[level]);
+				continue;
+			}
 			const int slot = enemy_event_slot(type);
 			if (slot == -1)
 				continue;
@@ -330,6 +376,9 @@ static void scan_episode_levels(void)
 		note_use(k, SLOT_DROP, "any");
 }
 
+static void write_use(FILE *json, bool *first, int id, int bank, const EnemyUse *use, int frames_count, const int *frames,
+                      bool large);
+
 static void write_episode_enemies(FILE *json, bool *first)
 {
 	for (int id = 1; id <= ENEMY_NUM; ++id)
@@ -337,9 +386,21 @@ static void write_episode_enemies(FILE *json, bool *first)
 		const EnemyUse *use = &uses[id];
 		if (use->count == 0)
 			continue;
+		int frames[20];
+		const int frame_count = SDL_max(1, SDL_min(enemyDat[id].ani, 20));
+		for (int k = 0; k < frame_count; ++k)
+			frames[k] = enemyDat[id].egraphic[k];
+		write_use(json, first, id, enemyDat[id].shapebank, use, frame_count, frames, enemyDat[id].esize == 1);
+	}
+	for (int i = 0; i < custom_count; ++i)
+		write_use(json, first, 0, customs[i].bank, &customs[i].use, 1, &customs[i].sprite, enemyDat[0].esize == 1);
+}
 
+static void write_use(FILE *json, bool *first, int id, int bank, const EnemyUse *use, int frame_count, const int *frames,
+                      bool large)
+{
+	{
 		// Sheet letter as used by models.cfg, and the exported sheet file.
-		const int bank = enemyDat[id].shapebank;
 		char sheet[16], sheet_file[32];
 		if (bank == 21)
 		{
@@ -367,7 +428,7 @@ static void write_episode_enemies(FILE *json, bool *first)
 		fprintf(json, ", \"sheet_file\": ");
 		json_string(json, sheet_file);
 		fprintf(json, ", \"large\": %s, \"ani\": %d, \"animate\": %d, \"armor\": %d, \"value\": %d, \"count\": %u, \"layers\": [",
-		        enemyDat[id].esize == 1 ? "true" : "false", enemyDat[id].ani, enemyDat[id].animate,
+		        large ? "true" : "false", id ? enemyDat[id].ani : 1, id ? enemyDat[id].animate : 0,
 		        enemyDat[id].armor, enemyDat[id].value, use->count);
 		const char *layer_names[5] = { "sky", "ground", "top", "any", "drop" };
 		bool first_layer = true;
@@ -378,9 +439,8 @@ static void write_episode_enemies(FILE *json, bool *first)
 				first_layer = false;
 			}
 		fprintf(json, "], \"frames\": [");
-		const int frames = SDL_max(1, SDL_min(enemyDat[id].ani, 20));
-		for (int k = 0; k < frames; ++k)
-			fprintf(json, "%s%d", k ? ", " : "", enemyDat[id].egraphic[k]);
+		for (int k = 0; k < frame_count; ++k)
+			fprintf(json, "%s%d", k ? ", " : "", frames[k]);
 		fprintf(json, "], \"levels\": ");
 		json_string(json, use->levels);
 		fputc('}', json);
