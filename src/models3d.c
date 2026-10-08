@@ -50,7 +50,7 @@ typedef struct
 static int rule_count;
 static EnemyRule rules[MAX_RULES];
 static int override_count;
-static SpriteOverride overrides[512];
+static SpriteOverride overrides[2048];
 static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
@@ -187,6 +187,11 @@ static char parse_sheet(const char *token)
 		return M3D_SHEET_COINS;
 	if (strcmp(token, "powerups") == 0 || strcmp(token, "twoplayer") == 0)
 		return M3D_SHEET_POWERUPS;
+	// x<hex>: a sheet whose letter is a symbol, as the catalogue names it (x23 is '#', which would
+	// start a comment here).
+	if ((token[0] == 'x' || token[0] == 'X') && strlen(token) == 3 && SDL_isxdigit((unsigned char)token[1]) &&
+	    SDL_isxdigit((unsigned char)token[2]))
+		return (char)strtol(token + 1, NULL, 16);
 	return (char)SDL_tolower((unsigned char)token[0]);
 }
 
