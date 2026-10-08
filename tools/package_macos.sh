@@ -31,6 +31,22 @@ if [ -f "$ROOT/data/soundfonts/GeneralUser-GS.sf2" ]; then
 	cp -R "$ROOT/data/soundfonts" "$APP/Contents/Resources/soundfonts"
 fi
 
+# Licenses (LICENSES.md lists what they cover).
+LICENSES="$APP/Contents/Resources/licenses"
+mkdir -p "$LICENSES"
+cp "$ROOT/COPYING" "$ROOT/LICENSES.md" "$LICENSES/"
+cp "$ROOT/external/btbh-renderer/LICENSE" "$LICENSES/btbh-renderer-LICENSE.txt"
+cp "$ROOT/external/tinysoundfont/LICENSE" "$LICENSES/TinySoundFont-LICENSE.txt"
+cp "$ROOT/external/btbh-renderer/external/uthash/LICENSE" "$LICENSES/uthash-LICENSE.txt"
+cp "$ROOT/assets/models/kenney-space-kit/License.txt" "$LICENSES/Kenney-Space-Kit-License.txt"
+for f in "$(brew --prefix sdl3 2>/dev/null)/LICENSE.txt:SDL3-LICENSE.txt" \
+         "$(brew --prefix assimp 2>/dev/null)/LICENSE:assimp-LICENSE.txt" \
+         "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt"; do
+	if [ -f "${f%%:*}" ]; then
+		cp "${f%%:*}" "$LICENSES/${f##*:}"
+	fi
+done
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

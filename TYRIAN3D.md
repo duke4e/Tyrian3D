@@ -229,6 +229,8 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 
 ## Credits
 
+See `LICENSES.md` for the licenses (the macOS app has them in `Contents/Resources/licenses`).
+
 - Tyrian: Eclipse Software / Jason Emery (freeware data).
 - OpenTyrian / OpenTyrian2000: the OpenTyrian team and Kaito Sinclaire (GPL-2.0).
 - Placeholder models: Kenney Space Kit, CC0 (`assets/models/kenney-space-kit/License.txt`).
