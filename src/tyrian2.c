@@ -403,9 +403,14 @@ static bool draw_enemy_model(unsigned int i)
 	l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, &vx, &vy);
 	if (look.glow_size != 0)
 	{
-		l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y,
-		                    look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size, look.glow_strength);
-		l3d_last_glow_velocity(vx, vy);
+		const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
+		if (look.glow_color != 0)
+			l3d_add_color_glow(x, y, size, look.glow_strength, look.glow_color, vx, vy);
+		else
+		{
+			l3d_add_sprite_glow(enemy[i].sprite2s, sprite, large, x, y, size, look.glow_strength);
+			l3d_last_glow_velocity(vx, vy);
+		}
 	}
 	return added;
 }
