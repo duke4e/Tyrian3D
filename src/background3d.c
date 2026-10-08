@@ -562,14 +562,31 @@ int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float
 
 bool b3d_clouds = false;
 
+bool b3d_terrain_ground = false;
+bool b3d_solids = false;
+
+bool b3d_solid_background(const L3DFrame *frame, const L3DBackground *b)
+{
+	return b3d_solids && b->set > 1 && frame->layers[b->layer].type != L3D_BG2_LOW && b->effect_count == 0 &&
+	       b3d_terrain(b->set) != NULL;
+}
+
 void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS])
 {
+	// Over a ground of terrain nothing is composed: the backgrounds over it are their tiles.
+	if (b3d_terrain_ground)
+	{
+		for (int i = 0; i < frame->background_count; ++i)
+			composed[i] = false;
+		return;
+	}
 	int last = -1;
 	for (int i = 0; i < frame->background_count; ++i)
 	{
 		const L3DBackground *b = &frame->backgrounds[i];
-		// A blended background of clouds isn't blended in the 3D view (its clouds are the canvas).
-		const bool blended = b->blend && !(b3d_clouds && b3d_set_has_clouds(b->set));
+		// A blended background of clouds isn't blended in the 3D view (its clouds are the canvas),
+		// nor one that is a solid.
+		const bool blended = b->blend && !(b3d_clouds && b3d_set_has_clouds(b->set)) && !b3d_solid_background(frame, b);
 		if (b->effect_count > 0 || blended)
 			last = i;
 	}
@@ -1145,6 +1162,17 @@ bool b3d_water_color(int set, Uint8 rgb[3])
 	return true;
 }
 
+bool b3d_map_point(const L3DBackground *b, float x, float y, int *map_x, int *map_y)
+{
+	B3DTile tile;
+	if (b3d_collect_tiles(b, true, x, y, x, y, &tile, 1) == 0 ||
+	    tile.map_column < -SIDE_COLUMNS || tile.map_column >= map_set(b->set).width + SIDE_COLUMNS)
+		return false;
+	*map_x = (tile.map_column + SIDE_COLUMNS) * B3D_TILE_W + (int)floorf(x - tile.x);
+	*map_y = tile.map_row * B3D_TILE_H + (int)floorf(y - tile.z);
+	return true;
+}
+
 int b3d_map_cell(int set, int map_row, int map_column, bool *flipped)
 {
 	*flipped = false;
@@ -1157,35 +1185,40 @@ int b3d_map_cell(int set, int map_row, int map_column, bool *flipped)
 	return kind < m.tile_count ? (set - 1) * B3D_TILES_PER_SET + kind : -1;
 }
 
-static struct
+typedef struct
 {
 	unsigned int made_for;  // b3d_map_generation + 1, or 0
 	B3DTerrain terrain;
 	Sint8 *data;
 	bool present;
-} terrain_state;
+} TerrainState;
 
-const B3DTerrain *b3d_terrain(void)
+static TerrainState terrain_state[B3D_SETS];
+
+const B3DTerrain *b3d_terrain(int set)
 {
 	static int enabled = -1;
 	if (enabled < 0)
 		enabled = SDL_getenv("TYR3D_TERRAIN") == NULL || SDL_atoi(SDL_getenv("TYR3D_TERRAIN")) != 0;
-	if (!enabled)
+	if (!enabled || set < 1 || set > B3D_SETS)
 		return NULL;
-	if (terrain_state.made_for == b3d_map_generation + 1)
-		return terrain_state.present ? &terrain_state.terrain : NULL;
-	terrain_state.made_for = b3d_map_generation + 1;
-	terrain_state.present = false;
-	free(terrain_state.data);
-	terrain_state.data = NULL;
+	TerrainState *state = &terrain_state[set - 1];
+	if (state->made_for == b3d_map_generation + 1)
+		return state->present ? &state->terrain : NULL;
+	state->made_for = b3d_map_generation + 1;
+	state->present = false;
+	free(state->data);
+	state->data = NULL;
 
 	char dir[1024], path[1200];
 	snprintf(path, sizeof(path), "%s/%016llx.ter",
 	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
-	         (unsigned long long)b3d_map_hash(1));
+	         (unsigned long long)b3d_map_hash(set));
 	FILE *f = fopen(path, "rb");
 	if (f == NULL)
 		return NULL;
+	// "TYTR", the version (2: with holes), samples across and down, game pixels between samples,
+	// generated columns covered on each side; then the heights, zlib-compressed.
 	Uint8 header[24];
 	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYTR", 4) == 0;
 	fseek(f, 0, SEEK_END);
@@ -1201,24 +1234,25 @@ const B3DTerrain *b3d_terrain(void)
 	}
 	Uint32 values[5];
 	memcpy(values, header + 4, sizeof(values));
-	B3DTerrain *t = &terrain_state.terrain;
+	B3DTerrain *t = &state->terrain;
+	t->holes = SDL_Swap32LE(values[0]) >= 2;
 	t->width = (int)SDL_Swap32LE(values[1]);
 	t->height = (int)SDL_Swap32LE(values[2]);
 	t->sample = (int)SDL_Swap32LE(values[3]);
 	t->side_columns = (int)SDL_Swap32LE(values[4]);
 	uLongf size = (uLongf)t->width * (uLongf)t->height;
-	terrain_state.data = malloc(size);
-	if (terrain_state.data == NULL || uncompress((Bytef *)terrain_state.data, &size, packed, (uLong)packed_size) != Z_OK ||
+	state->data = malloc(size);
+	if (state->data == NULL || uncompress((Bytef *)state->data, &size, packed, (uLong)packed_size) != Z_OK ||
 	    size != (uLongf)t->width * (uLongf)t->height)
 	{
 		free(packed);
-		free(terrain_state.data);
-		terrain_state.data = NULL;
+		free(state->data);
+		state->data = NULL;
 		return NULL;
 	}
 	free(packed);
-	t->heights = terrain_state.data;
-	terrain_state.present = true;
-	printf("terrain: %s (%d x %d samples)\n", path, t->width, t->height);
+	t->heights = state->data;
+	state->present = true;
+	printf("terrain: background %d: %s (%d x %d samples%s)\n", set, path, t->width, t->height, t->holes ? ", holes" : "");
 	return t;
 }

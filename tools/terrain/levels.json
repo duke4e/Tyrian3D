@@ -1,6 +1,278 @@
 {
+ "000fd80f14e9e9ab": {
+  "classes": 6,
+  "heights": {
+   "2": 12,
+   "4": 12,
+   "0": "~",
+   "3": "~",
+   "5": "~"
+  },
+  "level": "WINDY"
+ },
+ "02fc4f32cb074e2d": {
+  "classes": 6,
+  "heights": {
+   "2": 18,
+   "1": "~",
+   "5": "~"
+  },
+  "level": "SURFACE"
+ },
+ "0dc8da96218c0667": {
+  "classes": 6,
+  "heights": {
+   "0": 12,
+   "3": 12,
+   "5": "~"
+  },
+  "level": "UNDERDELI"
+ },
+ "14a0d01cd2b01f4c": {
+  "classes": 6,
+  "heights": {},
+  "level": "ASTEROID2",
+  "void": "hole"
+ },
+ "186e3d1a24ce5e38": {
+  "classes": 6,
+  "heights": {},
+  "level": "GRYPHON",
+  "void": "hole"
+ },
+ "194753bd5ac5f6cc": {
+  "classes": 6,
+  "heights": {},
+  "level": "FRUIT",
+  "void": "hole"
+ },
+ "19f19bfa5e806145": {
+  "classes": 6,
+  "heights": {},
+  "level": "SOH JIN"
+ },
+ "1d82619ab082bac9": {
+  "classes": 6,
+  "heights": {
+   "2": 12,
+   "4": 12,
+   "1": "~",
+   "3": "~",
+   "5": "~"
+  },
+  "level": "WINDY"
+ },
+ "230f88c59db284e0": {
+  "classes": 6,
+  "heights": {},
+  "level": "BOTANY A",
+  "void": "hole"
+ },
+ "235ff4603647808c": {
+  "classes": 6,
+  "heights": {},
+  "level": "EYESPY",
+  "void": "hole"
+ },
+ "2465d16675144c9c": {
+  "classes": 6,
+  "heights": {},
+  "level": "SQUADRON"
+ },
+ "29f5f3e985c92c72": {
+  "classes": 6,
+  "heights": {
+   "4": 14
+  },
+  "level": "ICESECRET"
+ },
+ "2ff0cd9f3b388afd": {
+  "classes": 6,
+  "heights": {},
+  "level": "CORAL",
+  "void": "hole"
+ },
+ "33fc79a5b8f29c38": {
+  "classes": 6,
+  "heights": {},
+  "level": "BRAINIAC",
+  "void": "hole"
+ },
+ "38d566539940e89e": {
+  "classes": 6,
+  "heights": {},
+  "level": "MINES",
+  "void": "hole"
+ },
+ "3907318befff6360": {
+  "classes": 6,
+  "heights": {},
+  "level": "FLEET",
+  "void": "hole"
+ },
+ "392630ba20726168": {
+  "classes": 6,
+  "heights": {
+   "2": 16,
+   "4": 16,
+   "1": "~",
+   "5": "~"
+  },
+  "level": "SAVARA IV"
+ },
+ "3b9fdfa4d722a381": {
+  "classes": 6,
+  "heights": {
+   "2": 8,
+   "5": 14,
+   "4": 22,
+   "0": "~",
+   "3": "~"
+  },
+  "level": "SAVARA"
+ },
+ "3ea5fc307b8e3f67": {
+  "classes": 6,
+  "heights": {},
+  "level": "ASTEROID?",
+  "void": "hole"
+ },
+ "4b3cbd637b64d12c": {
+  "classes": 6,
+  "heights": {
+   "3": 6,
+   "2": 14,
+   "5": 18,
+   "0": "~"
+  },
+  "level": "SAVARA V"
+ },
+ "6343b401b9fa03b3": {
+  "classes": 6,
+  "heights": {},
+  "level": "ASSASSIN",
+  "void": "hole"
+ },
+ "6498eda0c182465c": {
+  "classes": 6,
+  "heights": {},
+  "level": "ASTCITY",
+  "void": "hole"
+ },
+ "67c010441cb0af2d": {
+  "classes": 6,
+  "heights": {},
+  "level": "GYGES",
+  "void": -36
+ },
+ "6996cad08e04cb84": {
+  "classes": 6,
+  "heights": {},
+  "level": "ASTEROID1",
+  "void": "hole"
+ },
+ "6ecacae4c50b7490": {
+  "classes": 6,
+  "heights": {},
+  "level": "AST. CITY",
+  "void": "hole"
+ },
+ "72cffcdaf07380dd": {
+  "classes": 6,
+  "heights": {
+   "3": -14,
+   "0": "~",
+   "1": "~",
+   "4": "~",
+   "5": "~"
+  },
+  "level": "TORM"
+ },
+ "74d887cbde94739b": {
+  "classes": 6,
+  "heights": {},
+  "level": "MINEMAZE",
+  "void": "hole"
+ },
+ "7bdcbb24296242d4": {
+  "classes": 6,
+  "heights": {},
+  "level": "APPROACH",
+  "rolling": 12
+ },
+ "81a5109eefde534b": {
+  "classes": 6,
+  "heights": {},
+  "level": "BOTANY B",
+  "void": "hole"
+ },
+ "8362fe151f78556b": {
+  "classes": 6,
+  "heights": {},
+  "level": "MINERS"
+ },
+ "86170d245493325b": {
+  "classes": 6,
+  "heights": {},
+  "level": "ICE EXIT",
+  "rolling": 10
+ },
+ "89e6d1810ded7622": {
+  "classes": 6,
+  "heights": {
+   "3": 18,
+   "1": "~",
+   "4": "~",
+   "5": "~"
+  },
+  "level": "CAMANIS"
+ },
+ "8e44b37fb2bd8e70": {
+  "classes": 6,
+  "heights": {
+   "1": -16,
+   "3": -16,
+   "2": "~",
+   "4": "~",
+   "5": "~"
+  },
+  "level": "SOH JIN"
+ },
+ "924c013613e64069": {
+  "classes": 6,
+  "heights": {
+   "2": 12,
+   "3": "~",
+   "0": -6,
+   "4": -6
+  },
+  "level": "LAVA EXIT"
+ },
+ "93b92e60bc83167b": {
+  "classes": 6,
+  "heights": {},
+  "level": "?TUNNEL?",
+  "rolling": 10
+ },
+ "94af8d0cb48ce4a1": {
+  "classes": 6,
+  "heights": {
+   "2": 12,
+   "1": "~",
+   "5": "~"
+  },
+  "level": "HARVEST"
+ },
+ "9b460f25bf449153": {
+  "classes": 6,
+  "heights": {
+   "2": 14,
+   "3": 6,
+   "4": 6
+  },
+  "level": "SAVARA"
+ },
  "9d895f5c53c668ad": {
-  "level": "TYRIAN",
   "classes": 7,
   "heights": {
    "0": 8,
@@ -10,6 +282,250 @@
    "4": 0,
    "5": 0,
    "6": "~"
-  }
+  },
+  "level": "TYRIAN"
+ },
+ "9d99104f710e2a29": {
+  "classes": 6,
+  "heights": {
+   "3": -16,
+   "5": -16,
+   "0": -16,
+   "2": "~",
+   "4": "~"
+  },
+  "level": "LAVA RUN"
+ },
+ "a06d5316d71596a9": {
+  "classes": 6,
+  "heights": {},
+  "level": "BONUS",
+  "void": "hole"
+ },
+ "a2a714bae1d9c4e4": {
+  "classes": 6,
+  "heights": {},
+  "level": "STARGATE",
+  "void": "hole"
+ },
+ "aa99245f9e41149e": {
+  "classes": 6,
+  "heights": {},
+  "level": "BUBBLES",
+  "void": "hole"
+ },
+ "ae14b214255dc6b8": {
+  "classes": 6,
+  "heights": {},
+  "level": "GAUNTLET",
+  "void": "hole"
+ },
+ "b576db56e7b20ef0": {
+  "classes": 6,
+  "heights": {},
+  "level": "MACES",
+  "void": "hole"
+ },
+ "bd41ce762486dd96": {
+  "classes": 6,
+  "heights": {
+   "2": 10,
+   "5": 6,
+   "4": -20,
+   "3": "~"
+  },
+  "level": "HOLES"
+ },
+ "c2523f4e40152e95": {
+  "classes": 6,
+  "heights": {},
+  "level": "AST ROCK",
+  "void": "hole"
+ },
+ "c99d83d90898734e": {
+  "classes": 6,
+  "heights": {},
+  "level": "SAWBLADES",
+  "rolling": 10
+ },
+ "ce93bc69f7c901f4": {
+  "classes": 6,
+  "heights": {},
+  "level": "SIDE EXIT",
+  "rolling": 12
+ },
+ "d49373660c42a1ae": {
+  "classes": 6,
+  "heights": {},
+  "level": "STATION",
+  "void": "hole"
+ },
+ "df4df9d19f0d453f": {
+  "classes": 6,
+  "heights": {
+   "2": 16,
+   "1": "~",
+   "4": "~",
+   "5": "~"
+  },
+  "level": "TIME WAR"
+ },
+ "e327bb8b274be7cd": {
+  "classes": 6,
+  "heights": {
+   "5": 16,
+   "3": 10,
+   "1": "~",
+   "4": "~"
+  },
+  "level": "DELIANI"
+ },
+ "e6f152b03ea0a81a": {
+  "classes": 6,
+  "heights": {},
+  "level": "IXMUCANE",
+  "rolling": 6
+ },
+ "e7ae42471c881faf": {
+  "classes": 6,
+  "heights": {
+   "2": 12,
+   "1": "~",
+   "3": "~",
+   "5": "~"
+  },
+  "level": "NOSE DRIP"
+ },
+ "f5437dd6ec3d4a83": {
+  "classes": 6,
+  "heights": {
+   "1": -12,
+   "2": 14,
+   "4": "~",
+   "5": "~"
+  },
+  "level": "BONUS"
+ },
+ "f56edd861f383994": {
+  "classes": 6,
+  "heights": {
+   "0": 18,
+   "2": 4,
+   "4": "~",
+   "5": "~"
+  },
+  "level": "DESERTRUN"
+ },
+ "fb9aa666d65584d7": {
+  "classes": 6,
+  "heights": {},
+  "level": "BONUS",
+  "void": "hole"
+ },
+ "fd012f6c792344d7": {
+  "classes": 6,
+  "heights": {},
+  "level": "CORE",
+  "rolling": 10
+ },
+ "fe832346c752a19a": {
+  "classes": 6,
+  "heights": {},
+  "level": "** ALE **"
+ },
+ "ed9562b14ea981be": {
+  "level": "?TUNNEL?",
+  "background": 2,
+  "solid": true
+ },
+ "521091cc2375d046": {
+  "level": "?TUNNEL?",
+  "background": 3,
+  "solid": true
+ },
+ "4c10d435014fc9d1": {
+  "level": "ASSASSIN",
+  "background": 3,
+  "solid": true
+ },
+ "03bae0b0c55b9b1b": {
+  "level": "BONUS",
+  "background": 2,
+  "solid": true
+ },
+ "bfd593e0df1b8feb": {
+  "level": "BRAINIAC",
+  "background": 2,
+  "solid": true
+ },
+ "c39ae9725fde5705": {
+  "level": "CORE",
+  "background": 2,
+  "solid": true
+ },
+ "1c324e741b11005f": {
+  "level": "GYGES",
+  "background": 2,
+  "solid": true
+ },
+ "7f0f9d0c3816ef7e": {
+  "level": "GYGES",
+  "background": 3,
+  "solid": true
+ },
+ "9976802307715f92": {
+  "level": "HOLES",
+  "background": 3,
+  "solid": true
+ },
+ "f0c273761ac46f73": {
+  "level": "IXMUCANE",
+  "background": 2,
+  "solid": true
+ },
+ "34ce07a331eb87fc": {
+  "level": "IXMUCANE",
+  "background": 3,
+  "solid": true
+ },
+ "3ecddef27114456b": {
+  "level": "LAVA EXIT",
+  "background": 2,
+  "solid": true
+ },
+ "893b6ccf4f30542b": {
+  "level": "LAVA RUN",
+  "background": 2,
+  "solid": true
+ },
+ "4a46f682214f9603": {
+  "level": "MINEMAZE",
+  "background": 2,
+  "solid": true
+ },
+ "1fb9d1efe516316c": {
+  "level": "NOSE DRIP",
+  "background": 3,
+  "solid": true
+ },
+ "8d58b7e6d83a6cbf": {
+  "level": "SAWBLADES",
+  "background": 2,
+  "solid": true
+ },
+ "b5639afc00ffbbab": {
+  "level": "SAWBLADES",
+  "background": 3,
+  "solid": true
+ },
+ "821f49302fd6e5ee": {
+  "level": "SIDE EXIT",
+  "background": 2,
+  "solid": true
+ },
+ "ad33fadb8ad32f83": {
+  "level": "TYRIAN",
+  "background": 3,
+  "solid": true
  }
 }

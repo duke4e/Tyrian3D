@@ -344,6 +344,12 @@ void setDelaySpeed(Uint16 speed)  // FKA NortSong.speed and NortSong.setTimerInt
 {
 	delaySpeed = speed;
 	delayPeriod = speed * pitPeriod;
+
+	// Tyrian3D dev: TYR3D_TURBO=<factor> runs the game that many times faster (for collecting
+	// data over whole levels, tools/terrain/ground_log.sh).
+	const char *turbo = SDL_getenv("TYR3D_TURBO");
+	if (turbo != NULL && SDL_atof(turbo) > 1.0)
+		delayPeriod /= (float)SDL_atof(turbo);
 }
 
 void JE_changeVolume(JE_word *music, int music_delta, JE_word *sample, int sample_delta)

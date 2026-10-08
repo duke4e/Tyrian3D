@@ -256,6 +256,60 @@ static Uint8 enemy_open_sides(unsigned int i)
 	return open;
 }
 
+// Tyrian3D dev (TYR3D_LOG_GROUND): where ground enemies are on the backgrounds' maps, for keeping
+// the terrain under them at the ground's height and solids clear of them
+// (tools/terrain/make_terrain.py). Prints "ground: <map> <x> <y> <size> <slot>" in the exported
+// map's pixels, when an enemy has moved (so an enemy standing on the map shows once, one moving
+// over it every few pixels).
+static struct
+{
+	float x, y;
+	int size;
+	unsigned int slot;
+} ground_logged[COUNTOF(enemy) * 2];
+static int ground_logged_count = 0;
+
+static void log_ground_enemy(unsigned int i)
+{
+	if (l3d_current_layer() != L3D_GROUND_ENEMY || enemy[i].ey <= -26 || enemy[i].ey >= 190 ||
+	    ground_logged_count == (int)COUNTOF(ground_logged))
+		return;
+	ground_logged[ground_logged_count++] = (typeof(ground_logged[0])){
+		enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, enemy[i].size == 1 ? 24 : 12, i };
+}
+
+// At the frame's end, when all its backgrounds are drawn: where the frame's ground enemies were on
+// each background's map (backgrounds 2 and 3 solids keep clear of them too).
+static void flush_ground_log(void)
+{
+	static int last_x[B3D_SETS][COUNTOF(enemy)], last_y[B3D_SETS][COUNTOF(enemy)];
+	static Uint64 hashes[B3D_SETS];
+	static unsigned int generation = 0;
+	if (generation != b3d_map_generation + 1)
+	{
+		generation = b3d_map_generation + 1;
+		for (int set = 1; set <= B3D_SETS; ++set)
+			hashes[set - 1] = b3d_map_hash(set);
+		SDL_memset(last_x, 0, sizeof(last_x));
+	}
+	for (int e = 0; e < ground_logged_count; ++e)
+		for (int b = 0; b < l3d_frame.background_count; ++b)
+		{
+			const L3DBackground *background = &l3d_frame.backgrounds[b];
+			const int set = background->set;
+			const unsigned int i = ground_logged[e].slot;
+			int map_x, map_y;
+			if (set < 1 || set > B3D_SETS || !b3d_map_point(background, ground_logged[e].x, ground_logged[e].y, &map_x, &map_y))
+				continue;
+			if (abs(map_x - last_x[set - 1][i]) < 4 && abs(map_y - last_y[set - 1][i]) < 4)
+				continue;
+			last_x[set - 1][i] = map_x;
+			last_y[set - 1][i] = map_y;
+			printf("ground: %016llx %d %d %d %u\n", (unsigned long long)hashes[set - 1], map_x, map_y, ground_logged[e].size, i);
+		}
+	ground_logged_count = 0;
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -282,6 +336,8 @@ static bool draw_enemy_model(unsigned int i)
 				break;
 			}
 	}
+	if (SDL_getenv("TYR3D_LOG_GROUND") != NULL)
+		log_ground_enemy(i);
 	if (look.model == M3D_SPRITE)
 		return false;
 
@@ -2747,6 +2803,8 @@ draw_player_shot_loop_end:
 
 	JE_inGameDisplays();
 
+	if (SDL_getenv("TYR3D_LOG_GROUND") != NULL)
+		flush_ground_log();
 	l3d_frame_end();
 
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */

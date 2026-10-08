@@ -135,6 +135,12 @@ const Uint8 *b3d_tile_pixels(int set, int tile);
 bool b3d_set_has_clouds(int set);
 // Clouds are shown as clouds (set by the renderer): blended backgrounds of clouds aren't composed.
 extern bool b3d_clouds;
+// The ground is terrain this frame (render_gpu.c): no background is composed then.
+extern bool b3d_terrain_ground;
+// Backgrounds 2 and 3 may be solids this frame (render_gpu.c: when there are models), and whether a
+// background is one: it has terrain and is drawn over the ground's enemies, unfiltered.
+extern bool b3d_solids;
+bool b3d_solid_background(const L3DFrame *frame, const L3DBackground *b);
 // Marks (1) the layer pixels (L3D_WIDTH x L3D_ROWS) that a background's cloud tiles cover.
 void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask);
 
@@ -151,23 +157,32 @@ bool b3d_water_color(int set, Uint8 rgb[3]);
 Uint64 b3d_map_hash(int set);
 
 /*
- * Terrain (polish): heights for a whole ground map, computed offline from its surfaces
+ * Terrain (polish): heights for a whole map, computed offline from its surfaces
  * (tools/terrain/make_terrain.py) and loaded with the map from assets/terrain/<map>.ter. Samples
  * every `sample` game pixels at the samples' corners, from the map's left generated column
- * (-side_columns) on; heights in game pixels above the ground (where its enemies stand).
+ * (-side_columns) on; heights in game pixels above the background's plane (for the ground, where
+ * its enemies stand). B3D_TERRAIN_HOLE marks samples with nothing there (black space, or what
+ * backgrounds 2 and 3 leave clear): the surface ends at them in walls down to below the plane.
  */
+#define B3D_TERRAIN_HOLE (-128)
+
 typedef struct
 {
 	int width, height;   // samples
 	int sample;          // game pixels between samples
 	int side_columns;    // tile columns beside the map that the samples cover on each side
+	bool holes;          // some samples are B3D_TERRAIN_HOLE
 	const Sint8 *heights;
 } B3DTerrain;
 
-// The current ground map's terrain, or NULL if it has none (or TYR3D_TERRAIN=0).
-const B3DTerrain *b3d_terrain(void);
+// The terrain of a background's current map (1 = the ground), or NULL if it has none (or
+// TYR3D_TERRAIN=0).
+const B3DTerrain *b3d_terrain(int set);
 // The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
 // collected), or -1 for an empty entry.
 int b3d_map_cell(int set, int map_row, int map_column, bool *flipped);
+// Where a screen point over a background lies in its exported map (TYR3D_EXPORT_MAPS's images:
+// game pixels from the map's top left, the generated columns included); false off the map.
+bool b3d_map_point(const L3DBackground *b, float x, float y, int *map_x, int *map_y);
 
 #endif /* BACKGROUND3D_H */

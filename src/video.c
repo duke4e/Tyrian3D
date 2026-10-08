@@ -380,6 +380,14 @@ int video_pointer_scale(void)
 
 void JE_showVGA3D(void)
 {
+	// TYR3D_TURBO (dev): only every so many ticks shows, so the game isn't held up by the display.
+	static int turbo = -1, skipped = 0;
+	if (turbo < 0)
+		turbo = SDL_getenv("TYR3D_TURBO") != NULL ? SDL_max(SDL_atoi(SDL_getenv("TYR3D_TURBO")), 1) : 1;
+	if (++skipped < turbo)
+		return;
+	skipped = 0;
+
 	SDL_Rect dst_rect;
 	calc_dst_render_rect(&dst_rect);
 

@@ -105,6 +105,8 @@ static LoadedModel loaded_models[M3D_MAX_MODELS];
 typedef struct VolumeSheet VolumeSheet;
 static void forget_volume_sheets(void);
 static Uint32 hash_colors(const Uint32 colors[256]);
+static void forget_terrain(void);
+static float cloud_noise(float x, float z, float cell, Uint32 seed);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
 
@@ -124,6 +126,7 @@ static BTBHGPUTexture *composed_water = NULL;
 #define CLOUD_SCALE 2      // game pixels per texel
 #define MAX_CLOUD_CANVASES 2
 static BTBHGPUTexture *cloud_texture = NULL;  // CLOUD_TEXELS x CLOUD_TEXELS * MAX_CLOUD_CANVASES
+static BTBHGPUTexture *puff_texture = NULL;   // a cumulus puff (create_puff_texture)
 static Uint32 layer_water_rgba[L3D_WIDTH * ATLAS_H];
 static float glint_time = 0;  // seconds of game time, for the waves
 
@@ -289,6 +292,53 @@ static BTBHGPUTexture *create_texture(int width, int height, BTBHGPUTextureColor
 	return create_texture_filtered(width, height, color_space, BTBH_GPU_TEXTURE_FILTER_NEAREST);
 }
 
+// The maps' tiles and the layers smoothly filtered (TYR3D_FILTER=0: as pixels).
+static BTBHGPUTextureFilter map_filter(void)
+{
+	const char *value = SDL_getenv("TYR3D_FILTER");
+	return value != NULL && SDL_atoi(value) == 0 ? BTBH_GPU_TEXTURE_FILTER_NEAREST : BTBH_GPU_TEXTURE_FILTER_LINEAR;
+}
+
+// Filtered, a tile's texture is sampled from its first pixel's centre to its last's (half a pixel in
+// from its cell's edges), so the cell's border, which repeats the tile's edge rather than going on
+// into the tile beside it in the map, never shows as a seam.
+static float tile_inset(void)
+{
+	return map_filter() == BTBH_GPU_TEXTURE_FILTER_LINEAR ? 0.5f : 0.0f;
+}
+
+// Gives clear pixels the colour of an opaque neighbour (still clear), so filtering doesn't darken
+// the edges of what is drawn towards the clear pixels' black.
+static void bleed_into_clear(Uint32 *rgba, int width, int first_row, int rows)
+{
+	static Uint32 *copy = NULL;
+	static size_t capacity = 0;
+	const size_t size = (size_t)width * (size_t)rows;
+	if (capacity < size)
+	{
+		free(copy);
+		copy = malloc(size * sizeof(Uint32));
+		capacity = copy != NULL ? size : 0;
+		if (copy == NULL)
+			return;
+	}
+	Uint32 *const area = rgba + (size_t)first_row * width;
+	memcpy(copy, area, size * sizeof(Uint32));
+	for (int y = 0; y < rows; ++y)
+		for (int x = 0; x < width; ++x)
+		{
+			Uint32 *p = &area[(size_t)y * width + x];
+			if ((*p >> 24) != 0)
+				continue;
+			const Uint32 *c = &copy[(size_t)y * width + x];
+			const Uint32 n = x > 0 && (c[-1] >> 24) != 0 ? c[-1]
+			               : x + 1 < width && (c[1] >> 24) != 0 ? c[1]
+			               : y > 0 && (c[-width] >> 24) != 0 ? c[-width]
+			               : y + 1 < rows && (c[width] >> 24) != 0 ? c[width] : 0;
+			*p = n & 0x00ffffff;
+		}
+}
+
 static BTBHGPUCustomMesh *create_quad_mesh(float left_brightness, float right_brightness)
 {
 	typedef struct
@@ -366,6 +416,79 @@ static BTBHGPUTexture *create_particle_texture(void)
 	return texture;
 }
 
+// A cumulus puff: a cluster of round lobes, lit from the top left towards the viewer (puffs face
+// the camera), brighter on top, greyer underneath, with soft wispy edges. Instances colour it, and
+// turn, flip and stretch it, so that the puffs differ.
+#define PUFF_VARIANTS 1
+
+static BTBHGPUTexture *create_puff_texture(void)
+{
+	enum { CELL = 128, SIZE = CELL };
+	static Uint32 pixels[SIZE * SIZE];
+	static const float light[3] = { -0.5f, -0.62f, 0.6f };  // towards the light: left, up the texture, out
+	for (int v = 0; v < PUFF_VARIANTS; ++v)
+	{
+		// Lobes: a big one in the middle, smaller ones round it and above (cumulus heap up).
+		float lobes[5][3];
+		Uint32 seed = 0x9e3779b9u * (Uint32)(v + 1);
+		int count = 0;
+		lobes[count][0] = 0.0f;
+		lobes[count][1] = 0.08f;
+		lobes[count][2] = 0.52f;
+		++count;
+		for (; count < 5; ++count)
+		{
+			seed = seed * 1664525u + 1013904223u;
+			const float a = (seed >> 8) / 16777216.0f * 6.2831853f;
+			seed = seed * 1664525u + 1013904223u;
+			const float r = 0.25f + 0.15f * ((seed >> 8) / 16777216.0f);
+			lobes[count][0] = cosf(a) * (0.62f - r);
+			lobes[count][1] = SDL_min(sinf(a) * (0.55f - r) - 0.08f, 0.2f);  // fewer below: a flatter base
+			lobes[count][2] = r;
+		}
+		const int ox = (v % 2) * CELL, oy = (v / 2) * CELL;
+		for (int y = 0; y < CELL; ++y)
+			for (int x = 0; x < CELL; ++x)
+			{
+				const float px = (x + 0.5f) / CELL * 2 - 1, py = (y + 0.5f) / CELL * 2 - 1;
+				// The lobe nearest the viewer here gives the surface.
+				float top = -1, n[3] = { 0, 0, 1 }, edge = 0;
+				for (int k = 0; k < count; ++k)
+				{
+					const float dx = px - lobes[k][0], dy = py - lobes[k][1], r = lobes[k][2];
+					const float d2 = dx * dx + dy * dy;
+					edge = SDL_max(edge, 1.0f - sqrtf(d2) / r);
+					if (d2 >= r * r)
+						continue;
+					const float h = sqrtf(r * r - d2) + 0.3f * (1 - k / (float)count);
+					if (h > top)
+					{
+						top = h;
+						const float hz = sqrtf(r * r - d2);
+						n[0] = dx / r;
+						n[1] = dy / r;
+						n[2] = hz / r;
+					}
+				}
+				float alpha = SDL_clamp(edge / 0.6f, 0.0f, 1.0f);
+				alpha = alpha * alpha * (3 - 2 * alpha);
+				// Wisps: the edges broken up by a little noise.
+				const float wisp = cloud_noise((float)x + v * 211.0f, (float)y, 9.0f, 7) * 0.6f +
+				                   cloud_noise((float)x + v * 211.0f, (float)y, 4.0f, 8) * 0.4f;
+				alpha *= SDL_clamp(0.55f + 0.9f * wisp - (1 - alpha) * 0.4f, 0.0f, 1.0f);
+				const float lambert = SDL_max(0.0f, n[0] * light[0] + n[1] * light[1] + n[2] * light[2]);
+				const float base = 0.86f + 0.14f * (1 - (py + 1) / 2);  // greyer towards the bottom
+				const float shade = SDL_clamp((0.7f + 0.33f * lambert) * base, 0.0f, 1.0f);
+				const Uint8 rgba[4] = { (Uint8)(255 * shade), (Uint8)(255 * shade), (Uint8)(255 * SDL_min(1.0f, shade * 1.03f)),
+				                        (Uint8)(255 * alpha) };
+				memcpy(&pixels[(oy + y) * SIZE + ox + x], rgba, 4);
+			}
+	}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
@@ -436,13 +559,14 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	panel_texture = create_texture_filtered(PANEL_HD_W, PANEL_HD_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR,
 	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
-	layer_atlas = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	layer_atlas = create_texture_filtered(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
 	layer_water = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
-	tile_atlas = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	tile_atlas = create_texture_filtered(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
 	tile_water = create_texture(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	white_texture = create_texture(1, 1, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_texture = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_water = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
+	puff_texture = create_puff_texture();
 	cloud_texture = create_texture_filtered(CLOUD_TEXELS, CLOUD_TEXELS * MAX_CLOUD_CANVASES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB,
 	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	const Uint32 white = 0xffffffff;
@@ -463,6 +587,7 @@ void rgpu_shutdown(void)
 {
 	memset(loaded_models, 0, sizeof(loaded_models));  // owned by the window
 	forget_volume_sheets();
+	forget_terrain();
 
 	if (window != NULL)
 		btbh_gpu_window_destroy(window);  // releases every resource the window owns
@@ -477,6 +602,7 @@ void rgpu_shutdown(void)
 	tile_atlas = NULL;
 	white_texture = NULL;
 	particle_texture = NULL;
+	puff_texture = NULL;
 	billboard_mesh = NULL;
 	composed_texture = NULL;
 	cloud_texture = NULL;
@@ -971,7 +1097,9 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 static bool cloud_background(const L3DBackground *background, bool composed);
 static bool water_overlay(const L3DBackground *background);
 static bool relief_frame(const L3DFrame *frame, const bool *composed);
-static const B3DTerrain *frame_terrain;
+static bool terrain_background(const L3DFrame *frame, const L3DBackground *background);
+static const B3DTerrain *frame_terrains[B3D_SETS + 1];
+static float terrain_lift(float x, float y);
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
@@ -1023,10 +1151,13 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 			{
 				bool composed[L3D_MAX_BACKGROUNDS];
 				b3d_composed_backgrounds(frame, composed);
-				const bool relief = relief_frame(frame, composed) || frame_terrain != NULL;
+				const bool relief = relief_frame(frame, composed);
 				for (int i = 0; i < frame->background_count; ++i)
 					if (frame->backgrounds[i].layer == l &&
-					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1)))
+					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1) ||
+					     terrain_background(frame, &frame->backgrounds[i]) ||
+					     (b3d_terrain_ground && frame->backgrounds[i].blend &&
+					      !cloud_background(&frame->backgrounds[i], composed[i]))))
 					{
 						memset(cloud_mask, 1, sizeof(cloud_mask));  // none of it is drawn
 						clouds = true;
@@ -1508,7 +1639,9 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
                        L3D_MAX_GLOWS + DEEP_STARS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + 96 + 8)
+// Terrain: rows of the three backgrounds' maps drawn at most.
+#define MAX_TERRAIN_ROW_DRAWS 192
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + MAX_TERRAIN_ROW_DRAWS + 8)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -1546,7 +1679,8 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 
 				const M3DModel *model = &m3d_models[model_index];
 				const float scale = model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f;
-				const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
+				const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
+				                     (object->layer == L3D_GROUND_ENEMY ? terrain_lift(object->x, object->y) : 0.0f);
 				Mat4 mirror_x = mat4_identity();
 				if (mirror)
 					mirror_x.m[0] = -1;
@@ -1836,7 +1970,8 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
 				continue;
 
-			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height;
+			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
+			                     (object->layer == L3D_GROUND_ENEMY ? terrain_lift(object->x, object->y) : 0.0f);
 			const Mat4 chain[] = {
 				mat4_translation(object_x(object), height, object_y(object)),
 				mat4_rotation(1, -object->yaw),
@@ -1885,6 +2020,7 @@ typedef struct
 	int layer;
 	float x, z;
 	const Uint32 *colors;
+	int map_row, map_column;  // where in the map (the puffs' places are fixed to it)
 } CloudTile;
 
 #define MAX_CLOUD_TILES 1024
@@ -1899,6 +2035,21 @@ static struct
 	float x0, z0;  // game pixels, the canvas's top left
 	int w, h;      // texels
 } cloud_canvases[MAX_CLOUD_CANVASES];
+
+// Puffs: the clouds' volume, heaped on their canvases (cloud_puffs, made with each canvas).
+typedef struct
+{
+	float x, z;        // game pixels, where the canvas was made
+	float rise;        // above the clouds' layer
+	float radius;      // game pixels
+	float color[3];    // linear
+	float alpha;
+	Uint8 variant, canvas;  // variant: how the puff is turned and mirrored
+} CloudPuff;
+
+#define MAX_CLOUD_PUFFS 4096
+static CloudPuff cloud_puffs[MAX_CLOUD_PUFFS];
+static int cloud_puff_count = 0;
 
 static bool clouds_enabled(void)
 {
@@ -1991,7 +2142,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 {
 	enum { N = CLOUD_TEXELS * CLOUD_TEXELS };
 	static float cover[N], red[N], green[N], blue[N], scratch[N];
-	static float sharp_cover[N], sharp_red[N], sharp_green[N], sharp_blue[N];
+	static float sharp_cover[N], sharp_red[N], sharp_green[N], sharp_blue[N], wide[N];
 	static Uint32 rgba[N];
 
 	float x0 = 1e9f, z0 = 1e9f, x1 = -1e9f, z1 = -1e9f;
@@ -2088,6 +2239,27 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 		box_blur(blue, scratch, w, h, 2);
 		box_blur(cover, scratch, w, h, 2);
 	}
+	// How deep inside the cloud: its cover blurred widely. The edges (where it is low) are eaten
+	// away by large noise, so that clouds don't keep the tiles' straight borders.
+	memcpy(wide, cover, sizeof(float) * w * h);
+	for (int pass = 0; pass < 3; ++pass)
+		box_blur(wide, scratch, w, h, 5);
+	// The edges wander too: the cover is looked up a little way off, by noise (up to 12 texels).
+	memcpy(scratch, cover, sizeof(float) * w * h);
+	for (int i = 0; i < w * h; ++i)
+	{
+		const float map_x = x0 + (i % w + 0.5f) * CLOUD_SCALE, map_z = z0 + (i / w + 0.5f) * CLOUD_SCALE - map_scroll[set & 3];
+		const int wx = (int)lroundf((cloud_noise(map_x, map_z, 40.0f, 13) - 0.5f) * 24.0f);
+		const int wz = (int)lroundf((cloud_noise(map_x, map_z, 40.0f, 14) - 0.5f) * 24.0f);
+		const int sx = SDL_clamp(i % w + wx, 0, w - 1), sz = SDL_clamp(i / w + wz, 0, h - 1);
+		cover[i] = scratch[sz * w + sx];
+	}
+	for (int i = 0; i < w * h; ++i)
+	{
+		const float map_x = x0 + (i % w + 0.5f) * CLOUD_SCALE, map_z = z0 + (i / w + 0.5f) * CLOUD_SCALE - map_scroll[set & 3];
+		const float erode = 0.6f * cloud_noise(map_x, map_z, 34.0f, 11) + 0.4f * cloud_noise(map_x, map_z, 15.0f, 12);
+		cover[i] = SDL_max(0.0f, cover[i] - 0.7f * erode * (1 - SDL_min(1.0f, wide[i])) * SDL_min(1.0f, cover[i] * 3));
+	}
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x)
 		{
@@ -2126,6 +2298,51 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 			out[3] = (Uint8)(alpha * 255.0f);
 		}
 	btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)rgba, 0, c * CLOUD_TEXELS, w, h);
+
+	// Puffs where the cloud is thick, at places fixed to the map: a few per tile, jittered, heaped
+	// highest in the middle of the cloud (`wide`), small and sparse at its edges.
+	for (int t = 0; t < cloud_tile_count; ++t)
+	{
+		const CloudTile *tile = &cloud_tiles[t];
+		if (tile->set != set)
+			continue;
+		for (int k = 0; k < 4 && cloud_puff_count < MAX_CLOUD_PUFFS; ++k)
+		{
+			Uint32 hash = (Uint32)tile->map_row * 73856093u ^ (Uint32)tile->map_column * 19349663u ^ (Uint32)(k + 1) * 83492791u ^
+			              (Uint32)set * 2654435761u;
+			hash ^= hash >> 13;
+			hash *= 0x5bd1e995u;
+			hash ^= hash >> 15;
+			const float jx = (hash & 0xff) / 255.0f, jz = (hash >> 8 & 0xff) / 255.0f, jr = (hash >> 16 & 0xff) / 255.0f;
+			const float px = tile->x + ((k % 2) + jx) * (B3D_TILE_W / 2.0f), pz = tile->z + ((k / 2) + jz) * (B3D_TILE_H / 2.0f);
+			const int tx = (int)((px - x0) / CLOUD_SCALE), tz = (int)((pz - z0) / CLOUD_SCALE);
+			if (tx < 0 || tx >= w || tz < 0 || tz >= h)
+				continue;
+			const int i = tz * w + tx;
+			const float thickness = cover[i], heap = SDL_min(1.0f, wide[i]);
+			// Ragged edges: where the cloud thins, only some places get a puff.
+			const float edge_noise = cloud_noise(px, pz - map_scroll[set & 3], 19.0f, 5);
+			if (thickness < 0.35f + 0.35f * edge_noise * (1 - heap))
+				continue;
+			CloudPuff *puff = &cloud_puffs[cloud_puff_count++];
+			puff->x = px;
+			puff->z = pz;
+			puff->rise = 1.0f + 15.0f * heap * heap + 2.5f * jr;
+			puff->radius = 5.0f + 11.0f * heap + 3.0f * jr;
+			for (int ch = 0; ch < 3; ++ch)
+			{
+				const float value = (ch == 0 ? red[i] : ch == 1 ? green[i] : blue[i]) / thickness;
+				puff->color[ch] = srgb_to_linear((Uint8)SDL_clamp(value + (255.0f - value) * 0.45f, 0.0f, 255.0f));
+			}
+			puff->alpha = SDL_clamp((thickness - 0.35f) * 2.0f, 0.0f, 1.0f) * (0.55f + 0.45f * heap) * (blended ? 0.5f : 0.7f);
+			// Lower puffs a little greyer: the clouds' undersides.
+			for (int ch = 0; ch < 3; ++ch)
+				puff->color[ch] *= 0.82f + 0.18f * SDL_min(1.0f, puff->rise / 12.0f);
+			puff->variant = (Uint8)(hash >> 24 & 15);
+			puff->canvas = (Uint8)c;
+		}
+	}
+
 	// A clear texel beyond the canvas's right and bottom edges, so filtering there fades out.
 	static Uint32 clear[CLOUD_TEXELS + 1];
 	if (w < CLOUD_TEXELS)
@@ -2168,10 +2385,84 @@ static void add_cloud_quad(int c, float height, float x_shift, float z_shift, fl
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
-static void add_cloud_batches(const float *heights, bool new_frame, int *instance_count, int *batch_count)
+static float srgb_to_linear(Uint8 value);
+
+// The puffs, farthest first (they are blended), as billboards facing the camera.
+static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *instance_count, int *batch_count)
+{
+	if (cloud_puff_count == 0 || *batch_count >= MAX_BATCHES)
+		return;
+	static float depth[MAX_CLOUD_PUFFS];
+	static int order[MAX_CLOUD_PUFFS];
+	static float position[MAX_CLOUD_PUFFS][3];
+	for (int i = 0; i < cloud_puff_count; ++i)
+	{
+		const CloudPuff *puff = &cloud_puffs[i];
+		const float speed = background_speed[cloud_canvases[puff->canvas].set & 3] * ahead;
+		// Drifting a little with the wind, bobbing slowly.
+		position[i][0] = puff->x + sinf(glint_time * 0.4f + puff->z * 0.05f) * 1.2f;
+		position[i][1] = heights[cloud_canvases[puff->canvas].layer] + puff->rise;
+		position[i][2] = puff->z + speed;
+		const float d[3] = { position[i][0] - camera->position[0], position[i][1] - camera->position[1],
+		                     position[i][2] - camera->position[2] };
+		depth[i] = d[0] * camera->forward[0] + d[1] * camera->forward[1] + d[2] * camera->forward[2];
+		order[i] = i;
+	}
+	// Farthest first (insertion sort: the order changes little from frame to frame).
+	for (int i = 1; i < cloud_puff_count; ++i)
+	{
+		const int o = order[i];
+		int j = i - 1;
+		while (j >= 0 && depth[order[j]] < depth[o])
+		{
+			order[j + 1] = order[j];
+			--j;
+		}
+		order[j + 1] = o;
+	}
+	const int first = *instance_count;
+	for (int n = 0; n < cloud_puff_count && *instance_count < MAX_INSTANCES; ++n)
+	{
+		const CloudPuff *puff = &cloud_puffs[order[n]];
+		// Turned a little, mirrored or not, wider than tall.
+		const float angle = ((puff->variant & 7) - 3.5f) * 0.09f;
+		const float sx = puff->radius * 2.3f * ((puff->variant & 8) ? -1.0f : 1.0f), sy = puff->radius * 1.8f;
+		Mat4 transform = mat4_identity();
+		transform.m[0] = sx * cosf(angle);
+		transform.m[1] = sx * sinf(angle);
+		transform.m[4] = -sy * sinf(angle);
+		transform.m[5] = sy * cosf(angle);
+		transform.m[10] = puff->radius * 2;
+		transform.m[12] = position[order[n]][0];
+		transform.m[13] = position[order[n]][1];
+		transform.m[14] = position[order[n]][2];
+		float *instance = instances + *instance_count * 24;
+		write_instance(instance, &transform, 1.0f);
+		instance[16] = puff->color[0];
+		instance[17] = puff->color[1];
+		instance[18] = puff->color[2];
+		instance[19] = puff->alpha;
+		++*instance_count;
+	}
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = puff_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
+}
+
+static void add_cloud_batches(const float *heights, const Camera3D *camera, bool new_frame, int *instance_count,
+                              int *batch_count)
 {
 	if (new_frame)
 	{
+		cloud_puff_count = 0;
 		for (int c = 0; c < MAX_CLOUD_CANVASES; ++c)
 			cloud_canvases[c].used = false;
 		int canvases = 0;
@@ -2206,6 +2497,8 @@ static void add_cloud_batches(const float *heights, bool new_frame, int *instanc
 		add_cloud_quad(c, height - 1.5f, 0, 0, 0.94f, opacity, instance_count, batch_count);
 		add_cloud_quad(c, height + 1.5f, 0, 0, 1.0f, opacity, instance_count, batch_count);
 	}
+	// Their volume: puffs heaped on them.
+	add_cloud_puffs(heights, camera, instance_count, batch_count);
 }
 
 /* --- Terrain relief --------------------------------------------------------------------------- */
@@ -2416,27 +2709,86 @@ static BTBHGPUCustomMesh *relief_mesh(int cell)
  * ground stays under the air.
  */
 #define TERRAIN_HEADROOM 36.0f
-#define TERRAIN_ROWS_CACHED 64
+#define TERRAIN_ROWS_CACHED 192
+// How far the ground's walls go down where it has holes (black space).
+#define TERRAIN_HOLE_DEPTH 52.0f
+// Samples in from a surface's edge that its walls take their colours from.
+#define TERRAIN_WALL_INSET 3
+// Map rows a terrain texture holds (terrain_ring), more than are ever drawn at once.
+#define TERRAIN_RING_ROWS 80
 
 static struct
 {
-	int map_row;
+	int set, map_row;
+	float hole_depth;
 	unsigned int generation;  // b3d_map_generation + 1, or 0 for a free slot
 	Uint32 used;
 	BTBHGPUCustomMesh *mesh;
 } terrain_rows[TERRAIN_ROWS_CACHED];
 static Uint32 terrain_clock = 0;
-static const B3DTerrain *frame_terrain = NULL;  // this frame's terrain, or NULL (set in present_3d)
-static bool terrain_batch[MAX_BATCHES];          // batches of terrain (they cast shadows)
+static bool terrain_batch[MAX_BATCHES];  // batches of terrain (they cast shadows)
 
-static float terrain_height(const B3DTerrain *t, int sx, int sy)
+static bool terrain_background(const L3DFrame *frame, const L3DBackground *background)
+{
+	// Backgrounds 2 and 3 as solids only when drawn over the ground's enemies (under them, a
+	// solid would bury them); solid, they aren't blended.
+	if (background->set < 1 || background->set > B3D_SETS || frame_terrains[background->set] == NULL)
+		return false;
+	return background->set == 1 || frame->layers[background->layer].type != L3D_BG2_LOW;
+}
+
+// Solids stand below what flies (sky enemies and above) so nothing flies through them: background 3's
+// a little below the sky enemies (in the game it is drawn over them, or over the player), background
+// 2's lower still.
+#define SOLID_BELOW_AIR 6.0f
+#define SOLID_BG2_BELOW_BG3 12.0f
+
+static float solid_top(int set)
+{
+	const float top = l3d_layer_height(L3D_SKY_ENEMY) * rgpu_camera.height_scale - SOLID_BELOW_AIR;
+	return set == 3 ? top : top - SOLID_BG2_BELOW_BG3;
+}
+
+static const L3DBackground *lift_ground = NULL;  // this frame's ground when it is terrain (present_3d)
+
+// What stands on the ground (its enemies, their explosions) stands on the terrain: the terrain's
+// height at a game position, 0 over a hole or off the map. Their game positions stay as they are
+// (aligned scales by height).
+static float terrain_lift(float x, float y)
+{
+	const B3DTerrain *t = frame_terrains[1];
+	int mx, my;
+	if (t == NULL || lift_ground == NULL || !b3d_map_point(lift_ground, x, y, &mx, &my))
+		return 0.0f;
+	const float fx = mx / (float)t->sample, fy = my / (float)t->sample;
+	const int sx = (int)floorf(fx), sy = (int)floorf(fy);
+	float h[4];
+	for (int k = 0; k < 4; ++k)
+	{
+		const int ix = SDL_clamp(sx + (k & 1), 0, t->width - 1), iy = SDL_clamp(sy + (k >> 1), 0, t->height - 1);
+		const Sint8 value = t->heights[iy * t->width + ix];
+		h[k] = t->holes && value == B3D_TERRAIN_HOLE ? 0.0f : value;
+	}
+	const float ax = fx - sx, ay = fy - sy;
+	return (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
+}
+
+static bool terrain_hole(const B3DTerrain *t, int sx, int sy)
 {
 	sx = SDL_clamp(sx, 0, t->width - 1);
 	sy = SDL_clamp(sy, 0, t->height - 1);
-	return (float)t->heights[sy * t->width + sx];
+	return t->holes && t->heights[sy * t->width + sx] == B3D_TERRAIN_HOLE;
 }
 
-static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int map_row)
+static float terrain_height(const B3DTerrain *t, int sx, int sy, float hole_depth)
+{
+	sx = SDL_clamp(sx, 0, t->width - 1);
+	sy = SDL_clamp(sy, 0, t->height - 1);
+	const Sint8 h = t->heights[sy * t->width + sx];
+	return t->holes && h == B3D_TERRAIN_HOLE ? -hole_depth : (float)h;
+}
+
+static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int map_row, float hole_depth)
 {
 	const int per_x = B3D_TILE_W / t->sample, per_y = B3D_TILE_H / t->sample;  // samples a tile
 	const int columns = (t->width - 1) / per_x;
@@ -2460,24 +2812,24 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int map_row)
 	                           sun_direction[2] * sun_direction[2]);
 	const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
 	const float up = SDL_max(light[1], 0.0f);
-	const float atlas_h = (float)(B3D_ATLAS_H * TILE_PAGES);
 	int vc = 0, ic = 0;
 	for (int c = 0; c < columns; ++c)
 	{
 		bool flipped;
-		const int cell = b3d_map_cell(1, map_row, c - t->side_columns, &flipped);
-		if (cell < 0)
+		if (b3d_map_cell(set, map_row, c - t->side_columns, &flipped) < 0)
 			continue;
-		int ox, oy;
-		b3d_cell_origin(cell, &ox, &oy);
 		const Uint32 base = (Uint32)vc;
+		bool any_surface = false;
 		for (int j = 0; j <= per_y; ++j)
 			for (int i = 0; i <= per_x; ++i)
 			{
 				const int sx = c * per_x + i, sy = map_row * per_y + j;
-				const float h = terrain_height(t, sx, sy);
-				float n[3] = { -(terrain_height(t, sx + 1, sy) - terrain_height(t, sx - 1, sy)) / (2.0f * t->sample), 1.0f,
-				               -(terrain_height(t, sx, sy + 1) - terrain_height(t, sx, sy - 1)) / (2.0f * t->sample) };
+				const float h = terrain_height(t, sx, sy, hole_depth);
+				float n[3] = { -(terrain_height(t, sx + 1, sy, hole_depth) - terrain_height(t, sx - 1, sy, hole_depth)) /
+				                   (2.0f * t->sample),
+				               1.0f,
+				               -(terrain_height(t, sx, sy + 1, hole_depth) - terrain_height(t, sx, sy - 1, hole_depth)) /
+				                   (2.0f * t->sample) };
 				const float nl = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
 				for (int k = 0; k < 3; ++k)
 					n[k] /= nl;
@@ -2486,35 +2838,76 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int map_row)
 				for (int k = 0; k < 8; ++k)
 				{
 					static const int dx[8] = { 4, -4, 0, 0, 3, -3, 3, -3 }, dy[8] = { 0, 0, 4, -4, 3, 3, -3, -3 };
-					around += terrain_height(t, sx + dx[k], sy + dy[k]);
+					around += terrain_height(t, sx + dx[k], sy + dy[k], hole_depth);
 				}
 				const float hollow = SDL_clamp((around / 8 - h) / 24.0f, 0.0f, 0.4f);
 				const float lambert = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
-				const float shade = (0.42f + 0.58f * SDL_max(lambert, 0.0f)) / (0.42f + 0.58f * up) * (1.0f - hollow);
+				// Deeper is darker: walls fade into the depths.
+				const float deep = h < 0 ? SDL_max(1.0f + h / 70.0f, 0.3f) : 1.0f;
+				const float shade = (0.42f + 0.58f * SDL_max(lambert, 0.0f)) / (0.42f + 0.58f * up) * (1.0f - hollow) * deep;
+				// A hole's corner, at the foot of a wall, takes the colour of the surface a little way in
+				// from its edge (in this tile), past the edge's dark outline, so the wall shows the
+				// surface's own colours down to its foot.
+				int pi = i, pj = j;
+				const bool hole = terrain_hole(t, sx, sy);
+				any_surface |= !hole;
+				for (int k = 0; hole && k < 8; ++k)
+				{
+					static const int dx[8] = { 1, -1, 0, 0, 1, -1, 1, -1 }, dy[8] = { 0, 0, 1, -1, 1, 1, -1, -1 };
+					int step = 0;
+					for (int n = 1; n <= TERRAIN_WALL_INSET; ++n)
+					{
+						const int ni = i + dx[k] * n, nj = j + dy[k] * n;
+						if (ni < 0 || ni > per_x || nj < 0 || nj > per_y || terrain_hole(t, sx + dx[k] * n, sy + dy[k] * n))
+							break;
+						step = n;
+					}
+					if (step > 0)
+					{
+						pi = i + dx[k] * step;
+						pj = j + dy[k] * step;
+						break;
+					}
+				}
 				V3DVertex *v = &vertices[vc++];
 				memset(v, 0, sizeof(*v));
 				v->position[0] = (float)(c * B3D_TILE_W + i * t->sample);
 				v->position[1] = h;
 				v->position[2] = (float)(j * t->sample);
 				memcpy(v->normal, n, sizeof(n));
-				const int px = i * t->sample;
-				v->uv[0] = (ox + (flipped ? B3D_TILE_W - px : px)) / (float)B3D_ATLAS_W;
-				v->uv[1] = (oy + j * t->sample) / atlas_h;
+				const float px = (float)(pi * t->sample), py = (float)(pj * t->sample);
+				// In the map's texture (terrain_ring): the row's slot, the tile's place in it.
+				v->uv[0] = (c * B3D_TILE_W + px) / (float)((t->width - 1) * t->sample);
+				v->uv[1] = ((map_row % TERRAIN_RING_ROWS) * B3D_TILE_H + py) / (float)(TERRAIN_RING_ROWS * B3D_TILE_H);
 				v->tangent[0] = 1;
 				v->tangent[3] = 1;
 				v->color[0] = v->color[1] = v->color[2] = shade;
 				v->color[3] = 1;
 			}
+		if (!any_surface)
+		{
+			vc = (int)base;  // all holes: nothing of this tile
+			continue;
+		}
 		for (int j = 0; j < per_y; ++j)
 			for (int i = 0; i < per_x; ++i)
 			{
 				const Uint32 a = base + j * (per_x + 1) + i, b = a + 1, d = a + per_x + 1, e = d + 1;
-				indices[ic++] = a;
-				indices[ic++] = b;
-				indices[ic++] = e;
-				indices[ic++] = a;
-				indices[ic++] = e;
-				indices[ic++] = d;
+				const int sx = c * per_x + i, sy = map_row * per_y + j;
+				const bool ha = terrain_hole(t, sx, sy), hb = terrain_hole(t, sx + 1, sy);
+				const bool hd = terrain_hole(t, sx, sy + 1), he = terrain_hole(t, sx + 1, sy + 1);
+				if (!(ha && hb && he))
+				{
+					indices[ic++] = a;
+					indices[ic++] = b;
+					indices[ic++] = e;
+				}
+				if (!(ha && he && hd))
+				{
+					indices[ic++] = a;
+					indices[ic++] = e;
+					indices[ic++] = d;
+				}
 			}
 	}
 	if (ic == 0)
@@ -2527,13 +2920,14 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int map_row)
 	return mesh;
 }
 
-static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int map_row)
+static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map_row, float hole_depth)
 {
 	++terrain_clock;
 	int slot = 0;
 	for (int i = 0; i < TERRAIN_ROWS_CACHED; ++i)
 	{
-		if (terrain_rows[i].generation == b3d_map_generation + 1 && terrain_rows[i].map_row == map_row)
+		if (terrain_rows[i].generation == b3d_map_generation + 1 && terrain_rows[i].set == set &&
+		    terrain_rows[i].map_row == map_row && terrain_rows[i].hole_depth == hole_depth)
 		{
 			terrain_rows[i].used = terrain_clock;
 			return terrain_rows[i].mesh;
@@ -2545,8 +2939,10 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int map_row)
 	}
 	if (terrain_rows[slot].mesh != NULL)
 		btbh_gpu_custom_mesh_destroy(terrain_rows[slot].mesh);
-	terrain_rows[slot].mesh = build_terrain_row(t, map_row);
+	terrain_rows[slot].mesh = build_terrain_row(t, set, map_row, hole_depth);
+	terrain_rows[slot].set = set;
 	terrain_rows[slot].map_row = map_row;
+	terrain_rows[slot].hole_depth = hole_depth;
 	terrain_rows[slot].generation = b3d_map_generation + 1;
 	terrain_rows[slot].used = terrain_clock;
 	return terrain_rows[slot].mesh;
@@ -2587,6 +2983,7 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 
 	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
 		tile_rgba[i] = tile_opaque[i] || (ground_zero && tile_ground[i]) ? colors[tile_indices[i]] : 0;
+	bleed_into_clear(tile_rgba, B3D_ATLAS_W, 0, B3D_ATLAS_H);
 	btbh_gpu_texture_update_rgba8(tile_atlas, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
 	// Water: the opaque pixels of water tiles (b3d_tile_is_water), with their cells' borders.
 	{
@@ -2749,6 +3146,112 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 
 // Appends instances and batches for the background maps: every tile the camera sees on each
 // background's plane, grouped into one batch per atlas cell. Composed backgrounds are skipped.
+/*
+ * Terrain textures: a map itself, as the game shows it, in a ring of rows (a map row in slot
+ * map_row % TERRAIN_RING_ROWS), so that filtering carries on across tiles as the map has them (a
+ * tile atlas cell's border can only repeat the tile's own edge, which shows as seams). The texture
+ * repeats vertically: the last slot's bottom edge filters into the first, which holds the next row.
+ * For the ground also where its water is (set_glints).
+ */
+typedef struct
+{
+	BTBHGPUTexture *texture, *water;
+	int width;                    // pixels
+	int rows[TERRAIN_RING_ROWS];  // the map row each slot holds, or -1
+	unsigned int generation;      // b3d_map_generation + 1 that the slots are of
+	Uint32 colors_hash;
+	bool ground_zero;
+} TerrainRing;
+
+static TerrainRing terrain_rings[B3D_SETS + 1];
+
+// The terrain's meshes and textures go with the window.
+static void forget_terrain(void)
+{
+	memset(terrain_rings, 0, sizeof(terrain_rings));
+	memset(terrain_rows, 0, sizeof(terrain_rows));
+}
+
+// A background's ring, emptied when its map or colours change.
+static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colors[256], bool ground_zero)
+{
+	TerrainRing *ring = &terrain_rings[set];
+	const int width = (t->width - 1) * t->sample;
+	if (ring->texture == NULL || ring->width != width)
+	{
+		if (ring->texture != NULL)
+			btbh_gpu_texture_destroy(ring->texture);
+		if (ring->water != NULL)
+			btbh_gpu_texture_destroy(ring->water);
+		BTBHGPUTextureReport report;
+		Uint32 *zeroes = calloc((size_t)width * TERRAIN_RING_ROWS * B3D_TILE_H, sizeof(Uint32));
+		ring->texture = zeroes == NULL ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes, width,
+			TERRAIN_RING_ROWS * B3D_TILE_H, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+		ring->water = zeroes == NULL || set != 1 ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes,
+			width, TERRAIN_RING_ROWS * B3D_TILE_H, 0, BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_REPEAT,
+			BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		free(zeroes);
+		if (ring->texture == NULL)
+			fprintf(stderr, "warning: terrain texture: %s\n", report.message);
+		ring->width = width;
+		ring->generation = 0;
+	}
+	const Uint32 hash = hash_colors(colors);
+	if (ring->generation != b3d_map_generation + 1 || ring->colors_hash != hash || ring->ground_zero != ground_zero)
+	{
+		for (int i = 0; i < TERRAIN_RING_ROWS; ++i)
+			ring->rows[i] = -1;
+		ring->generation = b3d_map_generation + 1;
+		ring->colors_hash = hash;
+		ring->ground_zero = ground_zero;
+	}
+	return ring->texture != NULL ? ring : NULL;
+}
+
+// Puts a map row into its slot of the ring, unless it is there already.
+static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
+{
+	const int slot = map_row % TERRAIN_RING_ROWS;
+	if (map_row < 0 || ring->rows[slot] == map_row)
+		return;
+	ring->rows[slot] = map_row;
+	static Uint32 rgba[(15 + 2 * 32) * B3D_TILE_W * B3D_TILE_H], water[(15 + 2 * 32) * B3D_TILE_W * B3D_TILE_H];
+	const int columns = SDL_min(ring->width / B3D_TILE_W, (int)(COUNTOF(rgba) / (B3D_TILE_W * B3D_TILE_H)));
+	static const Uint8 water_rgba[4] = { 0, 0, 255, 255 };
+	Uint32 water_color;
+	memcpy(&water_color, water_rgba, 4);
+	for (int c = 0; c < columns; ++c)
+	{
+		bool flipped;
+		const int cell = b3d_map_cell(set, map_row, c - t->side_columns, &flipped);
+		int ox = 0, oy = 0;
+		if (cell >= 0)
+			b3d_cell_origin(cell, &ox, &oy);
+		const int tile = cell >= 0 ? cell % B3D_TILES_PER_SET : 0;
+		const bool water_tile = cell >= 0 && ring->water != NULL && b3d_tile_is_water(set, tile);
+		for (int y = 0; y < B3D_TILE_H; ++y)
+			for (int x = 0; x < B3D_TILE_W; ++x)
+			{
+				Uint32 *out = &rgba[y * ring->width + c * B3D_TILE_W + x];
+				Uint32 *wet = &water[y * ring->width + c * B3D_TILE_W + x];
+				*out = *wet = 0;
+				if (cell < 0)
+					continue;
+				const int i = (oy + y) * B3D_ATLAS_W + ox + (flipped ? B3D_TILE_W - 1 - x : x);
+				if (tile_opaque[i] || (ring->ground_zero && tile_ground[i]))
+					*out = colors[tile_indices[i]];
+				if (water_tile && tile_opaque[i] && b3d_water_pixel(set, tile, tile_indices[i]))
+					*wet = water_color;
+			}
+	}
+	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
+	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
+	                              B3D_TILE_H);
+	if (ring->water != NULL)
+		btbh_gpu_texture_update_rgba8(ring->water, (const uint8_t *)water, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
+		                              B3D_TILE_H);
+}
+
 static void add_background_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
                                    const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
@@ -2756,15 +3259,15 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	if (frame->background_count == 0)
 		return;
 	++tile_frame;
-	const bool relief_ground = relief_frame(frame, composed) && frame_terrain == NULL;
+	const bool relief_ground = relief_frame(frame, composed) && frame_terrains[1] == NULL;
 	typedef struct
 	{
-		int map_row;
-		float x, z, height;
+		int set, map_row;
+		float x, z, height, hole_depth;
 		int page;
 		float brightness;
 	} TerrainRowDraw;
-	TerrainRowDraw terrain_row_draws[96];
+	TerrainRowDraw terrain_row_draws[MAX_TERRAIN_ROW_DRAWS];
 	int terrain_row_count = 0;
 
 	static B3DTile tiles[MAX_TILES];
@@ -2785,7 +3288,9 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			continue;
 		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
 		// go on beyond it, a little below so that the composed image wins where it is.
-		const float height = heights[background->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
+		float height = heights[background->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
+		if (background->set > 1 && terrain_background(frame, background))
+			height = SDL_min(height, solid_top(background->set));
 		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
 		plane_footprint(camera, height, rect);
@@ -2798,7 +3303,10 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		// Tiles take the colours the game gives them through blending and the level's filters.
 		Uint8 remap[256];
 		Uint32 page_colors[256];
-		b3d_tile_remap(background, remap);
+		if (background->set > 1 && terrain_background(frame, background))
+			b3d_effect_remap(background, remap);
+		else
+			b3d_tile_remap(background, remap);
 		for (int c = 0; c < 256; ++c)
 			page_colors[c] = colors[remap[c]];
 		// The game clears the screen to colour 0 under background 1; a filter that recolours it
@@ -2823,17 +3331,21 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 					if (cloud_tile_count < MAX_CLOUD_TILES && !low_background(background))
 						cloud_tiles[cloud_tile_count++] = (CloudTile){
 							(Uint8)background->set, (Uint8)tile, tiles[t].flipped, background->blend, background->layer,
-							tiles[t].x, tiles[t].z, cloud_page_colors[background->set] };
+							tiles[t].x, tiles[t].z, cloud_page_colors[background->set], tiles[t].map_row, tiles[t].map_column };
 					continue;
 				}
 				tiles[kept++] = tiles[t];
 			}
 			tile_count = kept;
 		}
-		// The ground's terrain: its rows are meshes (the tiles beyond its columns stay tiles).
-		if (frame_terrain != NULL && background->set == 1)
+		// Terrain: the map's rows are meshes (the tiles beyond its columns stay tiles).
+		if (terrain_background(frame, background))
 		{
-			const B3DTerrain *terrain = frame_terrain;
+			const B3DTerrain *terrain = frame_terrains[background->set];
+			TerrainRing *ring = terrain_ring(terrain, background->set, page_colors, ground_zero);
+			// Holes: in the ground, chasms; in backgrounds 2 and 3, the walls of their solids go
+			// down to below the ground.
+			const float hole_depth = background->set == 1 ? TERRAIN_HOLE_DEPTH : height * 1.5f + 8.0f;
 			const int columns = (terrain->width - 1) / (B3D_TILE_W / terrain->sample);
 			int kept = first;
 			for (int t = first; t < tile_count; ++t)
@@ -2846,15 +3358,21 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				}
 				bool seen = false;
 				for (int r = 0; r < terrain_row_count && !seen; ++r)
-					seen = terrain_row_draws[r].map_row == tiles[t].map_row;
+					seen = terrain_row_draws[r].set == background->set && terrain_row_draws[r].map_row == tiles[t].map_row;
 				if (seen || terrain_row_count == (int)COUNTOF(terrain_row_draws))
 					continue;
 				float brightness = 1.0f;
 				const float distance = -(tiles[t].z + shift);
 				if (distance > BACKGROUND_AHEAD - BACKGROUND_FADE)
 					brightness = SDL_max(0.0f, (BACKGROUND_AHEAD - distance) / BACKGROUND_FADE);
+				if (ring == NULL)
+					continue;
+				// The row and the one below it (that its bottom edge filters into).
+				terrain_ring_row(ring, terrain, background->set, tiles[t].map_row, page_colors);
+				terrain_ring_row(ring, terrain, background->set, tiles[t].map_row + 1, page_colors);
 				terrain_row_draws[terrain_row_count++] = (TerrainRowDraw){
-					tiles[t].map_row, tiles[t].x - column * B3D_TILE_W, tiles[t].z + shift, height, page, brightness };
+					background->set, tiles[t].map_row, tiles[t].x - column * B3D_TILE_W, tiles[t].z + shift, height, hole_depth,
+					page, brightness };
 			}
 			tile_count = kept;
 		}
@@ -2923,10 +3441,11 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->first_instance = key_next[key] - key_count[key];
 		b->instance_count = key_count[key];
 		b->albedo_texture = tile_atlas;
-		b->uv_scale_x = (flipped ? -1.0f : 1.0f) * B3D_TILE_W / B3D_ATLAS_W;
-		b->uv_scale_y = B3D_TILE_H / atlas_h;
-		b->uv_offset_x = (float)(ox + (flipped ? B3D_TILE_W : 0)) / B3D_ATLAS_W;
-		b->uv_offset_y = oy / atlas_h;
+		const float inset = tile_inset();
+		b->uv_scale_x = (flipped ? -1.0f : 1.0f) * (B3D_TILE_W - 2 * inset) / B3D_ATLAS_W;
+		b->uv_scale_y = (B3D_TILE_H - 2 * inset) / atlas_h;
+		b->uv_offset_x = (ox + (flipped ? B3D_TILE_W - inset : inset)) / B3D_ATLAS_W;
+		b->uv_offset_y = (oy + inset) / atlas_h;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
 		set_glints(b, tile_water);
@@ -2934,11 +3453,10 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	*instance_count = next;
 
 	// The terrain's rows.
-	const float atlas_rows = (float)(B3D_ATLAS_H * TILE_PAGES);
 	for (int r = 0; r < terrain_row_count && *instance_count < MAX_INSTANCES && *batch_count < MAX_BATCHES; ++r)
 	{
 		const TerrainRowDraw *row = &terrain_row_draws[r];
-		BTBHGPUCustomMesh *mesh = terrain_row_mesh(frame_terrain, row->map_row);
+		BTBHGPUCustomMesh *mesh = terrain_row_mesh(frame_terrains[row->set], row->set, row->map_row, row->hole_depth);
 		if (mesh == NULL)
 			continue;
 		const Mat4 transform = mat4_translation(row->x, row->height, row->z);
@@ -2950,16 +3468,22 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->custom_mesh = mesh;
 		b->first_instance = (*instance_count)++;
 		b->instance_count = 1;
-		b->albedo_texture = tile_atlas;
-		b->uv_offset_y = row->page * B3D_ATLAS_H / atlas_rows;
+		b->albedo_texture = terrain_rings[row->set].texture;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
-		set_glints(b, tile_water);
+		if (terrain_rings[row->set].water != NULL)
+			set_glints(b, terrain_rings[row->set].water);
 	}
 }
 
 // The starfield sits below background 1, whose colour 0 lets it through as in the game.
 #define STARS_BELOW_LAYER 0.3f
+
+// The game's stars: below the ground, or below its chasms where its terrain has holes.
+static float stars_below_layer(void)
+{
+	return STARS_BELOW_LAYER + (frame_terrains[1] != NULL && frame_terrains[1]->holes ? TERRAIN_HOLE_DEPTH + 4.0f : 0.0f);
+}
 
 static float srgb_to_linear(Uint8 value)
 {
@@ -3023,7 +3547,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 	const float twinkle_time = (l3d_frame_number + ahead) / 35.0f;
 
 	const int first = *instance_count;
-	const float ground = heights[frame->star_layer] - STARS_BELOW_LAYER;
+	const float ground = heights[frame->star_layer] - stars_below_layer();
 	for (int k = 0; k < DEEP_STAR_LAYERS; ++k)
 	{
 		const float height = ground - deep_star_layers[k].depth * rgpu_camera.height_scale;
@@ -3080,7 +3604,7 @@ static void add_star_batch(const L3DFrame *frame, const bool *composed, const Ca
 		if (composed[i] && frame->backgrounds[i].layer == frame->star_layer)
 			return;
 
-	const float height = heights[frame->star_layer] - STARS_BELOW_LAYER;
+	const float height = heights[frame->star_layer] - stars_below_layer();
 	float rect[4];
 	plane_footprint(camera, height, rect);
 	if (rect[0] > rect[2])
@@ -3245,7 +3769,7 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
 			transform.m[12] = p->x + p->vx * age;
 			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale +
-			                  (p->air ? l3d_terrain_headroom : 0.0f);
+			                  (p->air ? l3d_terrain_headroom : terrain_lift(p->x, p->y));
 			transform.m[14] = p->y + (p->vy + explodeMove) * age;
 			float *instance = instances + *instance_count * 24;
 			write_instance(instance, &transform, 1.0f);
@@ -3339,7 +3863,7 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting)
 	for (int n = 0; n < count; ++n)
 	{
 		const P3DLight *l = &p3d_lights[chosen[n]];
-		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : 0.0f);
+		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : terrain_lift(l->x, l->y));
 		const float k = align_scale(height);
 		float *out = lighting->point_lights[n];
 		out[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
@@ -3463,15 +3987,45 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	b3d_clouds = clouds_enabled();  // blended backgrounds of clouds aren't composed
 	cloud_frame = frame;
 	{
-		// The ground as terrain where its map has one (and the ground can be: as for the relief).
+		// The backgrounds as terrain where their maps have one. The ground: in its colours (a filter
+		// as its colours, without its waver), over stars only with holes for them to show through;
+		// the backgrounds over it are then their tiles, not composed with it (the blended background 2
+		// in the colours the blend gives it). Backgrounds 2 and 3 over a flat ground: as for the relief,
+		// not composed nor filtered.
+		frame_terrains[1] = m3d_enabled ? b3d_terrain(1) : NULL;
+		if (frame_terrains[1] != NULL && frame->star_count > 0 && !frame_terrains[1]->holes)
+			frame_terrains[1] = NULL;
+		b3d_terrain_ground = frame_terrains[1] != NULL;
+		lift_ground = NULL;
+		for (int i = 0; i < frame->background_count && frame_terrains[1] != NULL; ++i)
+			if (frame->backgrounds[i].set == 1)
+				lift_ground = &frame->backgrounds[i];
+		b3d_solids = m3d_enabled;
 		bool composed_now[L3D_MAX_BACKGROUNDS];
 		b3d_composed_backgrounds(frame, composed_now);
-		bool ground_ok = m3d_enabled && frame->star_count == 0;
+		bool ok[B3D_SETS + 1] = { false, true, m3d_enabled, m3d_enabled };
 		for (int i = 0; i < frame->background_count; ++i)
-			if (frame->backgrounds[i].set == 1)
-				ground_ok = ground_ok && !composed_now[i] && frame->backgrounds[i].effect_count == 0;
-		frame_terrain = ground_ok ? b3d_terrain() : NULL;
-		l3d_terrain_headroom = frame_terrain != NULL ? TERRAIN_HEADROOM : 0.0f;
+		{
+			const int set = frame->backgrounds[i].set;
+			if (set >= 2 && set <= B3D_SETS)
+				ok[set] = ok[set] && !composed_now[i] && frame->backgrounds[i].effect_count == 0;
+		}
+		bool any = frame_terrains[1] != NULL;
+		for (int set = 2; set <= B3D_SETS; ++set)
+		{
+			frame_terrains[set] = ok[set] ? b3d_terrain(set) : NULL;
+			any |= frame_terrains[set] != NULL;
+		}
+		l3d_terrain_headroom = any ? TERRAIN_HEADROOM : 0.0f;
+		if (SDL_getenv("TYR3D_DEBUG_TERRAIN") != NULL)
+		{
+			printf("terrain debug: ok %d %d %d stars %d ->", ok[1], ok[2], ok[3], frame->star_count);
+			for (int i = 0; i < frame->background_count; ++i)
+				printf(" [set %d blend %d effects %d layer %s composed %d]", frame->backgrounds[i].set, frame->backgrounds[i].blend,
+				       frame->backgrounds[i].effect_count, l3d_layer_name(frame->layers[frame->backgrounds[i].layer].type),
+				       composed_now[i]);
+			printf("\n");
+		}
 		memset(terrain_batch, 0, sizeof(terrain_batch));
 	}
 	for (int set = 1; set <= B3D_SETS; ++set)  // the level's water colour, for the procedural water
@@ -3504,6 +4058,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		build_layer_atlas(frame, colors, native, composed_layer, slot_of_layer, &slot_count);
 		if (slot_count > 0)
 		{
+			bleed_into_clear(atlas_rgba, L3D_WIDTH, 0, slot_count * ATLAS_SLOT_H);
 			btbh_gpu_texture_update_rgba8(layer_atlas, (const uint8_t *)atlas_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
 			btbh_gpu_texture_update_rgba8(layer_water, (const uint8_t *)layer_water_rgba, 0, 0, L3D_WIDTH, slot_count * ATLAS_SLOT_H);
 		}
@@ -3615,7 +4170,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
-	add_cloud_batches(heights, new_frame, &instance_count, &batch_count);
+	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
