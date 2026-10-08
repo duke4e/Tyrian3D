@@ -137,6 +137,12 @@ static const char *getMousePickerItem(size_t i, char *buffer, size_t bufferSize)
 	return i == 0 ? "Direct" : "Original";
 }
 
+static const char *getHudPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "Modern" : "Classic";
+}
+
 static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
 {
 	(void)buffer, (void)bufferSize;
@@ -177,6 +183,7 @@ void setupMenu(void)
 		MENU_ITEM_CAMERA,
 		MENU_ITEM_MUSIC_SYNTH,
 		MENU_ITEM_MOUSE,
+		MENU_ITEM_HUD,
 	} MenuItemId;
 
 	typedef enum
@@ -200,7 +207,7 @@ void setupMenu(void)
 	typedef struct
 	{
 		const char *header;
-		const MenuItem items[8];
+		const MenuItem items[10];
 	} Menu;
 
 	static const Menu menus[] = {
@@ -235,6 +242,7 @@ void setupMenu(void)
 				{ MENU_ITEM_EFFECTS, "Effects:", "Explosion particles and glowing shots.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_CAMERA, "Camera:", "How the 3D camera looks at the playfield.", getCameraPickerItemsCount, getCameraPickerItem },
 				{ MENU_ITEM_MOUSE, "Mouse:", "The ship moves as far as the mouse, or as in the original.", getTwoItemsCount, getMousePickerItem },
+				{ MENU_ITEM_HUD, "HUD:", "A few gauges over the playfield, or the original panel.", getTwoItemsCount, getHudPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -349,8 +357,10 @@ void setupMenu(void)
 			case MENU_ITEM_CAMERA:
 			case MENU_ITEM_MUSIC_SYNTH:
 			case MENU_ITEM_MOUSE:
+			case MENU_ITEM_HUD:
 			{
 				const size_t choice =
+					menuItem->id == MENU_ITEM_HUD ? !settings3d.hud_modern :
 					menuItem->id == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
 					menuItem->id == MENU_ITEM_MOUSE ? !settings3d.mouse_direct :
 					menuItem->id == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
@@ -644,11 +654,13 @@ void setupMenu(void)
 				case MENU_ITEM_CAMERA:
 				case MENU_ITEM_MUSIC_SYNTH:
 				case MENU_ITEM_MOUSE:
+				case MENU_ITEM_HUD:
 				{
 					JE_playSampleNum(S_CLICK);
 
 					currentPicker = selectedMenuItemId;
 					pickerSelectedIndex =
+						selectedMenuItemId == MENU_ITEM_HUD ? !settings3d.hud_modern :
 						selectedMenuItemId == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
 						selectedMenuItemId == MENU_ITEM_MOUSE ? !settings3d.mouse_direct :
 						selectedMenuItemId == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
@@ -894,6 +906,10 @@ void setupMenu(void)
 				case MENU_ITEM_MOUSE:
 					settings3d.mouse_direct = pickerSelectedIndex == 0;
 					settings3d_changed(S3D_MOUSE);
+					break;
+				case MENU_ITEM_HUD:
+					settings3d.hud_modern = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_HUD);
 					break;
 				default:
 					break;

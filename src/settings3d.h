@@ -19,6 +19,7 @@ typedef struct
 	int camera;     // a camera preset (settings3d_camera_name)
 	bool music_midi;  // the music through a SoundFont as MIDI (else the emulated OPL chip)
 	bool mouse_direct;  // the mouse moves the ship as far as it moves (else as in the original)
+	bool hud_modern;    // a few gauges over the scene (else the original panel beside it)
 } Settings3D;
 
 extern Settings3D settings3d;
@@ -33,7 +34,7 @@ void settings3d_save(ConfigSection *section);
 // Makes the settings take effect (view, models, camera, music).
 void settings3d_apply(void);
 
-typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE } Settings3DField;
+typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

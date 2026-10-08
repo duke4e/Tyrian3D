@@ -7,6 +7,7 @@
 #include "backgrnd.h"
 #include "config.h"
 #include "devtools.h"
+#include "font.h"
 #include "fonthand.h"
 #include "mainint.h"
 #include "player.h"
@@ -126,6 +127,23 @@ static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
 #define SPOT_H 200
 static BTBHGPUTexture *spot_texture = NULL;
 static BTBHGPUTexture *showcase_texture = NULL;  // the store's picture under its ship (rgpu_present_showcase)
+
+// The modern HUD's quads (build_modern_hud), drawn over the screen's: coloured, or from the HUD's
+// text texture (white text, tinted).
+typedef struct
+{
+	float x, y, w, h;
+	float u0, v0, u1, v1;
+	float left[4], right[4];  // colours at the left and right edges
+	bool text;
+} HudQuad;
+
+#define MAX_HUD_QUADS 160
+#define HUD_TEXT_W 256  // the text texture's size in the fonts' pixels (it holds them at 4x)
+#define HUD_TEXT_H 64
+static HudQuad hud_quads[MAX_HUD_QUADS];
+static int hud_quad_count = 0;
+static BTBHGPUTexture *hud_text_texture = NULL;
 static Uint32 spot_rgba[SPOT_W * SPOT_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 
@@ -616,6 +634,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	showcase_texture = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
+	hud_text_texture = create_texture_filtered(HUD_TEXT_W * 4, HUD_TEXT_H * 4, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR,
+	                                           BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	layer_atlas = create_texture_filtered(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
 	layer_water = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	tile_atlas = create_texture_filtered(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
@@ -714,6 +734,7 @@ static struct
 // A colour over the whole window (straight alpha), drawn last: a menu's or the store's fade.
 static float canvas_fade[4];
 
+
 // A rectangle of the screen texture (in screen pixels) drawn to a rectangle of the window.
 typedef struct
 {
@@ -754,8 +775,8 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture
 static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlight, bool clear,
                            const BTBHGPUWindowReport *frame)
 {
-	BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 3)];
-	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 3] = { { 0 } };
+	static BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 3 + MAX_HUD_QUADS)];
+	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 3 + MAX_HUD_QUADS] = { { 0 } };
 	int batch_count_2d = 0;
 	uint32_t vertex_count = 0;
 
@@ -809,6 +830,37 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 		vertex_count += 6;
 	}
 
+	// The modern HUD, in batches of quads with the same texture.
+	for (int i = 0; i < hud_quad_count; ++i)
+	{
+		const HudQuad *q = &hud_quads[i];
+		const BTBHGPUCanvasVertex corners[4] = {
+			{ q->x,        q->y,        q->u0, q->v0, q->left[0], q->left[1], q->left[2], q->left[3] },
+			{ q->x + q->w, q->y,        q->u1, q->v0, q->right[0], q->right[1], q->right[2], q->right[3] },
+			{ q->x + q->w, q->y + q->h, q->u1, q->v1, q->right[0], q->right[1], q->right[2], q->right[3] },
+			{ q->x,        q->y + q->h, q->u0, q->v1, q->left[0], q->left[1], q->left[2], q->left[3] },
+		};
+		BTBHGPUCanvasVertex *v = vertices + vertex_count;
+		v[0] = corners[0];
+		v[1] = corners[1];
+		v[2] = corners[2];
+		v[3] = corners[0];
+		v[4] = corners[2];
+		v[5] = corners[3];
+		BTBHGPUTexture *texture = q->text ? hud_text_texture : NULL;
+		if (i > 0 && hud_quads[i - 1].text == q->text)
+			batches_2d[batch_count_2d - 1].vertex_count += 6;
+		else
+		{
+			BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
+			b->first_vertex = vertex_count;
+			b->vertex_count = 6;
+			b->texture = texture;
+			b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+		}
+		vertex_count += 6;
+	}
+
 	// A fade (the palette's) over everything.
 	if (canvas_fade[3] > 0)
 	{
@@ -845,6 +897,8 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	const bool capture = tick_frame && dev_capture_next_frame();
 	if (capture)
 		btbh_gpu_window_request_presented_frame_readback(window);
+
+	hud_quad_count = 0;  // made again for each 3D frame
 
 	BTBHGPUCanvasReport report;
 	if (btbh_gpu_window_canvas_present(window,
@@ -1338,9 +1392,26 @@ typedef struct
 	float panel[4];
 } Layout3D;
 
+// The modern HUD: a few gauges over the scene instead of the panel (not for two players, whose
+// panel holds both).
+static bool modern_hud(void)
+{
+	return settings3d.hud_modern && !twoPlayerMode;
+}
+
 static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
 {
 	Layout3D layout = { .split = true };
+	if (modern_hud())
+	{
+		// The playfield as large as the window holds it, centred; no panel.
+		const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, window_w / L3D_PLAYFIELD_W);
+		layout.playfield[2] = L3D_PLAYFIELD_W * scale;
+		layout.playfield[3] = L3D_PLAYFIELD_H * scale;
+		layout.playfield[0] = (window_w - layout.playfield[2]) / 2;
+		layout.playfield[1] = (window_h - layout.playfield[3]) / 2;
+		return layout;
+	}
 	if (!layout.split)
 	{
 		layout.playfield[0] = dst->x;
@@ -1373,6 +1444,11 @@ static int layout_quads(const Layout3D *layout, const SDL_Rect *dst, CanvasQuad 
 		return 1;
 	}
 	const float *p = layout->panel, *f = layout->playfield;
+	if (p[2] <= 0)
+	{
+		quads[0] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
+		return 1;
+	}
 	quads[0] = (CanvasQuad){ p[0], p[1], p[2], p[3], PANEL_X, 0, SCREEN_W - PANEL_X, SCREEN_H, .panel = true };
 	quads[1] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
 	return 2;
@@ -1383,7 +1459,7 @@ static int layout_quads(const Layout3D *layout, const SDL_Rect *dst, CanvasQuad 
 // bottom of the playfield, with a shadow.
 #define MESSAGE_Y 189
 #define MESSAGE_H 10
-#define MESSAGE_AT (L3D_PLAYFIELD_H - 22)
+#define MESSAGE_AT (modern_hud() ? L3D_PLAYFIELD_H - 34 : L3D_PLAYFIELD_H - 22)  // above the modern HUD's gauges
 
 static void add_message(void)
 {
@@ -1571,6 +1647,261 @@ static void hud_panel_hd(const SDL_Surface *hud)
 	btbh_gpu_texture_update_rgba8(panel_texture, (const uint8_t *)hd, 0, 0, PANEL_HD_W, PANEL_HD_H);
 	last_hash = hash;
 	made = true;
+}
+
+/*
+ * The modern HUD (settings3d.hud_modern): instead of the panel beside the playfield, a few slim
+ * gauges over the scene, from the game's state. Bottom left: shield, armor and the generator's
+ * power; bottom right: the guns' power levels and the sidekicks' ammunition; at the top, the
+ * level's name as it starts. Sizes in u, the window's height over 200 (a pixel of the original
+ * screen). Text in the game's fonts, magnified as the panel is (Scale2x twice) and tinted.
+ */
+typedef struct
+{
+	char text[24];
+	int font;               // large_font, normal_font, small_font
+	int x, y, w, h;         // in the text texture (font pixels)
+} HudText;
+
+enum { HUD_SHIELD, HUD_ARMOR, HUD_POWER, HUD_FRONT, HUD_REAR, HUD_LEVEL, HUD_TEXTS };
+
+static HudText hud_texts[HUD_TEXTS];
+
+// Writes the texts into the text texture when they change.
+static void update_hud_texts(void)
+{
+	static char made[HUD_TEXTS][24];
+	bool same = true;
+	for (int i = 0; i < HUD_TEXTS; ++i)
+		same = same && strcmp(made[i], hud_texts[i].text) == 0;
+	static bool once = false;
+	if (same && once)
+		return;
+	once = true;
+
+	static SDL_Surface *surface = NULL;
+	if (surface == NULL && (surface = SDL_CreateSurface(HUD_TEXT_W, HUD_TEXT_H, SDL_PIXELFORMAT_INDEX8)) == NULL)
+		return;
+	SDL_FillSurfaceRect(surface, NULL, 0);
+	int x = 1, y = 1, row_h = 0;
+	for (int i = 0; i < HUD_TEXTS; ++i)
+	{
+		HudText *t = &hud_texts[i];
+		static const int heights[3] = { 15, 10, 7 };
+		t->w = JE_textWidth(t->text, t->font) + 1;
+		t->h = heights[t->font];
+		if (x + t->w >= HUD_TEXT_W)
+		{
+			x = 1;
+			y += row_h + 2;
+			row_h = 0;
+		}
+		t->x = x;
+		t->y = y;
+		draw_font_hv(surface, x, y, t->text, (Font)t->font, left_aligned, 15, 0);
+		x += t->w + 2;
+		row_h = SDL_max(row_h, t->h);
+		memcpy(made[i], t->text, sizeof(made[i]));
+	}
+
+	// White, as bright as the glyph's shading, then magnified.
+	static Uint32 mask[HUD_TEXT_W * HUD_TEXT_H], twice[HUD_TEXT_W * 2 * HUD_TEXT_H * 2], big[HUD_TEXT_W * 4 * HUD_TEXT_H * 4];
+	for (int j = 0; j < HUD_TEXT_H; ++j)
+		for (int i = 0; i < HUD_TEXT_W; ++i)
+		{
+			const Uint8 index = ((const Uint8 *)surface->pixels)[j * surface->pitch + i];
+			const Uint8 grey = (Uint8)(150 + 105 * (index & 0x0f) / 15);
+			const Uint8 rgba[4] = { grey, grey, grey, 255 };
+			if (index != 0)
+				memcpy(&mask[j * HUD_TEXT_W + i], rgba, sizeof(rgba));
+			else
+				mask[j * HUD_TEXT_W + i] = 0;
+		}
+	scale2x(mask, HUD_TEXT_W, HUD_TEXT_H, twice);
+	scale2x(twice, HUD_TEXT_W * 2, HUD_TEXT_H * 2, big);
+	btbh_gpu_texture_update_rgba8(hud_text_texture, (const uint8_t *)big, 0, 0, HUD_TEXT_W * 4, HUD_TEXT_H * 4);
+}
+
+static void hud_quad(float x, float y, float w, float h, const float left[4], const float right[4])
+{
+	if (hud_quad_count == MAX_HUD_QUADS)
+		return;
+	HudQuad *q = &hud_quads[hud_quad_count++];
+	*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1 };
+	memcpy(q->left, left, sizeof(q->left));
+	memcpy(q->right, right != NULL ? right : left, sizeof(q->right));
+}
+
+// A text at (x, y), u per font pixel, with a shadow; alpha fades it.
+static void hud_text(int which, float x, float y, float u, const float color[4], bool right_aligned)
+{
+	const HudText *t = &hud_texts[which];
+	if (t->w <= 0)
+		return;
+	if (right_aligned)
+		x -= t->w * u;
+	const float u0 = (float)t->x / HUD_TEXT_W, v0 = (float)t->y / HUD_TEXT_H;
+	const float u1 = (float)(t->x + t->w) / HUD_TEXT_W, v1 = (float)(t->y + t->h) / HUD_TEXT_H;
+	for (int pass = 0; pass < 2 && hud_quad_count < MAX_HUD_QUADS; ++pass)
+	{
+		const float shadow[4] = { 0, 0, 0, 0.75f * color[3] };
+		const float *c = pass == 0 ? shadow : color;
+		const float d = pass == 0 ? 0.6f * u : 0;
+		HudQuad *q = &hud_quads[hud_quad_count++];
+		*q = (HudQuad){ x + d, y + d, t->w * u, t->h * u, u0, v0, u1, v1, .text = true };
+		memcpy(q->left, c, sizeof(q->left));
+		memcpy(q->right, c, sizeof(q->right));
+	}
+}
+
+// A gauge: its track, the fill (darker to brighter), a sheen along its top.
+static void hud_bar(float x, float y, float w, float h, float fraction, const float color[4])
+{
+	const float track[4] = { 0.02f, 0.03f, 0.05f, 0.55f };
+	hud_quad(x - 1, y - 1, w + 2, h + 2, track, NULL);
+	fraction = SDL_clamp(fraction, 0.0f, 1.0f);
+	if (fraction <= 0)
+		return;
+	const float dark[4] = { color[0] * 0.55f, color[1] * 0.55f, color[2] * 0.55f, color[3] };
+	hud_quad(x, y, w * fraction, h, dark, color);
+	const float sheen[4] = { 1, 1, 1, 0.25f * color[3] };
+	hud_quad(x, y, w * fraction, h * 0.35f, sheen, NULL);
+}
+
+// Quads from first on fade when the ship is under them (within reach of their box).
+static void hud_fade(int first, float x0, float y0, float x1, float y1, float ship_x, float ship_y, float reach)
+{
+	const float dx = SDL_max(SDL_max(x0 - ship_x, ship_x - x1), 0.0f);
+	const float dy = SDL_max(SDL_max(y0 - ship_y, ship_y - y1), 0.0f);
+	const float distance = sqrtf(dx * dx + dy * dy);
+	static float fade[2] = { 1, 1 };  // eased, per group (top or bottom of the window)
+	float *shown = &fade[y0 > 1 ? 0 : 1];
+	const float target = distance < reach ? 0.3f + 0.7f * distance / reach : 1.0f;
+	*shown += (target - *shown) * 0.2f;
+	for (int i = first; i < hud_quad_count; ++i)
+	{
+		hud_quads[i].left[3] *= *shown;
+		hud_quads[i].right[3] *= *shown;
+	}
+}
+
+static void build_modern_hud(float window_w, float window_h)
+{
+	hud_quad_count = 0;
+	if (!modern_hud())
+		return;
+	const Player *p = &player[0];
+
+	// The level's name, for a few seconds as a level starts.
+	static char shown_level[11] = "";
+	static Uint64 level_since = 0;
+	if (strcmp(shown_level, levelName) != 0)
+	{
+		SDL_strlcpy(shown_level, levelName, sizeof(shown_level));
+		level_since = SDL_GetTicks();
+	}
+	SDL_strlcpy(hud_texts[HUD_SHIELD].text, "SHIELD", sizeof(hud_texts[0].text));
+	SDL_strlcpy(hud_texts[HUD_ARMOR].text, "ARMOR", sizeof(hud_texts[0].text));
+	SDL_strlcpy(hud_texts[HUD_POWER].text, "POWER", sizeof(hud_texts[0].text));
+	SDL_strlcpy(hud_texts[HUD_FRONT].text, "FRONT", sizeof(hud_texts[0].text));
+	SDL_strlcpy(hud_texts[HUD_REAR].text, "REAR", sizeof(hud_texts[0].text));
+	SDL_strlcpy(hud_texts[HUD_LEVEL].text, levelName, sizeof(hud_texts[0].text));
+	for (int i = 0; i < HUD_TEXTS; ++i)
+		hud_texts[i].font = i == HUD_LEVEL ? large_font : small_font;
+	update_hud_texts();
+
+	const float u = window_h / 200.0f;
+	const float label_u = 0.7f * u;  // the labels' font pixel
+	const float label_color[4] = { 0.85f, 0.88f, 0.95f, 0.9f };
+	const float backing[4] = { 0, 0, 0, 0.28f };
+	const float row_h = 6 * u;
+
+	// Shown values ease towards the game's, so gauges slide.
+	static float shown[3] = { -1, -1, -1 };
+	const float target[3] = {
+		p->shield_max > 0 ? (float)p->shield / p->shield_max : 0,
+		p->armor / 28.0f,
+		power / 900.0f,
+	};
+	for (int i = 0; i < 3; ++i)
+		shown[i] = shown[i] < 0 ? target[i] : shown[i] + (target[i] - shown[i]) * 0.25f;
+
+	// Where the ship is, so the gauges over it fade.
+	float ship_wx = -1e9f, ship_wy = -1e9f;
+	rgpu_playfield_to_window(p->x + 7.0f, p->y + 7.0f, &ship_wx, &ship_wy);
+
+	// Bottom right: shield, armor, the generator's power.
+	const bool generator = !onePlayerAction && !twoPlayerMode;
+	const int rows = generator ? 3 : 2;
+	const float bar_w = 64 * u, label_w = 24 * u;
+	const float x1 = window_w - 6 * u, x0 = x1 - bar_w - label_w;
+	const float y0 = window_h - 5 * u - rows * row_h;
+	int first = hud_quad_count;
+	hud_quad(x0 - 3 * u, y0 - 2.5f * u, x1 - x0 + 6 * u, rows * row_h + 3 * u, backing, NULL);
+	const float shield_color[4] = { 0.35f, 0.75f, 1.0f, 1 };
+	float armor_color[4] = { 1.0f, 0.55f, 0.25f, 1 };
+	if (target[1] < 0.25f && (SDL_GetTicks() / 250) % 2 == 0)  // low armor flashes
+	{
+		armor_color[1] = 0.15f;
+		armor_color[2] = 0.1f;
+	}
+	const float power_color[4] = { 1.0f, 0.85f, 0.3f, 1 };
+	const float bar_x = x1 - bar_w;
+	hud_text(HUD_SHIELD, x0, y0, label_u, label_color, false);
+	hud_bar(bar_x, y0 + 0.8f * u, bar_w, 3 * u, shown[0], shield_color);
+	hud_text(HUD_ARMOR, x0, y0 + row_h, label_u, label_color, false);
+	hud_bar(bar_x, y0 + row_h + 0.8f * u, bar_w, 3 * u, shown[1], armor_color);
+	if (generator)
+	{
+		hud_text(HUD_POWER, x0, y0 + 2 * row_h, label_u, label_color, false);
+		hud_bar(bar_x, y0 + 2 * row_h + 1.2f * u, bar_w, 2 * u, shown[2], power_color);
+	}
+	hud_fade(first, x0 - 3 * u, y0 - 2.5f * u, x1 + 3 * u, window_h, ship_wx, ship_wy, 18 * u);
+
+	// Top right: the guns' power levels (pips), the sidekicks' ammunition.
+	const float pip = 3.4f * u, gap = 1.0f * u;
+	const float pips_w = 11 * pip + 10 * gap;
+	int sidekick_rows = 0;
+	for (int i = 0; i < 2; ++i)
+		sidekick_rows += p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0;
+	const int right_rows = 2 + (sidekick_rows > 0);
+	const float ry0 = 5 * u, px0 = x1 - pips_w;
+	first = hud_quad_count;
+	hud_quad(px0 - label_w - 3 * u, ry0 - 2.5f * u, pips_w + label_w + 6 * u, right_rows * row_h + 3 * u, backing, NULL);
+	static const float gun_colors[2][4] = { { 0.45f, 1.0f, 0.55f, 1 }, { 1.0f, 0.75f, 0.35f, 1 } };
+	for (int g = 0; g < 2; ++g)
+	{
+		const float y = ry0 + g * row_h;
+		hud_text(g == 0 ? HUD_FRONT : HUD_REAR, px0 - label_w, y, label_u, label_color, false);
+		const int level = p->items.weapon[g].id > 0 ? p->items.weapon[g].power : 0;
+		for (int k = 0; k < 11; ++k)
+		{
+			const float off[4] = { 0.1f, 0.12f, 0.16f, 0.6f };
+			const float *c = k < level ? gun_colors[g] : off;
+			const float dim[4] = { c[0] * 0.6f, c[1] * 0.6f, c[2] * 0.6f, c[3] };
+			hud_quad(px0 + k * (pip + gap), y + 0.6f * u, pip, 3.2f * u, k < level ? dim : c, c);
+		}
+	}
+	if (sidekick_rows > 0)
+	{
+		const float y = ry0 + 2 * row_h + 0.8f * u;
+		const float w = (pips_w - 2 * u) / 2;
+		const float ammo_color[4] = { 0.8f, 0.6f, 1.0f, 1 };
+		for (int i = 0; i < 2; ++i)
+			if (p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0)
+				hud_bar(px0 + i * (w + 2 * u), y, w, 2.5f * u, (float)p->sidekick[i].ammo / p->sidekick[i].ammo_max, ammo_color);
+	}
+	hud_fade(first, px0 - label_w - 3 * u, 0, x1 + 3 * u, ry0 + right_rows * row_h + 0.5f * u, ship_wx, ship_wy, 18 * u);
+
+	// The level's name.
+	const float since = (SDL_GetTicks() - level_since) / 1000.0f;
+	if (since < 4.0f && levelName[0] != '\0')
+	{
+		const float alpha = SDL_clamp(SDL_min(since / 0.5f, (4.0f - since) / 1.0f), 0.0f, 1.0f);
+		const float title[4] = { 1.0f, 0.92f, 0.75f, alpha };
+		const float scale = 0.9f * u;
+		hud_text(HUD_LEVEL, window_w / 2 + hud_texts[HUD_LEVEL].w * scale / 2, 30 * u, scale, title, true);
+	}
 }
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
@@ -5051,6 +5382,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const Layout3D layout = layout_3d(logical_w, logical_h, dst);
 	CanvasQuad quads[MAX_CANVAS_QUADS];
 	const int quad_count = layout_quads(&layout, dst, quads);
+	build_modern_hud(logical_w, logical_h);
 
 	if (new_frame || menu.on)
 	{

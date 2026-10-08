@@ -64,8 +64,11 @@ The original controls are unchanged. These are added:
 The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
-sprites), shadows, effects (explosion particles, glowing shots) and a camera preset (Standard,
-Steep, Overhead). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
+sprites), shadows, effects (explosion particles, glowing shots), a camera preset (Standard,
+Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; shield, armor
+and power at the bottom right, the guns' power and the sidekicks' ammunition at the top right,
+fading while the ship is under them; the level's name as it starts) or Classic (the original
+panel beside the playfield; two players always have it). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
 change the first two as well.
 
 ## Environment variables
@@ -112,6 +115,7 @@ change the first two as well.
 | `TYR3D_SMOOTH=0` | Show each of the game's frames once, as it renders them (no frames between ticks) |
 | `TYR3D_DUMP_AHEAD=1` | Frame dumps include the frames shown between ticks |
 | `TYR3D_SOFTWARE_POINTER=1` | Draw the mouse pointer into the screen as the original does, instead of the system pointer |
+| `TYR3D_HUD=modern\|classic` | The HUD over the playfield, or the original panel beside it |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
