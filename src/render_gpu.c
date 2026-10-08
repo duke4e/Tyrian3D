@@ -3038,7 +3038,7 @@ static BTBHGPUCustomMesh *relief_mesh(int cell)
 #define TERRAIN_HEADROOM 36.0f
 #define TERRAIN_ROWS_CACHED 192
 // How far the ground's walls go down where it has holes (black space).
-#define TERRAIN_HOLE_DEPTH 52.0f
+#define TERRAIN_HOLE_DEPTH 21.0f
 // Samples in from a surface's edge that its walls take their colours from.
 #define TERRAIN_WALL_INSET 3
 // Map rows a terrain texture holds (terrain_ring), more than are ever drawn at once.
@@ -3070,10 +3070,14 @@ static bool terrain_background(const L3DFrame *frame, const L3DBackground *backg
 #define SOLID_BELOW_AIR 6.0f
 #define SOLID_BG2_BELOW_BG3 12.0f
 
+// How high solids stand, as a share of the room below what flies (the user found them too deep at
+// full height).
+#define SOLID_EXTRUDE 0.4f
+
 static float solid_top(int set)
 {
 	const float top = l3d_layer_height(L3D_SKY_ENEMY) * rgpu_camera.height_scale - SOLID_BELOW_AIR;
-	return set == 3 ? top : top - SOLID_BG2_BELOW_BG3;
+	return SOLID_EXTRUDE * (set == 3 ? top : top - SOLID_BG2_BELOW_BG3);
 }
 
 static const L3DBackground *lift_ground = NULL;  // this frame's ground when it is terrain (present_3d)
