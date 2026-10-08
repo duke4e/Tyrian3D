@@ -137,4 +137,13 @@ extern bool b3d_clouds;
 // Marks (1) the layer pixels (L3D_WIDTH x L3D_ROWS) that a background's cloud tiles cover.
 void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask);
 
+// Water (polish): whether a tile is water (drawn almost only in saturated blues), the layer
+// pixels (L3D_WIDTH x L3D_ROWS) that a background's water tiles cover, and the average colour of a
+// set's water (false if it has none).
+bool b3d_tile_is_water(int set, int tile);
+// Whether a pixel (palette index) of a tile is water: in a water tile, the water's colours.
+bool b3d_water_pixel(int set, int tile, Uint8 index);
+void b3d_water_mask(const L3DBackground *b, Uint8 *mask);
+bool b3d_water_color(int set, Uint8 rgb[3]);
+
 #endif /* BACKGROUND3D_H */

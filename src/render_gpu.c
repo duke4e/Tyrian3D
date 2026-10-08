@@ -175,15 +175,29 @@ static bool background_layer(L3DLayerType type)
 // normal scale, see the fork's shader).
 #define BACKGROUND_RELIEF 3.0f
 
+// The level's water colour (linear), for the procedural water.
+static float water_rgb[3] = { 0.02f, 0.06f, 0.12f };
+
 static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
 {
 	if (!settings3d.effects)
 		return;
 	b->normal_scale = -BACKGROUND_RELIEF;
-	b->surface_variant = BTBH_GPU_SCENE_SURFACE_GLINTS;
+	// Water (where mask says) is procedural water: waves, the sky, the sun's highlights, foam.
+	b->surface_variant = BTBH_GPU_SCENE_SURFACE_PIXEL_WATER;
 	b->orm_texture = mask;
 	b->surface_time = glint_time;
-	memcpy(b->surface_parameters0, glint_parameters, sizeof(glint_parameters));
+	b->surface_parameters0[0] = 1.0f;    // wave scale
+	b->surface_parameters0[1] = SDL_getenv("TYR3D_WATER_SUN") != NULL ? (float)SDL_atof(SDL_getenv("TYR3D_WATER_SUN")) : 1.0f;  // highlights
+	b->surface_parameters0[2] = 900.0f;  // their sharpness
+	memcpy(b->surface_parameters1, water_rgb, sizeof(water_rgb));
+	b->surface_parameters1[3] = 0.3f;    // how much of the tiles' own waves show
+	if (SDL_getenv("TYR3D_DEBUG_WATER") != NULL)  // the water red, to see where it is
+	{
+		b->surface_parameters1[0] = 1.0f;
+		b->surface_parameters1[1] = 0.0f;
+		b->surface_parameters1[2] = 0.0f;
+	}
 }
 
 // The tile atlas has pages coloured with different palettes: the frame's colours, and those
@@ -955,6 +969,7 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 // Converts the layers to colour, one atlas slot each. Layers drawn over background map tiles
 // (native) keep only the playfield, where the game drew them; the tiles show everything else.
 static bool cloud_background(const L3DBackground *background, bool composed);
+static bool water_overlay(const L3DBackground *background);
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
@@ -1007,7 +1022,12 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 				bool composed[L3D_MAX_BACKGROUNDS];
 				b3d_composed_backgrounds(frame, composed);
 				for (int i = 0; i < frame->background_count; ++i)
-					if (frame->backgrounds[i].layer == l && cloud_background(&frame->backgrounds[i], composed[i]))
+					if (frame->backgrounds[i].layer == l && water_overlay(&frame->backgrounds[i]))
+					{
+						memset(cloud_mask, 1, sizeof(cloud_mask));  // none of it is drawn
+						clouds = true;
+					}
+					else if (frame->backgrounds[i].layer == l && cloud_background(&frame->backgrounds[i], composed[i]))
 					{
 						if (!clouds)
 							memset(cloud_mask, 0, sizeof(cloud_mask));
@@ -1030,9 +1050,18 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 					}
 					dst[i] = colors[layer->index[i]];
 				}
+			// Water: the pixels of the layer's backgrounds' water tiles (b3d_water_mask).
+			static Uint8 water_tiles[L3D_WIDTH * L3D_ROWS];
+			memset(water_tiles, 0, sizeof(water_tiles));
+			for (int i = 0; i < frame->background_count; ++i)
+				if (frame->backgrounds[i].layer == l)
+					b3d_water_mask(&frame->backgrounds[i], water_tiles);
 			Uint32 *water = layer_water_rgba + (slots) * ATLAS_SLOT_H * L3D_WIDTH;
+			static const Uint8 water_on[4] = { 0, 0, 255, 255 };
+			Uint32 water_value;
+			memcpy(&water_value, water_on, 4);
 			for (int i = 0; i < L3D_WIDTH * L3D_ROWS; ++i)
-				water[i] = background_layer(layer->type) && dst[i] != 0 ? water_mask(dst[i]) : 0;
+				water[i] = dst[i] != 0 && water_tiles[i] ? water_value : 0;
 			++slots;
 			continue;
 		}
@@ -1902,7 +1931,25 @@ static float cloud_billows(float x, float z)
 	return 0.5f * cloud_noise(x, z, 26.0f, 1) + 0.3f * cloud_noise(x, z, 11.0f, 2) + 0.2f * cloud_noise(x, z, 5.0f, 3);
 }
 
-// A background whose cloud tiles are clouds.
+// A background whose cloud tiles are clouds: above the ground's objects. Light tiles that the game
+// blends low over the ground (BG2_LOW: SAVARA's foam on its waves) aren't clouds: over the
+// procedural water they aren't drawn (it has foam of its own).
+static const L3DFrame *cloud_frame = NULL;
+
+static bool low_background(const L3DBackground *background)
+{
+	return cloud_frame != NULL && cloud_frame->layers[background->layer].type == L3D_BG2_LOW;
+}
+
+// A low blended background over water that becomes procedural water (SAVARA's foam and sun
+// glare on the waves): the water draws its own, so this one isn't drawn at all.
+static bool water_overlay(const L3DBackground *background)
+{
+	Uint8 rgb[3];
+	return settings3d.effects && clouds_enabled() && background->blend && low_background(background) &&
+	       b3d_water_color(1, rgb);
+}
+
 static bool cloud_background(const L3DBackground *background, bool composed)
 {
 	return clouds_enabled() && background->set >= 2 && background->effect_count == 0 && !composed &&
@@ -2193,8 +2240,28 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
 		tile_rgba[i] = tile_opaque[i] || (ground_zero && tile_ground[i]) ? colors[tile_indices[i]] : 0;
 	btbh_gpu_texture_update_rgba8(tile_atlas, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
-	for (int i = 0; i < B3D_ATLAS_W * B3D_ATLAS_H; ++i)
-		tile_rgba[i] = tile_rgba[i] != 0 ? water_mask(tile_rgba[i]) : 0;
+	// Water: the opaque pixels of water tiles (b3d_tile_is_water), with their cells' borders.
+	{
+		static const Uint8 water_rgba[4] = { 0, 0, 255, 255 };
+		Uint32 water;
+		memcpy(&water, water_rgba, 4);
+		memset(tile_rgba, 0, sizeof(Uint32) * B3D_ATLAS_W * B3D_ATLAS_H);
+		for (int set = 1; set <= B3D_SETS; ++set)
+			for (int t = 0; t < B3D_TILES_PER_SET; ++t)
+			{
+				if (!b3d_tile_is_water(set, t))
+					continue;
+				int ox, oy;
+				b3d_cell_origin((set - 1) * B3D_TILES_PER_SET + t, &ox, &oy);
+				for (int y = -1; y <= B3D_TILE_H; ++y)
+					for (int x = -1; x <= B3D_TILE_W; ++x)
+					{
+						const int i = (oy + y) * B3D_ATLAS_W + ox + x;
+						if (tile_opaque[i] && b3d_water_pixel(set, t, tile_indices[i]))
+							tile_rgba[i] = water;
+					}
+			}
+	}
 	btbh_gpu_texture_update_rgba8(tile_water, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
 	tile_pages[page].valid = true;
 	tile_pages[page].generation = b3d_map_generation;
@@ -2356,6 +2423,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const L3DBackground *background = &frame->backgrounds[i];
 		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
 			continue;
+		if (water_overlay(background))
+			continue;
 		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
 		// go on beyond it, a little below so that the composed image wins where it is.
 		const float height = heights[background->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
@@ -2393,7 +2462,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				if (tiles[t].cell < B3D_CELLS && tiles[t].cell / B3D_TILES_PER_SET + 1 == background->set &&
 				    b3d_tile_is_cloud(background->set, tile))
 				{
-					if (cloud_tile_count < MAX_CLOUD_TILES)
+					if (cloud_tile_count < MAX_CLOUD_TILES && !low_background(background))
 						cloud_tiles[cloud_tile_count++] = (CloudTile){
 							(Uint8)background->set, (Uint8)tile, tiles[t].flipped, background->blend, background->layer,
 							tiles[t].x, tiles[t].z, cloud_page_colors[background->set] };
@@ -2975,6 +3044,17 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	static Uint32 presented_frame = 0;
 	const bool new_frame = presented_frame != l3d_frame_number || ahead == 0;
 	b3d_clouds = clouds_enabled();  // blended backgrounds of clouds aren't composed
+	cloud_frame = frame;
+	for (int set = 1; set <= B3D_SETS; ++set)  // the level's water colour, for the procedural water
+	{
+		Uint8 rgb[3];
+		if (b3d_water_color(set, rgb))
+		{
+			for (int k = 0; k < 3; ++k)
+				water_rgb[k] = srgb_to_linear(rgb[k]);
+			break;
+		}
+	}
 	presented_frame = l3d_frame_number;
 
 	// Layers that background maps were drawn into get the map's tiles beneath them.

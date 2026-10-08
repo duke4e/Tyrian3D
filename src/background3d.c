@@ -966,3 +966,142 @@ void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask)
 		}
 	}
 }
+
+/*
+ * Water (polish): tiles drawn almost only in saturated blue to cyan are water, which the renderer
+ * shows as procedural water (the fork's PIXEL_WATER surface).
+ */
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	bool water[B3D_TILES_PER_SET];
+} waters[B3D_SETS];
+
+static bool water_pixel(Uint8 index)
+{
+	const Uint8 *c = (const Uint8 *)&rgb_palette[index];
+	const int r = c[0], g = c[1], b = c[2];
+	const int max = SDL_max(r, SDL_max(g, b)), min = SDL_min(r, SDL_min(g, b));
+	if (max < 24 || b < r || (max - min) * 100 < max * 35)
+		return false;
+	const float hue = max == b ? 240.0f - 60.0f * (g - r) / (float)(max - min) : 180.0f - 60.0f * (b - r) / (float)(max - min);
+	return hue >= 170.0f && hue <= 250.0f;
+}
+
+// In a water tile: whether a pixel is the water's (blues, the crests' and the sun's glare's pale
+// colours, the darkest troughs) rather than land, sand or rock.
+static bool water_like(Uint8 index)
+{
+	if (water_pixel(index))
+		return true;
+	// Cool colours (the crests', the glare's pale blue-greys) and the darkest troughs.
+	const Uint8 *c = (const Uint8 *)&rgb_palette[index];
+	const int brightest = SDL_max(c[0], SDL_max(c[1], c[2]));
+	return (c[2] >= c[0] && c[2] + 8 >= c[1]) || brightest < 40;
+}
+
+bool b3d_water_pixel(int set, int tile, Uint8 index)
+{
+	return index != 0 && b3d_tile_is_water(set, tile) && water_like(index);
+}
+
+bool b3d_tile_is_water(int set, int tile)
+{
+	if (set < 1 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
+		return false;
+	if (waters[set - 1].made_for != b3d_map_generation + 1)
+	{
+		const MapSet m = map_set(set);
+		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
+		{
+			waters[set - 1].water[t] = false;
+			if (t >= m.tile_count)
+				continue;
+			const Uint8 *data = m.first_tile + t * m.tile_stride;
+			int opaque = 0, water = 0, cool = 0;
+			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+				if (data[p] != 0)
+				{
+					++opaque;
+					water += water_pixel(data[p]);
+					cool += water_like(data[p]);
+				}
+			// Tiles with water in good part (shores too), or drawn all in the water's cool colours
+			// (the sun's glare); their water pixels are water (b3d_water_pixel). Clouds are not water.
+			waters[set - 1].water[t] = opaque > 0 && !b3d_tile_is_cloud(set, t) &&
+			                           (water * 100 >= opaque * 40 || cool * 100 >= opaque * 90);
+		}
+		// Cool tiles are water only where there is real water.
+		int real = 0;
+		for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
+		{
+			const Uint8 *data = m.first_tile + t * m.tile_stride;
+			int opaque = 0, water = 0;
+			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+				if (data[p] != 0)
+				{
+					++opaque;
+					water += water_pixel(data[p]);
+				}
+			real += opaque > 0 && water * 100 >= opaque * 40;
+		}
+		if (real < 3)
+			memset(waters[set - 1].water, 0, sizeof(waters[set - 1].water));
+		waters[set - 1].made_for = b3d_map_generation + 1;
+	}
+	return waters[set - 1].water[tile];
+}
+
+void b3d_water_mask(const L3DBackground *b, Uint8 *mask)
+{
+	static B3DTile tiles[512];
+	const int count = b3d_collect_tiles(b, false, 0.0f, (float)-L3D_OVERSCAN, (float)(L3D_WIDTH - 1),
+	                                    (float)(L3D_ROWS - L3D_OVERSCAN - 1), tiles, (int)COUNTOF(tiles));
+	for (int t = 0; t < count; ++t)
+	{
+		const B3DTile *tile = &tiles[t];
+		if (tile->cell / B3D_TILES_PER_SET + 1 != b->set || !b3d_tile_is_water(b->set, tile->cell % B3D_TILES_PER_SET))
+			continue;
+		const Uint8 *data = cell_pixels(tile->cell);
+		for (int y = 0; y < B3D_TILE_H; ++y)
+		{
+			const int row = (int)tile->z + y + L3D_OVERSCAN;
+			if (row < 0 || row >= L3D_ROWS)
+				continue;
+			for (int x = 0; x < B3D_TILE_W; ++x)
+			{
+				const int column = (int)tile->x + x;
+				if (column >= 0 && column < L3D_WIDTH &&
+				    water_like(data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)]) &&
+				    data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)] != 0)
+					mask[row * L3D_WIDTH + column] = 1;
+			}
+		}
+	}
+}
+
+bool b3d_water_color(int set, Uint8 rgb[3])
+{
+	const MapSet m = map_set(set);
+	double sum[3] = { 0, 0, 0 };
+	long count = 0;
+	for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
+	{
+		if (!b3d_tile_is_water(set, t))
+			continue;
+		const Uint8 *data = m.first_tile + t * m.tile_stride;
+		for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+			if (data[p] != 0 && water_pixel(data[p]))
+			{
+				const Uint8 *c = (const Uint8 *)&rgb_palette[data[p]];
+				for (int k = 0; k < 3; ++k)
+					sum[k] += c[k];
+				++count;
+			}
+	}
+	if (count == 0)
+		return false;
+	for (int k = 0; k < 3; ++k)
+		rgb[k] = (Uint8)(sum[k] / count);
+	return true;
+}
