@@ -5,14 +5,29 @@ built whole and cut into the sprites' pieces, drawn at their own origins (models
 - core_machine_* (^ 83, 85, 87, 89 above 121, 123, 125, 127): the grey and red machine of CORE,
   BRAINIAC, the ICE, LAVA and SIDE exits and UNDERDELI, 96 x 56 pixels: a red core column between
   two grey shoulders with chimneys, red chest plates, arms ending in upright posts, and legs and red
-  claws reaching down.
+  claws reaching down. Built on its left half and mirrored (the sprite's right half is its shadow).
+- deli_mite (^ 68): UNDERDELI's small purple crawler with a green window.
+- deli_floor_eye (^ 45): a machine set in UNDERDELI's floor with a glowing orange eye.
+- brick_crab_left, _mid, _right (^ 157, 159, 161): UNDERDELI's red-clawed machine in a brick wall.
+- blue_gate_* (^ 16, 18 above 54, 56): the blue gate of BRAINIAC and the ICE levels.
+- cruiser_rear, _mid, _nose (^ 198, 200, 201) and cruiser_rear_l, _mid_l, _nose_l (^ 206, 204, 203):
+  UNDERDELI's blue cruiser flying sideways, to the right and (mirrored) to the left. 201 overlaps 200
+  by 12 pixels (203 overlaps 204): each piece is the part of the ship its sprite shows.
+- eyespy_lips_left, eyespy_lips_right (^ 196, 208): EYESPY's lips.
+- brick_bulb_* (^ 153, 155 above 191, 193): a red bulb under a grey hood and two rings round red
+  cylinders, in UNDERDELI's brick wall.
+- rock_machine_* (^ 77, 79, 81 above 115, 117, 119): SURFACE's grey machine half buried in tan rock.
+- spike_hand_* (^ 11, 13, 49 (1x1), 50, 52) and spike_hand_r_* (^ 92, 94, 129, 131, 133 (1x1)): the
+  two spiked hands with blue eyes of SURFACE's boss.
+- nosedrip_nostrils, nosedrip_tongue (^ 267, 269): NOSE DRIP's nose tip and tongue.
 
 Parts are raised from regions of the sprites' pixels (wave3_i_art.py holds their palette indices) and
 coloured in bands of the pixels' shades, with the helpers of wave3_i_kit.py.
 
 usage: Blender -b --factory-startup -P wave3_i.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       Blender -b --factory-startup -P wave3_i.py -- --whole core_machine --preview <prefix>
+       Blender -b --factory-startup -P wave3_i.py -- --whole core_machine,gate,crab,ring,cruiser,sand,hand,hand_r
+       --preview <prefix>
 """
 import math
 import os
@@ -102,7 +117,9 @@ def machine_whole():
     X, Y = a.X, a.Y
     labels = a.rows(machine_label)
     left = [row[:48].ljust(96, ".") for row in labels]
-    grey = w.ramp_bands("cm_grey", 0, GREY, metallic=0.55, roughness=0.35)
+    # The sprite is dark: its greys a shade darker than the usual bands.
+    grey = w.ramp_bands("cm_grey", 0, [(0.0, 2), (4.0, 4), (6.0, 6), (8.0, 8), (10.0, 10), (11.6, 11)], metallic=0.5,
+                        roughness=0.4)
     red = w.ramp_bands("cm_red", 4, RED, metallic=0.35, roughness=0.3)
     dark = w.ramp_bands("cm_dark", 0, [(0.0, 1), (1.6, 2), (2.6, 3), (3.6, 4), (4.6, 5), (6.0, 6)], metallic=0.25,
                         roughness=0.6)
@@ -604,8 +621,8 @@ for name, sprite, box in (("rock_machine_tl", 77, (-36, -12, 0, 28)), ("rock_mac
 HAND = w.Art(art.HAND, 60, (30, 28))
 HAND_R = w.Art(art.HAND_R, 60, (30, 28))
 # The spikes (fitted to the sprites' pixels): tip and base (column, row) and the radius at the base.
-SPIKES = [((34.63, -0.08), (33.5, 19.9), 2.5), ((17.62, 1.18), (26.95, 20.55), 2.6), ((4.82, 7.15), (20.17, 24.96), 2.6),
-          ((-0.48, 17.61), (14.85, 29.68), 2.6)]
+SPIKES = [((34.63, -0.08), (33.5, 19.9), 2.5), ((17.62, 1.18), (26.95, 20.55), 2.6),
+          ((4.82, 7.15), (20.17, 24.96), 2.6), ((-0.48, 17.61), (14.85, 29.68), 2.6)]
 SPIKES_R = [((24.23, -0.02), (26.14, 19.9), 2.0), ((40.91, 1.96), (31.69, 21.38), 2.1),
             ((53.22, 8.19), (37.91, 26.03), 2.1), ((58.96, 17.95), (43.92, 30.38), 2.0)]
 
@@ -672,9 +689,11 @@ def hand_whole(right=False):
 
 w.WHOLES["hand"] = (hand_whole, (60, 56))
 w.WHOLES["hand_r"] = (lambda: hand_whole(True), (60, 56))
-for name, sprite, large, box in (("spike_hand_tl", 11, True, (-30, -6, 0, 28)), ("spike_hand_tr", 13, True, (-6, 18, 0, 28)),
+for name, sprite, large, box in (("spike_hand_tl", 11, True, (-30, -6, 0, 28)),
+                                 ("spike_hand_tr", 13, True, (-6, 18, 0, 28)),
                                  ("spike_hand_tip", 49, False, (-30, -18, -14, 0)),
-                                 ("spike_hand_bl", 50, True, (-18, 6, -28, 0)), ("spike_hand_br", 52, True, (6, 30, -28, 0))):
+                                 ("spike_hand_bl", 50, True, (-18, 6, -28, 0)),
+                                 ("spike_hand_br", 52, True, (6, 30, -28, 0))):
     model(name, [(sprite, large)], size=(24, 28) if large else (12, 14))(
         lambda box=box: (hand_whole(False), w.piece(*box)))
 for name, sprite, large, box in (("spike_hand_r_tl", 92, True, (-18, 6, 0, 28)),
@@ -700,19 +719,25 @@ def nosedrip_nostrils():
     whole = a.rows(lambda v, c, r: "f")
     gx = X(11.5)
 
+    nostrils = ((3.6, 9.2, 1.9, 1.7), (10.2, 7.6, 2.0, 2.2), (15.2, 6.4, 1.4, 1.5))
+
     def shape(x, y, z):
         tip = w.hk.smoothstep(Y(2.0), Y(13.0), y)  # 0 at the top edge, 1 lower down
         z = z * (0.55 + 0.45 * tip)
-        return z - 1.4 * math.exp(-((x - gx) / 1.3) ** 2) * w.hk.smoothstep(Y(9), Y(15), y)
+        z -= 1.4 * math.exp(-((x - gx) / 1.3) ** 2) * w.hk.smoothstep(Y(9), Y(15), y)
+        for c, r, rx, ry in nostrils:  # the nostrils: dents in the tip
+            q = ((x - X(c)) / (rx * 1.15)) ** 2 + ((y - Y(r)) / (ry * 1.15)) ** 2
+            z -= 2.2 * math.exp(-q ** 2)
+        return max(z, 0.4)
     region("flesh", a, whole, "f", 9.0, radius=5.0, crown=0.8, bands=flesh, smooth=2, epsilon=0.4,
-           select=lambda v, c, r: v >> 4 == 4, rim=1.0, target=3000, z_fn=shape, blur=1)
+           select=lambda v, c, r: v >> 4 == 4, rim=1.0, target=2600, z_fn=shape, blur=1)
     hole = pal("nose_hole", 0x40, metallic=0.0, roughness=0.6)
     hot = pal("nose_hot", 0x77, metallic=0.0, roughness=0.4, glow=1.3, color=(230, 50, 10))
-    for c, r, rx, ry in ((3.6, 9.2, 1.9, 1.7), (10.2, 7.6, 2.0, 2.2), (15.2, 6.4, 1.4, 1.5)):
+    for c, r, rx, ry in nostrils:
         x, y = X(c), Y(r)
         z = w.surface(w.meshes(), x, y, 5.0)
-        w.ellipsoid(f"nostril{c}", (x, y, z - 0.25), (rx, ry, 0.7), hole, 16, 8)
-        w.ellipsoid(f"nostril_hot{c}", (x, y, z + 0.05), (rx * 0.5, ry * 0.5, 0.42), hot, 12, 6)
+        w.ellipsoid(f"nostril{c}", (x, y, z - 0.45), (rx * 0.95, ry * 0.95, 0.5), hole, 16, 8)
+        w.ellipsoid(f"nostril_hot{c}", (x, y, z - 0.2), (rx * 0.6, ry * 0.6, 0.4), hot, 12, 6)
     w.sh.flat_bottom(w.meshes())
     w.sh.cut_planes(w.meshes(), [((0, -14.0, 0), (0, -1, 0))])
 
