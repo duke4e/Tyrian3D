@@ -26,6 +26,9 @@ Uint32 dev_demo_idle_ms(void);
 
 // Sets up a new game as TYR3D_START requests, once. Returns false if not requested.
 bool dev_start_game(void);
+// Sets up a new game starting at a section of an episode's script (shops skipped unless
+// TYR3D_SHOP); TYR3D_SHIP, TYR3D_WEAPONS and the like apply.
+bool dev_setup_game(int episode, int section);
 
 bool dev_godmode(void);
 

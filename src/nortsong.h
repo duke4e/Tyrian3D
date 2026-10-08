@@ -28,6 +28,9 @@
 
 extern JE_word frameCountMax;
 
+extern float nortsong_time_scale;  // Tyrian3D: delays this many times as long (the debug flight's speed)
+extern bool nortsong_skip_waits;   // Tyrian3D: no waiting (the debug flight's replay)
+
 extern Sint16 *soundSamples[SOUND_COUNT];
 extern size_t soundSampleCount[SOUND_COUNT];
 

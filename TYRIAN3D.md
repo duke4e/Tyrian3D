@@ -71,6 +71,23 @@ fading while the ship is under them; the level's name as it starts) or Classic (
 panel beside the playfield; two players always have it). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
 change the first two as well.
 
+## Debug flight
+
+Setup → **Debug Flight...** lists every level of the episodes; Enter flies it from its start (the
+following levels follow, shops skipped) without losing lives. A line at the top shows the level,
+its time and tick, and the speed. While flying:
+
+| Key | Action |
+|---|---|
+| `-` / `=` | Slower / faster (1/4×, 1/2×, 1×, 2×, 4×, 8×) |
+| Backspace | Back 5 seconds (the level restarts and the input so far is played back, quickly and unseen) |
+| `` ` `` | Pause / resume (the camera keys work while paused) |
+| `.` | One tick on, while paused |
+| F12 | Snapshot to `export/feedback/<LEVEL>_e<episode>s<section>_t<tick>_<time>.png` |
+
+The tick in a snapshot's name finds the moment again: `TYR3D_START=<episode>:<section> TYR3D_DEBUG=1
+TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -99,6 +116,7 @@ change the first two as well.
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it) when that frame shows, then each next one so many milliseconds after the one before |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
+| `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | Ground enemies' objects painted into the map stay in the ground under their models |
 | `TYR3D_DARK_LIGHTING=0` | Spotlight levels show the game's lit cone as an overlay, instead of being dark and lit by the ship's lamp |

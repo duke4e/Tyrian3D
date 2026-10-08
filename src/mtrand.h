@@ -26,4 +26,11 @@ unsigned long mt_rand(void);
 float mt_rand_1(void);
 float mt_rand_lt1(void);
 
+#include <stddef.h>
+
+// Tyrian3D: the generator's state (mt_state_size bytes), saved and put back.
+size_t mt_state_size(void);
+void mt_save(void *state);
+void mt_load(const void *state);
+
 #endif /* MTRAND_H */

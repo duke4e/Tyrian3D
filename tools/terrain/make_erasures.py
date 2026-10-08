@@ -127,7 +127,7 @@ def source_offset(m, alpha, mask, x0, y0, taken):
     return best[1]
 
 
-def tile_fills(tiles, side_columns, taken, mask, x0, y0):
+def tile_fills(m, tiles, side_columns, taken, mask, x0, y0):
     """The mask cut by the map's tiles; for each tile it touches, the most common tile round it (the
     ground) where it is nearest and nothing stands: (x, y, mask part, offset to it)."""
     rows, columns = tiles.shape
@@ -145,8 +145,8 @@ def tile_fills(tiles, side_columns, taken, mask, x0, y0):
                 continue
             # The ground: the most common tile among those round it where nothing stands.
             counts = {}
-            for rr in range(max(r - 2, 0), min(r + 3, rows)):
-                for cc in range(max(c - 2, 0), min(c + 3, columns)):
+            for rr in range(max(r - 4, 0), min(r + 5, rows)):
+                for cc in range(max(c - 4, 0), min(c + 5, columns)):
                     if (rr, cc) == (r, c):
                         continue
                     sx, sy = (cc + side_columns) * TILE_W, rr * TILE_H
@@ -155,7 +155,14 @@ def tile_fills(tiles, side_columns, taken, mask, x0, y0):
                     counts[tiles[rr, cc]] = counts.get(tiles[rr, cc], 0) + 1
             if not counts:
                 continue
-            ground = max(counts, key=counts.get)
+            # Of those, the one the object was painted over: the most pixels alike (beside water, the
+            # turret's own tile may be grass while the tiles round it are shore).
+            here = m[ty:ty + TILE_H, tx:tx + TILE_W]
+            def alike(t):
+                rr, cc = np.argwhere(tiles == t)[0]
+                there = m[rr * TILE_H:(rr + 1) * TILE_H, (cc + side_columns) * TILE_W:(cc + side_columns + 1) * TILE_W]
+                return int((np.abs(there.astype(np.int32) - here).max(axis=2) <= 2).sum())
+            ground = max(counts, key=lambda t: (alike(t), counts[t]))
             if ground == tiles[r, c]:
                 continue  # the tile is the ground already: the object isn't painted into it
             best = None
@@ -210,7 +217,7 @@ def build(name, by_level):
     records = []
     tiles = np.array(info["shapes"])
     for x0, y0, mask in sorted(found, key=lambda f: f[1]):
-        for rx, ry, part, offset in tile_fills(tiles, info["side_columns"], taken, mask, x0, y0):
+        for rx, ry, part, offset in tile_fills(m, tiles, info["side_columns"], taken, mask, x0, y0):
             h, w = part.shape
             records.append(struct.pack("<HHBBhh", rx, ry, w, h, offset[0], offset[1]) + part.astype(np.uint8).tobytes())
         # (Off the map's own columns, the generated sides: ground from nearby, as it matches.)

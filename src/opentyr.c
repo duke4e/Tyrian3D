@@ -19,6 +19,7 @@
 #include "opentyr.h"
 
 #include "config.h"
+#include "debugmode.h"
 #include "devtools.h"
 #include "extract.h"
 #include "destruct.h"
@@ -184,6 +185,7 @@ void setupMenu(void)
 		MENU_ITEM_MUSIC_SYNTH,
 		MENU_ITEM_MOUSE,
 		MENU_ITEM_HUD,
+		MENU_ITEM_DEBUG,
 	} MenuItemId;
 
 	typedef enum
@@ -218,6 +220,7 @@ void setupMenu(void)
 				{ MENU_ITEM_3D, "3D...", "Change the 3D settings." },
 				{ MENU_ITEM_SOUND, "Sound...", "Change the sound settings." },
 				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
+				{ MENU_ITEM_DEBUG, "Debug Flight...", "Fly through any level without losing lives." },
 				// { MENU_ITEM_DESTRUCT, "Destruct", "Play a bonus mini-game." },
 				{ MENU_ITEM_DONE, "Done", "Return to the main menu." },
 				{ -1 }
@@ -628,6 +631,15 @@ void setupMenu(void)
 					JE_playSampleNum(S_SELECT);
 
 					currentMenu = menuParents[currentMenu];
+					break;
+				}
+				case MENU_ITEM_DEBUG:
+				{
+					JE_playSampleNum(S_SELECT);
+					fade_black(10);
+					if (debug_pick_and_start())
+						return;  // to the title screen, which starts the flight
+					restart = true;
 					break;
 				}
 				case MENU_ITEM_GRAPHICS:
@@ -1070,9 +1082,11 @@ int main(int argc, char *argv[])
 		else
 #endif
 		{
+			debug_flight = false;
 			if (dev_start_game())
 			{
 				// Tyrian3D dev tool: started a game at a requested level.
+				debug_flight_from_environment();
 			}
 			else if (!titleScreen())
 			{

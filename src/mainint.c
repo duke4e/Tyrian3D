@@ -18,6 +18,8 @@
  */
 #include "mainint.h"
 
+#include "debugmode.h"
+
 #include "backgrnd.h"
 #include "config.h"
 #include "devtools.h"
@@ -4079,6 +4081,10 @@ redo:
 			}
 		}
 	}
+
+	// Tyrian3D: the debug flight records the input, or plays it back when it rewinds.
+	if (!endLevel && (!isNetworkGame || playerNum_ == thisPlayerNum))
+		debug_flight_input(playerNum_, this_player, &accelXC, &accelYC);
 
 	if (play_demo)
 		JE_dString(VGAScreen, 115, 10, miscText[7], SMALL_FONT_SHAPES); // insert coin

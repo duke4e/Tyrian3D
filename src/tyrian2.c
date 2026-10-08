@@ -18,6 +18,8 @@
  */
 #include "tyrian2.h"
 
+#include "debugmode.h"
+
 #include "animlib.h"
 #include "backgrnd.h"
 #include "background3d.h"
@@ -1191,6 +1193,10 @@ start_level:
 
 	difficultyLevel = oldDifficultyLevel;   /*Return difficulty to normal*/
 
+	// Tyrian3D: the debug flight rewinds by restarting the level (debugmode.h).
+	if (debug_flight_restarting())
+		goto start_level_first;
+
 	if (!play_demo)
 	{
 		if ((!all_players_dead() || normalBonusLevelCurrent || bonusLevelCurrent) && !playerEndLevel)
@@ -1239,6 +1245,7 @@ start_level_first:
 	extraGame = false;
 
 	doNotSaveBackup = false;
+	debug_flight_level_start();
 	JE_loadMap();
 
 	if (mainLevel == 0)  // if quit itemscreen
@@ -1598,6 +1605,7 @@ start_level_first:
 	BKwrap3 = BKwrap3to = &megaData3.mainmap[1][0];
 
 level_loop:
+		debug_flight_tick();
 
 	// Tyrian3D: the wait the 3D view moved here from JE_starShowVGA, before input is read.
 	if (wait_at_tick_start)
@@ -4190,6 +4198,8 @@ bool titleScreen(void)
 				fade_black(15);
 
 				setupMenu();
+				if (debug_flight)
+					return true;  // Tyrian3D: a debug flight was picked
 
 				restart = true;
 				break;

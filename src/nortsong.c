@@ -52,16 +52,20 @@ static Uint32 target2 = 0;
 // frames between ticks).
 static Uint64 target_start_ns = 0, target_ns = 0;
 
+// Tyrian3D: the debug flight's speed (delays this many times as long) and its replay (no waits).
+float nortsong_time_scale = 1.0f;
+bool nortsong_skip_waits = false;
+
 void setDelay(int delay)  // FKA NortSong.frameCount
 {
-	target = SDL_GetTicks() + delay * delayPeriod;
+	target = SDL_GetTicks() + delay * delayPeriod * nortsong_time_scale;
 	target_start_ns = SDL_GetTicksNS();
-	target_ns = target_start_ns + (Uint64)(delay * delayPeriod * 1000000.0f);
+	target_ns = target_start_ns + (Uint64)(delay * delayPeriod * nortsong_time_scale * 1000000.0f);
 }
 
 void setDelayContinued(int delay)
 {
-	const Uint64 now = SDL_GetTicksNS(), length = (Uint64)(delay * delayPeriod * 1000000.0f);
+	const Uint64 now = SDL_GetTicksNS(), length = (Uint64)(delay * delayPeriod * nortsong_time_scale * 1000000.0f);
 	// From the end of the last delay, unless that was a whole delay ago or more.
 	target_start_ns = target_ns != 0 && target_ns + length > now ? target_ns : now;
 	target_ns = target_start_ns + length;
@@ -100,6 +104,8 @@ Uint32 getDelayTicks2(void)  // FKA NortSong.frameCount2
 
 void wait_delay(void)
 {
+	if (nortsong_skip_waits)
+		return;
 	Sint32 delay = target - SDL_GetTicks();
 	if (delay > 0)
 		SDL_Delay(delay);
@@ -107,6 +113,8 @@ void wait_delay(void)
 
 void wait_delay_precise(void)
 {
+	if (nortsong_skip_waits)
+		return;
 	const Sint64 left = getDelayLeftNS();
 	if (left > 0)
 		SDL_DelayPrecise((Uint64)left);
@@ -119,7 +127,7 @@ void service_wait_delay(void)
 		service_SDL_events(false);
 
 		Sint32 delay = target - SDL_GetTicks();
-		if (delay <= 0)
+		if (delay <= 0 || nortsong_skip_waits)
 			return;
 
 		SDL_Delay(MIN(delay, SDL_POLL_INTERVAL));

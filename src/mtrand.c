@@ -42,6 +42,9 @@
 
 #include "mtrand.h"
 
+#include <stddef.h>
+#include <string.h>
+
 /* Period parameters */
 #define N 624
 #define M 397
@@ -103,4 +106,27 @@ float mt_rand_lt1(void)
 {
 	/* MT_RAND_MAX must be a float before adding one to it! */
 	return ((float)mt_rand() / ((float)MT_RAND_MAX + 1.0f));
+}
+
+// Tyrian3D: the generator's state, to put back (the debug flight's rewind replays a level).
+size_t mt_state_size(void)
+{
+	return sizeof(x) + 3 * sizeof(ptrdiff_t);
+}
+
+void mt_save(void *state)
+{
+	const ptrdiff_t offsets[3] = { p0 - x, p1 - x, pm - x };
+	memcpy(state, x, sizeof(x));
+	memcpy((char *)state + sizeof(x), offsets, sizeof(offsets));
+}
+
+void mt_load(const void *state)
+{
+	ptrdiff_t offsets[3];
+	memcpy(x, state, sizeof(x));
+	memcpy(offsets, (const char *)state + sizeof(x), sizeof(offsets));
+	p0 = x + offsets[0];
+	p1 = x + offsets[1];
+	pm = x + offsets[2];
 }

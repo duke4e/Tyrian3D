@@ -18,6 +18,7 @@
  */
 #include "video.h"
 
+#include "debugmode.h"
 #include "devtools.h"
 #include "episodes.h"
 #include "game_menu.h"
@@ -294,6 +295,8 @@ void JE_clr256(SDL_Surface *screen)
 
 void JE_showVGA(void)
 {
+	if (debug_flight_replaying())
+		return;
 	present_screen(VGAScreen);
 }
 
@@ -672,6 +675,13 @@ int video_pointer_scale(void)
 
 void JE_showVGA3D(void)
 {
+	if (debug_flight_replaying())
+		return;
+	// Fast debug flights show every so many ticks, as the display allows.
+	static int fast_skipped = 0;
+	if (nortsong_time_scale < 0.4f && ++fast_skipped < (int)(0.5f / nortsong_time_scale))
+		return;
+	fast_skipped = 0;
 	take_backdrop();
 	showcase_valid = sim_valid = false;
 
@@ -703,6 +713,8 @@ static Uint64 refresh_period_ns(void)
 
 void video_wait_tick_3d(void)
 {
+	if (nortsong_skip_waits)
+		return;
 	// TYR3D_SMOOTH=0: wait as the game always has, showing nothing more.
 	static int smooth = -1;
 	if (smooth < 0)

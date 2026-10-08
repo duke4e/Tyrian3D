@@ -6,6 +6,7 @@
 #include "background3d.h"
 #include "backgrnd.h"
 #include "config.h"
+#include "debugmode.h"
 #include "devtools.h"
 #include "font.h"
 #include "fonthand.h"
@@ -2064,6 +2065,22 @@ static void build_modern_hud(float window_w, float window_h)
 		const float cap = 9.0f * u;
 		text_quads(TEXT_LARGE, name, (window_w - text_width(TEXT_LARGE, name, cap)) / 2, 28 * u, cap, title, 0.8f * u);
 	}
+}
+
+// The debug flight's line at the top: the level, its time, the speed; the keys under it.
+static void debug_status_quads(float window_w, float window_h)
+{
+	const char *status = debug_flight_status();
+	if (status[0] == '\0')
+		return;
+	const float u = window_h / 200.0f, cap = 3.6f * u;
+	const float width = SDL_max(text_width(TEXT_TINY, status, cap), text_width(TEXT_TINY, debug_flight_keys(), cap * 0.8f));
+	const float backing[4] = { 0, 0, 0, 0.45f };
+	hud_quad((window_w - width) / 2 - 3 * u, 1.5f * u, width + 6 * u, 13 * u, backing, NULL);
+	const float color[4] = { 1.0f, 0.86f, 0.45f, 1 }, dim[4] = { 0.8f, 0.82f, 0.88f, 0.85f };
+	text_quads(TEXT_TINY, status, (window_w - text_width(TEXT_TINY, status, cap)) / 2, 3 * u, cap, color, 0.3f * u);
+	const char *keys = debug_flight_keys();
+	text_quads(TEXT_TINY, keys, (window_w - text_width(TEXT_TINY, keys, cap * 0.8f)) / 2, 9 * u, cap * 0.8f, dim, 0.3f * u);
 }
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
@@ -5768,6 +5785,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		hud_panel_hd(hud);
 	}
 	playfield_text_quads(&layout);
+	debug_status_quads(logical_w, logical_h);
 
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;

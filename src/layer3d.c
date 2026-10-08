@@ -3,6 +3,8 @@
  */
 #include "layer3d.h"
 
+#include "debugmode.h"
+
 #include "models3d.h"
 #include "volume3d.h"
 
@@ -184,7 +186,7 @@ static void end_phase(void)
 void l3d_frame_begin(L3DLayerType first_type)
 {
 	frame_ready = false;
-	if (!l3d_enabled)
+	if (!l3d_enabled || debug_flight_replaying())
 		return;
 
 	++l3d_frame_number;

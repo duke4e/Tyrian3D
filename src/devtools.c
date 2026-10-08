@@ -4,6 +4,7 @@
 #include "devtools.h"
 
 #include "config.h"
+#include "debugmode.h"
 #include "episodes.h"
 #include "layer3d.h"
 #include "mtrand.h"
@@ -41,7 +42,7 @@ static bool dumping_this_frame(void)
 
 bool dev_capture_next_frame(void)
 {
-	return dumping_this_frame();
+	return dumping_this_frame() || debug_flight_snapshot_wanted();
 }
 
 void dev_on_layers_captured(void)
@@ -89,6 +90,11 @@ bool dev_start_game(void)
 		fprintf(stderr, "warning: TYR3D_START must be <episode>:<section>, got '%s'\n", start);
 		return false;
 	}
+	return dev_setup_game(episode, section);
+}
+
+bool dev_setup_game(int episode, int section)
+{
 
 	// The same random numbers every run (TYR3D_SEED picks others), so runs can be compared frame
 	// by frame.
@@ -200,7 +206,7 @@ bool dev_background_run(void)
 
 bool dev_godmode(void)
 {
-	return SDL_getenv("TYR3D_GODMODE") != NULL;
+	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL;
 }
 
 bool dev_autopilot(void)
@@ -341,6 +347,8 @@ static void test_keys_on_frame(void)
 
 void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 {
+	if (rgba != NULL && debug_flight_snapshot_wanted())
+		debug_flight_snapshot(rgba, width, height, pitch);
 	++frame;
 	test_keys_on_frame();
 
