@@ -78,6 +78,7 @@ typedef struct
 	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
 	bool pointer;         // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
 	Uint8 open_sides;     // L3D_VOLUME: sides another part of the same enemy continues (V3D_OPEN_*)
+	bool wreck;           // what is left of a destroyed ground object: burnt and slumped
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -184,6 +185,8 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 // Makes the object recorded last half transparent, as the game draws the invulnerable player's
 // ship (blit_sprite2x2_blend).
 void l3d_ghost_last_object(void);
+// The last object added is a wreck (L3DObject.wreck).
+void l3d_wreck_last_object(void);
 
 // Gives the object recorded last a key that stays the same from frame to frame (an enemy's slot):
 // it then gets the velocity it moved with since the last frame, so the 3D view can move it on in
@@ -216,6 +219,7 @@ extern float l3d_pointer_lead[2];
 #define L3D_KEY_SIDEKICK   0x21000u
 #define L3D_KEY_SHOT       0x30000u
 #define L3D_KEY_ENEMY_SHOT 0x40000u
+#define L3D_KEY_WRECK      0x50000u
 
 // A shot's sprite (1x1, drawn at x, y as blit_sprite2 draws it) as a flat volumetric sprite with
 // its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index). False when the 3D

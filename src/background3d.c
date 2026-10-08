@@ -1173,6 +1173,18 @@ bool b3d_map_point(const L3DBackground *b, float x, float y, int *map_x, int *ma
 	return true;
 }
 
+bool b3d_screen_point(const L3DBackground *b, float map_x, float map_y, float *x, float *y)
+{
+	// From a point in the middle of the playfield, whose place in the map is known.
+	const int rx = L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2, ry = L3D_PLAYFIELD_H / 2;
+	int mx, my;
+	if (!b3d_map_point(b, (float)rx, (float)ry, &mx, &my))
+		return false;
+	*x = rx + (map_x - mx);
+	*y = ry + (map_y - my);
+	return true;
+}
+
 int b3d_map_cell(int set, int map_row, int map_column, bool *flipped)
 {
 	*flipped = false;

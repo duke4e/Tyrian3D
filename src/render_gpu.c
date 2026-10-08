@@ -48,6 +48,9 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
+// Wrecks (L3DObject.wreck): their height and brightness.
+#define WRECK_SLUMP 0.45f
+#define WRECK_SHADE 0.3f
 #define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
 #define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
 
@@ -1707,13 +1710,16 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					                 model->size > 0 ? -loaded->center[2] : 0.0f),
 				};
 				Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+				if (object->wreck)  // slumped to under half its height
+					for (int k = 1; k < 12; k += 4)
+						transform.m[k] *= WRECK_SLUMP;
 				// Nothing sinks into the ground: models centred on their layer's height (items on
 				// the ground enemies' layer) are lifted by what their turned bounds reach below it.
 				const float reach = fabsf(transform.m[1]) * loaded->half[0] + fabsf(transform.m[5]) * loaded->half[1] +
 				                    fabsf(transform.m[9]) * loaded->half[2];
 				if (!model->keep_origin && height - reach < 0.3f)
 					transform.m[13] += 0.3f - (height - reach);
-				write_instance(instances + *instance_count * 24, &transform, 1.0f);
+				write_instance(instances + *instance_count * 24, &transform, object->wreck ? WRECK_SHADE : 1.0f);
 				++*instance_count;
 			}
 

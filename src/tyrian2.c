@@ -310,6 +310,95 @@ static void flush_ground_log(void)
 	ground_logged_count = 0;
 }
 
+// Tyrian3D: wrecks. A ground object shown as a model leaves what is left of it when destroyed:
+// the model burnt, slumped and smoking for a while, lying on the ground and scrolling with it
+// (the game itself shows the map's ground there). Only in the 3D view; the game is unchanged.
+#define MAX_WRECKS 64
+
+static struct
+{
+	bool live;
+	int model;
+	float map_x, map_y;  // on the ground's exported map
+	float yaw, roll, height;
+	unsigned int age;    // ticks
+	unsigned int generation;  // b3d_map_generation + 1 of its map
+} wrecks[MAX_WRECKS];
+
+static const L3DBackground *ground_background(void)
+{
+	for (int b = 0; b < l3d_frame.background_count; ++b)
+		if (l3d_frame.backgrounds[b].set == 1)
+			return &l3d_frame.backgrounds[b];
+	return NULL;
+}
+
+static void leave_wreck(unsigned int i)
+{
+	// Ground enemies only (slots 25-49 and 75-99, drawn with the ground).
+	if (!l3d_enabled || !m3d_enabled || i < 25 || (i >= 50 && i < 75) || enemy[i].sprite2s == NULL)
+		return;
+	// Not where the game puts something of its own in its place (a wreck or damaged look of
+	// its own, as an enemy); items left behind are fine.
+	const unsigned int left = enemy[i].enemydie;
+	if (left > 0 && left <= ENEMY_NUM && enemyDat[left].shapebank != 21 && enemyDat[left].shapebank != 26)
+		return;
+	const char sheet = enemy_sheet_letter(enemy[i].sprite2s);
+	const M3DAppearance look = m3d_enemy_appearance(sheet, enemy[i].egr[0], enemy[i].size == 1, L3D_GROUND_ENEMY);
+	if (look.model < 0)
+		return;
+	const L3DBackground *ground = ground_background();
+	int map_x, map_y;
+	if (ground == NULL || !b3d_map_point(ground, enemy[i].ex + enemy[i].mapoffset + 6, enemy[i].ey + 7, &map_x, &map_y))
+		return;
+	int slot = 0;
+	for (int w = 0; w < MAX_WRECKS; ++w)
+		if (!wrecks[w].live || wrecks[w].age > wrecks[slot].age)
+		{
+			slot = w;
+			if (!wrecks[w].live)
+				break;
+		}
+	const unsigned int sprite = enemy[i].egr[SDL_max(enemy[i].enemycycle, 1) - 1];
+	wrecks[slot].live = true;
+	wrecks[slot].model = m3d_frame_model(sheet, sprite, look.model);
+	wrecks[slot].map_x = map_x;
+	wrecks[slot].map_y = map_y;
+	wrecks[slot].yaw = look.yaw + (float)(mt_rand() % 21) - 10.0f;
+	wrecks[slot].roll = (float)(mt_rand() % 17) - 8.0f;
+	wrecks[slot].height = look.height;
+	wrecks[slot].age = 0;
+	wrecks[slot].generation = b3d_map_generation + 1;
+	if (SDL_getenv("TYR3D_LOG_WRECKS") != NULL)
+		printf("wreck: model %d at map %d,%d (screen %d,%d)\n", wrecks[slot].model, map_x, map_y,
+		       enemy[i].ex + enemy[i].mapoffset + 6, enemy[i].ey + 7);
+}
+
+static void draw_wrecks(void)
+{
+	const L3DBackground *ground = ground_background();
+	for (int w = 0; w < MAX_WRECKS; ++w)
+	{
+		if (!wrecks[w].live)
+			continue;
+		float x, y;
+		if (wrecks[w].generation != b3d_map_generation + 1 || ground == NULL ||
+		    !b3d_screen_point(ground, wrecks[w].map_x, wrecks[w].map_y, &x, &y) || y > 230 || y < -400)
+		{
+			wrecks[w].live = false;
+			continue;
+		}
+		if (!l3d_add_object(wrecks[w].model, x, y, wrecks[w].height, wrecks[w].yaw, wrecks[w].roll, 0))
+			continue;
+		l3d_wreck_last_object();
+		l3d_key_last_object(L3D_KEY_WRECK + (Uint32)w, NULL, NULL);
+		// Smoke for a few seconds, thinning out.
+		const unsigned int age = wrecks[w].age++;
+		if (age < 160 && age % (age < 60 ? 4 : 9) == 0)
+			p3d_smoke(x, y, 3.0f, age < 60 ? 9.0f : 6.0f);
+	}
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -1775,6 +1864,7 @@ level_loop:
 
 	/*-----------------------Ground Enemy------------------------*/
 	l3d_phase(L3D_GROUND_ENEMY);
+	draw_wrecks();  // Tyrian3D
 	lastEnemyOnScreen = enemyOnScreen;
 
 	tempMapXOfs = mapXOfs;
@@ -2054,6 +2144,7 @@ level_loop:
 											}
 											else
 											{
+												leave_wreck(temp3);  // Tyrian3D
 												enemyAvail[temp3] = 1;
 												enemyKilled++;
 											}
@@ -2160,6 +2251,7 @@ level_loop:
 										}
 										else
 										{
+											leave_wreck(temp2);  // Tyrian3D
 											enemyAvail[temp2] = 1;
 											enemyKilled++;
 										}

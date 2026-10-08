@@ -213,5 +213,7 @@ int b3d_map_cell(int set, int map_row, int map_column, bool *flipped);
 // Where a screen point over a background lies in its exported map (TYR3D_EXPORT_MAPS's images:
 // game pixels from the map's top left, the generated columns included); false off the map.
 bool b3d_map_point(const L3DBackground *b, float x, float y, int *map_x, int *map_y);
+// The other way: where a point of a background's exported map is on the screen now.
+bool b3d_screen_point(const L3DBackground *b, float map_x, float map_y, float *x, float *y);
 
 #endif /* BACKGROUND3D_H */

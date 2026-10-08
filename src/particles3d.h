@@ -59,6 +59,8 @@ float p3d_light_energy(const P3DLight *light, float ahead);
 // Called by JE_setupExplosion: x, y are the explosion sprite's top left corner, type its
 // explosion type (see explosion_data).
 void p3d_explosion(int x, int y, int type);
+// A wisp of dark smoke rising from (x, y), e.g. from a wreck.
+void p3d_smoke(float x, float y, float height, float size);
 
 // Advances the particles by one game frame; drift is how far explosions move down the screen in
 // it (explodeMove).

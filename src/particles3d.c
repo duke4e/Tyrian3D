@@ -151,6 +151,11 @@ float p3d_light_energy(const P3DLight *l, float ahead)
 	return t >= 1 ? 0 : l->energy * (1 - t) * (1 - 0.5f * t);
 }
 
+void p3d_smoke(float x, float y, float height, float size)
+{
+	smoke(x, y, height, 1, size, 52);
+}
+
 void p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).
