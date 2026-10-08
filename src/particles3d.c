@@ -156,35 +156,121 @@ void p3d_smoke(float x, float y, float height, float size)
 	smoke(x, y, height, 1, size, 52);
 }
 
-void p3d_explosion(int x, int y, int type)
+// Billowing fire: noisy puffs that swell, rise a little and cool from white-hot to dark red.
+static void fireball(float x, float y, float height, int count, float size, float life, float spread)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		P3DParticle *p = spawn(P3D_FIRE, x + random_range(-spread, spread), y + random_range(-spread, spread), height);
+		if (p == NULL)
+			return;
+		const float angle = random_range(0, 2 * (float)M_PI), s = random_range(0.1f, 0.5f) * size / 10;
+		p->vx = cosf(angle) * s;
+		p->vy = sinf(angle) * s;
+		p->vheight = random_range(0.15f, 0.5f);
+		p->drag = 0.92f;
+		p->size = size * random_range(0.55f, 0.9f);
+		p->grow = size * random_range(0.03f, 0.06f);
+		p->age = -random_range(0, 3);
+		p->life = life * random_range(0.75f, 1.2f);
+		p->height = SDL_max(p->height, p->size * 0.5f);  // a puff facing the camera, not cut by the ground
+		// The first puffs hottest; additive, so they stay orange where they overlap.
+		const float heat = i == 0 ? 1.0f : random_range(0.55f, 0.85f);
+		set_colors(p, 255, (Uint8)(190 * heat), (Uint8)(90 * heat), 170, 140, 30, 6, 0);
+	}
+}
+
+// Embers: small glowing bits thrown up that fall back, cooling.
+static void embers(float x, float y, float height, int count, float speed)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		P3DParticle *p = spawn(P3D_GLOW, x, y, height);
+		if (p == NULL)
+			return;
+		const float angle = random_range(0, 2 * (float)M_PI), s = random_range(0.3f, 1.0f) * speed;
+		p->vx = cosf(angle) * s;
+		p->vy = sinf(angle) * s;
+		p->vheight = random_range(0.8f, 2.2f);
+		p->gravity = 0.12f;
+		p->drag = 0.96f;
+		p->size = random_range(1.0f, 1.8f);
+		p->life = random_range(20, 36);
+		set_colors(p, 255, 200, 90, 255, 200, 40, 0, 0);
+	}
+}
+
+// A shock wave: a ring racing out and fading.
+static void shock_ring(float x, float y, float height, float size, float life)
+{
+	P3DParticle *p = spawn(P3D_RING, x, y, height);
+	if (p == NULL)
+		return;
+	p->size = size * 0.3f;
+	p->grow = size / life;
+	p->life = life;
+	set_colors(p, 255, 200, 140, 150, 255, 110, 40, 0);
+}
+
+// A plume of dark smoke rising after the fire.
+static void plume(float x, float y, float height, int count, float size, Uint8 grey)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		P3DParticle *p = spawn(P3D_SMOKE, x + random_range(-4, 4), y + random_range(-4, 4), height);
+		if (p == NULL)
+			return;
+		p->vx = random_range(-0.1f, 0.1f);
+		p->vy = random_range(-0.15f, 0.05f);
+		p->vheight = random_range(0.35f, 0.7f);
+		p->drag = 0.985f;
+		p->size = size * random_range(0.5f, 0.8f);
+		p->grow = size * 0.035f;
+		p->age = -random_range(4, 12);  // after the fire
+		p->life = random_range(40, 60);
+		p->height = SDL_max(p->height, p->size * 0.5f);
+		set_colors(p, grey, grey, grey, 110, grey / 2, grey / 2, grey / 2, 0);
+	}
+}
+
+bool p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).
 	const float cx = x + 6.0f, cy = y + 7.0f;
 	switch (type)
 	{
 	case 0: case 1: case 11: case 12: case 13:  // hits
-		flash(cx, cy, 30, 8, 4);
-		sparks(cx, cy, 30, 4, 2.0f);
+		flash(cx, cy, 30, 10, 5);
+		fireball(cx, cy, 30, 3, 8, 14, 2);
+		sparks(cx, cy, 30, 6, 2.4f);
 		light(cx, cy, 24, 30, 2.5f, 6);
-		break;
+		return true;
 	case 2: case 3: case 4: case 5:  // a quarter of a large explosion on the ground
-		flash(cx, cy, 8, 14, 6);
-		sparks(cx, cy, 8, 4, 2.2f);
-		debris(cx, cy, 6, 4);
-		smoke(cx, cy, 8, 2, 14, 45);
+		flash(cx, cy, 10, 22, 7);
+		fireball(cx, cy, 8, 6, 18, 28, 5);
+		sparks(cx, cy, 8, 6, 2.8f);
+		embers(cx, cy, 6, 5, 1.5f);
+		debris(cx, cy, 6, 5);
+		plume(cx, cy, 8, 3, 18, 40);
+		if (type == 5)  // once, at the middle of the four
+			shock_ring(cx - 6, cy - 7, 2, 90, 16);
 		light(cx, cy, 12, 56, 5.5f, 12);
-		break;
+		return true;
 	case 6:  // white smoke
 		smoke(cx, cy, 30, 3, 10, 200);
-		break;
+		return true;
 	case 7: case 8: case 9: case 10:  // a quarter of a large explosion in the air
-		flash(cx, cy, 30, 14, 6);
-		sparks(cx, cy, 30, 6, 2.6f);
-		smoke(cx, cy, 30, 1, 14, 55);
+		flash(cx, cy, 30, 22, 7);
+		fireball(cx, cy, 30, 6, 17, 24, 5);
+		sparks(cx, cy, 30, 9, 3.2f);
+		embers(cx, cy, 30, 4, 1.7f);
+		plume(cx, cy, 30, 2, 15, 60);
+		if (type == 10)
+			shock_ring(cx - 6, cy - 7, 30, 80, 14);
 		light(cx, cy, 24, 60, 5.5f, 12);
-		break;
-	default:  // the player's shield, coin values
-		break;
+		return true;
+	default:  // the player's shield, coin values, weapons' own hits: their sprites
+		return false;
 	}
 }
 

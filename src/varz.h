@@ -190,6 +190,7 @@ typedef struct {
 	bool followPlayer;
 	bool fixedPosition;
 	JE_integer deltaY;
+	bool particles;  // Tyrian3D: shown by particles in the 3D view, not by its sprite
 } Explosion;
 
 typedef struct {

@@ -14,8 +14,10 @@
 
 typedef enum
 {
-	P3D_GLOW,   // drawn additively: flashes, fire, sparks
-	P3D_SMOKE,  // drawn blended
+	P3D_SMOKE,  // drawn blended (first), billowing
+	P3D_GLOW,   // drawn additively: flashes, sparks, embers (soft dots)
+	P3D_FIRE,   // drawn additively: billowing fire (noisy puffs)
+	P3D_RING,   // drawn additively: shock waves
 	P3D_KIND_COUNT
 } P3DKind;
 
@@ -57,8 +59,9 @@ extern int p3d_light_count;
 float p3d_light_energy(const P3DLight *light, float ahead);
 
 // Called by JE_setupExplosion: x, y are the explosion sprite's top left corner, type its
-// explosion type (see explosion_data).
-void p3d_explosion(int x, int y, int type);
+// explosion type (see explosion_data). True if the particles stand for the explosion's sprite
+// (explosions, hits, smoke): the 3D view then leaves the sprite out.
+bool p3d_explosion(int x, int y, int type);
 // A wisp of dark smoke rising from (x, y), e.g. from a wreck.
 void p3d_smoke(float x, float y, float height, float size);
 

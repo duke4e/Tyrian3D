@@ -84,6 +84,8 @@ static BTBHGPUTexture *layer_atlas = NULL;     // 3D layers, 320 x ATLAS_H
 static BTBHGPUTexture *tile_atlas = NULL;      // background map tiles (background3d.h)
 static BTBHGPUTexture *white_texture = NULL;   // 1x1, for flat-coloured quads
 static BTBHGPUTexture *particle_texture = NULL;  // a soft round dot
+static BTBHGPUTexture *fire_texture = NULL;      // a billowing puff (fire and smoke particles)
+static BTBHGPUTexture *ring_texture = NULL;      // a soft ring (shock waves)
 static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
 // Filtered backgrounds composed on the CPU (background3d.h): a square slot per background.
 #define COMPOSED_SIZE 1024
@@ -498,6 +500,50 @@ static BTBHGPUTexture *create_puff_texture(void)
 	return texture;
 }
 
+// A billowing puff: lumps of noise inside a soft round edge, brighter towards the middle (fire is
+// hotter inside). White; instances colour it.
+static BTBHGPUTexture *create_fire_texture(void)
+{
+	enum { SIZE = 128 };
+	static Uint32 pixels[SIZE * SIZE];
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			const float dx = (x + 0.5f) / SIZE * 2 - 1, dy = (y + 0.5f) / SIZE * 2 - 1;
+			const float noise = 0.5f * cloud_noise((float)x, (float)y, 22.0f, 31) + 0.3f * cloud_noise((float)x, (float)y, 11.0f, 32) +
+			                    0.2f * cloud_noise((float)x, (float)y, 5.0f, 33);
+			const float d = sqrtf(dx * dx + dy * dy) * (0.8f + 0.45f * noise);
+			const float edge = SDL_clamp(1.0f - d, 0.0f, 1.0f);
+			const float a = edge * edge * (3 - 2 * edge) * (0.55f + 0.45f * noise);
+			const float v = 0.75f + 0.25f * edge;
+			const Uint8 rgba[4] = { (Uint8)(255 * v), (Uint8)(255 * v), (Uint8)(255 * v), (Uint8)(255 * SDL_clamp(a, 0.0f, 1.0f)) };
+			memcpy(&pixels[y * SIZE + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
+// A soft ring, brightest at 85% of the radius.
+static BTBHGPUTexture *create_ring_texture(void)
+{
+	enum { SIZE = 128 };
+	static Uint32 pixels[SIZE * SIZE];
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			const float dx = (x + 0.5f) / SIZE * 2 - 1, dy = (y + 0.5f) / SIZE * 2 - 1;
+			const float d = sqrtf(dx * dx + dy * dy);
+			const float t = (d - 0.85f) / (d < 0.85f ? 0.25f : 0.12f);
+			const float a = d > 1.0f ? 0.0f : expf(-t * t * 3.0f);
+			const Uint8 rgba[4] = { 255, 255, 255, (Uint8)(255 * a) };
+			memcpy(&pixels[y * SIZE + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
@@ -583,6 +629,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	quad_mesh = create_quad_mesh(1, 1);
 	billboard_mesh = create_billboard_mesh();
 	particle_texture = create_particle_texture();
+	fire_texture = create_fire_texture();
+	ring_texture = create_ring_texture();
 	fade_meshes[0] = create_quad_mesh(B3D_BEYOND_FADE, 1);
 	fade_meshes[1] = create_quad_mesh(1, B3D_BEYOND_FADE);
 
@@ -612,6 +660,8 @@ void rgpu_shutdown(void)
 	tile_atlas = NULL;
 	white_texture = NULL;
 	particle_texture = NULL;
+	fire_texture = NULL;
+	ring_texture = NULL;
 	puff_texture = NULL;
 	billboard_mesh = NULL;
 	composed_texture = NULL;
@@ -4468,9 +4518,26 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			const P3DParticle *p = &p3d_particles[i];
 			if (p->kind != kind || p->age < 0)
 				continue;
-			const float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
+			float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
+			if (kind == P3D_FIRE)
+				t *= t;  // fire stays hot, then cools quickly
 			Mat4 transform = mat4_identity();
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
+			if (kind == P3D_RING)
+			{
+				// Lying on the ground: the quad's up along the screen's down.
+				transform.m[5] = 0;
+				transform.m[6] = p->size;
+			}
+			else if (kind != P3D_GLOW)
+			{
+				// Puffs turned each their own way (their life is their own random number), slowly turning.
+				const float angle = p->life * 2.39996f + (p->age + ahead) * 0.02f;
+				transform.m[0] = cosf(angle) * p->size;
+				transform.m[1] = sinf(angle) * p->size;
+				transform.m[4] = -sinf(angle) * p->size;
+				transform.m[5] = cosf(angle) * p->size;
+			}
 			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
 			transform.m[12] = p->x + p->vx * age;
 			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale +
@@ -4492,11 +4559,15 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 		b->custom_mesh = billboard_mesh;
 		b->first_instance = first;
 		b->instance_count = *instance_count - first;
-		b->albedo_texture = particle_texture;
-		b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		b->albedo_texture = kind == P3D_RING ? ring_texture : kind == P3D_GLOW ? particle_texture : fire_texture;
+		b->billboard_mode = kind == P3D_RING ? BTBH_GPU_SCENE_BILLBOARD_DISABLED : BTBH_GPU_SCENE_BILLBOARD_FRONT;
 		b->unlit_enabled = 1;
 		b->transparency_enabled = 1;
-		b->blend_mode = kind == P3D_GLOW ? BTBH_GPU_SCENE_BLEND_ADDITIVE : BTBH_GPU_SCENE_BLEND_ALPHA;
+		b->blend_mode = kind == P3D_SMOKE ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		// Fire and light aren't cut by the ground or the models they burst against (as the game
+		// draws explosions over everything); smoke is.
+		if (kind != P3D_SMOKE)
+			b->depth_compare = BTBH_GPU_SCENE_DEPTH_ALWAYS;
 	}
 }
 

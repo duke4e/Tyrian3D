@@ -964,8 +964,7 @@ void JE_setupExplosion(
 				explosions[i].followPlayer = followPlayer;
 				explosions[i].fixedPosition = fixedPosition;
 				explosions[i].deltaY = deltaY;
-				if (l3d_enabled)
-					p3d_explosion(explosions[i].x, explosions[i].y, type);  // Tyrian3D
+				explosions[i].particles = l3d_enabled && p3d_explosion(explosions[i].x, explosions[i].y, type);  // Tyrian3D
 				break;
 			}
 		}

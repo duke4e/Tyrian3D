@@ -364,8 +364,11 @@ static void leave_wreck(unsigned int i)
 	wrecks[slot].model = m3d_frame_model(sheet, sprite, look.model);
 	wrecks[slot].map_x = map_x;
 	wrecks[slot].map_y = map_y;
-	wrecks[slot].yaw = look.yaw + (float)(mt_rand() % 21) - 10.0f;
-	wrecks[slot].roll = (float)(mt_rand() % 17) - 8.0f;
+	// A little askew, each its own way (not from the game's random numbers, which the game's
+	// course depends on).
+	const Uint32 hash = ((Uint32)map_x * 73856093u) ^ ((Uint32)map_y * 19349663u);
+	wrecks[slot].yaw = look.yaw + (float)(hash % 21) - 10.0f;
+	wrecks[slot].roll = (float)((hash >> 8) % 17) - 8.0f;
 	wrecks[slot].height = look.height;
 	wrecks[slot].age = 0;
 	wrecks[slot].generation = b3d_map_generation + 1;
@@ -2499,6 +2502,16 @@ draw_player_shot_loop_end:
 		}
 	}
 
+	// Tyrian3D dev: TYR3D_TEST_EXPLOSION=<x>,<y>,<every n frames>: large explosions there, on
+	// the ground and in the air in turn (for looking at the explosions).
+	{
+		const char *test = SDL_getenv("TYR3D_TEST_EXPLOSION");
+		static unsigned int test_frame = 0;
+		int tx, ty, every;
+		if (test != NULL && sscanf(test, "%d,%d,%d", &tx, &ty, &every) == 3 && every > 0 && ++test_frame % every == 0)
+			JE_setupExplosionLarge((test_frame / every) & 1, 0, tx, ty);
+	}
+
 	/*---------------------------- Draw Explosions ----------------------------*/
 	l3d_phase(L3D_EXPLOSION);
 	if (l3d_capturing)
@@ -2525,7 +2538,10 @@ draw_player_shot_loop_end:
 			}
 			else
 			{
-				if (explosionTransparent)
+				// Tyrian3D: explosions the particles show aren't drawn as sprites in the 3D view.
+				if (explosions[j].particles && l3d_capturing && m3d_enabled)
+					;
+				else if (explosionTransparent)
 					blit_sprite2_blend(VGAScreen, explosions[j].x, explosions[j].y, explosionSpriteSheet, explosions[j].sprite + 1);
 				else
 					blit_sprite2(VGAScreen, explosions[j].x, explosions[j].y, explosionSpriteSheet, explosions[j].sprite + 1);
@@ -5917,6 +5933,14 @@ void draw_boss_bar(void)
 			boss_bar[b].link_num = 0;
 		else
 			boss_bar[b].armor = (armor == 255) ? 254 : armor;  // 255 would make the bar too long
+
+		// Tyrian3D dev: TYR3D_LOG_BOSS prints the boss's armour as it changes.
+		static unsigned int logged[2] = { 999, 999 };
+		if (SDL_getenv("TYR3D_LOG_BOSS") != NULL && armor != logged[b])
+		{
+			logged[b] = armor;
+			printf("boss: bar %u link %d armor %u\n", b, boss_bar[b].link_num, armor);
+		}
 	}
 
 	unsigned int bars = (boss_bar[0].link_num != 0 ? 1 : 0)
