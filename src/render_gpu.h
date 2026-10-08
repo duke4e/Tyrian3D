@@ -56,10 +56,11 @@ void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, cons
 typedef struct
 {
 	int model;
-	float x, y;    // screen pixels
-	float height;  // above the picture, screen pixels
-	float size;    // footprint, screen pixels (0: the model's own size, game pixels)
+	float x, y;    // screen pixels (on a parent: from its centre, as it is drawn unturned)
+	float height;  // above the picture (on a parent: above its origin), screen pixels
+	float size;    // footprint, screen pixels, centred on its bounds (0: its own size in screen pixels, at its origin)
 	float yaw, pitch, roll;  // degrees
+	int parent;    // an earlier object it rides on (turns with it), or -1
 } RGPUShowcaseObject;
 
 typedef struct

@@ -20,6 +20,7 @@
 
 #include "episodes.h"
 #include "file.h"
+#include "game_menu.h"
 #include "helptext.h"
 #include "lvllib.h"
 #include "lvlmast.h"
@@ -491,6 +492,138 @@ static void export_hud_panels(const char *dir)
 	SDL_DestroySurface(picture);
 }
 
+// The store's pictures of ship parts (sheets/store, in the store's palette): every sprite of the
+// weapon shapes (guns and generators) and of the option shapes (the big ships among them), and
+// the illustration of the ship (draw_ship_illustration) with each gun on its mount, 4x; and
+// store.json: which sprite each gun, generator and ship uses and where it sits on the illustration.
+static void write_store_png(const char *path, const SDL_Surface *surface, int x0, int y0, int w, int h, int scale)
+{
+	const SDL_Color *palette = palettes[pcxpal[1 - 1]];
+	Uint8 *rgba = malloc((size_t)w * scale * h * scale * 4);
+	if (rgba == NULL)
+		return;
+	for (int y = 0; y < h * scale; ++y)
+		for (int x = 0; x < w * scale; ++x)
+		{
+			const Uint8 index = ((const Uint8 *)surface->pixels)[(y0 + y / scale) * surface->pitch + x0 + x / scale];
+			Uint8 *out = &rgba[((size_t)y * w * scale + x) * 4];
+			out[0] = palette[index].r;
+			out[1] = palette[index].g;
+			out[2] = palette[index].b;
+			out[3] = index != 0 ? 255 : 0;
+		}
+	if (btbh_gpu_write_png_rgba8(path, (uint32_t)(w * scale), (uint32_t)(h * scale), rgba) != BTBH_GPU_OK)
+		fprintf(stderr, "warning: failed to write %s\n", path);
+	free(rgba);
+}
+
+static void export_store(const char *dir)
+{
+	char path[1024];
+	snprintf(path, sizeof(path), "%s/sheets/store", dir);
+	mkdir(path, 0755);
+	SDL_Surface *surface = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL)
+		return;
+
+	static const struct { unsigned int table; const char *name; } tables[] = {
+		{ WEAPON_SHAPES, "weapon" }, { OPTION_SHAPES, "option" },
+	};
+	snprintf(path, sizeof(path), "%s/sheets/store/store.json", dir);
+	FILE *json = fopen(path, "w");
+	if (json == NULL)
+	{
+		SDL_DestroySurface(surface);
+		return;
+	}
+	fprintf(json, "{\n  \"sprites\": {");
+	for (size_t t = 0; t < COUNTOF(tables); ++t)
+	{
+		fprintf(json, "%s\n    \"%s\": [", t > 0 ? "," : "", tables[t].name);
+		bool first = true;
+		for (unsigned int i = 0; i < sprite_table[tables[t].table].count; ++i)
+		{
+			if (!sprite_exists(tables[t].table, i))
+				continue;
+			const int w = get_sprite_width(tables[t].table, i), h = get_sprite_height(tables[t].table, i);
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			blit_sprite(surface, 0, 0, tables[t].table, i);
+			snprintf(path, sizeof(path), "%s/sheets/store/%s_%u.png", dir, tables[t].name, i);
+			write_store_png(path, surface, 0, 0, w, h, 1);
+			fprintf(json, "%s{\"index\": %u, \"w\": %d, \"h\": %d}", first ? "" : ", ", i, w, h);
+			first = false;
+		}
+		fprintf(json, "]");
+	}
+	fprintf(json, "\n  },\n");
+
+	// Where the pieces go: the default ship and generator, each gun.
+	PlayerItems items;
+	memset(&items, 0, sizeof(items));
+	items.ship = 1;
+	items.generator = 1;
+	unsigned int table;
+	int sprite_id, x, y;
+	fprintf(json, "  \"ships\": [");
+	for (int i = 1; i <= SHIP_NUM; ++i)
+	{
+		items.ship = (JE_byte)i;
+		if (ships[i].bigshipgraphic == 0 || !ship_illustration_piece(ILLUSTRATION_SHIP, &items, &table, &sprite_id, &x, &y))
+			continue;
+		fprintf(json, "%s\n    {\"id\": %d, \"name\": ", i > 1 ? "," : "", i);
+		json_string(json, ships[i].name);
+		fprintf(json, ", \"option_sprite\": %d, \"x\": %d, \"y\": %d}", sprite_id, x, y);
+	}
+	items.ship = 1;
+	fprintf(json, "\n  ],\n  \"generators\": [");
+	for (int i = 1; i <= 6; ++i)
+	{
+		items.generator = (JE_byte)i;
+		if (!ship_illustration_piece(ILLUSTRATION_GENERATOR, &items, &table, &sprite_id, &x, &y))
+			continue;
+		fprintf(json, "%s\n    {\"id\": %d, \"name\": ", i > 1 ? "," : "", i);
+		json_string(json, powerSys[i].name);
+		fprintf(json, ", \"weapon_sprite\": %d, \"x\": %d, \"y\": %d}", sprite_id, x, y);
+	}
+	items.generator = 1;
+	fprintf(json, "\n  ],\n  \"guns\": [");
+	bool first = true;
+	for (int id = 1; id <= PORT_NUM; ++id)
+	{
+		PlayerItems front = items, rear = items;
+		front.weapon[FRONT_WEAPON].id = (JE_byte)id;
+		rear.weapon[REAR_WEAPON].id = (JE_byte)id;
+		int fx, fy, rx, ry, fs = -1, rs = -1;
+		const bool has_front = ship_illustration_piece(ILLUSTRATION_FRONT, &front, &table, &fs, &fx, &fy);
+		const bool has_rear = ship_illustration_piece(ILLUSTRATION_REAR, &rear, &table, &rs, &rx, &ry);
+		if (!has_front && !has_rear)
+			continue;
+		fprintf(json, "%s\n    {\"id\": %d, \"name\": ", first ? "" : ",", id);
+		json_string(json, weaponPort[id].name);
+		if (has_front)
+			fprintf(json, ", \"front\": {\"weapon_sprite\": %d, \"x\": %d, \"y\": %d}", fs, fx, fy);
+		if (has_rear)
+			fprintf(json, ", \"rear\": {\"weapon_sprite\": %d, \"x\": %d, \"y\": %d}", rs, rx, ry);
+		fputc('}', json);
+		first = false;
+
+		// The illustration with this gun on its mount(s), 4x.
+		SDL_FillSurfaceRect(surface, NULL, 0);
+		PlayerItems both = items;
+		both.weapon[FRONT_WEAPON].id = has_front ? (JE_byte)id : 0;
+		both.weapon[REAR_WEAPON].id = has_rear ? (JE_byte)id : 0;
+		static const IllustrationPart parts[] = { ILLUSTRATION_SHIP, ILLUSTRATION_GENERATOR, ILLUSTRATION_FRONT, ILLUSTRATION_REAR };
+		for (size_t k = 0; k < COUNTOF(parts); ++k)
+			if (ship_illustration_piece(parts[k], &both, &table, &sprite_id, &x, &y))
+				blit_sprite(surface, x, y, table, sprite_id);
+		snprintf(path, sizeof(path), "%s/sheets/store/illustration_gun_%d.png", dir, id);
+		write_store_png(path, surface, 0, 0, 160, 150, 4);
+	}
+	fprintf(json, "\n  ]\n}\n");
+	fclose(json);
+	SDL_DestroySurface(surface);
+}
+
 void dev_extract(const char *dir)
 {
 	char path[1024];
@@ -642,5 +775,6 @@ void dev_extract(const char *dir)
 	fprintf(json, "\n  ]\n}\n");
 	fclose(json);
 
+	export_store(dir);  // with an episode's items loaded
 	printf("extract: wrote %s\n", dir);
 }

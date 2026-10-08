@@ -82,6 +82,11 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id);
 // Appearance of a sidekick (option id as in the shop, 1-based).
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
 
+// The store's illustration of the ship: the model of a big ship's picture (option shapes sprite) and
+// of a gun's or generator's picture (weapon shapes sprite), or -1.
+int m3d_illustration_model(int option_sprite);
+int m3d_mount_model(int weapon_sprite);
+
 // The "sprite" lines of models.cfg (one enemy type each), for the model viewer.
 // The model to show while an enemy whose appearance is `model` shows animation frame `sprite`
 // (models.cfg "frame" lines: a model for a frame that changes shape); `model` if there is none.

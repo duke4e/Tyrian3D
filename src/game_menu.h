@@ -21,6 +21,7 @@
 
 #include "helptext.h"
 #include "opentyr.h"
+#include "player.h"
 
 typedef JE_byte JE_MenuChoiceType[MENU_MAX];
 
@@ -39,6 +40,12 @@ void JE_drawLines(SDL_Surface *surface, JE_boolean dark);
 void JE_drawDots(void);
 void JE_drawPlanet(JE_byte planetNum);
 void draw_ship_illustration(void);
+
+// The pieces of the store's illustration of the ship (draw_ship_illustration) for these items: the
+// sprite (table and index, as blit_sprite takes them) and its top left on the screen, or false.
+typedef enum { ILLUSTRATION_SHIP, ILLUSTRATION_GENERATOR, ILLUSTRATION_FRONT, ILLUSTRATION_REAR } IllustrationPart;
+bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, unsigned int *table, int *sprite_id,
+                             int *x, int *y);
 void JE_scaleBitmap(SDL_Surface *dst, const SDL_Surface *src, int x1, int y1, int x2, int y2);
 void JE_initWeaponView(void);
 void JE_computeDots(void);

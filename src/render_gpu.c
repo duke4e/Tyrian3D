@@ -5629,26 +5629,38 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
  * World: the box spans the playfield's width on the ground (fit_camera with no tilt fits that
  * width exactly at height 0), its bottom on the playfield's bottom edge.
  */
-// footprint: world units, or 0 for the model's own size times k (world units per game pixel).
-static void add_showcase_model(int model_index, float x, float z, float height, float footprint, float k, float yaw,
-                               float pitch, float roll, const Uint32 colors[256], int *instance_count, int *batch_count)
+// The placement of a showcase object (its position and turn, before its model's own): on its
+// parent's, if it has one.
+static Mat4 showcase_placement(const RGPUShowcaseObject *o, const Mat4 *parent, float x, float z, float k)
+{
+	const Mat4 chain[] = {
+		parent != NULL ? mat4_translation(o->x * k, o->height * k, o->y * k) : mat4_translation(x, o->height * k, z),
+		mat4_rotation(1, -o->yaw),
+		mat4_rotation(0, o->pitch),
+		mat4_rotation(2, -o->roll),
+	};
+	const Mat4 local = mat4_chain((int)COUNTOF(chain), chain);
+	return parent != NULL ? mat4_mul(parent, &local) : local;
+}
+
+// A model at a placement: footprint in world units, centred on its bounds; or 0, its own size in
+// screen pixels (times k, world units per screen pixel) at its own origin.
+static void add_showcase_model(int model_index, const Mat4 *placement, float footprint, float k, const Uint32 colors[256],
+                               int *instance_count, int *batch_count)
 {
 	const LoadedModel *loaded = model_index >= 0 && model_index < m3d_model_count ? get_model(model_index) : NULL;
 	if (loaded == NULL || loaded->footprint <= 0 || *batch_count >= MAX_BATCHES || *instance_count >= MAX_INSTANCES)
 		return;
 	const M3DModel *model = &m3d_models[model_index];
-	if (footprint <= 0)
-		footprint = (model->size > 0 ? model->size : loaded->footprint) * k;
+	const bool centred = footprint > 0;
+	const float scale = centred ? footprint / loaded->footprint : (model->size > 0 ? model->size / loaded->footprint : 1.0f) * k;
 	const Mat4 chain[] = {
-		mat4_translation(x, height, z),
-		mat4_rotation(1, -yaw),
-		mat4_rotation(0, pitch),
-		mat4_rotation(2, -roll),
+		*placement,
 		mat4_rotation(1, model->yaw),
 		mat4_rotation(0, model->pitch),
 		mat4_rotation(2, model->roll),
-		mat4_scaling(footprint / loaded->footprint),
-		mat4_translation(-loaded->center[0], -loaded->center[1], -loaded->center[2]),
+		mat4_scaling(scale),
+		centred ? mat4_translation(-loaded->center[0], -loaded->center[1], -loaded->center[2]) : mat4_identity(),
 	};
 	const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
 	const int instance = (*instance_count)++;
@@ -5763,11 +5775,14 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	}
 
 	const int first_model_batch = batch_count;
-	for (int i = 0; i < show->object_count; ++i)
+	enum { MAX_SHOWCASE_OBJECTS = 160 };
+	static Mat4 placements[MAX_SHOWCASE_OBJECTS];
+	for (int i = 0; i < show->object_count && i < MAX_SHOWCASE_OBJECTS; ++i)
 	{
 		const RGPUShowcaseObject *o = &show->objects[i];
-		add_showcase_model(o->model, SHOWCASE_X(o->x), SHOWCASE_Z(o->y), o->height * k, o->size * k, k, o->yaw, o->pitch,
-		                   o->roll, colors, &instance_count, &batch_count);
+		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
+		placements[i] = showcase_placement(o, parent, SHOWCASE_X(o->x), SHOWCASE_Z(o->y), k);
+		add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
 	}
 #undef SHOWCASE_X
 #undef SHOWCASE_Z

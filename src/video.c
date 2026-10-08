@@ -20,6 +20,7 @@
 
 #include "devtools.h"
 #include "episodes.h"
+#include "game_menu.h"
 #include "keyboard.h"
 #include "mainint.h"
 #include "opentyr.h"
@@ -31,6 +32,7 @@
 #include "player.h"
 #include "render_gpu.h"
 #include "settings3d.h"
+#include "sprite.h"
 #include "video_scale.h"
 
 #include <assert.h>
@@ -495,6 +497,8 @@ static int player_ship_model(void)
 	return m3d_ship_appearance(dragonwing ? M3D_SHIP_DRAGONWING : items->ship).model;
 }
 
+#define SHOWCASE_DECK 12.0f  // where the illustration's guns and generator sit on its big ship (models.cfg)
+
 // The illustration: the ship hovering over its box, turning a little and banking as if flying,
 // its sidekicks in their places.
 static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
@@ -504,16 +508,41 @@ static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
 		memcpy(backdrop_pixels + y * 320, (const Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch, 320);
 
 	const float t = SDL_GetTicks() / 1000.0f;
-	const float yaw = 16.0f * sinf(t * 0.55f), roll = 14.0f * sinf(t * 0.8f + 1.0f);
-	RGPUShowcaseObject objects[3];
+	const float yaw = 16.0f * sinf(t * 0.55f), roll = 14.0f * sinf(t * 0.8f + 1.0f), bob = sinf(t * 1.3f);
+	RGPUShowcaseObject objects[6];
 	int count = 0;
-	objects[count++] = (RGPUShowcaseObject){ player_ship_model(), 80, 86, 24.0f + 1.7f * sinf(t * 1.3f), 70.0f, yaw, 0, roll };
+
+	// The big ship of the illustration with its generator and guns on its deck, if it has a
+	// model; else the ship's own model.
+	unsigned int table;
+	int sprite_id, x, y;
+	const PlayerItems *items = &player[0].items;
+	const int big = ship_illustration_piece(ILLUSTRATION_SHIP, items, &table, &sprite_id, &x, &y)
+	                ? m3d_illustration_model(sprite_id) : -1;
+	if (big >= 0)
+	{
+		const float cx = x + get_sprite_width(table, sprite_id) / 2.0f, cy = y + get_sprite_height(table, sprite_id) / 2.0f;
+		objects[count++] = (RGPUShowcaseObject){ big, cx, cy, 10.0f + 1.7f * bob, 0, yaw, 0, roll, -1 };
+		static const IllustrationPart parts[] = { ILLUSTRATION_GENERATOR, ILLUSTRATION_FRONT, ILLUSTRATION_REAR };
+		for (size_t i = 0; i < COUNTOF(parts); ++i)
+		{
+			if (!ship_illustration_piece(parts[i], items, &table, &sprite_id, &x, &y))
+				continue;
+			const int model = m3d_mount_model(sprite_id);
+			if (model >= 0)
+				objects[count++] = (RGPUShowcaseObject){ model, x + get_sprite_width(table, sprite_id) / 2.0f - cx,
+				                                         y + get_sprite_height(table, sprite_id) / 2.0f - cy, SHOWCASE_DECK,
+				                                         0, 0, 0, 0, 0 };
+		}
+	}
+	else
+		objects[count++] = (RGPUShowcaseObject){ player_ship_model(), 80, 86, 24.0f + 1.7f * bob, 70.0f, yaw, 0, roll, -1 };
 	for (int i = 0; i < 2; ++i)
 	{
-		const JE_byte sidekick = player[0].items.sidekick[i];
+		const JE_byte sidekick = items->sidekick[i];
 		if (sidekick > 0)
 			objects[count++] = (RGPUShowcaseObject){ m3d_sidekick_appearance(sidekick).model, i == 0 ? 15 : 141, 97,
-			                                         16.0f + 1.2f * sinf(t * 1.1f + i * 2.0f), 22.0f, yaw * 0.5f, 0, roll * 0.5f };
+			                                         16.0f + 1.2f * sinf(t * 1.1f + i * 2.0f), 22.0f, yaw * 0.5f, 0, roll * 0.5f, -1 };
 	}
 	RGPUShowcase show = { .pane = showcase_pane, .backdrop = backdrop_pixels, .transparent = showcase_illustrated,
 	                      .objects = objects, .object_count = count };
@@ -552,7 +581,7 @@ bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y)
 		return false;
 	const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * sim_frame + (float)(x * 7 + y * 13 & 63) * 47.0f, 360.0f) : 0.0f);
 	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f, y + 7.0f,
-	                                                       l3d_layer_height(L3D_PLAYER) + look.height, 0, yaw, 0, 0 };
+	                                                       l3d_layer_height(L3D_PLAYER) + look.height, 0, yaw, 0, 0, -1 };
 	return true;
 }
 
@@ -561,7 +590,7 @@ bool video_sim_ship(int x, int y)
 	const int model = player_ship_model();
 	if (!sim_valid || model < 0 || sim_object_count == SIM_OBJECTS)
 		return false;
-	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ model, (float)x, (float)y, l3d_layer_height(L3D_PLAYER), 0, 0, 0, 0 };
+	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ model, (float)x, (float)y, l3d_layer_height(L3D_PLAYER), 0, 0, 0, 0, -1 };
 	return true;
 }
 

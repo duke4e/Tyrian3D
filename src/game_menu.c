@@ -1660,93 +1660,118 @@ void JE_itemScreen(void)
 		fade_black(10);
 }
 
+// The store's illustration of the ship: where its pieces are drawn (see ship_illustration_piece).
+static const int illustration_weapon_sprites[60] =
+{
+	-1,  0,  1,  2,  3,  4,  5,  6,  7,  8,
+	 9, 10, 11, 21,  5, 13, -1, 14, 15,  0,
+	14,  9,  8,  2, 15,  0, 13,  0,  8,  8,
+	11,  1,  0,  0,  0,  0,  0,  0,  0,  0,
+	 0,  2,  1,  0,  0,  1,  1,  1
+};
+
+static const int illustration_front_xy_list[60] =
+{
+	 -1,  4,  9,  3,  8,  2,  5, 10,  1, -1,
+	 -1, -1, -1,  7,  8, -1, -1,  0, -1,  4,
+	  0, -1, -1,  3, -1,  4, -1,  4, -1, -1,
+	 -1,  9,  0,  0,  0,  0,  0,  0,  0,  0,
+	  0,  3,  9,  4,  4,  9,  9,  9
+};
+static const int illustration_front_x[12] = { 59, 66, 66, 54, 61, 51, 58, 51, 61, 52, 53, 58 };
+static const int illustration_front_y[12] = { 38, 53, 41, 36, 48, 35, 41, 35, 53, 41, 39, 31 };
+
+static const int illustration_rear_xy_list[60] =
+{
+	-1, -1, -1, -1, -1, -1, -1, -1, -1,  0,
+	 1,  2,  3, -1,  4,  5, -1, -1,  6, -1,
+	-1,  1,  0, -1,  6, -1,  5, -1,  0,  0,
+	 3,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	 0, -1, -1, -1, -1, -1, -1, -1
+};
+static const int illustration_rear_x[7] = { 41, 27,  49,  43, 51, 39, 41 };
+static const int illustration_rear_y[7] = { 92, 92, 113, 102, 97, 96, 76 };
+
+bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, unsigned int *table, int *sprite_id,
+                             int *x, int *y)
+{
+	switch (part)
+	{
+	case ILLUSTRATION_SHIP:
+	{
+		if (items->ship == 0)
+			return false;
+		// full of evil hardcoding
+		*sprite_id = (items->ship < COUNTOF(ships))  // shipedit ships get a default
+		             ? ships[items->ship].bigshipgraphic - 1
+		             : 31;
+
+		static const int ship_x[] = { 31, 0, 0, 0, 35, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 30 },
+		                 ship_y[] = { 36, 0, 0, 0, 33, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, 30 };
+		*x = ship_x[*sprite_id - 27];
+		*y = ship_y[*sprite_id - 27];
+		*table = OPTION_SHAPES;
+		return true;
+	}
+	case ILLUSTRATION_GENERATOR:
+	{
+		if (items->generator <= 0 || items->generator >= 7)
+			return false;
+		*sprite_id = (items->generator == 1)  // generator 1 and generator 2 have the same sprite
+		             ? items->generator + 15
+		             : items->generator + 14;
+
+		static const int generator_x[5] = { 62, 64, 67, 66, 63 },
+		                 generator_y[5] = { 84, 85, 86, 84, 97 };
+		*x = generator_x[*sprite_id - 16];
+		*y = generator_y[*sprite_id - 16];
+		*table = WEAPON_SHAPES;
+		return true;
+	}
+	case ILLUSTRATION_FRONT:
+	case ILLUSTRATION_REAR:
+	{
+		const bool front = part == ILLUSTRATION_FRONT;
+		const unsigned int id = items->weapon[front ? FRONT_WEAPON : REAR_WEAPON].id;
+		if (id == 0 || id >= COUNTOF(illustration_weapon_sprites))
+			return false;
+		const int place = front ? illustration_front_xy_list[id] : illustration_rear_xy_list[id];
+		if (place < 0 || illustration_weapon_sprites[id] < 0)
+			return false;
+		*sprite_id = illustration_weapon_sprites[id];
+		*x = front ? illustration_front_x[place] : illustration_rear_x[place];
+		*y = front ? illustration_front_y[place] : illustration_rear_y[place];
+		*table = WEAPON_SHAPES;
+		return true;
+	}
+	}
+	return false;
+}
+
 void draw_ship_illustration(void)
 {
 	video_showcase_begin();  // Tyrian3D: the 3D view shows the ship as a model over the box
 
-	// full of evil hardcoding
+	unsigned int table;
+	int sprite_id, x, y;
 
 	// ship
-	{
-		assert(player[0].items.ship > 0);
-
-		const int sprite_id = (player[0].items.ship < COUNTOF(ships))  // shipedit ships get a default
-		                      ? ships[player[0].items.ship].bigshipgraphic - 1
-		                      : 31;
-
-		const int ship_x[] = { 31, 0, 0, 0, 35, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 30 },
-		          ship_y[] = { 36, 0, 0, 0, 33, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, 30 };
-
-		const int x = ship_x[sprite_id - 27],
-		          y = ship_y[sprite_id - 27];
-
-		blit_sprite(VGAScreenSeg, x, y, OPTION_SHAPES, sprite_id);
-	}
+	assert(player[0].items.ship > 0);
+	if (ship_illustration_piece(ILLUSTRATION_SHIP, &player[0].items, &table, &sprite_id, &x, &y))
+		blit_sprite(VGAScreenSeg, x, y, table, sprite_id);
 
 	// generator
-	{
-		assert(player[0].items.generator > 0 && player[0].items.generator < 7);
-
-		const int sprite_id = (player[0].items.generator == 1)  // generator 1 and generator 2 have the same sprite
-		                      ? player[0].items.generator + 15
-		                      : player[0].items.generator + 14;
-
-		const int generator_x[5] = { 62, 64, 67, 66, 63 },
-		          generator_y[5] = { 84, 85, 86, 84, 97 };
-		const int x = generator_x[sprite_id - 16],
-		          y = generator_y[sprite_id - 16];
-
-		blit_sprite(VGAScreenSeg, x, y, WEAPON_SHAPES, sprite_id);
-	}
-
-	const int weapon_sprites[60] =
-	{
-		-1,  0,  1,  2,  3,  4,  5,  6,  7,  8,
-		 9, 10, 11, 21,  5, 13, -1, 14, 15,  0,
-		14,  9,  8,  2, 15,  0, 13,  0,  8,  8,
-		11,  1,  0,  0,  0,  0,  0,  0,  0,  0,
-		 0,  2,  1,  0,  0,  1,  1,  1
-	};
+	assert(player[0].items.generator > 0 && player[0].items.generator < 7);
+	if (ship_illustration_piece(ILLUSTRATION_GENERATOR, &player[0].items, &table, &sprite_id, &x, &y))
+		blit_sprite(VGAScreenSeg, x, y, table, sprite_id);
 
 	// front weapon
-	if (player[0].items.weapon[FRONT_WEAPON].id > 0)
-	{
-		const int front_weapon_xy_list[60] =
-		{
-			 -1,  4,  9,  3,  8,  2,  5, 10,  1, -1,
-			 -1, -1, -1,  7,  8, -1, -1,  0, -1,  4,
-			  0, -1, -1,  3, -1,  4, -1,  4, -1, -1,
-			 -1,  9,  0,  0,  0,  0,  0,  0,  0,  0,
-			  0,  3,  9,  4,  4,  9,  9,  9
-		};
-
-		const int front_weapon_x[12] = { 59, 66, 66, 54, 61, 51, 58, 51, 61, 52, 53, 58 };
-		const int front_weapon_y[12] = { 38, 53, 41, 36, 48, 35, 41, 35, 53, 41, 39, 31 };
-		const int x = front_weapon_x[front_weapon_xy_list[player[0].items.weapon[FRONT_WEAPON].id]],
-		          y = front_weapon_y[front_weapon_xy_list[player[0].items.weapon[FRONT_WEAPON].id]];
-
-		blit_sprite(VGAScreenSeg, x, y, WEAPON_SHAPES, weapon_sprites[player[0].items.weapon[FRONT_WEAPON].id]);  // ship illustration: front weapon
-	}
+	if (ship_illustration_piece(ILLUSTRATION_FRONT, &player[0].items, &table, &sprite_id, &x, &y))
+		blit_sprite(VGAScreenSeg, x, y, table, sprite_id);  // ship illustration: front weapon
 
 	// rear weapon
-	if (player[0].items.weapon[REAR_WEAPON].id > 0)
-	{
-		const int rear_weapon_xy_list[60] =
-		{
-			-1, -1, -1, -1, -1, -1, -1, -1, -1,  0,
-			 1,  2,  3, -1,  4,  5, -1, -1,  6, -1,
-			-1,  1,  0, -1,  6, -1,  5, -1,  0,  0,
-			 3,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-			 0, -1, -1, -1, -1, -1, -1, -1
-		};
-
-		const int rear_weapon_x[7] = { 41, 27,  49,  43, 51, 39, 41 };
-		const int rear_weapon_y[7] = { 92, 92, 113, 102, 97, 96, 76 };
-		const int x = rear_weapon_x[rear_weapon_xy_list[player[0].items.weapon[REAR_WEAPON].id]],
-		          y = rear_weapon_y[rear_weapon_xy_list[player[0].items.weapon[REAR_WEAPON].id]];
-
-		blit_sprite(VGAScreenSeg, x, y, WEAPON_SHAPES, weapon_sprites[player[0].items.weapon[REAR_WEAPON].id]);
-	}
+	if (ship_illustration_piece(ILLUSTRATION_REAR, &player[0].items, &table, &sprite_id, &x, &y))
+		blit_sprite(VGAScreenSeg, x, y, table, sprite_id);
 
 	// sidekicks
 	JE_drawItem(6, player[0].items.sidekick[LEFT_SIDEKICK], 3, 84);

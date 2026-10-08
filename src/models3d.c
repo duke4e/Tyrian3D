@@ -73,6 +73,12 @@ static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
 static ShipRule sidekick_rules[64];
+
+// The store's illustration of the ship: models by the big ship's picture (option shapes) and by
+// the gun's or generator's picture (weapon shapes); -1 none.
+#define ILLUSTRATION_PICTURES 64
+static int illustration_models[ILLUSTRATION_PICTURES];
+static int mount_models[ILLUSTRATION_PICTURES];
 static M3DAppearance enemy_default;
 
 static const M3DAppearance sprite_appearance = { .model = M3D_SPRITE };
@@ -273,6 +279,20 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
+	// illustration <option sprite> <model>, mount <weapon sprite> <model>: the store's illustration.
+	if ((strcmp(tokens[0], "illustration") == 0 || strcmp(tokens[0], "mount") == 0) && count >= 3)
+	{
+		const int picture = atoi(tokens[1]);
+		const int model = find_model(tokens[2]);
+		if (picture < 0 || picture >= ILLUSTRATION_PICTURES)
+			WARN("picture %d out of range", picture);
+		else if (model < 0)
+			WARN("unknown model '%s'", tokens[2]);
+		else
+			(tokens[0][0] == 'i' ? illustration_models : mount_models)[picture] = model;
+		return;
+	}
+
 	// player <model> [options] is "ship any". sidekick <id|any> <model> [options] works the same.
 	const bool sidekick = strcmp(tokens[0], "sidekick") == 0 && count >= 3;
 	if ((strcmp(tokens[0], "player") == 0 && count >= 2) || (strcmp(tokens[0], "ship") == 0 && count >= 3) || sidekick)
@@ -425,6 +445,8 @@ static void load(void)
 	shot_rule_count = 0;
 	ship_rule_count = 0;
 	sidekick_rule_count = 0;
+	for (int i = 0; i < ILLUSTRATION_PICTURES; ++i)
+		illustration_models[i] = mount_models[i] = -1;
 	enemy_default = enemy_options_default();
 	++m3d_generation;
 
@@ -521,6 +543,16 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
 {
 	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
+}
+
+int m3d_illustration_model(int option_sprite)
+{
+	return m3d_enabled && option_sprite >= 0 && option_sprite < ILLUSTRATION_PICTURES ? illustration_models[option_sprite] : -1;
+}
+
+int m3d_mount_model(int weapon_sprite)
+{
+	return m3d_enabled && weapon_sprite >= 0 && weapon_sprite < ILLUSTRATION_PICTURES ? mount_models[weapon_sprite] : -1;
 }
 
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance)
