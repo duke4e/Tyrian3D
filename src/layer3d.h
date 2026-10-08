@@ -223,6 +223,9 @@ void l3d_draw_departed_shots(void);
 void l3d_clear_departed_shots(void);
 // Sets the velocity of the glow recorded last.
 void l3d_last_glow_velocity(float vx, float vy);
+// Records a glow of a palette colour centred on x, y moving vx, vy a frame (a spark). False when
+// the 3D view isn't capturing (or has no room), so the caller draws it as usual.
+bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);

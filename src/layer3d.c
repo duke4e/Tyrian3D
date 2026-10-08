@@ -571,6 +571,15 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	glow->color = color;
 }
 
+bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy)
+{
+	if (!l3d_capturing || l3d_frame.glow_count == L3D_MAX_GLOWS || color == 0)
+		return false;
+	add_glow(x, y, size, strength, color);
+	l3d_last_glow_velocity(vx, vy);
+	return true;
+}
+
 void l3d_add_glow(const void *sheet, unsigned int sprite, int x, int y)
 {
 	if (l3d_capturing)

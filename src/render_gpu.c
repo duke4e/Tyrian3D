@@ -2825,6 +2825,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const Uint32 render_w = SDL_max(1u, (Uint32)(window_frame.drawable_width * render_scale + 0.5f));
 	const Uint32 render_h = SDL_max(1u, (Uint32)(window_frame.drawable_height * render_scale + 0.5f));
 	post.upscale_mode = BTBH_GPU_SCENE_UPSCALE_LANCZOS;
+	// SMAA (high) smooths the models' edges; the pixel art keeps its look (TYR3D_AA=0 off, 1 SMAA
+	// low, 2 high, 3 FXAA).
+	static int anti_aliasing = -1;
+	if (anti_aliasing < 0)
+		anti_aliasing = SDL_getenv("TYR3D_AA") != NULL ? SDL_clamp(SDL_atoi(SDL_getenv("TYR3D_AA")), 0, 3) : 2;
+	post.anti_aliasing = (Uint8)anti_aliasing;
 
 	BTBHGPUSceneReport scene_report;
 	if (btbh_gpu_window_scene_present_instances_with_visibility(window,

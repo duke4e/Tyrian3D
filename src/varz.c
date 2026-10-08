@@ -1181,6 +1181,17 @@ void JE_drawSP(void)
 			superpixels[i].x += superpixels[i].delta_x;
 			superpixels[i].y += superpixels[i].delta_y;
 
+			// Tyrian3D: in the 3D view a glowing spark that moves on between ticks (and isn't cut off at
+			// the screen's edges), fading as the pixel would.
+			const int z = superpixels[i].z;
+			if (l3d_add_color_glow((Sint32)superpixels[i].x + 0.5f, (Sint32)superpixels[i].y + 0.5f, 3.0f + z * 0.35f,
+			                       z / 15.0f, (Uint8)(superpixels[i].color | SDL_min(15, 8 + z / 2)),
+			                       (float)superpixels[i].delta_x, (float)superpixels[i].delta_y))
+			{
+				superpixels[i].z--;
+				continue;
+			}
+
 			if (superpixels[i].x < (unsigned)VGAScreen->w && superpixels[i].y < (unsigned)VGAScreen->h)
 			{
 				Uint8 *s = (Uint8 *)VGAScreen->pixels; /* screen pointer, 8-bit specific */
