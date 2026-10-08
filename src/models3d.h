@@ -83,6 +83,9 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id);
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
 
 // The "sprite" lines of models.cfg (one enemy type each), for the model viewer.
+// The model to show while an enemy whose appearance is `model` shows animation frame `sprite`
+// (models.cfg "frame" lines: a model for a frame that changes shape); `model` if there is none.
+int m3d_frame_model(char sheet, unsigned int sprite, int model);
 int m3d_sprite_rule_count(void);
 void m3d_sprite_rule(int i, char *sheet, unsigned int *first_sprite, M3DAppearance *appearance);
 

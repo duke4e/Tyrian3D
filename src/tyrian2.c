@@ -319,7 +319,7 @@ static bool draw_enemy_model(unsigned int i)
 	// Keyed by the first animation frame, so the appearance stays the same while the sprite animates.
 	const unsigned int first_sprite = enemy[i].egr[0];
 	const char sheet = enemy_sheet_letter(enemy[i].sprite2s);
-	const M3DAppearance look = m3d_enemy_appearance(sheet, first_sprite, enemy[i].size == 1, l3d_current_layer());
+	M3DAppearance look = m3d_enemy_appearance(sheet, first_sprite, enemy[i].size == 1, l3d_current_layer());
 	if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL)
 	{
 		static Uint32 logged[256];
@@ -365,6 +365,8 @@ static bool draw_enemy_model(unsigned int i)
 
 	const bool large = enemy[i].size == 1;
 	const unsigned int sprite = enemy[i].egr[enemy[i].enemycycle - 1];
+	if (look.model >= 0)
+		look.model = m3d_frame_model(sheet, sprite, look.model);  // a frame that changes shape
 
 	// Palette materials can take the colour of the current frame (items whose animation cycles
 	// colours); a sprite filter (hit) wins.

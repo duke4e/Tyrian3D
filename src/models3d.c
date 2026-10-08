@@ -51,6 +51,15 @@ static int rule_count;
 static EnemyRule rules[MAX_RULES];
 static int override_count;
 static SpriteOverride overrides[4096];
+
+// frame <sheet> <sprite> <model>: while an enemy with a model shows this animation frame, this model.
+static struct
+{
+	char sheet;
+	unsigned int sprite;
+	int model;
+} frame_models[2048];
+static int frame_model_count = 0;
 static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
@@ -315,6 +324,23 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
+	if (strcmp(tokens[0], "frame") == 0 && count >= 4)
+	{
+		int model;
+		if (frame_model_count == (int)COUNTOF(frame_models))
+			WARN("too many frame models");
+		else if (!parse_kind(tokens[3], &model) || model < 0)
+			WARN("unknown model '%s'", tokens[3]);
+		else
+		{
+			frame_models[frame_model_count].sheet = parse_sheet(tokens[1]);
+			frame_models[frame_model_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
+			frame_models[frame_model_count].model = model;
+			++frame_model_count;
+		}
+		return;
+	}
+
 	if (strcmp(tokens[0], "sprite") == 0 && count >= 4)
 	{
 		if (override_count == (int)COUNTOF(overrides))
@@ -358,6 +384,7 @@ static void load(void)
 	m3d_model_count = 0;
 	rule_count = 0;
 	override_count = 0;
+	frame_model_count = 0;
 	ship_rule_count = 0;
 	sidekick_rule_count = 0;
 	enemy_default = enemy_options_default();
@@ -456,6 +483,15 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
 {
 	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
+}
+
+int m3d_frame_model(char sheet, unsigned int sprite, int model)
+{
+	sheet = (char)SDL_tolower((unsigned char)sheet);
+	for (int i = 0; i < frame_model_count; ++i)
+		if (frame_models[i].sheet == sheet && frame_models[i].sprite == sprite)
+			return frame_models[i].model;
+	return model;
 }
 
 int m3d_sprite_rule_count(void)
