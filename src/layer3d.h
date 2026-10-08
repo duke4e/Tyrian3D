@@ -260,6 +260,8 @@ void l3d_add_effect(L3DEffect effect, int param);
 void l3d_set_filter(int hue, int brightness);
 
 // Height of a layer type above the ground plane, in game pixels.
+// Added to the heights of the layers above the ground's enemies, to make room for raised terrain.
+extern float l3d_terrain_headroom;
 float l3d_layer_height(L3DLayerType type);
 const char *l3d_layer_name(L3DLayerType type);
 

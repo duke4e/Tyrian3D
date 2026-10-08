@@ -82,6 +82,7 @@ typedef struct
 	Sint8 fade;         // beyond the map: darkens across the tile, to the left (-1) or right (1)
 	float x, z;         // top-left corner in game screen coordinates
 	float brightness;   // at the tile's edge nearest the map (1 inside the map)
+	int map_row, map_column;  // where in the map (columns beside it negative or past its width)
 } B3DTile;
 
 // Appends the tiles of a recorded background that overlap the rectangle [x0, x1] x [z0, z1]
@@ -145,5 +146,28 @@ bool b3d_tile_is_water(int set, int tile);
 bool b3d_water_pixel(int set, int tile, Uint8 index);
 void b3d_water_mask(const L3DBackground *b, Uint8 *mask);
 bool b3d_water_color(int set, Uint8 rgb[3]);
+
+// A map's name (the hash in TYR3D_EXPORT_MAPS's files and terrain assets).
+Uint64 b3d_map_hash(int set);
+
+/*
+ * Terrain (polish): heights for a whole ground map, computed offline from its surfaces
+ * (tools/terrain/make_terrain.py) and loaded with the map from assets/terrain/<map>.ter. Samples
+ * every `sample` game pixels at the samples' corners, from the map's left generated column
+ * (-side_columns) on; heights in game pixels above the ground (where its enemies stand).
+ */
+typedef struct
+{
+	int width, height;   // samples
+	int sample;          // game pixels between samples
+	int side_columns;    // tile columns beside the map that the samples cover on each side
+	const Sint8 *heights;
+} B3DTerrain;
+
+// The current ground map's terrain, or NULL if it has none (or TYR3D_TERRAIN=0).
+const B3DTerrain *b3d_terrain(void);
+// The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
+// collected), or -1 for an empty entry.
+int b3d_map_cell(int set, int map_row, int map_column, bool *flipped);
 
 #endif /* BACKGROUND3D_H */

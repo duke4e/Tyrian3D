@@ -397,6 +397,25 @@ void b3d_prepare_sides(void)
 	}
 }
 
+// The tile kind at a map row and column (columns beyond the map: the generated sides, further
+// out the map mirrored), as collect_row places them.
+static int map_kind_at(int set, const MapSet *m, int map_row, int c, bool *flipped)
+{
+	const MapSides *sides = sides_for(set, m);
+	*flipped = false;
+	if (map_row < SIDE_MAX_ROWS && c < 0 && c >= -SIDE_COLUMNS && sides->left[map_row][SIDE_COLUMNS + c] != SIDE_MIRROR)
+		return sides->left[map_row][SIDE_COLUMNS + c];
+	if (map_row < SIDE_MAX_ROWS && c >= m->width && c < m->width + SIDE_COLUMNS &&
+	    sides->right[map_row][c - m->width] != SIDE_MIRROR)
+		return sides->right[map_row][c - m->width];
+	const int period = floor_div(c, m->width);
+	*flipped = (period & 1) != 0;
+	int column = c - period * m->width;
+	if (*flipped)
+		column = m->width - 1 - column;
+	return tile_kind(m, m->map[map_row * m->width + column]);
+}
+
 static int collect_row(const L3DBackground *b, const MapSet *m, bool fill_empty, Uint8 **row_entry, int row,
                        int first_tile, int last_tile, B3DTile *tiles, int count, int capacity)
 {
@@ -443,6 +462,8 @@ static int collect_row(const L3DBackground *b, const MapSet *m, bool fill_empty,
 		B3DTile *tile = &tiles[count++];
 		tile->cell = (Uint16)cell;
 		tile->flipped = flipped;
+		tile->map_row = map_row;
+		tile->map_column = c;
 		tile->x = (float)(b->x + t * B3D_TILE_W);
 		tile->z = (float)(b->top_y + row * B3D_TILE_H);
 		const int beyond = c < 0 ? -c : c >= m->width ? c - m->width + 1 : 0;
@@ -723,6 +744,21 @@ void b3d_note_tileset(char letter, const Uint16 shape_numbers[3][128])
 
 #define EXPORT_PART_ROWS 72
 
+Uint64 b3d_map_hash(int set)
+{
+	// The map named by its tiles' shape numbers.
+	const MapSet m = map_set(set);
+	Uint64 hash = 14695981039346656037ull;
+	hash = (hash ^ (Uint64)(unsigned char)tileset_letter) * 1099511628211ull;
+	for (int i = 0; i < m.rows * m.width; ++i)
+	{
+		const int kind = tile_kind(&m, m.map[i]);
+		const int shape = kind < m.tile_count ? tile_shapes[set - 1][kind] : 0;
+		hash = (hash ^ (Uint64)shape) * 1099511628211ull;
+	}
+	return hash;
+}
+
 void b3d_export_maps(const char *dir)
 {
 	SDL_CreateDirectory(dir);
@@ -731,15 +767,7 @@ void b3d_export_maps(const char *dir)
 	{
 		const MapSet m = map_set(set);
 
-		// Name the map by its tiles' shape numbers.
-		Uint64 hash = 14695981039346656037ull;
-		hash = (hash ^ (Uint64)(unsigned char)tileset_letter) * 1099511628211ull;
-		for (int i = 0; i < m.rows * m.width; ++i)
-		{
-			const int kind = tile_kind(&m, m.map[i]);
-			const int shape = kind < m.tile_count ? tile_shapes[set - 1][kind] : 0;
-			hash = (hash ^ (Uint64)shape) * 1099511628211ull;
-		}
+		const Uint64 hash = b3d_map_hash(set);
 		char path[1024];
 		snprintf(path, sizeof(path), "%s/map_%016llx.json", dir, (unsigned long long)hash);
 		FILE *probe = fopen(path, "r");
@@ -749,24 +777,28 @@ void b3d_export_maps(const char *dir)
 			continue;
 		}
 
-		const int width = m.width * B3D_TILE_W;
-		static Uint8 rgba[EXPORT_PART_ROWS * B3D_TILE_H * 15 * B3D_TILE_W * 4];
+		// The map with the generated columns beside it (terrain covers them too).
+		const int columns = m.width + 2 * SIDE_COLUMNS;
+		const int width = columns * B3D_TILE_W;
+		static Uint8 rgba[EXPORT_PART_ROWS * B3D_TILE_H * (15 + 2 * SIDE_COLUMNS) * B3D_TILE_W * 4];
 		const int parts = (m.rows + EXPORT_PART_ROWS - 1) / EXPORT_PART_ROWS;
 		for (int part = 0; part < parts; ++part)
 		{
 			const int first = part * EXPORT_PART_ROWS, rows = SDL_min(EXPORT_PART_ROWS, m.rows - first);
 			memset(rgba, 0, sizeof(rgba));
 			for (int r = 0; r < rows; ++r)
-				for (int c = 0; c < m.width; ++c)
+				for (int c = -SIDE_COLUMNS; c < m.width + SIDE_COLUMNS; ++c)
 				{
-					const Uint8 *data = m.map[(first + r) * m.width + c];
-					if (tile_kind(&m, data) >= m.tile_count)
+					bool flipped;
+					const int kind = map_kind_at(set, &m, first + r, c, &flipped);
+					if (kind >= m.tile_count)
 						continue;
+					const Uint8 *data = m.first_tile + kind * m.tile_stride;
 					for (int y = 0; y < B3D_TILE_H; ++y)
 						for (int x = 0; x < B3D_TILE_W; ++x)
 						{
-							const Uint8 index = data[y * B3D_TILE_W + x];
-							Uint8 *out = &rgba[((r * B3D_TILE_H + y) * width + c * B3D_TILE_W + x) * 4];
+							const Uint8 index = data[y * B3D_TILE_W + (flipped ? B3D_TILE_W - 1 - x : x)];
+							Uint8 *out = &rgba[((r * B3D_TILE_H + y) * width + (c + SIDE_COLUMNS) * B3D_TILE_W + x) * 4];
 							out[0] = palette[index].r;
 							out[1] = palette[index].g;
 							out[2] = palette[index].b;
@@ -781,8 +813,9 @@ void b3d_export_maps(const char *dir)
 		FILE *json = fopen(path, "w");
 		if (json == NULL)
 			continue;
-		fprintf(json, "{\"background\": %d, \"tileset\": \"%c\", \"columns\": %d, \"rows\": %d, \"tile\": [%d, %d],\n",
-		        set, SDL_tolower((unsigned char)tileset_letter), m.width, m.rows, B3D_TILE_W, B3D_TILE_H);
+		fprintf(json, "{\"background\": %d, \"tileset\": \"%c\", \"level\": \"%s\", \"columns\": %d, \"side_columns\": %d, "
+		        "\"rows\": %d, \"tile\": [%d, %d],\n",
+		        set, SDL_tolower((unsigned char)tileset_letter), levelName, m.width, SIDE_COLUMNS, m.rows, B3D_TILE_W, B3D_TILE_H);
 		fprintf(json, " \"parts\": [");
 		for (int part = 0; part < parts; ++part)
 			fprintf(json, "%s{\"file\": \"map_%016llx_%d.png\", \"first_row\": %d}", part ? ", " : "",
@@ -1110,4 +1143,82 @@ bool b3d_water_color(int set, Uint8 rgb[3])
 	for (int k = 0; k < 3; ++k)
 		rgb[k] = (Uint8)(sum[k] / count);
 	return true;
+}
+
+int b3d_map_cell(int set, int map_row, int map_column, bool *flipped)
+{
+	*flipped = false;
+	if (set < 1 || set > B3D_SETS)
+		return -1;
+	const MapSet m = map_set(set);
+	if (map_row < 0 || map_row >= m.rows)
+		return -1;
+	const int kind = map_kind_at(set, &m, map_row, map_column, flipped);
+	return kind < m.tile_count ? (set - 1) * B3D_TILES_PER_SET + kind : -1;
+}
+
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	B3DTerrain terrain;
+	Sint8 *data;
+	bool present;
+} terrain_state;
+
+const B3DTerrain *b3d_terrain(void)
+{
+	static int enabled = -1;
+	if (enabled < 0)
+		enabled = SDL_getenv("TYR3D_TERRAIN") == NULL || SDL_atoi(SDL_getenv("TYR3D_TERRAIN")) != 0;
+	if (!enabled)
+		return NULL;
+	if (terrain_state.made_for == b3d_map_generation + 1)
+		return terrain_state.present ? &terrain_state.terrain : NULL;
+	terrain_state.made_for = b3d_map_generation + 1;
+	terrain_state.present = false;
+	free(terrain_state.data);
+	terrain_state.data = NULL;
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/%016llx.ter",
+	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
+	         (unsigned long long)b3d_map_hash(1));
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return NULL;
+	Uint8 header[24];
+	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYTR", 4) == 0;
+	fseek(f, 0, SEEK_END);
+	const long packed_size = ftell(f) - (long)sizeof(header);
+	fseek(f, (long)sizeof(header), SEEK_SET);
+	Uint8 *packed = header_read && packed_size > 0 ? malloc((size_t)packed_size) : NULL;
+	const bool read = packed != NULL && fread(packed, 1, (size_t)packed_size, f) == (size_t)packed_size;
+	fclose(f);
+	if (!read)
+	{
+		free(packed);
+		return NULL;
+	}
+	Uint32 values[5];
+	memcpy(values, header + 4, sizeof(values));
+	B3DTerrain *t = &terrain_state.terrain;
+	t->width = (int)SDL_Swap32LE(values[1]);
+	t->height = (int)SDL_Swap32LE(values[2]);
+	t->sample = (int)SDL_Swap32LE(values[3]);
+	t->side_columns = (int)SDL_Swap32LE(values[4]);
+	uLongf size = (uLongf)t->width * (uLongf)t->height;
+	terrain_state.data = malloc(size);
+	if (terrain_state.data == NULL || uncompress((Bytef *)terrain_state.data, &size, packed, (uLong)packed_size) != Z_OK ||
+	    size != (uLongf)t->width * (uLongf)t->height)
+	{
+		free(packed);
+		free(terrain_state.data);
+		terrain_state.data = NULL;
+		return NULL;
+	}
+	free(packed);
+	t->heights = terrain_state.data;
+	terrain_state.present = true;
+	printf("terrain: %s (%d x %d samples)\n", path, t->width, t->height);
+	return t;
 }

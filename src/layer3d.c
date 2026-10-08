@@ -62,9 +62,13 @@ static const struct
 	[L3D_OVERLAY]      = { "overlay",      0.0f },
 };
 
+float l3d_terrain_headroom = 0;
+
 float l3d_layer_height(L3DLayerType type)
 {
-	return layer_info[type].height;
+	// Above the ground and its enemies, room for the terrain's raised ground (render_gpu.c).
+	const bool above = type != L3D_GROUND && type != L3D_GROUND_ENEMY && type != L3D_OVERLAY;
+	return layer_info[type].height + (above ? l3d_terrain_headroom : 0.0f);
 }
 
 const char *l3d_layer_name(L3DLayerType type)

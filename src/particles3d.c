@@ -35,6 +35,7 @@ static P3DParticle *spawn(P3DKind kind, float x, float y, float height)
 	p->x = x;
 	p->y = y;
 	p->height = height;
+	p->air = height >= 20;
 	p->drag = 1.0f;
 	return p;
 }
@@ -141,7 +142,7 @@ static void light(float x, float y, float height, float radius, float energy, fl
 	if (p3d_light_count == P3D_MAX_LIGHTS)
 		return;
 	P3DLight *l = &p3d_lights[p3d_light_count++];
-	*l = (P3DLight){ x, y, height, radius, energy, 0, life, { 255, 150, 60 } };
+	*l = (P3DLight){ x, y, height, radius, energy, 0, life, { 255, 150, 60 }, height >= 20 };
 }
 
 float p3d_light_energy(const P3DLight *l, float ahead)

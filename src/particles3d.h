@@ -29,6 +29,7 @@ typedef struct
 	Uint8 color[4];          // at birth (RGBA)
 	Uint8 end_color[4];      // at death
 	Uint8 kind;              // P3DKind
+	bool air;                // born in the air (above l3d_terrain_headroom's room), not on the ground
 } P3DParticle;
 
 #define P3D_MAX_PARTICLES 4096
@@ -44,6 +45,7 @@ typedef struct
 	float energy;        // at its brightest
 	float age, life;     // frames
 	Uint8 color[3];
+	bool air;
 } P3DLight;
 
 #define P3D_MAX_LIGHTS 64

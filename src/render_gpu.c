@@ -971,6 +971,7 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 static bool cloud_background(const L3DBackground *background, bool composed);
 static bool water_overlay(const L3DBackground *background);
 static bool relief_frame(const L3DFrame *frame, const bool *composed);
+static const B3DTerrain *frame_terrain;
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
@@ -1022,7 +1023,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 			{
 				bool composed[L3D_MAX_BACKGROUNDS];
 				b3d_composed_backgrounds(frame, composed);
-				const bool relief = relief_frame(frame, composed);
+				const bool relief = relief_frame(frame, composed) || frame_terrain != NULL;
 				for (int i = 0; i < frame->background_count; ++i)
 					if (frame->backgrounds[i].layer == l &&
 					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1)))
@@ -1507,7 +1508,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
                        L3D_MAX_GLOWS + DEEP_STARS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 6 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + 96 + 8)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -2405,6 +2406,152 @@ static BTBHGPUCustomMesh *relief_mesh(int cell)
 	return relief_meshes[cell];
 }
 
+/* --- Terrain ------------------------------------------------------------------------------------ */
+
+/*
+ * Terrain from assets (b3d_terrain): the ground map's rows as meshes on the precomputed heights,
+ * a vertex every sample (2 game pixels), each tile textured with its atlas cell (water keeps the
+ * procedural water), shaded by the sun and the terrain's hollows into the vertex colours, and
+ * casting shadows. The layers above the ground's enemies move up by TERRAIN_HEADROOM, so raised
+ * ground stays under the air.
+ */
+#define TERRAIN_HEADROOM 36.0f
+#define TERRAIN_ROWS_CACHED 64
+
+static struct
+{
+	int map_row;
+	unsigned int generation;  // b3d_map_generation + 1, or 0 for a free slot
+	Uint32 used;
+	BTBHGPUCustomMesh *mesh;
+} terrain_rows[TERRAIN_ROWS_CACHED];
+static Uint32 terrain_clock = 0;
+static const B3DTerrain *frame_terrain = NULL;  // this frame's terrain, or NULL (set in present_3d)
+static bool terrain_batch[MAX_BATCHES];          // batches of terrain (they cast shadows)
+
+static float terrain_height(const B3DTerrain *t, int sx, int sy)
+{
+	sx = SDL_clamp(sx, 0, t->width - 1);
+	sy = SDL_clamp(sy, 0, t->height - 1);
+	return (float)t->heights[sy * t->width + sx];
+}
+
+static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int map_row)
+{
+	const int per_x = B3D_TILE_W / t->sample, per_y = B3D_TILE_H / t->sample;  // samples a tile
+	const int columns = (t->width - 1) / per_x;
+	const int vertices_per_tile = (per_x + 1) * (per_y + 1);
+	const int max_vertices = columns * vertices_per_tile;
+	static V3DVertex *vertices = NULL;
+	static Uint32 *indices = NULL;
+	static int capacity = 0;
+	if (capacity < max_vertices)
+	{
+		free(vertices);
+		free(indices);
+		vertices = malloc(sizeof(V3DVertex) * (size_t)max_vertices);
+		indices = malloc(sizeof(Uint32) * (size_t)columns * per_x * per_y * 6);
+		capacity = vertices != NULL && indices != NULL ? max_vertices : 0;
+		if (capacity == 0)
+			return NULL;
+	}
+
+	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+	                           sun_direction[2] * sun_direction[2]);
+	const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
+	const float up = SDL_max(light[1], 0.0f);
+	const float atlas_h = (float)(B3D_ATLAS_H * TILE_PAGES);
+	int vc = 0, ic = 0;
+	for (int c = 0; c < columns; ++c)
+	{
+		bool flipped;
+		const int cell = b3d_map_cell(1, map_row, c - t->side_columns, &flipped);
+		if (cell < 0)
+			continue;
+		int ox, oy;
+		b3d_cell_origin(cell, &ox, &oy);
+		const Uint32 base = (Uint32)vc;
+		for (int j = 0; j <= per_y; ++j)
+			for (int i = 0; i <= per_x; ++i)
+			{
+				const int sx = c * per_x + i, sy = map_row * per_y + j;
+				const float h = terrain_height(t, sx, sy);
+				float n[3] = { -(terrain_height(t, sx + 1, sy) - terrain_height(t, sx - 1, sy)) / (2.0f * t->sample), 1.0f,
+				               -(terrain_height(t, sx, sy + 1) - terrain_height(t, sx, sy - 1)) / (2.0f * t->sample) };
+				const float nl = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+				for (int k = 0; k < 3; ++k)
+					n[k] /= nl;
+				// Hollows darker: how far the ground round about stands above this point.
+				float around = 0;
+				for (int k = 0; k < 8; ++k)
+				{
+					static const int dx[8] = { 4, -4, 0, 0, 3, -3, 3, -3 }, dy[8] = { 0, 0, 4, -4, 3, 3, -3, -3 };
+					around += terrain_height(t, sx + dx[k], sy + dy[k]);
+				}
+				const float hollow = SDL_clamp((around / 8 - h) / 24.0f, 0.0f, 0.4f);
+				const float lambert = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
+				const float shade = (0.42f + 0.58f * SDL_max(lambert, 0.0f)) / (0.42f + 0.58f * up) * (1.0f - hollow);
+				V3DVertex *v = &vertices[vc++];
+				memset(v, 0, sizeof(*v));
+				v->position[0] = (float)(c * B3D_TILE_W + i * t->sample);
+				v->position[1] = h;
+				v->position[2] = (float)(j * t->sample);
+				memcpy(v->normal, n, sizeof(n));
+				const int px = i * t->sample;
+				v->uv[0] = (ox + (flipped ? B3D_TILE_W - px : px)) / (float)B3D_ATLAS_W;
+				v->uv[1] = (oy + j * t->sample) / atlas_h;
+				v->tangent[0] = 1;
+				v->tangent[3] = 1;
+				v->color[0] = v->color[1] = v->color[2] = shade;
+				v->color[3] = 1;
+			}
+		for (int j = 0; j < per_y; ++j)
+			for (int i = 0; i < per_x; ++i)
+			{
+				const Uint32 a = base + j * (per_x + 1) + i, b = a + 1, d = a + per_x + 1, e = d + 1;
+				indices[ic++] = a;
+				indices[ic++] = b;
+				indices[ic++] = e;
+				indices[ic++] = a;
+				indices[ic++] = e;
+				indices[ic++] = d;
+			}
+	}
+	if (ic == 0)
+		return NULL;
+	BTBHGPUCustomMeshReport report;
+	BTBHGPUCustomMesh *mesh = btbh_gpu_window_custom_mesh_create(window, vertices, (uint32_t)(vc * sizeof(V3DVertex)),
+	                                                             (uint32_t)vc, indices, (uint32_t)ic, &report);
+	if (mesh == NULL)
+		fprintf(stderr, "warning: terrain row mesh: %s\n", report.message);
+	return mesh;
+}
+
+static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int map_row)
+{
+	++terrain_clock;
+	int slot = 0;
+	for (int i = 0; i < TERRAIN_ROWS_CACHED; ++i)
+	{
+		if (terrain_rows[i].generation == b3d_map_generation + 1 && terrain_rows[i].map_row == map_row)
+		{
+			terrain_rows[i].used = terrain_clock;
+			return terrain_rows[i].mesh;
+		}
+		const bool stale = terrain_rows[i].generation != b3d_map_generation + 1;
+		const bool slot_stale = terrain_rows[slot].generation != b3d_map_generation + 1;
+		if ((stale && !slot_stale) || (stale == slot_stale && terrain_rows[i].used < terrain_rows[slot].used))
+			slot = i;
+	}
+	if (terrain_rows[slot].mesh != NULL)
+		btbh_gpu_custom_mesh_destroy(terrain_rows[slot].mesh);
+	terrain_rows[slot].mesh = build_terrain_row(t, map_row);
+	terrain_rows[slot].map_row = map_row;
+	terrain_rows[slot].generation = b3d_map_generation + 1;
+	terrain_rows[slot].used = terrain_clock;
+	return terrain_rows[slot].mesh;
+}
+
 /* --- Background maps ----------------------------------------------------------------------- */
 
 // Background tiles sit this far below their layer, so that the captured layer, which is exact
@@ -2609,7 +2756,16 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	if (frame->background_count == 0)
 		return;
 	++tile_frame;
-	const bool relief_ground = relief_frame(frame, composed);
+	const bool relief_ground = relief_frame(frame, composed) && frame_terrain == NULL;
+	typedef struct
+	{
+		int map_row;
+		float x, z, height;
+		int page;
+		float brightness;
+	} TerrainRowDraw;
+	TerrainRowDraw terrain_row_draws[96];
+	int terrain_row_count = 0;
 
 	static B3DTile tiles[MAX_TILES];
 	static float tile_height[MAX_TILES];
@@ -2671,6 +2827,34 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 					continue;
 				}
 				tiles[kept++] = tiles[t];
+			}
+			tile_count = kept;
+		}
+		// The ground's terrain: its rows are meshes (the tiles beyond its columns stay tiles).
+		if (frame_terrain != NULL && background->set == 1)
+		{
+			const B3DTerrain *terrain = frame_terrain;
+			const int columns = (terrain->width - 1) / (B3D_TILE_W / terrain->sample);
+			int kept = first;
+			for (int t = first; t < tile_count; ++t)
+			{
+				const int column = tiles[t].map_column + terrain->side_columns;
+				if (column < 0 || column >= columns)
+				{
+					tiles[kept++] = tiles[t];
+					continue;
+				}
+				bool seen = false;
+				for (int r = 0; r < terrain_row_count && !seen; ++r)
+					seen = terrain_row_draws[r].map_row == tiles[t].map_row;
+				if (seen || terrain_row_count == (int)COUNTOF(terrain_row_draws))
+					continue;
+				float brightness = 1.0f;
+				const float distance = -(tiles[t].z + shift);
+				if (distance > BACKGROUND_AHEAD - BACKGROUND_FADE)
+					brightness = SDL_max(0.0f, (BACKGROUND_AHEAD - distance) / BACKGROUND_FADE);
+				terrain_row_draws[terrain_row_count++] = (TerrainRowDraw){
+					tiles[t].map_row, tiles[t].x - column * B3D_TILE_W, tiles[t].z + shift, height, page, brightness };
 			}
 			tile_count = kept;
 		}
@@ -2748,6 +2932,30 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		set_glints(b, tile_water);
 	}
 	*instance_count = next;
+
+	// The terrain's rows.
+	const float atlas_rows = (float)(B3D_ATLAS_H * TILE_PAGES);
+	for (int r = 0; r < terrain_row_count && *instance_count < MAX_INSTANCES && *batch_count < MAX_BATCHES; ++r)
+	{
+		const TerrainRowDraw *row = &terrain_row_draws[r];
+		BTBHGPUCustomMesh *mesh = terrain_row_mesh(frame_terrain, row->map_row);
+		if (mesh == NULL)
+			continue;
+		const Mat4 transform = mat4_translation(row->x, row->height, row->z);
+		write_instance(instances + *instance_count * 24, &transform, row->brightness);
+		terrain_batch[*batch_count] = true;
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = mesh;
+		b->first_instance = (*instance_count)++;
+		b->instance_count = 1;
+		b->albedo_texture = tile_atlas;
+		b->uv_offset_y = row->page * B3D_ATLAS_H / atlas_rows;
+		b->unlit_enabled = 1;
+		b->alpha_cutoff = 0.5f;
+		set_glints(b, tile_water);
+	}
 }
 
 // The starfield sits below background 1, whose colour 0 lets it through as in the game.
@@ -3036,7 +3244,8 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
 			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
 			transform.m[12] = p->x + p->vx * age;
-			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale;
+			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale +
+			                  (p->air ? l3d_terrain_headroom : 0.0f);
 			transform.m[14] = p->y + (p->vy + explodeMove) * age;
 			float *instance = instances + *instance_count * 24;
 			write_instance(instance, &transform, 1.0f);
@@ -3130,7 +3339,7 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting)
 	for (int n = 0; n < count; ++n)
 	{
 		const P3DLight *l = &p3d_lights[chosen[n]];
-		const float height = l->height * rgpu_camera.height_scale;
+		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : 0.0f);
 		const float k = align_scale(height);
 		float *out = lighting->point_lights[n];
 		out[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
@@ -3253,6 +3462,18 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const bool new_frame = presented_frame != l3d_frame_number || ahead == 0;
 	b3d_clouds = clouds_enabled();  // blended backgrounds of clouds aren't composed
 	cloud_frame = frame;
+	{
+		// The ground as terrain where its map has one (and the ground can be: as for the relief).
+		bool composed_now[L3D_MAX_BACKGROUNDS];
+		b3d_composed_backgrounds(frame, composed_now);
+		bool ground_ok = m3d_enabled && frame->star_count == 0;
+		for (int i = 0; i < frame->background_count; ++i)
+			if (frame->backgrounds[i].set == 1)
+				ground_ok = ground_ok && !composed_now[i] && frame->backgrounds[i].effect_count == 0;
+		frame_terrain = ground_ok ? b3d_terrain() : NULL;
+		l3d_terrain_headroom = frame_terrain != NULL ? TERRAIN_HEADROOM : 0.0f;
+		memset(terrain_batch, 0, sizeof(terrain_batch));
+	}
 	for (int set = 1; set <= B3D_SETS; ++set)  // the level's water colour, for the procedural water
 	{
 		Uint8 rgb[3];
@@ -3405,7 +3626,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const bool shadows = shadows_enabled();
 	for (int i = 0; i < batch_count; ++i)
 	{
-		casts_shadow[i] = shadows && i >= first_object_batch;
+		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]);
 		if (shadows && batches[i].unlit_enabled == 1)
 			batches[i].unlit_enabled = 2;
 	}
