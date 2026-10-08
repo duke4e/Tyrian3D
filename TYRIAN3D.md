@@ -45,7 +45,8 @@ tools/package_macos.sh
 ```
 
 The app looks for the game data in `~/Library/Application Support/Tyrian3D/data` or in a folder
-named `data` beside the app (or `open Tyrian3D.app --args -t <folder>`).
+named `data` beside the app (or `open Tyrian3D.app --args -t <folder>`). If it finds none, it asks
+for the folder and remembers it (`~/Library/Application Support/Tyrian3D/data_dir.txt`).
 
 ## Controls
 

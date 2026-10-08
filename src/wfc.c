@@ -20,7 +20,8 @@ static int set_count(const WFCSet *s)
 {
 	int n = 0;
 	for (int w = 0; w < WFC_WORDS; ++w)
-		n += __builtin_popcountll(s->bits[w]);
+		for (uint64_t bits = s->bits[w]; bits != 0; bits &= bits - 1)  // (portable: no compiler built-ins)
+			++n;
 	return n;
 }
 

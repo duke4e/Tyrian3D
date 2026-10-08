@@ -932,6 +932,14 @@ int main(int argc, char *argv[])
 
 	JE_paramCheck(argc, argv);
 
+	// Tyrian3D: without the game's data, ask where it is.
+	if (!data_dir_ask())
+	{
+		fprintf(stderr, "error: the game's data (Tyrian 2000) wasn't found\n");
+		SDL_Quit();
+		return 1;
+	}
+
 	if (!override_xmas) // arg handler may override
 		xmas = xmas_time();
 

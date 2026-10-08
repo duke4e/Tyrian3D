@@ -27,6 +27,10 @@
 extern const char *custom_data_dir;
 
 const char *data_dir(void);
+// Tyrian3D: whether the game's data was found; if not, asks the player for its folder (a message
+// and a folder dialog) and remembers the choice. False if the player cancelled.
+bool data_dir_found(void);
+bool data_dir_ask(void);
 
 FILE *dir_fopen(const char *dir, const char *file, const char *mode);
 FILE *dir_fopen_warn(const char *dir, const char *file, const char *mode);

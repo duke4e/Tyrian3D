@@ -2794,6 +2794,32 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		lighting.directional_shadow_softness = 1.0f;
 		shadow_view_projection(&camera, lighting.directional_shadow_view_projection);
 	}
+	// On spotlight levels the ship carries a lamp: a spot light up the screen through the cone the
+	// game leaves lit (the darkness itself is the overlay, build_spotlight), lighting the models in it.
+	if (starShowVGASpecialCode == 2 && processorType >= 2)
+	{
+		const float ship_x = player[0].x + 7.0f, ship_y = player[0].y + 7.0f;
+		const float height = l3d_layer_height(L3D_PLAYER) * rgpu_camera.height_scale + 6.0f;
+		const float k = align_scale(height);
+		lighting.spot_position_x = align.on ? align.cx + (ship_x - align.cx) * k : ship_x;
+		lighting.spot_position_y = height;
+		lighting.spot_position_z = align.on ? align.cz + (ship_y - align.cz) * k : ship_y;
+		// Up the screen and a little down, as the cone (slope 1: 45 degrees each side) opens.
+		const float dir[3] = { 0.0f, -0.25f, -1.0f };
+		const float length = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+		lighting.spot_direction_x = dir[0] / length;
+		lighting.spot_direction_y = dir[1] / length;
+		lighting.spot_direction_z = dir[2] / length;
+		lighting.spot_range = 260.0f;
+		lighting.spot_energy = 2.5f;
+		lighting.spot_red = 1.0f;
+		lighting.spot_green = 0.95f;
+		lighting.spot_blue = 0.85f;
+		lighting.spot_falloff = 1.0f;
+		lighting.spot_inner_cutoff = cosf(38.0f * (float)M_PI / 180.0f);
+		lighting.spot_outer_cutoff = cosf(46.0f * (float)M_PI / 180.0f);
+	}
+
 	static int explosion_lights = -1;  // TYR3D_EXPLOSION_LIGHTS=0 leaves them out
 	if (explosion_lights < 0)
 		explosion_lights = SDL_getenv("TYR3D_EXPLOSION_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_EXPLOSION_LIGHTS")) != 0;

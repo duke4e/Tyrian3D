@@ -4,7 +4,8 @@
 #
 # The game's data (Tyrian 2000) is not included. The app finds it in
 #   ~/Library/Application Support/Tyrian3D/data   or   a folder named data beside the app
-# (or anywhere, with: open Tyrian3D.app --args -t <folder>).
+# (or anywhere, with: open Tyrian3D.app --args -t <folder>). Otherwise it asks for the folder and
+# remembers it (~/Library/Application Support/Tyrian3D/data_dir.txt).
 #
 # usage: tools/package_macos.sh [out dir]   (default: build/package)
 set -eu

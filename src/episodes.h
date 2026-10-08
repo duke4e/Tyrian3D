@@ -115,7 +115,7 @@ typedef struct
 } JE_ShipType[SHIP_NUM + 1]; /* [0..shipnum] */
 
 /* EnemyData */
-typedef struct
+typedef struct JE_SingleEnemyDat  // Tyrian3D: named, for pointers to one enemy's data
 {
 	JE_byte     ani;
 	JE_byte     tur[3]; /* [1..3] */

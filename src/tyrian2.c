@@ -209,6 +209,14 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 // Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
 #define ENEMY_MOTION_KEY(slot) (L3D_KEY_ENEMY + (Uint32)(slot))
 
+static int bit_count(Uint32 bits)
+{
+	int n = 0;
+	for (; bits != 0; bits &= bits - 1)
+		++n;
+	return n;
+}
+
 // Tyrian3D: the sides (V3D_OPEN_*) on which another part of the same large enemy continues this
 // one's sprite: an enemy of the same size right beside it, in the same group of slots (as the
 // game makes the parts of large enemies and bosses), whose sprite meets this one's along most of
@@ -240,8 +248,8 @@ static Uint8 enemy_open_sides(unsigned int i)
 			continue;
 		Uint32 theirs[4];
 		v3d_sprite_edges(enemy[j].sprite2s, enemy[j].egr[SDL_max(enemy[j].enemycycle, 1) - 1], large, theirs);
-		const int edge = __builtin_popcount(mine[side]);
-		const int shared = __builtin_popcount(mine[side] & theirs[(side + 2) % 4]);
+		const int edge = bit_count(mine[side]);
+		const int shared = bit_count(mine[side] & theirs[(side + 2) % 4]);
 		if (edge >= 3 && shared * 5 >= edge * 4)
 			open |= (Uint8)(1u << side);
 	}
@@ -472,7 +480,7 @@ static void draw_coming_enemies(int enemy_offset)
 			const Uint16 eDatI = custom ? 0 : (Uint16)(ev->eventdat + part);
 			if ((eDatI == 0 && !custom) || eDatI > ENEMY_NUM)
 				continue;
-			const __typeof__(enemyDat[0]) *dat = &enemyDat[eDatI];
+			const struct JE_SingleEnemyDat *dat = &enemyDat[eDatI];
 			ComingLook what = { dat->shapebank, dat->egraphic[0], dat->esize == 1 };
 			if (custom)
 			{

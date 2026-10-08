@@ -30,11 +30,97 @@
 
 const char *custom_data_dir = NULL;
 
+static const char *found_data_dir = NULL;
+
+// Tyrian3D: the folder the player chose for the game's data (data_dir_ask), remembered in the
+// user's application support folder (Tyrian3D/data_dir.txt).
+static const char *remembered_data_dir(void)
+{
+	static char remembered[1024];
+	char *pref = SDL_GetPrefPath("", "Tyrian3D");
+	if (pref == NULL)
+		return NULL;
+	char path[1200];
+	SDL_snprintf(path, sizeof(path), "%sdata_dir.txt", pref);
+	SDL_free(pref);
+	FILE *f = fopen(path, "r");
+	if (f == NULL)
+		return NULL;
+	const bool read = fgets(remembered, sizeof(remembered), f) != NULL;
+	fclose(f);
+	if (!read)
+		return NULL;
+	remembered[strcspn(remembered, "\r\n")] = '\0';
+	return remembered[0] != '\0' ? remembered : NULL;
+}
+
+bool data_dir_found(void)
+{
+	return data_dir()[0] != '\0';
+}
+
+static bool chosen_dir_done;
+static char chosen_dir[1024];
+
+static void SDLCALL chosen_folder(void *user, const char *const *files, int filter)
+{
+	(void)user, (void)filter;
+	if (files != NULL && files[0] != NULL)
+		SDL_strlcpy(chosen_dir, files[0], sizeof(chosen_dir));
+	chosen_dir_done = true;
+}
+
+bool data_dir_ask(void)
+{
+	if (data_dir_found())
+		return true;
+	if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
+		return false;
+	for (;;)
+	{
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Tyrian3D",
+		                         "Tyrian3D plays the data of Tyrian 2000 (freeware), which it doesn't include.\n\n"
+		                         "Choose the folder that has the game's files (tyrian1.lvl and the rest).", NULL);
+		chosen_dir_done = false;
+		chosen_dir[0] = '\0';
+		SDL_ShowOpenFolderDialog(chosen_folder, NULL, NULL, NULL, false);
+		while (!chosen_dir_done)
+		{
+			SDL_Event event;
+			SDL_WaitEventTimeout(&event, 50);
+		}
+		if (chosen_dir[0] == '\0')
+			return false;  // cancelled
+		if (dir_file_exists(chosen_dir, "tyrian1.lvl"))
+			break;
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Tyrian3D",
+		                         "That folder doesn't have the game's files (tyrian1.lvl). Please choose another.", NULL);
+	}
+
+	char *pref = SDL_GetPrefPath("", "Tyrian3D");
+	if (pref != NULL)
+	{
+		char path[1200];
+		SDL_snprintf(path, sizeof(path), "%sdata_dir.txt", pref);
+		SDL_free(pref);
+		FILE *f = fopen(path, "w");
+		if (f != NULL)
+		{
+			fprintf(f, "%s\n", chosen_dir);
+			fclose(f);
+		}
+	}
+	found_data_dir = NULL;  // look again
+	custom_data_dir = chosen_dir;
+	return data_dir_found();
+}
+
 // finds the Tyrian data directory
 const char *data_dir(void)
 {
 	// Tyrian3D: an app bundle looks for the game's data in its Resources ("data"), in the user's
-	// application support folder (Tyrian3D/data) and beside the app.
+	// application support folder (Tyrian3D/data), beside the app and in the folder the player chose
+	// (data_dir_ask).
 	static char bundled[1024], user[1024], beside[1024];
 	const char *base = SDL_GetBasePath();
 	SDL_snprintf(bundled, sizeof(bundled), "%sdata", base != NULL ? base : "");
@@ -52,9 +138,10 @@ const char *data_dir(void)
 		bundled,
 		user,
 		beside,
+		remembered_data_dir(),
 	};
 
-	static const char *dir = NULL;
+	const char *dir = found_data_dir;
 
 	if (dir != NULL)
 		return dir;
@@ -77,6 +164,7 @@ const char *data_dir(void)
 	if (dir == NULL) // data not found
 		dir = "";
 
+	found_data_dir = dir;
 	return dir;
 }
 
