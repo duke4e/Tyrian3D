@@ -376,7 +376,15 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 {
 	if (!l3d_capturing || !m3d_enabled)
 		return false;
-	if (!l3d_add_volume(sheet, sprite, false, V3D_STYLE_FLAT, x + 6.0f, y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
+	// A model of its own (models.cfg "shot" lines), or the sprite with volume.
+	M3DAppearance look;
+	if (m3d_shot_appearance(sheet == &spriteSheet12, sprite, &look))
+	{
+		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * l3d_frame_number + (float)(key & 63) * 47.0f, 360.0f) : 0.0f);
+		if (!l3d_add_object(look.model, x + 6.0f, y + 7.0f, look.height, yaw, 0.0f, 0))
+			return false;
+	}
+	else if (!l3d_add_volume(sheet, sprite, false, V3D_STYLE_FLAT, x + 6.0f, y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
 		return false;
 	float vx, vy;
 	l3d_key_last_object(key, &vx, &vy);

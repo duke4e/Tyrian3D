@@ -10,7 +10,8 @@
  *   <dir>/sheets/<name>.idx    the sheet's palette indices, a byte per pixel, row by row.
  *   <dir>/palette.txt          the levels' palette: a line of "r g b" per index.
  *   <dir>/catalog.json         enemy types used by each episode's levels, with sheet, frames, size,
- *                              how often and where they appear; the player ships.
+ *                              how often and where they appear; the player ships; the shots'
+ *                              sprites with the weapons that fire them (p: the player's, e: enemies').
  *
  * tools/catalog_html.py turns the result into a browsable page.
  */
@@ -573,6 +574,59 @@ void dev_extract(const char *dir)
 		for (int k = 0; k < SDL_max(1, SDL_min(o->ani, 20)); ++k)
 			fprintf(json, "%s%d", k ? ", " : "", o->gr[k]);
 		fprintf(json, "], \"charge\": %d}", o->pwr);
+	}
+	// The shots: every sprite a weapon fires (its pattern's graphic and the animation's frames),
+	// with the weapons and who fires them (the player's ports, or enemies).
+	fprintf(json, "\n  ],\n  \"shots\": [");
+	{
+		static char users[2][300][160];  // by sheet (shots, shots2) and sprite
+		memset(users, 0, sizeof(users));
+		static bool by_player[WEAP_NUM + 1], by_enemy[WEAP_NUM + 1];
+		memset(by_player, 0, sizeof(by_player));
+		memset(by_enemy, 0, sizeof(by_enemy));
+		for (int port = 1; port <= PORT_NUM; ++port)
+			for (int mode = 0; mode < 2; ++mode)
+				for (int level = 0; level < 11; ++level)
+					if (weaponPort[port].op[mode][level] <= WEAP_NUM)
+						by_player[weaponPort[port].op[mode][level]] = true;
+		for (int id = 1; id <= ENEMY_NUM; ++id)
+			for (int t = 0; t < 3; ++t)
+				if (enemyDat[id].tur[t] > 0)
+					by_enemy[enemyDat[id].tur[t]] = true;
+		for (int w = 1; w <= WEAP_NUM; ++w)
+		{
+			const JE_WeaponType *weapon = &weapons[w];
+			for (int p = 0; p < SDL_min((int)weapon->multi, 8); ++p)
+				for (int a = 0; a < SDL_max(1, (int)weapon->weapani); ++a)
+				{
+					unsigned int frame = weapon->sg[p] + a;
+					if (weapon->sg[p] == 0 || frame > 60000)
+						continue;
+					frame %= 1000;
+					const int sheet = frame > 500, sprite = sheet ? (int)frame - 500 : (int)frame;
+					if (sprite <= 0 || sprite >= 300)
+						continue;
+					char tag[16];
+					snprintf(tag, sizeof(tag), "%s%d", by_player[w] ? "p" : by_enemy[w] ? "e" : "w", w);
+					if (strlen(users[sheet][sprite]) + strlen(tag) + 2 < sizeof(users[sheet][sprite]))
+					{
+						if (users[sheet][sprite][0] != '\0')
+							strcat(users[sheet][sprite], ",");
+						strcat(users[sheet][sprite], tag);
+					}
+				}
+		}
+		bool first_shot = true;
+		for (int sheet = 0; sheet < 2; ++sheet)
+			for (int sprite = 1; sprite < 300; ++sprite)
+				if (users[sheet][sprite][0] != '\0')
+				{
+					fprintf(json, "%s\n    {\"sheet\": \"%s\", \"sprite\": %d, \"weapons\": ", first_shot ? "" : ",",
+					        sheet ? "shots2" : "shots", sprite);
+					json_string(json, users[sheet][sprite]);
+					fputc('}', json);
+					first_shot = false;
+				}
 	}
 	fprintf(json, "\n  ]\n}\n");
 	fclose(json);

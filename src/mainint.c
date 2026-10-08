@@ -4783,14 +4783,40 @@ redo:
 				const bool large = this_player->sidekick[i].style == 1 || this_player->sidekick[i].style == 2;
 				const M3DAppearance look = m3d_sidekick_appearance(this_player->items.sidekick[i]);
 				const float centre_y = large ? y + 14 : y + 7;
+				// Models: turning as the animation does or spinning, recoloured, with their glow.
+				float yaw = look.yaw;
+				if (look.yaw_mode == M3D_YAW_FRAMES)
+					yaw += this_player->sidekick[i].animation_frame * look.yaw_step;
+				if (look.spin != 0)
+					yaw += fmodf(look.spin * l3d_frame_number + i * 90.0f, 360.0f);
+				Uint8 filter = 0;
+				if (look.recolor)
+					filter = (Uint8)(l3d_sprite_ramp(large ? &spriteSheet10 : &spriteSheet9, sprite, large) << 4);
 				const bool sidekick_3d = look.model >= 0
-					? l3d_add_object(look.model, x + 6, centre_y, look.height, look.yaw, 0.0f, 0)
+					? l3d_add_object(look.model, x + 6, centre_y, look.height, yaw,
+					                 this_player->sidekick[i].animation_frame * look.roll_step, filter)
 					: look.model == M3D_VOLUME &&
 					  l3d_add_volume(large ? &spriteSheet10 : &spriteSheet9, sprite, large, V3D_STYLE_RAISED, x + 6, centre_y,
 					                 look.height, 0.0f, 0.0f, 0);
 
 				if (sidekick_3d)
-					l3d_key_last_object(L3D_KEY_SIDEKICK + playerNum_ * 4 + i, NULL, NULL);
+				{
+					float vx, vy;
+					l3d_key_last_object(L3D_KEY_SIDEKICK + playerNum_ * 4 + i, &vx, &vy);
+					if (look.model >= 0 && look.glow_size != 0)
+					{
+						const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
+						if (look.glow_color != 0)
+							l3d_add_color_glow(x + 6 + look.glow_dx, centre_y + look.glow_dy, size, look.glow_strength,
+							                   look.glow_color, vx, vy);
+						else
+						{
+							l3d_add_sprite_glow(large ? &spriteSheet10 : &spriteSheet9, sprite, large, x + 6 + look.glow_dx,
+							                    centre_y + look.glow_dy, size, look.glow_strength);
+							l3d_last_glow_velocity(vx, vy);
+						}
+					}
+				}
 				else if (large)
 					blit_sprite2x2(VGAScreen, x - 6, y, spriteSheet10, sprite);
 				else

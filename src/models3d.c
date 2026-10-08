@@ -60,6 +60,15 @@ static struct
 	int model;
 } frame_models[2048];
 static int frame_model_count = 0;
+
+// shot <shots|shots2> <sprite> <appearance> [options]: the player's and enemies' shots.
+static struct
+{
+	Uint8 sheet;  // 0 shots, 1 shots2
+	unsigned int sprite;
+	M3DAppearance appearance;
+} shot_rules[1024];
+static int shot_rule_count = 0;
 static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
@@ -324,6 +333,34 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
+	if (strcmp(tokens[0], "shot") == 0 && count >= 4)
+	{
+		if (shot_rule_count == (int)COUNTOF(shot_rules))
+		{
+			WARN("too many shot rules");
+			return;
+		}
+		if (strcmp(tokens[1], "shots") != 0 && strcmp(tokens[1], "shots2") != 0)
+		{
+			WARN("unknown shot sheet '%s' (shots or shots2)", tokens[1]);
+			return;
+		}
+		M3DAppearance a = { .model = M3D_SPRITE, .yaw_mode = M3D_YAW_FIXED, .yaw = 0.0f };
+		if (!parse_kind(tokens[3], &a.model))
+		{
+			WARN("unknown model '%s'", tokens[3]);
+			return;
+		}
+		for (int i = 4; i < count; ++i)
+			if (!parse_option(tokens[i], &a))
+				WARN("unknown option '%s'", tokens[i]);
+		shot_rules[shot_rule_count].sheet = strcmp(tokens[1], "shots2") == 0;
+		shot_rules[shot_rule_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
+		shot_rules[shot_rule_count].appearance = a;
+		++shot_rule_count;
+		return;
+	}
+
 	if (strcmp(tokens[0], "frame") == 0 && count >= 4)
 	{
 		int model;
@@ -385,6 +422,7 @@ static void load(void)
 	rule_count = 0;
 	override_count = 0;
 	frame_model_count = 0;
+	shot_rule_count = 0;
 	ship_rule_count = 0;
 	sidekick_rule_count = 0;
 	enemy_default = enemy_options_default();
@@ -483,6 +521,19 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
 {
 	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
+}
+
+bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance)
+{
+	if (!m3d_enabled)
+		return false;
+	for (int i = 0; i < shot_rule_count; ++i)
+		if (shot_rules[i].sheet == shots2 && shot_rules[i].sprite == sprite)
+		{
+			*appearance = shot_rules[i].appearance;
+			return appearance->model >= 0;
+		}
+	return false;
 }
 
 int m3d_frame_model(char sheet, unsigned int sprite, int model)

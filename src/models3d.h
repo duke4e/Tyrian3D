@@ -86,6 +86,9 @@ M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
 // The model to show while an enemy whose appearance is `model` shows animation frame `sprite`
 // (models.cfg "frame" lines: a model for a frame that changes shape); `model` if there is none.
 int m3d_frame_model(char sheet, unsigned int sprite, int model);
+// A shot's model (models.cfg "shot" lines), for sprite `sprite` of the shots sheet (shots2: the
+// second one); false if it has none (it shows as a volume).
+bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);
 int m3d_sprite_rule_count(void);
 void m3d_sprite_rule(int i, char *sheet, unsigned int *first_sprite, M3DAppearance *appearance);
 
