@@ -116,6 +116,7 @@ TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it) when that frame shows, then each next one so many milliseconds after the one before |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
+| `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | Ground enemies' objects painted into the map stay in the ground under their models |

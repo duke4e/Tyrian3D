@@ -10,6 +10,7 @@
  * . one tick on while paused, F12 snapshot.
  *
  *   TYR3D_DEBUG=1          with TYR3D_START: the game starts as a debug flight
+ *   TYR3D_DEBUG=pick       the level list first, instead of the title screen
  *   TYR3D_DEBUG_SEEK=<n>   with it: the level starts n ticks in (played without showing)
  */
 #ifndef DEBUGMODE_H
@@ -25,6 +26,8 @@ bool debug_pick_and_start(void);
 
 // Turns the debug flight on for a game TYR3D_START set up, if TYR3D_DEBUG asks for it.
 void debug_flight_from_environment(void);
+// TYR3D_DEBUG=pick: the level list instead of the title screen (once).
+bool debug_picker_from_environment(void);
 
 // At a level's start, before its map loads (JE_main): remembers the start, or puts it back when
 // the level restarts to rewind.

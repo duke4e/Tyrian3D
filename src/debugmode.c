@@ -109,6 +109,7 @@ bool debug_pick_and_start(void)
 
 	static int selected = 0;
 	enum { ROWS = 12, ROW_H = 11, LIST_Y = 44 };
+	bool faded_in = false;
 	for (;;)
 	{
 		const int episode = levels[selected].episode;
@@ -125,7 +126,7 @@ bool debug_pick_and_start(void)
 		draw_font_hv_shadow(VGAScreen, 160, 12, "Debug Flight", large_font, centered, 15, -3, false, 2);
 		char line[64];
 		snprintf(line, sizeof(line), "< Episode %d >", episode);
-		draw_font_hv_shadow(VGAScreen, 160, 30, line, small_font, centered, 15, -2, false, 1);
+		draw_font_hv_shadow(VGAScreen, 160, 30, line, small_font, centered, 15, 2, false, 1);
 		for (int i = top; i <= last && i < top + ROWS; ++i)
 		{
 			const bool here = i == selected;
@@ -133,8 +134,13 @@ bool debug_pick_and_start(void)
 			draw_font_hv_shadow(VGAScreen, 160, LIST_Y + (i - top) * ROW_H, line, normal_font, centered, 15,
 			                    here ? 1 : -4, false, 2);
 		}
-		draw_font_hv_shadow(VGAScreen, 160, 182, "Enter: fly   Esc: back   Left/Right: episode", small_font, centered, 15, -4,
+		draw_font_hv_shadow(VGAScreen, 160, 182, "Enter: fly   Esc: back   Left/Right: episode", small_font, centered, 15, 0,
 		                    false, 1);
+		if (!faded_in)
+		{
+			fade_palette(colors, 10, 0, 255);  // (the menus before it faded to black)
+			faded_in = true;
+		}
 		JE_showVGA();
 
 		service_SDL_events(true);
@@ -184,6 +190,16 @@ bool debug_pick_and_start(void)
 			break;
 		}
 	}
+}
+
+bool debug_picker_from_environment(void)
+{
+	static bool done = false;
+	const char *debug = SDL_getenv("TYR3D_DEBUG");
+	if (done || debug == NULL || SDL_strcasecmp(debug, "pick") != 0)
+		return false;
+	done = true;
+	return true;
 }
 
 void debug_flight_from_environment(void)

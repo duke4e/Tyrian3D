@@ -1059,7 +1059,7 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef NDEBUG
-	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL)
+	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL && SDL_getenv("TYR3D_DEBUG") == NULL)
 		intro_logos();
 #endif
 
@@ -1087,6 +1087,10 @@ int main(int argc, char *argv[])
 			{
 				// Tyrian3D dev tool: started a game at a requested level.
 				debug_flight_from_environment();
+			}
+			else if (debug_picker_from_environment() && debug_pick_and_start())
+			{
+				// Tyrian3D: TYR3D_DEBUG=pick, a debug flight picked from the level list.
 			}
 			else if (!titleScreen())
 			{
