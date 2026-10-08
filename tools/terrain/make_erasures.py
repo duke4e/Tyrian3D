@@ -3,8 +3,8 @@
 tiles (or the ground around it that the sprite carries too), under the enemy's model. For each place
 a ground enemy stands (export/terrain/ground.txt), the ground sprites of the map's level are tried
 there (+-2 pixels): the pixels of the best match that equal the map's are erased, filled with the
-map's own ground from a nearby place a whole number of tiles away (where the ground around matches
-best and no other enemy stands). The game copies those pixels into its ground texture
+map's ground tile (the most common tile round each tile the object touches, from the nearest place
+it is and no enemy stands; on the generated side columns, ground from nearby that matches best). The game copies those pixels into its ground texture
 (render_gpu.c, terrain_ring_row), so the model stands on clean ground.
 
 usage: <python with numpy, scipy and PIL> tools/terrain/make_erasures.py <TYR3D_EXTRACT dir> [map hash...]
@@ -79,6 +79,12 @@ def best_match(m, x, y, size, cells):
     return best
 
 
+def colour_keys(pixels):
+    """Colours, coarsely (so a palette's shades of one surface share keys)."""
+    q = (np.asarray(pixels) // 12).astype(np.int32)
+    return q[..., 0] * 4096 + q[..., 1] * 64 + q[..., 2]
+
+
 def source_offset(m, alpha, mask, x0, y0, taken):
     """A tile-aligned offset whose ground continues the ground round the mask best."""
     h, w = mask.shape
@@ -87,8 +93,19 @@ def source_offset(m, alpha, mask, x0, y0, taken):
     ring_full = np.zeros((h + 4, w + 4), bool)
     ring_full[2:-2, 2:-2] = ring
     best = (1e9, None)
-    for oy in (-56, -28, 0, 28, 56):
-        for ox in (-48, -24, 0, 24, 48):
+    # What the ground round the patch is like: the source's inside must be like it too (not only
+    # its edge), so a shore or a road nearby isn't copied in.
+    here_ring = m[y0 - 2:y0 + h + 2, x0 - 2:x0 + w + 2]
+    if here_ring.shape[:2] != ring_full.shape or not ring_full.any():
+        return None
+    ring_pixels = here_ring[ring_full].astype(np.float32)
+    ring_mean, ring_std = ring_pixels.mean(0), ring_pixels.std(0)
+    wider = m[max(y0 - 8, 0):y0 + h + 8, max(x0 - 8, 0):x0 + w + 8]
+    wider_ring = np.ones(wider.shape[:2], bool)
+    wider_ring[8 if y0 >= 8 else y0:, 8 if x0 >= 8 else x0:][:h, :w] &= ~ndimage.binary_dilation(mask, iterations=1)
+    ring_keys = np.unique(colour_keys(wider[wider_ring].astype(np.float32)))
+    for oy in range(-4 * TILE_H, 4 * TILE_H + 1, TILE_H):
+        for ox in range(-4 * TILE_W, 4 * TILE_W + 1, TILE_W):
             if ox == 0 and oy == 0:
                 continue
             sx, sy = x0 + ox, y0 + oy
@@ -100,10 +117,71 @@ def source_offset(m, alpha, mask, x0, y0, taken):
             there = m[sy - 2:sy + h + 2, sx - 2:sx + w + 2]
             if here.shape != there.shape or here.shape[:2] != ring_full.shape:
                 continue
-            score = np.abs(here[ring_full] - there[ring_full]).mean() if ring_full.any() else 0
+            inside = there[2:-2, 2:-2][mask].astype(np.float32)
+            likeness = np.abs(inside.mean(0) - ring_mean).sum() + np.abs(inside.std(0) - ring_std).sum()
+            # Pixels in colours the ground round the patch doesn't have (another surface) count heavily.
+            far = 1.0 - np.isin(colour_keys(inside), ring_keys).mean()
+            score = np.abs(here[ring_full] - there[ring_full]).mean() + likeness + 400 * far
             if score < best[0]:
                 best = (score, (ox, oy))
     return best[1]
+
+
+def tile_fills(tiles, side_columns, taken, mask, x0, y0):
+    """The mask cut by the map's tiles; for each tile it touches, the most common tile round it (the
+    ground) where it is nearest and nothing stands: (x, y, mask part, offset to it)."""
+    rows, columns = tiles.shape
+    h, w = mask.shape
+    out = []
+    for r in range(y0 // TILE_H, (y0 + h - 1) // TILE_H + 1):
+        for c in range(x0 // TILE_W - side_columns, (x0 + w - 1) // TILE_W - side_columns + 1):
+            if not (0 <= r < rows and 0 <= c < columns):
+                continue
+            tx, ty = (c + side_columns) * TILE_W, r * TILE_H
+            ax, ay = max(tx, x0), max(ty, y0)
+            bx, by = min(tx + TILE_W, x0 + w), min(ty + TILE_H, y0 + h)
+            part = mask[ay - y0:by - y0, ax - x0:bx - x0]
+            if not part.any():
+                continue
+            # The ground: the most common tile among those round it where nothing stands.
+            counts = {}
+            for rr in range(max(r - 2, 0), min(r + 3, rows)):
+                for cc in range(max(c - 2, 0), min(c + 3, columns)):
+                    if (rr, cc) == (r, c):
+                        continue
+                    sx, sy = (cc + side_columns) * TILE_W, rr * TILE_H
+                    if taken[sy:sy + TILE_H, sx:sx + TILE_W].any():
+                        continue
+                    counts[tiles[rr, cc]] = counts.get(tiles[rr, cc], 0) + 1
+            if not counts:
+                continue
+            ground = max(counts, key=counts.get)
+            if ground == tiles[r, c]:
+                continue  # the tile is the ground already: the object isn't painted into it
+            best = None
+            for rr in range(max(r - 6, 0), min(r + 7, rows)):
+                for cc in range(columns):
+                    if tiles[rr, cc] != ground:
+                        continue
+                    sx, sy = (cc + side_columns) * TILE_W, rr * TILE_H
+                    if taken[sy:sy + TILE_H, sx:sx + TILE_W].any():
+                        continue
+                    d = abs(rr - r) * 2 + abs(cc - c)
+                    if best is None or d < best[0]:
+                        best = (d, (cc - c) * TILE_W, (rr - r) * TILE_H)
+            if best is not None:
+                out.append((ax, ay, part, best[1:]))
+    return out
+
+
+def side_mask(info, tiles, mask, x0, y0):
+    """The part of a mask over the map's generated side columns."""
+    h, w = mask.shape
+    left = info["side_columns"] * TILE_W
+    right = left + tiles.shape[1] * TILE_W
+    xs = np.arange(x0, x0 + w)
+    outside = (xs < left) | (xs >= right)
+    return mask & outside[None, :]
 
 
 def build(name, by_level):
@@ -118,6 +196,9 @@ def build(name, by_level):
     m = (rgb * 255 + 0.5).astype(np.int16)
     found = []
     taken = np.zeros(m.shape[:2], bool)
+    for x, y, size in standing:  # no ground is taken from where any enemy stands
+        x, y = int(round(x)), int(round(y))
+        taken[max(y - 16, 0):y + 16, max(x - 14, 0):x + 14] = True
     for x, y, size in standing:
         frac, at, eq = best_match(m, int(round(x)), int(round(y)), size, cells)
         if frac < MIN_MATCH:
@@ -126,14 +207,20 @@ def build(name, by_level):
         h, w = eq.shape
         mask = ndimage.binary_dilation(eq, iterations=1)  # and the outline's antialiasing
         found.append((x0, y0, mask))
-        taken[y0:y0 + h, x0:x0 + w] = True
     records = []
+    tiles = np.array(info["shapes"])
     for x0, y0, mask in sorted(found, key=lambda f: f[1]):
-        offset = source_offset(m, alpha, mask, x0, y0, taken)
-        if offset is None:
-            continue
-        h, w = mask.shape
-        records.append(struct.pack("<HHBBhh", x0, y0, w, h, offset[0], offset[1]) + mask.astype(np.uint8).tobytes())
+        for rx, ry, part, offset in tile_fills(tiles, info["side_columns"], taken, mask, x0, y0):
+            h, w = part.shape
+            records.append(struct.pack("<HHBBhh", rx, ry, w, h, offset[0], offset[1]) + part.astype(np.uint8).tobytes())
+        # (Off the map's own columns, the generated sides: ground from nearby, as it matches.)
+        side = side_mask(info, tiles, mask, x0, y0)
+        if side.any():
+            offset = source_offset(m, alpha, side, x0, y0, taken)
+            if offset is not None:
+                h, w = side.shape
+                records.append(struct.pack("<HHBBhh", x0, y0, w, h, offset[0], offset[1]) + side.astype(np.uint8).tobytes())
+    records.sort(key=lambda r: struct.unpack("<H", r[2:4])[0])
     if not records:
         if os.path.exists(path):
             os.remove(path)
