@@ -3,6 +3,7 @@
  */
 #include "volume3d.h"
 
+#include "lvlmast.h"
 #include "palette.h"
 
 #include <math.h>
@@ -298,6 +299,305 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 	*vertex_count = vc;
 	#undef COVERED
 	#undef COVERED_IN
+	#undef CORNER
+	return ic;
+}
+
+/* --- HD volumes ---------------------------------------------------------------------------- */
+
+const char *v3d_sheet_name(const Sprite2_array *sheet)
+{
+	static char name[16];
+	if (sheet == &spriteSheet11)
+		return "coins";
+	if (sheet == &spriteSheet10)
+		return "powerups";
+	if (sheet == &spriteSheet9)
+		return "ships";
+	if (sheet == &spriteSheetT2000)
+		return "ships_t2000";
+	if (sheet == &spriteSheet8)
+		return "shots";
+	if (sheet == &spriteSheet12)
+		return "shots2";
+	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
+		if (sheet == &enemySpriteSheets[k] && enemySpriteSheetIds[k] > 0 && enemySpriteSheetIds[k] <= COUNTOF(shapeFile))
+		{
+			const char letter = shapeFile[enemySpriteSheetIds[k] - 1];
+			if (SDL_isalnum((unsigned char)letter))
+				snprintf(name, sizeof(name), "enemy_%c", letter);
+			else
+				snprintf(name, sizeof(name), "enemy_x%02x", (unsigned char)letter);
+			return name;
+		}
+	return NULL;
+}
+
+// The sprite's region in the HD sheet; false if it doesn't fit.
+static bool hd_region(int sheet_w, int sheet_h, unsigned int index, bool large, int *ox, int *oy, int *w, int *h)
+{
+	if (index == 0 || index > V3D_COLUMNS * V3D_ROWS)
+		return false;
+	*w = (large ? 2 * V3D_CELL_W : V3D_CELL_W) * V3D_HD_SCALE;
+	*h = (large ? 2 * V3D_CELL_H : V3D_CELL_H) * V3D_HD_SCALE;
+	*ox = (int)((index - 1) % V3D_COLUMNS) * V3D_CELL_W * V3D_HD_SCALE;
+	*oy = (int)((index - 1) / V3D_COLUMNS) * V3D_CELL_H * V3D_HD_SCALE;
+	return *ox + *w <= sheet_w && *oy + *h <= sheet_h;
+}
+
+bool v3d_hd_has_sprite(const Uint8 *rgba, int sheet_w, int sheet_h, unsigned int index, bool large)
+{
+	int ox, oy, w, h;
+	if (rgba == NULL || !hd_region(sheet_w, sheet_h, index, large, &ox, &oy, &w, &h))
+		return false;
+	int opaque = 0;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+			opaque += rgba[((size_t)(oy + y) * sheet_w + ox + x) * 4 + 3] >= 128;
+	return opaque >= 16;
+}
+
+int v3d_build_hd_mesh(const Uint8 *rgba, int sheet_w, int sheet_h, unsigned int index, bool large, V3DStyle style,
+                      Uint8 open_sides, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices)
+{
+	*vertex_count = 0;
+	int ox, oy, w, h;
+	if (rgba == NULL || !hd_region(sheet_w, sheet_h, index, large, &ox, &oy, &w, &h))
+		return 0;
+	const int gw = w / V3D_HD_STEP, gh = h / V3D_HD_STEP;
+	const float unit = (float)V3D_HD_STEP / V3D_HD_SCALE;  // game pixels per grid step
+	const float half_w = w / (2.0f * V3D_HD_SCALE), half_h = h / (2.0f * V3D_HD_SCALE);
+
+	static float cell_alpha[V3D_HD_GRID_W * V3D_HD_GRID_H], corner_alpha[(V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1)];
+	static float corner_lum[(V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1)];
+	static float distance[(V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1)], height[(V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1)];
+	static float position[(V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1)][2];
+	#define CORNER(cx, cy) ((cy) * (gw + 1) + (cx))
+	for (int gy = 0; gy < gh; ++gy)
+		for (int gx = 0; gx < gw; ++gx)
+		{
+			float sum = 0;
+			for (int y = 0; y < V3D_HD_STEP; ++y)
+				for (int x = 0; x < V3D_HD_STEP; ++x)
+					sum += rgba[((size_t)(oy + gy * V3D_HD_STEP + y) * sheet_w + ox + gx * V3D_HD_STEP + x) * 4 + 3];
+			cell_alpha[gy * gw + gx] = sum / (255.0f * V3D_HD_STEP * V3D_HD_STEP);
+		}
+	// Cells: inside where the upscale is mostly opaque; beyond an open side as the edge cell.
+	// Next to an open side the upscale fades out (it was made without the next part): there, cells
+	// count as inside at a lower alpha, so the parts meet without a gap.
+	#define NEAR_OPEN(gx, gy) (((open_sides & V3D_OPEN_LEFT) && (gx) < 3) || ((open_sides & V3D_OPEN_RIGHT) && (gx) >= gw - 3) || \
+		((open_sides & V3D_OPEN_TOP) && (gy) < 3) || ((open_sides & V3D_OPEN_BOTTOM) && (gy) >= gh - 3))
+	#define INSIDE_IN(gx, gy) ((gx) >= 0 && (gx) < gw && (gy) >= 0 && (gy) < gh && \
+		cell_alpha[(gy) * gw + (gx)] >= (NEAR_OPEN(gx, gy) ? 0.08f : 0.5f))
+	#define INSIDE(gx, gy) (INSIDE_IN(gx, gy) || \
+		((gx) == -1 && (open_sides & V3D_OPEN_LEFT) && INSIDE_IN(0, gy)) || \
+		((gx) == gw && (open_sides & V3D_OPEN_RIGHT) && INSIDE_IN(gw - 1, gy)) || \
+		((gy) == -1 && (open_sides & V3D_OPEN_TOP) && INSIDE_IN(gx, 0)) || \
+		((gy) == gh && (open_sides & V3D_OPEN_BOTTOM) && INSIDE_IN(gx, gh - 1)))
+
+	for (int cy = 0; cy <= gh; ++cy)
+		for (int cx = 0; cx <= gw; ++cx)
+		{
+			// The corner's alpha and brightness: the HD pixels round it (2 x 2), clamped to the sprite.
+			float alpha = 0, lum = 0, weight = 0;
+			for (int y = cy * V3D_HD_STEP - 2; y < cy * V3D_HD_STEP + 2; ++y)
+				for (int x = cx * V3D_HD_STEP - 2; x < cx * V3D_HD_STEP + 2; ++x)
+				{
+					const int px = SDL_clamp(x, 0, w - 1), py = SDL_clamp(y, 0, h - 1);
+					const bool outside = x != px || y != py;
+					const bool open = (x < 0 && (open_sides & V3D_OPEN_LEFT)) || (x >= w && (open_sides & V3D_OPEN_RIGHT)) ||
+					                  (y < 0 && (open_sides & V3D_OPEN_TOP)) || (y >= h && (open_sides & V3D_OPEN_BOTTOM));
+					const Uint8 *p = &rgba[((size_t)(oy + py) * sheet_w + ox + px) * 4];
+					const float a = outside && !open ? 0.0f : p[3] / 255.0f;
+					alpha += a;
+					lum += a * (0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2]) / 255.0f;
+					weight += a;
+				}
+			corner_alpha[CORNER(cx, cy)] = alpha / 16.0f;
+			corner_lum[CORNER(cx, cy)] = weight > 0 ? lum / weight : 0.5f;
+			const bool inside = INSIDE(cx - 1, cy - 1) && INSIDE(cx, cy - 1) && INSIDE(cx - 1, cy) && INSIDE(cx, cy);
+			distance[CORNER(cx, cy)] = inside ? 1e9f : 0.0f;
+		}
+
+	// Distance from the outline (two-pass chamfer), in grid steps.
+	const float diagonal = 1.41421356f;
+	for (int cy = 0; cy <= gh; ++cy)
+		for (int cx = 0; cx <= gw; ++cx)
+		{
+			float *d = &distance[CORNER(cx, cy)];
+			if (cx > 0)            *d = SDL_min(*d, distance[CORNER(cx - 1, cy)] + 1);
+			if (cy > 0)            *d = SDL_min(*d, distance[CORNER(cx, cy - 1)] + 1);
+			if (cx > 0 && cy > 0)  *d = SDL_min(*d, distance[CORNER(cx - 1, cy - 1)] + diagonal);
+			if (cx < gw && cy > 0) *d = SDL_min(*d, distance[CORNER(cx + 1, cy - 1)] + diagonal);
+		}
+	for (int cy = gh; cy >= 0; --cy)
+		for (int cx = gw; cx >= 0; --cx)
+		{
+			float *d = &distance[CORNER(cx, cy)];
+			if (cx < gw)            *d = SDL_min(*d, distance[CORNER(cx + 1, cy)] + 1);
+			if (cy < gh)            *d = SDL_min(*d, distance[CORNER(cx, cy + 1)] + 1);
+			if (cx < gw && cy < gh) *d = SDL_min(*d, distance[CORNER(cx + 1, cy + 1)] + diagonal);
+			if (cx > 0 && cy < gh)  *d = SDL_min(*d, distance[CORNER(cx - 1, cy + 1)] + diagonal);
+		}
+
+	// The body: a low rim, rising round to full height a few pixels in; the upscale's light and dark
+	// detail raised and sunk on top (more of it inside). Flat (ground) objects stay low.
+	const bool flat = style == V3D_STYLE_FLAT;
+	const float max_height = flat ? 0.6f : (large ? 6.5f : 3.8f);
+	const float rim = flat ? 0.05f : (large ? 0.8f : 0.5f);  // ground objects meet the ground without a step
+	const float round_distance = flat ? 1.5f : large ? 5.0f : 3.0f;
+	const float relief = flat ? 0.4f : (large ? 1.8f : 1.0f);
+	for (int cy = 0; cy <= gh; ++cy)
+		for (int cx = 0; cx <= gw; ++cx)
+		{
+			const float t = SDL_min(distance[CORNER(cx, cy)] * unit / round_distance, 1.0f);
+			float value = rim + (max_height - rim) * sqrtf(1.0f - (1.0f - t) * (1.0f - t));
+			// The detail smoothed over its neighbours, so it is relief rather than noise.
+			float lum = 0;
+			int n = 0;
+			for (int y = SDL_max(cy - 1, 0); y <= SDL_min(cy + 1, gh); ++y)
+				for (int x = SDL_max(cx - 1, 0); x <= SDL_min(cx + 1, gw); ++x)
+				{
+					lum += corner_lum[CORNER(x, y)];
+					++n;
+				}
+			value += relief * t * (lum / n - 0.5f);
+			height[CORNER(cx, cy)] = SDL_max(value, rim * 0.5f);
+		}
+
+	// Corners on the outline move to where the upscale's alpha crosses one half, so the outline is
+	// smooth rather than in steps (not on open sides, where the sprite goes on).
+	for (int cy = 0; cy <= gh; ++cy)
+		for (int cx = 0; cx <= gw; ++cx)
+		{
+			float dx = 0, dy = 0;
+			const int inside = INSIDE(cx - 1, cy - 1) + INSIDE(cx, cy - 1) + INSIDE(cx - 1, cy) + INSIDE(cx, cy);
+			const bool on_open = (cx == 0 && (open_sides & V3D_OPEN_LEFT)) || (cx == gw && (open_sides & V3D_OPEN_RIGHT)) ||
+			                     (cy == 0 && (open_sides & V3D_OPEN_TOP)) || (cy == gh && (open_sides & V3D_OPEN_BOTTOM));
+			if (inside > 0 && inside < 4 && !on_open)
+			{
+				const float gx = corner_alpha[CORNER(SDL_min(cx + 1, gw), cy)] - corner_alpha[CORNER(SDL_max(cx - 1, 0), cy)];
+				const float gy = corner_alpha[CORNER(cx, SDL_min(cy + 1, gh))] - corner_alpha[CORNER(cx, SDL_max(cy - 1, 0))];
+				const float g = sqrtf(gx * gx + gy * gy);
+				if (g > 0.05f)
+				{
+					const float shift = SDL_clamp(-(corner_alpha[CORNER(cx, cy)] - 0.5f) / (g * 0.5f), -0.75f, 0.75f);
+					dx = gx / g * shift;
+					dy = gy / g * shift;
+				}
+			}
+			position[CORNER(cx, cy)][0] = cx + dx;
+			position[CORNER(cx, cy)][1] = cy + dy;
+		}
+
+	int vc = 0;
+	for (int cy = 0; cy <= gh; ++cy)
+		for (int cx = 0; cx <= gw; ++cx)
+		{
+			const float hl = height[CORNER(SDL_max(cx - 1, 0), cy)], hr = height[CORNER(SDL_min(cx + 1, gw), cy)];
+			const float hu = height[CORNER(cx, SDL_max(cy - 1, 0))], hd = height[CORNER(cx, SDL_min(cy + 1, gh))];
+			const float span_x = (SDL_min(cx + 1, gw) - SDL_max(cx - 1, 0)) * unit;
+			const float span_z = (SDL_min(cy + 1, gh) - SDL_max(cy - 1, 0)) * unit;
+			float n[3] = { -(hr - hl) / span_x, 1.0f, -(hd - hu) / span_z };
+			const float length = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+			const float *p = position[CORNER(cx, cy)];
+			V3DVertex *v = &vertices[vc++];
+			memset(v, 0, sizeof(*v));
+			v->position[0] = p[0] * unit - half_w;
+			v->position[1] = height[CORNER(cx, cy)];
+			v->position[2] = p[1] * unit - half_h;
+			v->normal[0] = n[0] / length;
+			v->normal[1] = n[1] / length;
+			v->normal[2] = n[2] / length;
+			v->uv[0] = (ox + p[0] * V3D_HD_STEP) / (float)sheet_w;
+			v->uv[1] = (oy + p[1] * V3D_HD_STEP) / (float)sheet_h;
+			v->tangent[0] = 1;
+			v->tangent[3] = 1;
+			v->color[0] = v->color[1] = v->color[2] = shade(v->normal, light);
+			v->color[3] = 1;
+		}
+
+	int ic = 0;
+	for (int gy = 0; gy < gh; ++gy)
+		for (int gx = 0; gx < gw; ++gx)
+		{
+			if (!INSIDE(gx, gy))
+				continue;
+			const Uint32 a = CORNER(gx, gy), b = CORNER(gx + 1, gy), c = CORNER(gx + 1, gy + 1), d = CORNER(gx, gy + 1);
+			indices[ic++] = a;
+			indices[ic++] = b;
+			indices[ic++] = c;
+			indices[ic++] = a;
+			indices[ic++] = c;
+			indices[ic++] = d;
+		}
+
+	// Walls down to the base along the outline, in the colour just inside it.
+	static const int edges[4][2] = { { 0, -1 }, { 1, 0 }, { 0, 1 }, { -1, 0 } };  // top, right, bottom, left
+	for (int gy = 0; gy < gh; ++gy)
+		for (int gx = 0; gx < gw; ++gx)
+		{
+			if (!INSIDE(gx, gy))
+				continue;
+			const float u = (ox + (gx + 0.5f) * V3D_HD_STEP) / (float)sheet_w, v = (oy + (gy + 0.5f) * V3D_HD_STEP) / (float)sheet_h;
+			for (int e = 0; e < 4; ++e)
+			{
+				if (INSIDE(gx + edges[e][0], gy + edges[e][1]))
+					continue;
+				int x0, y0, x1, y1;
+				switch (e)  // edge corners, clockwise seen from above
+				{
+				case 0:  x0 = gx;     y0 = gy;     x1 = gx + 1; y1 = gy;     break;
+				case 1:  x0 = gx + 1; y0 = gy;     x1 = gx + 1; y1 = gy + 1; break;
+				case 2:  x0 = gx + 1; y0 = gy + 1; x1 = gx;     y1 = gy + 1; break;
+				default: x0 = gx;     y0 = gy + 1; x1 = gx;     y1 = gy;     break;
+				}
+				const float *p0 = position[CORNER(x0, y0)], *p1 = position[CORNER(x1, y1)];
+				// Facing out: the edge turned a quarter (clockwise edges, so (dz, -dx) points out).
+				float nx = p1[1] - p0[1], nz = -(p1[0] - p0[0]);
+				const float nl = sqrtf(nx * nx + nz * nz);
+				if (nl < 1e-4f)
+				{
+					nx = (float)edges[e][0];
+					nz = (float)edges[e][1];
+				}
+				else
+				{
+					nx /= nl;
+					nz /= nl;
+				}
+				const float top[2] = { height[CORNER(x0, y0)], height[CORNER(x1, y1)] };
+				const float *ends[2] = { p0, p1 };
+				const Uint32 base = (Uint32)vc;
+				for (int k = 0; k < 4; ++k)
+				{
+					const int side = (k == 1 || k == 2) ? 1 : 0;
+					V3DVertex *wv = &vertices[vc++];
+					memset(wv, 0, sizeof(*wv));
+					wv->position[0] = ends[side][0] * unit - half_w;
+					wv->position[1] = k < 2 ? top[side] : 0.0f;
+					wv->position[2] = ends[side][1] * unit - half_h;
+					wv->normal[0] = nx;
+					wv->normal[2] = nz;
+					wv->uv[0] = u;
+					wv->uv[1] = v;
+					wv->tangent[0] = 1;
+					wv->tangent[3] = 1;
+					wv->color[0] = wv->color[1] = wv->color[2] = shade(wv->normal, light) * 0.85f;
+					wv->color[3] = 1;
+				}
+				indices[ic++] = base;
+				indices[ic++] = base + 1;
+				indices[ic++] = base + 2;
+				indices[ic++] = base;
+				indices[ic++] = base + 2;
+				indices[ic++] = base + 3;
+			}
+		}
+	*vertex_count = vc;
+	#undef INSIDE
+	#undef INSIDE_IN
+	#undef NEAR_OPEN
 	#undef CORNER
 	return ic;
 }

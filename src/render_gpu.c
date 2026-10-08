@@ -23,6 +23,9 @@
 #include <btbh_gpu/btbh_gpu.h>
 
 #include "cgltf.h"
+#include "pcxmast.h"
+
+#include <zlib.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -104,6 +107,7 @@ static LoadedModel loaded_models[M3D_MAX_MODELS];
 
 typedef struct VolumeSheet VolumeSheet;
 static void forget_volume_sheets(void);
+static void forget_hd_sheets(void);
 static Uint32 hash_colors(const Uint32 colors[256]);
 static void forget_terrain(void);
 static float cloud_noise(float x, float z, float cell, Uint32 seed);
@@ -587,6 +591,7 @@ void rgpu_shutdown(void)
 {
 	memset(loaded_models, 0, sizeof(loaded_models));  // owned by the window
 	forget_volume_sheets();
+	forget_hd_sheets();
 	forget_terrain();
 
 	if (window != NULL)
@@ -1940,11 +1945,173 @@ static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprit
 	return *mesh;
 }
 
+/*
+ * HD volumes: sheets upscaled 4x (tools/hd_sheets.py, in TYR3D_UPSCALE_DIR/sheets) give the volumes
+ * a smooth outline and the upscale's detail (v3d_build_hd_mesh). Their pictures are in the levels'
+ * palette: the frame's palette (fades) tints them; filtered sprites and sprites the upscale lacks
+ * keep the original pixels. TYR3D_HD=0 turns them off.
+ */
+#define MAX_HD_SHEETS 24
+
+typedef struct
+{
+	char name[16];
+	bool tried;
+	Uint8 *rgba;
+	int w, h;
+	BTBHGPUTexture *texture;
+	Sint8 has[SHEET_SPRITES + 1][2];  // -1 unknown, 0 no, 1 yes; by sprite and large
+	BTBHGPUCustomMesh *meshes[V3D_STYLE_COUNT][2][16][SHEET_SPRITES + 1];
+	bool mesh_built[V3D_STYLE_COUNT][2][16][SHEET_SPRITES + 1];
+} HDSheet;
+
+static HDSheet *hd_sheets[MAX_HD_SHEETS];
+static int hd_sheet_count = 0;
+
+static bool hd_enabled(void)
+{
+	static int enabled = -1;
+	if (enabled < 0)
+		enabled = SDL_getenv("TYR3D_HD") == NULL || SDL_atoi(SDL_getenv("TYR3D_HD")) != 0;
+	return enabled != 0;
+}
+
+static HDSheet *get_hd_sheet(const Sprite2_array *sheet)
+{
+	const char *name = v3d_sheet_name(sheet);
+	if (name == NULL || !hd_enabled())
+		return NULL;
+	for (int i = 0; i < hd_sheet_count; ++i)
+		if (strcmp(hd_sheets[i]->name, name) == 0)
+			return hd_sheets[i]->texture != NULL ? hd_sheets[i] : NULL;
+	if (hd_sheet_count == MAX_HD_SHEETS)
+		return NULL;
+	HDSheet *hd = calloc(1, sizeof(HDSheet));
+	if (hd == NULL)
+		return NULL;
+	hd_sheets[hd_sheet_count++] = hd;
+	SDL_strlcpy(hd->name, name, sizeof(hd->name));
+	memset(hd->has, -1, sizeof(hd->has));
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/sheets/%s.hd",
+	         tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir)), name);
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return NULL;
+	Uint8 header[12];
+	Uint8 *packed = NULL;
+	long packed_size = 0;
+	if (fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYHD", 4) == 0)
+	{
+		fseek(f, 0, SEEK_END);
+		packed_size = ftell(f) - (long)sizeof(header);
+		fseek(f, (long)sizeof(header), SEEK_SET);
+		packed = packed_size > 0 ? malloc((size_t)packed_size) : NULL;
+		if (packed != NULL && fread(packed, 1, (size_t)packed_size, f) != (size_t)packed_size)
+		{
+			free(packed);
+			packed = NULL;
+		}
+	}
+	fclose(f);
+	if (packed == NULL)
+		return NULL;
+	Uint32 size_values[2];
+	memcpy(size_values, header + 4, sizeof(size_values));
+	hd->w = (int)SDL_Swap32LE(size_values[0]);
+	hd->h = (int)SDL_Swap32LE(size_values[1]);
+	uLongf size = (uLongf)hd->w * (uLongf)hd->h * 4;
+	hd->rgba = malloc(size);
+	if (hd->rgba == NULL || uncompress(hd->rgba, &size, packed, (uLong)packed_size) != Z_OK || size != (uLongf)hd->w * hd->h * 4)
+	{
+		free(packed);
+		free(hd->rgba);
+		hd->rgba = NULL;
+		return NULL;
+	}
+	free(packed);
+	BTBHGPUTextureReport report;
+	hd->texture = btbh_gpu_window_texture_create_rgba8_ex(window, hd->rgba, (uint32_t)hd->w, (uint32_t)hd->h, 1,
+		BTBH_GPU_TEXTURE_FILTER_LINEAR, BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+	if (hd->texture == NULL)
+		fprintf(stderr, "warning: HD sheet %s: %s\n", name, report.message);
+	else
+		printf("hd: %s (%d x %d)\n", path, hd->w, hd->h);
+	return hd->texture != NULL ? hd : NULL;
+}
+
+// The GPU objects go with the window; the pictures stay.
+static void forget_hd_sheets(void)
+{
+	for (int i = 0; i < hd_sheet_count; ++i)
+	{
+		free(hd_sheets[i]->rgba);
+		free(hd_sheets[i]);
+	}
+	hd_sheet_count = 0;
+}
+
+static BTBHGPUCustomMesh *get_hd_mesh(HDSheet *hd, unsigned int sprite, bool large, int style, Uint8 open)
+{
+	if (sprite == 0 || sprite > SHEET_SPRITES || style < 0 || style >= V3D_STYLE_COUNT)
+		return NULL;
+	if (hd->has[sprite][large] < 0)
+		hd->has[sprite][large] = (Sint8)v3d_hd_has_sprite(hd->rgba, hd->w, hd->h, sprite, large);
+	if (!hd->has[sprite][large])
+		return NULL;
+	open &= 15;
+	BTBHGPUCustomMesh **mesh = &hd->meshes[style][large][open][sprite];
+	if (!hd->mesh_built[style][large][open][sprite])
+	{
+		hd->mesh_built[style][large][open][sprite] = true;
+		static V3DVertex vertices[V3D_HD_MAX_VERTICES];
+		static Uint32 indices[V3D_HD_MAX_INDICES];
+		int vertex_count = 0;
+		const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+		                           sun_direction[2] * sun_direction[2]);
+		const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
+		const int index_count = v3d_build_hd_mesh(hd->rgba, hd->w, hd->h, sprite, large, (V3DStyle)style, open, light,
+		                                          vertices, &vertex_count, indices);
+		if (index_count > 0)
+		{
+			BTBHGPUCustomMeshReport report;
+			*mesh = btbh_gpu_window_custom_mesh_create(window, vertices, (uint32_t)(vertex_count * sizeof(V3DVertex)),
+			                                           (uint32_t)vertex_count, indices, (uint32_t)index_count, &report);
+			if (*mesh == NULL)
+				fprintf(stderr, "warning: HD volume mesh: %s\n", report.message);
+		}
+	}
+	return *mesh;
+}
+
+// How the frame's palette differs from the levels' palette the HD pictures are in, per channel
+// (fades to black or white), as a tint.
+static void hd_tint(const Uint32 colors[256], float tint[3])
+{
+	const SDL_Color *reference = palettes[pcxpal[3 - 1]];
+	float now[3] = { 0, 0, 0 }, then[3] = { 0, 0, 0 };
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *c = (const Uint8 *)&colors[i];
+		now[0] += c[0];
+		now[1] += c[1];
+		now[2] += c[2];
+		then[0] += reference[i].r;
+		then[1] += reference[i].g;
+		then[2] += reference[i].b;
+	}
+	for (int k = 0; k < 3; ++k)
+		tint[k] = SDL_clamp((now[k] + 1) / (then[k] + 1), 0.0f, 2.0f);
+}
+
 static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *batch_count)
 {
 	Uint32 colors[256];
 	frame_colors(frame, colors);
 	const Uint32 colors_hash = hash_colors(colors);
+	float tint[3];
+	hd_tint(colors, tint);
 
 	bool done[L3D_MAX_OBJECTS] = { false };
 	for (int o = 0; o < frame->object_count; ++o)
@@ -1954,8 +2121,15 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			continue;
 
 		VolumeSheet *entry = get_volume_sheet(first->sheet, colors, colors_hash);
-		BTBHGPUCustomMesh *mesh = entry != NULL ? get_volume_mesh(entry, first->sprite, first->large, first->style,
-		                                                          first->open_sides) : NULL;
+		BTBHGPUCustomMesh *mesh = NULL;
+		HDSheet *hd = first->filter == 0 ? get_hd_sheet(first->sheet) : NULL;
+		if (hd != NULL)
+			mesh = get_hd_mesh(hd, first->sprite, first->large, first->style, first->open_sides);
+		if (mesh == NULL)
+		{
+			hd = NULL;
+			mesh = entry != NULL ? get_volume_mesh(entry, first->sprite, first->large, first->style, first->open_sides) : NULL;
+		}
 
 		// All objects showing the same sprite in the same state share one batch.
 		const int first_instance = *instance_count;
@@ -1978,7 +2152,10 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 				mat4_rotation(2, -object->roll),
 			};
 			const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
-			write_instance(instances + *instance_count * 24, &transform, 1.0f);
+			float *instance = instances + *instance_count * 24;
+			write_instance(instance, &transform, 1.0f);
+			if (hd != NULL)
+				memcpy(instance + 16, tint, sizeof(tint));
 			++*instance_count;
 		}
 
@@ -1992,9 +2169,9 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 		b->custom_mesh = mesh;
 		b->first_instance = first_instance;
 		b->instance_count = count;
-		b->albedo_texture = filtered_volume_texture(entry, colors, colors_hash, first->filter);
+		b->albedo_texture = hd != NULL ? hd->texture : filtered_volume_texture(entry, colors, colors_hash, first->filter);
 		b->unlit_enabled = 1;  // shaded by the mesh's vertex colours (v3d_build_mesh)
-		b->alpha_cutoff = 0.5f;
+		b->alpha_cutoff = hd != NULL ? 0.1f : 0.5f;  // HD: the mesh has the outline
 		if (first->ghost)
 		{
 			b->transparency_enabled = 1;

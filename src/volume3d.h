@@ -65,6 +65,29 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
                    V3DStyle style, Uint8 open_sides, const float light[3], V3DVertex *vertices, int *vertex_count,
                    Uint32 *indices);
 
+/*
+ * HD volumes (polish): the same, from a sprite sheet upscaled 4x (tools/hd_sheets.py: RGBA, the
+ * sheet's layout at 4x). The outline follows the upscale's alpha (vertices snapped to where it
+ * crosses one half), the body is rounded and higher, and the top takes the upscale's detail.
+ * Vertices every V3D_HD_STEP upscaled pixels.
+ */
+#define V3D_HD_SCALE 4
+#define V3D_HD_STEP 2
+#define V3D_HD_GRID_W (2 * V3D_CELL_W * V3D_HD_SCALE / V3D_HD_STEP)
+#define V3D_HD_GRID_H (2 * V3D_CELL_H * V3D_HD_SCALE / V3D_HD_STEP)
+#define V3D_HD_MAX_VERTICES ((V3D_HD_GRID_W + 1) * (V3D_HD_GRID_H + 1) + V3D_HD_GRID_W * V3D_HD_GRID_H * 8)
+#define V3D_HD_MAX_INDICES (V3D_HD_GRID_W * V3D_HD_GRID_H * 6 + V3D_HD_GRID_W * V3D_HD_GRID_H * 12)
+
+int v3d_build_hd_mesh(const Uint8 *rgba, int sheet_w, int sheet_h, unsigned int index, bool large, V3DStyle style,
+                      Uint8 open_sides, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices);
+
+// Whether a sprite has pixels in an HD sheet (any alpha in its cells).
+bool v3d_hd_has_sprite(const Uint8 *rgba, int sheet_w, int sheet_h, unsigned int index, bool large);
+
+// A sprite sheet's name as TYR3D_EXTRACT and tools/hd_sheets.py give it (enemy_<letter>, coins,
+// powerups, ships, shots...), or NULL.
+const char *v3d_sheet_name(const Sprite2_array *sheet);
+
 #define V3D_OPEN_TOP    1u
 #define V3D_OPEN_RIGHT  2u
 #define V3D_OPEN_BOTTOM 4u
