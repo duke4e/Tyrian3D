@@ -12,7 +12,7 @@
 
 #include "layer3d.h"
 
-#define M3D_MAX_MODELS 1024
+#define M3D_MAX_MODELS 4096
 
 // Appearance kinds besides a model index (>= 0).
 #define M3D_SPRITE (-1)  // the original sprite in its layer

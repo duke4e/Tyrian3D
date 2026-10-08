@@ -50,7 +50,7 @@ typedef struct
 static int rule_count;
 static EnemyRule rules[MAX_RULES];
 static int override_count;
-static SpriteOverride overrides[2048];
+static SpriteOverride overrides[4096];
 static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
