@@ -395,6 +395,8 @@ static bool draw_enemy_model(unsigned int i)
 
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
 	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
+	if (added && look.layer > 0)
+		l3d_layer_last_object((L3DLayerType)(look.layer - 1));  // a piece of an object on another layer
 	float vx, vy;
 	l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
 	// An enemy that has just appeared moves on as the game will move it.

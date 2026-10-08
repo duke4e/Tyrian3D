@@ -205,6 +205,9 @@ void l3d_pointer_last_object(void);
 // The volumetric sprite recorded last continues on these sides (V3D_OPEN_*) in another part of
 // the same enemy (the parts of large enemies and bosses join without a seam).
 void l3d_open_last_object(Uint8 sides);
+// The last object added is drawn at another layer's height (pieces of one object the game draws
+// on different layers).
+void l3d_layer_last_object(L3DLayerType type);
 extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).

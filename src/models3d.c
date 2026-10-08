@@ -153,6 +153,12 @@ static bool parse_option(const char *token, M3DAppearance *a)
 		a->height = option_float(value, 0.0f);
 		return true;
 	}
+	if (key_length == 5 && strncmp(token, "layer", 5) == 0)
+	{
+		a->layer = 1 + (strcmp(value, "ground") == 0 ? L3D_GROUND_ENEMY : strcmp(value, "sky") == 0 ? L3D_SKY_ENEMY :
+		                strcmp(value, "top") == 0 ? L3D_TOP_ENEMY : -1);
+		return a->layer > 0;
+	}
 	if (key_length == 7 && strncmp(token, "banking", 7) == 0)
 	{
 		a->banking = strcmp(value, "off") != 0 && strcmp(value, "0") != 0;

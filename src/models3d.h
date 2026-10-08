@@ -48,6 +48,7 @@ typedef struct
 	bool recolor;       // palette materials take the colour ramp of the sprite's current frame
 	float glow_size;    // a glow in the sprite's colour this wide (game pixels); 0 none
 	float glow_strength;
+	int layer;          // drawn at this layer's height (L3DLayerType + 1) whatever layer the game uses; 0 its own
 } M3DAppearance;
 
 // Sheet letters for the enemies drawn from the coins and gems sheet and from the power-ups sheet

@@ -324,6 +324,12 @@ void l3d_open_last_object(Uint8 sides)
 		l3d_frame.objects[l3d_frame.object_count - 1].open_sides = sides;
 }
 
+void l3d_layer_last_object(L3DLayerType type)
+{
+	if (l3d_capturing && l3d_frame.object_count > 0)
+		l3d_frame.objects[l3d_frame.object_count - 1].layer = type;
+}
+
 void l3d_pointer_last_object(void)
 {
 	if (l3d_capturing && l3d_frame.object_count > 0)
