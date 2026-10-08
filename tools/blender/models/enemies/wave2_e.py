@@ -1,8 +1,9 @@
 """Wave 2, batch E of the enemy models, authored as their sprites look (models.cfg: yaw=0 unless noted):
 
-- station_end_left / station_end_right (sheet L 24 / 34): the ends of the space station's steel axle in
-  STATION and TIME WAR (its middle is drawn by the background): a knob, a tube, two flanges with red
-  lamps and a collar with red clamps, turned round the axle. Mirror images.
+- station_end_left / station_end_right (sheet L 24 / 34): the ends of a steel axle in STATION and TIME
+  WAR, at both sides of the screen with their knobs facing each other (the axle goes on into the
+  background): a knob, a tube, two flanges with red lamps and a collar with red clamps, turned round
+  the axle. Mirror images.
 - gem_pyramid (coins 76): the small red pyramid gem worth 50 credits (items).
 - face_eye (sheet 5 270): the eyeballs of NOSE DRIP's face, authored looking up the screen so that
   yaw=aim turns them after the player (the sprite looks down the screen).
@@ -69,7 +70,7 @@ def mirror_all(objects):
 # --- The ends of the station's axle (sheet L 24 and its mirror image 34) ----------------------------
 
 def station_end(mirror):
-    """The left end of the steel axle (sprite 24; 34 is its mirror image), lying along X: a rounded
+    """The end of the steel axle whose knob points left (sprite 24; 34 is its mirror image), along X: a rounded
     knob, a tube, two flanges with a groove between them and small red lamps on the first one's rim,
     and a collar with red clamps at its sides, cut where the axle goes on into the background. The
     axle's centre is at y = 0.5 (rows 3-23); squashed in height."""

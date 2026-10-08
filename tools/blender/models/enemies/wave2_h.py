@@ -5,14 +5,15 @@
 - bronze_yuanbao (sheet H 93): GYGES' flying bronze ingot, a boat with upturned horns and a dome,
   tilted towards the camera as the sprite draws it.
 - squid_ship (sheet 7 237): the grey and blue ship of CAMANIS and ICE EXIT with hanging claws and a
-  glowing engine (its frames only change the flame: glow).
+  glowing engine (its frames only change the flame, which the model's emissive engine stands for).
 - eyespy_eye (sheet 5 202): EYESPY's eyeball, its pupil authored up the screen (yaw=aim).
 - asteroid_turret (sheet P 13): the grey turret of ASTEROID2 with a bronze dome; its frames are eight
   headings the level picks, so the model is built pointing up the screen and aims at the player.
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
   fire_flap_l_bottom (A 7, 45): the glowing fire flaps of APPROACH, MISTAKES and SOH JIN, each two
-  sprites tall, hinged on one side. Their enemies start (and mostly stay) at the first frame,
-  the flap standing on edge, which is how they are modelled (origin, pieces in shared coordinates).
+  sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
+  make them flap): they show the first frame, the flap standing on edge, which is how they are
+  modelled (origin; the whole flap is built once and cut into the two sprites' pieces).
 - molten_rock (sheet L 115): a ball of lava, plates of crust between glowing cracks.
 - dark_ember (sheet L 118): a dark red pod with a glowing light.
 - asteroid_lumpy (sheet D 5): a grey faceted asteroid.
@@ -22,7 +23,9 @@
 - brain_clamp (sheet 5 166): BRAINIAC's red brain held by grey clamps.
 
 usage: Blender -b --factory-startup -P wave2_h.py -- [--only name,name] [--preview <prefix>]
-       [--check <TYR3D_EXTRACT sheets dir>]
+       [--check <TYR3D_EXTRACT sheets dir>] [--stats 1]
+--preview renders <prefix><name>_top.png and _3q.png, --check prints each model's silhouette overlap
+with its sprite, --stats the triangles per part. Helpers: wave2_h_kit.py.
 """
 import math
 import os
@@ -37,9 +40,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave2_h_kit as kit  # noqa: E402
 from wave2_h_kit import G1, G2, k, pal, sh, smoothstep, round_edge  # noqa: E402
-
-ITEMS = os.path.join(kit.HERE, "..", "..", "..", "..", "assets", "models", "items")
-
 
 # --- 3 180: the tip of the big rock --------------------------------------------------------------
 
@@ -460,8 +460,7 @@ def brain_clamp():
         d = edge(x, y) if d is None else d
         return 0.8 + 5.2 * round_edge(d, 4.0) + 0.35 * folds(x, y) * smoothstep(0.3, 2.0, d)
 
-    values = []
-    body = kit.solid("brain", brain_poly, brain_top, 0.0, flesh[2], spacing=0.7)
+    body = kit.solid("brain", brain_poly, brain_top, 0.0, flesh[2], spacing=0.85)
     kit.band_split(body, [folds(v.co.x, v.co.y) if v.co.z > 1.2 else -2 for v in body.data.vertices],
                    [(-9, flesh[0]), (-0.45, flesh[1]), (0.1, flesh[3]), (0.7, flesh[4])],
                    smooth_angle=60)
@@ -480,7 +479,7 @@ def brain_clamp():
                        else 2.5, 2.5)
             return base + 0.3 + 0.8 * round_edge(d, 0.45)
         kit.solid(f"clamp{i}", [poly], top, 0.4, [metal, metal_light], lambda x, y, z, d: 1 if d > 0.5 else 0,
-                  side_mat=0, spacing=0.45, smooth_angle=40, band=0.7)
+                  side_mat=0, spacing=0.55, smooth_angle=40, band=0.7)
     # Bolts on the corner brackets and the lower clamp.
     for col, row in ((1.6, 2.0), (21.8, 2.5), (11.8, 11.5)):
         x, y = G2.x(col), G2.y(row)
@@ -494,9 +493,9 @@ SQUID_AXIS = 0.5  # the ship is symmetric about column 12's centre
 
 
 def squid_ship():
-    """CAMANIS' ship (sprite 7 237), nose up the screen: a ribbed grey hood with blue panels, a thin
-    blue wing across, a blue keel under it, two claws hanging from the wing and curling in to the
-    ribbed engine at the bottom, whose nozzle glows (the frames only change the flame: glow)."""
+    """CAMANIS' ship (sprite 7 237), nose up the screen: a grey hood with a spine and blue panels, a
+    thin blue wing across, a blue keel under it, two claws hanging from the wing and curling in to
+    the ribbed engine at the bottom, whose nozzle glows."""
     grey = pal("squid_grey", 0x05, metallic=0.5, roughness=0.35)
     grey_light = pal("squid_light", 0x08, metallic=0.5, roughness=0.3)
     dark = pal("squid_dark", 0x02, metallic=0.4, roughness=0.5)
@@ -510,7 +509,7 @@ def squid_ship():
     # at row 6 and blue panels below it.
     hood_rows = {0: (10, 14), 1: (9, 15), 2: (8, 16), 3: (7, 17), 4: (6, 18), 5: (5, 19), 6: (5, 19), 7: (5, 19),
                  8: (4, 20), 9: (3, 21), 10: (2, 22)}
-    left = [(G2.x(c0), G2.y(r)) for r, (c0, c1) in sorted(hood_rows.items())]
+    left = [(G2.x(c0), G2.y(r)) for r, (c0, _c1) in sorted(hood_rows.items())]
     left = [(G2.x(10.2), G2.y(-0.1))] + left + [(G2.x(1.5), G2.y(11.0))]
     outline = left + [(2 * ax - x, y) for x, y in reversed(left)]
     hood_poly = [outline]
@@ -522,7 +521,7 @@ def squid_ship():
         z -= 0.45 * math.exp(-((y - 7.5) / 0.4) ** 2) * smoothstep(2.2, 3.2, u)
         return z
 
-    kit.solid("hood", hood_poly, hood_top, 1.2, grey, spacing=0.5, band=1.6)
+    kit.solid("hood", hood_poly, hood_top, 1.2, grey, spacing=0.6, band=1.4)
     # The spine down its middle (columns 11-13), a rounded ridge sloping to the nose.
     spine = [(G2.y(10.6), 0.6), (G2.y(10.2), 1.45), (G2.y(6), 1.5), (G2.y(3), 1.5), (G2.y(1.6), 1.3), (G2.y(0.9), 0.9),
              (G2.y(0.5), 0.2)]
@@ -532,10 +531,10 @@ def squid_ship():
     # Dark seams in its grooves and blue panels on its lobes (rows 7-10).
     for side in (1, -1):
         gx = ax + side * 2.05
-        groove = kit.catmull([(gx, y, hood_top(gx, y, 9) - 0.12) for y in (G2.y(2.5), G2.y(6), G2.y(10.3))], 0.7)
+        groove = kit.catmull([(gx, y, hood_top(gx, y, 9) - 0.12) for y in (G2.y(2.5), G2.y(6), G2.y(10.3))], 1.0)
         kit.tube(f"groove{side}", groove, [0.28] * len(groove), dark, 8)
         across = kit.catmull([(ax + side * u, G2.y(6.5), hood_top(ax + side * u, G2.y(6.5), 9) - 0.1)
-                              for u in (2.2, 4.5, 6.6)], 0.7)
+                              for u in (2.2, 4.5, 6.6)], 1.0)
         kit.tube(f"across{side}", across, [0.26] * len(across), dark, 8)
         panel = [(2.9, G2.y(7.0)), (5.3, G2.y(7.0)), (5.6, G2.y(10.6)), (3.0, G2.y(10.6))]
         panel = [(ax + side * u, y) for u, y in panel]
@@ -550,19 +549,19 @@ def squid_ship():
         x = ax + t * 11.6
         hw = 1.25 * (1 - abs(t) ** 8) + 0.1
         wing.append((x, G2.y(11.5) + 0.25 * abs(t), 3.9 - 0.6 * abs(t) ** 2, hw, 0.6 * hw + 0.05))
-    kit.section_loft("wing", wing, blue, segments=12, start=(ax - 11.9, wing[0][1], wing[0][2]),
+    kit.section_loft("wing", wing, blue, segments=10, start=(ax - 11.9, wing[0][1], wing[0][2]),
                      end=(ax + 11.9, wing[-1][1], wing[-1][2]))
     # The keel under the wing: a grey neck and a blue shield-shaped hull with a ridge down it.
     keel = [(G2.x(9), G2.y(12)), (G2.x(16), G2.y(12)), (G2.x(16), G2.y(15)), (G2.x(15), G2.y(17)),
             (G2.x(14), G2.y(19)), (G2.x(13.3), G2.y(20)), (G2.x(10.7), G2.y(20)), (G2.x(10), G2.y(19)),
             (G2.x(9), G2.y(17)), (G2.x(8), G2.y(15)), (G2.x(8), G2.y(12))]
     kit.solid("keel", [keel[::-1]], lambda x, y, d: 2.0 + 0.9 * round_edge(d, 0.6) + 2.2 * max(0.0, 1 - abs(x - ax) / 3.6),
-              1.0, [grey, blue], lambda x, y, z, d: 0 if y > G2.y(13.6) else 1, side_mat=0, spacing=0.45,
+              1.0, blue, spacing=0.6,
               smooth_angle=25)
     ridge = kit.catmull([(ax, G2.y(13.8), 5.15), (ax, G2.y(17), 5.1), (ax, G2.y(19.6), 4.6)], 0.6)
     kit.tube("ridge", ridge, [0.32] * len(ridge), blue_light, 8)
     # The claws: from the wing down the sides, blue above, grey below, curling in to the engine.
-    claw = [(5.8, 12.2, 3.6), (5.5, 13.8, 3.5), (4.2, 15.2, 3.3), (3.3, 16.8, 3.1), (3.0, 18.5, 2.9),
+    claw = [(6.2, 12.2, 3.6), (6.0, 13.8, 3.5), (4.5, 15.3, 3.3), (3.3, 16.8, 3.1), (3.0, 18.5, 2.9),
             (3.0, 20.8, 2.7), (3.8, 22.4, 2.6), (5.5, 23.3, 2.5), (7.8, 23.2, 2.4)]
     for side in (1, -1):
         pts = [(G2.x(c + 0.5) if side > 0 else 2 * ax - G2.x(c + 0.5), G2.y(r + 0.5), z) for c, r, z in claw]
@@ -575,7 +574,8 @@ def squid_ship():
     # The engine: a ribbed block (rows 20-24), its nozzle and flame at the bottom.
     engine = [(G2.x(7.5), G2.y(20)), (G2.x(17.5), G2.y(20)), (G2.x(17.5), G2.y(23)), (G2.x(16), G2.y(24.6)),
               (G2.x(9), G2.y(24.6)), (G2.x(7.5), G2.y(23))]
-    kit.solid("engine", [engine[::-1]], lambda x, y, d: 1.4 + 2.4 * round_edge(d, 1.0), 0.6, dark, spacing=0.4)
+    kit.solid("engine", [engine[::-1]], lambda x, y, d: 1.4 + 2.4 * round_edge(d, 1.0), 0.6, dark, spacing=0.55,
+              band=1.1)
     for col in (8.5, 10.5, 12.5, 14.5, 16.5):
         x = G2.x(col)
         kit.lathe(f"rib{col}", [(G2.y(24.2), 0.2), (G2.y(23.9), 0.55), (G2.y(20.4), 0.55), (G2.y(20.1), 0.2)],
@@ -789,7 +789,7 @@ def bronze_yuanbao():
     kit.paint(body, [bronze, rim_mat, hollow_mat, shade], lambda c, n: 2 if (n.z > 0.2 and c.z < 9.6 and
                                                                              abs(c.x) < 8.6 and abs(c.y) < 3.6) else
               1 if c.z > 9.75 and abs(c.x) < 9.2 and n.z > 0.3 else
-              3 if c.x > 0.05 and n.y < -0.3 and c.z < 9.9 else 0)
+              3 if 0.05 < c.x < 8.2 and n.y < -0.3 and c.z < 9.5 else 0)
     # A highlight along the front's crease.
     crease = [Vector(_yuanbao_section(0.0)[i]) for i in range(0, 8)]
     kit.tube("crease", [(0.0, p.x - 0.05, p.y) for p in crease[1:7]], [0.3] * 6, rim_mat, 8)
@@ -808,7 +808,7 @@ MODELS = [
     ("molten_rock", molten_rock, [("L", 115, False)], E),
     ("dark_ember", dark_ember, [("L", 118, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
-    ("asteroid_turret", asteroid_turret, [("P", 15, True)], E),
+    ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
     ("brain_clamp", brain_clamp, [("5", 166, True)], E),

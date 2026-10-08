@@ -1,21 +1,21 @@
 """The batch E models that are pieces of larger objects (wave2_e.py): each object is built whole from its
 pixel art (wave2_e_art.py) and cut along its sprites' edges into the pieces the game draws, each
-moved to its sprite's centre (models.cfg: origin, so that they meet again).
+moved to its sprite's centre (models.cfg: origin, so that they meet again). The levels place the
+pieces as the sheets arrange them (checked in the level files' enemy events).
 
-- EYESPY's robot (sheet 9): two armoured halves, each a domed shoulder with a hollow under its brow
-  and an arm bending down to a gun with a blue lens; sprites 1, 3 (left shoulder), 5, 7 (right),
-  39 and 45 (the arms' lower ends).
+- EYESPY's robot (sheet 9): two armoured halves, which the level places far apart, each a shoulder
+  housing under a roll, with a dark hollow where the arm joins, and an arm hooked down to a gun with
+  a blue lens; sprites 1, 3 and 39 (left), 5, 7 and 45 (right).
 - DREAD-NOT's anchors (sheet 9): two hooded bodies standing on the ground, each with a gun pointing
   at the other and four struts reaching out to the ground; each drawn from four overlapping sprites
   (235, 236, 254, 274 on the left, 238, 239, 258, 276 on the right).
 - NOSE DRIP's nose (sheet 5): the bridge (154) above the tip with its nostrils (191, 193).
 
-Volumes come from the sprites' outlines, inflated (wave1_d_shapes.py), and shaped by height fields;
-the sprites' shading adds a little relief (light raised, dark sunk) so that their details show.
+Volumes come from the sprites' outlines, inflated (wave1_d_shapes.py), and from turned and lofted
+parts placed over them in the art's pixels.
 """
 import math
 
-import numpy as np
 from mathutils import Matrix, Vector
 
 import tyrkit as k
@@ -23,56 +23,7 @@ import wave1_d_shapes as sh
 import wave2_e_art as art
 
 
-# --- Pixel art as height and colour -----------------------------------------------------------------
-
-class Shades:
-    """A pixel art's shades (hex digits; other characters count as `other`), smoothed, sampled
-    at model coordinates (origin: the art's pixel corner at the model's origin)."""
-
-    def __init__(self, rows, origin, sigma=1.0, other=8.0):
-        h, w = len(rows), max(len(r) for r in rows)
-        grid = np.zeros((h, w))
-        mask = np.zeros((h, w))
-        for r, line in enumerate(rows):
-            for c, ch in enumerate(line):
-                if ch == ".":
-                    continue
-                grid[r, c] = int(ch, 16) if ch in "0123456789abcdef" else other
-                mask[r, c] = 1.0
-        self.raw = grid
-        self.mask = mask
-        self.grid = self._blur(grid * mask, sigma) / np.maximum(self._blur(mask, sigma), 1e-6)
-        self.origin = origin
-
-    @staticmethod
-    def _blur(a, sigma):
-        if sigma <= 0:
-            return a.copy()
-        radius = int(math.ceil(3 * sigma))
-        kernel = np.exp(-np.arange(-radius, radius + 1) ** 2 / (2 * sigma ** 2))
-        kernel /= kernel.sum()
-        out = np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), 0, a)
-        return np.apply_along_axis(lambda m: np.convolve(m, kernel, mode="same"), 1, out)
-
-    def at(self, x, y):
-        """The smoothed shade at a model position (bilinear between pixel centres)."""
-        ox, oy = self.origin
-        c, r = x + ox - 0.5, oy - y - 0.5
-        h, w = self.grid.shape
-        c0, r0 = int(math.floor(c)), int(math.floor(r))
-        fc, fr = c - c0, r - r0
-        total = 0.0
-        for dr, wr in ((0, 1 - fr), (1, fr)):
-            for dc, wc in ((0, 1 - fc), (1, fc)):
-                rr, cc = min(max(r0 + dr, 0), h - 1), min(max(c0 + dc, 0), w - 1)
-                total += self.grid[rr, cc] * wr * wc
-        return total
-
-
-def pixel_xy(c, r, origin):
-    """The model position of the centre of pixel (column c, row r)."""
-    return c + 0.5 - origin[0], origin[1] - r - 0.5
-
+# --- Helpers ---------------------------------------------------------------------------------------
 
 def select(rows, keep):
     """The art with only the pixels where keep(column, row, char) is true."""
@@ -90,16 +41,6 @@ def paint(obj, mats, pick):
         c = poly.center
         poly.material_index = names.index(mats[pick(c.x, c.y, c.z)].name)
     return obj
-
-
-def _in_poly(x, y, polygon):
-    inside = False
-    n = len(polygon)
-    for i in range(n):
-        (ax_, ay_), (bx, by) = polygon[i], polygon[(i + 1) % n]
-        if (ay_ > y) != (by > y) and x < ax_ + (y - ay_) * (bx - ax_) / (by - ay_):
-            inside = not inside
-    return inside
 
 
 def smoothmin(a, b, k_=1.0):
@@ -384,15 +325,14 @@ def anchor(side, mats):
     radii = [[2.4, 2.3, 2.15], [2.45, 2.3, 2.0], [2.4, 2.25, 2.0], [3.6, 3.0, 2.3]]
     for i, (path, rr) in enumerate(zip(struts, radii)):
         objs.append(tube(f"strut{side}{i}", path, rr, mats["leg"], squash=0.95))
-        # A collar where the strut leaves the body, a foot at its end.
+        # A collar where the strut leaves the body.
         a, b = Vector(path[0]), Vector(path[1])
         d = (b - a).normalized()
-        for t, extra, mat in ((1.4, 0.35, mats["gun"]),):
-            c = a + d * t
-            ring_ = k.lathe(f"collar{side}{i}", [(-0.55, rr[0]), (-0.4, rr[0] + extra), (0.4, rr[0] + extra),
-                                                 (0.55, rr[0])], mat, 20)
-            ring_.data.transform(Matrix.Translation(c) @ Vector((0, 1, 0)).rotation_difference(d).to_matrix().to_4x4())
-            objs.append(k.smooth(ring_, 50))
+        collar = k.lathe(f"collar{side}{i}", [(-0.55, rr[0]), (-0.4, rr[0] + 0.35), (0.4, rr[0] + 0.35),
+                                              (0.55, rr[0])], mats["gun"], 20)
+        collar.data.transform(Matrix.Translation(a + d * 1.4) @
+                              Vector((0, 1, 0)).rotation_difference(d).to_matrix().to_4x4())
+        objs.append(k.smooth(collar, 50))
     # The crest on the hood's top: a blade along its ridge.
     crest = [p3(16.0, 6.5, 8.6), p3(18.0, 3.0, 7.0), p3(19.6, 0.9, 4.6)]
     objs.append(tube(f"crest{side}", crest, [1.6, 1.3, 0.9], mats["body"], squash=1.2))
@@ -444,11 +384,36 @@ def build_nose():
         q = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
         return h * math.sqrt(max(0.0, 1.0 - q)) if q < 1.0 else -2.0 * (math.sqrt(q) - 1.0)
 
+    # The bridge fills the outline of its rows (2-27) across, rounded; further down it keeps row 27's.
+    spans = {}
+    for r in range(2, 28):
+        cols = [c for c, ch in enumerate(rows[r]) if ch != "."]
+        spans[r] = ((cols[0] + cols[-1] + 1) / 2.0 - o[0], (cols[-1] + 1 - cols[0]) / 2.0)
+    # Smoothed along the rows (the outline's pixel steps would show as ridges).
+    weights = (1, 2, 3, 4, 3, 2, 1)
+    smooth_spans = {}
+    for r in spans:
+        acc, total = [0.0, 0.0], 0.0
+        for j, w in enumerate(weights):
+            rr = min(max(r + j - 3, 2), 27)
+            acc[0] += spans[rr][0] * w
+            acc[1] += spans[rr][1] * w
+            total += w
+        smooth_spans[r] = (acc[0] / total, acc[1] / total)
+    spans = smooth_spans
+
+    def span(r):
+        r = min(max(r - 0.5, 2.0), 27.0)
+        r0 = int(math.floor(r))
+        r1 = min(r0 + 1, 27)
+        f = r - r0
+        return tuple(spans[r0][i] * (1 - f) + spans[r1][i] * f for i in range(2))
+
     def bridge(x, y):
         r = o[1] - y
-        width = 2.6 + 6.4 * sh.smoothstep(2.0, 24.0, r)
-        height = 3.2 + 7.4 * sh.smoothstep(0.0, 34.0, r)
-        cx = p(24.6 + 0.3 * sh.smoothstep(2.0, 30.0, r), 0)[0]
+        cx, width = span(r)
+        width = width + 0.3
+        height = 3.4 + 7.2 * sh.smoothstep(0.0, 34.0, r)
         q = ((x - cx) / width) ** 2
         top = 1.0 - sh.smoothstep(-1.0, 3.0, 1.5 - r)
         return height * math.sqrt(max(0.0, 1.0 - q)) * top if q < 1.0 else -2.0 * (math.sqrt(q) - 1.0)

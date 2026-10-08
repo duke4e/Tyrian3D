@@ -455,7 +455,8 @@ def check(sheet, index, large=True, supersample=4):
 # --- Build loop ----------------------------------------------------------------------------------
 
 def run(models):
-    """models: [(name, builder, [(sheet letter, sprite, large)], out directory)]. Options after "--":
+    """models: [(name, builder, [(sheet letter, sprite, large[, (dx, dy)])], out directory)], (dx, dy) moving
+    the model onto the sprite for the check only. Options after "--":
     --only a,b  --preview <prefix> (renders <prefix><name>_top.png, _3q.png)  --check <sheets dir>."""
     options = k.args()
     only = set(options["only"].split(",")) if "only" in options else None
@@ -474,9 +475,13 @@ def run(models):
                 mesh = obj.evaluated_get(depsgraph).to_mesh()
                 print(f"   {obj.name}: {sum(len(p.vertices) - 2 for p in mesh.polygons)} triangles")
         if "check" in options:
-            for sheet, index, big in sprites:
+            for sheet, index, big, *offset in sprites:
+                # offset: where the model sits relative to the sprite (models built round a pivot)
+                dx, dy = offset[0] if offset else (0.0, 0.0)
                 print(f"-- {name} vs {sheet} {index}")
+                transform_all(Matrix.Translation((dx, dy, 0)))
                 check(os.path.join(options["check"], f"enemy_{sheet.upper()}.png"), index, big)
+                transform_all(Matrix.Translation((-dx, -dy, 0)))
         k.export(os.path.join(out, name + ".glb"))
         if "preview" in options:
             bpy.context.scene.view_settings.view_transform = "Standard"
