@@ -970,6 +970,7 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 // (native) keep only the playfield, where the game drew them; the tiles show everything else.
 static bool cloud_background(const L3DBackground *background, bool composed);
 static bool water_overlay(const L3DBackground *background);
+static bool relief_frame(const L3DFrame *frame, const bool *composed);
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
@@ -1021,8 +1022,10 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 			{
 				bool composed[L3D_MAX_BACKGROUNDS];
 				b3d_composed_backgrounds(frame, composed);
+				const bool relief = relief_frame(frame, composed);
 				for (int i = 0; i < frame->background_count; ++i)
-					if (frame->backgrounds[i].layer == l && water_overlay(&frame->backgrounds[i]))
+					if (frame->backgrounds[i].layer == l &&
+					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1)))
 					{
 						memset(cloud_mask, 1, sizeof(cloud_mask));  // none of it is drawn
 						clouds = true;
@@ -2204,6 +2207,204 @@ static void add_cloud_batches(const float *heights, bool new_frame, int *instanc
 	}
 }
 
+/* --- Terrain relief --------------------------------------------------------------------------- */
+
+/*
+ * The ground as terrain (polish): background 1's tiles are heightfields instead of flat quads,
+ * their height from the pixels' brightness (light ground high, dark crevices low), shaded by the
+ * sun into their vertex colours (faces up keep the pixels' colours) and with skirts down to the
+ * tile's base where neighbours don't meet. The tiles then show everything of background 1, inside
+ * the playfield too (its captured layer isn't drawn). Water stays flat (procedural water); levels
+ * with filters, the starfield or other specials keep the flat ground. TYR3D_RELIEF=<height> sets
+ * the relief's height (0 off).
+ */
+#define RELIEF_GRID_W B3D_TILE_W  // vertices per tile row, minus one
+#define RELIEF_GRID_H B3D_TILE_H
+
+static BTBHGPUCustomMesh *relief_meshes[B3D_CELLS];
+static bool relief_built[B3D_CELLS];
+static unsigned int relief_generation = ~0u;
+
+static float relief_height(void)
+{
+	static float height = -1;
+	if (height < 0)
+		height = SDL_getenv("TYR3D_RELIEF") != NULL ? (float)SDL_atof(SDL_getenv("TYR3D_RELIEF")) : 8.0f;
+	return height;
+}
+
+// Whether a frame's ground is shown as terrain: background 1 not composed (filters), no starfield.
+static bool relief_frame(const L3DFrame *frame, const bool *composed)
+{
+	if (!m3d_enabled || relief_height() <= 0 || frame->star_count > 0)
+		return false;
+	for (int i = 0; i < frame->background_count; ++i)
+		if (frame->backgrounds[i].set == 1)
+			return !composed[i] && frame->backgrounds[i].effect_count == 0;
+	return false;
+}
+
+static BTBHGPUCustomMesh *relief_mesh(int cell)
+{
+	if (relief_generation != b3d_map_generation)
+	{
+		for (int c = 0; c < B3D_CELLS; ++c)
+		{
+			if (relief_meshes[c] != NULL)
+				btbh_gpu_custom_mesh_destroy(relief_meshes[c]);
+			relief_meshes[c] = NULL;
+			relief_built[c] = false;
+		}
+		relief_generation = b3d_map_generation;
+	}
+	if (cell < 0 || cell >= B3D_CELLS)
+		return NULL;
+	if (relief_built[cell])
+		return relief_meshes[cell];
+	relief_built[cell] = true;
+
+	const int set = cell / B3D_TILES_PER_SET + 1, tile = cell % B3D_TILES_PER_SET;
+	const Uint8 *data = b3d_tile_pixels(set, tile);
+	if (data == NULL || b3d_tile_is_water(set, tile))
+		return NULL;
+	// Tiles with holes (space showing through) stay flat: their edges would be jagged cliffs.
+	for (int i = 0; i < B3D_TILE_W * B3D_TILE_H; ++i)
+		if (data[i] == 0)
+			return NULL;
+
+	// Brightness, softened, per pixel; heights at the pixels' corners.
+	enum { W = B3D_TILE_W, H = B3D_TILE_H };
+	static float lum[W * H], soft[W * H], corner[(W + 1) * (H + 1)];
+	for (int i = 0; i < W * H; ++i)
+	{
+		const Uint8 *c = (const Uint8 *)&rgb_palette[data[i]];
+		lum[i] = data[i] == 0 ? 0.0f : (0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]) / 255.0f;
+	}
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x)
+		{
+			float sum = 0, weight = 0;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx)
+				{
+					const int sx = SDL_clamp(x + dx, 0, W - 1), sy = SDL_clamp(y + dy, 0, H - 1);
+					const float w = (dx == 0 && dy == 0) ? 4.0f : (dx == 0 || dy == 0) ? 2.0f : 1.0f;
+					sum += lum[sy * W + sx] * w;
+					weight += w;
+				}
+			soft[y * W + x] = sum / weight;
+		}
+	const float scale = relief_height();
+	for (int y = 0; y <= H; ++y)
+		for (int x = 0; x <= W; ++x)
+		{
+			float sum = 0;
+			int n = 0;
+			for (int dy = -1; dy <= 0; ++dy)
+				for (int dx = -1; dx <= 0; ++dx)
+				{
+					const int sx = x + dx, sy = y + dy;
+					if (sx >= 0 && sx < W && sy >= 0 && sy < H)
+					{
+						sum += soft[sy * W + sx];
+						++n;
+					}
+				}
+			// Carved down from the ground's plane, so what stands on the ground stays on top.
+			corner[y * (W + 1) + x] = scale * ((n > 0 ? sum / n : 0.0f) - 1.0f);
+		}
+
+	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+	                           sun_direction[2] * sun_direction[2]);
+	const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
+	const float up = SDL_max(light[1], 0.0f);
+	#define RELIEF_FILL 0.5f
+
+	// The grid (unit square in x and z; heights in game pixels), then skirts along the four sides.
+	static V3DVertex vertices[(W + 1) * (H + 1) + 4 * 2 * (W + H + 2)];
+	static Uint32 indices[W * H * 6 + 4 * 6 * (W + H)];
+	int vc = 0, ic = 0;
+	for (int y = 0; y <= H; ++y)
+		for (int x = 0; x <= W; ++x)
+		{
+			const float hl = corner[y * (W + 1) + SDL_max(x - 1, 0)], hr = corner[y * (W + 1) + SDL_min(x + 1, W)];
+			const float hu = corner[SDL_max(y - 1, 0) * (W + 1) + x], hd = corner[SDL_min(y + 1, H) * (W + 1) + x];
+			float n[3] = { -(hr - hl) / (float)(SDL_min(x + 1, W) - SDL_max(x - 1, 0)), 1.0f,
+			               -(hd - hu) / (float)(SDL_min(y + 1, H) - SDL_max(y - 1, 0)) };
+			const float nl = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+			for (int k = 0; k < 3; ++k)
+				n[k] /= nl;
+			const float lambert = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
+			const float shade = (RELIEF_FILL + (1 - RELIEF_FILL) * SDL_max(lambert, 0.0f)) / (RELIEF_FILL + (1 - RELIEF_FILL) * up);
+			V3DVertex *v = &vertices[vc++];
+			memset(v, 0, sizeof(*v));
+			v->position[0] = (float)x / W;
+			v->position[1] = corner[y * (W + 1) + x];
+			v->position[2] = (float)y / H;
+			memcpy(v->normal, n, sizeof(n));
+			v->uv[0] = (float)x / W;
+			v->uv[1] = (float)y / H;
+			v->tangent[0] = 1;
+			v->tangent[3] = 1;
+			v->color[0] = v->color[1] = v->color[2] = shade;
+			v->color[3] = 1;
+		}
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x)
+		{
+			const Uint32 a = y * (W + 1) + x, b = a + 1, c = a + W + 2, d = a + W + 1;
+			indices[ic++] = a;
+			indices[ic++] = b;
+			indices[ic++] = c;
+			indices[ic++] = a;
+			indices[ic++] = c;
+			indices[ic++] = d;
+		}
+	// Skirts: each side's edge down to the base, a little darker.
+	for (int side = 0; side < 4; ++side)
+	{
+		const int count = side % 2 == 0 ? W : H;
+		const Uint32 base = (Uint32)vc;
+		for (int i = 0; i <= count; ++i)
+		{
+			int x, y;
+			switch (side)
+			{
+			case 0:  x = i;     y = 0;     break;  // top
+			case 1:  x = W;     y = i;     break;  // right
+			case 2:  x = W - i; y = H;     break;  // bottom
+			default: x = 0;     y = H - i; break;  // left
+			}
+			for (int level = 0; level < 2; ++level)
+			{
+				V3DVertex *v = &vertices[vc++];
+				*v = vertices[y * (W + 1) + x];
+				if (level == 1)
+					v->position[1] = -scale;
+				v->color[0] = v->color[1] = v->color[2] = vertices[y * (W + 1) + x].color[0] * 0.7f;
+			}
+		}
+		for (int i = 0; i < count; ++i)
+		{
+			const Uint32 top0 = base + i * 2, bottom0 = top0 + 1, top1 = top0 + 2, bottom1 = top0 + 3;
+			indices[ic++] = top0;
+			indices[ic++] = bottom0;
+			indices[ic++] = top1;
+			indices[ic++] = top1;
+			indices[ic++] = bottom0;
+			indices[ic++] = bottom1;
+		}
+	}
+	#undef RELIEF_FILL
+
+	BTBHGPUCustomMeshReport report;
+	relief_meshes[cell] = btbh_gpu_window_custom_mesh_create(window, vertices, (uint32_t)(vc * sizeof(V3DVertex)),
+	                                                         (uint32_t)vc, indices, (uint32_t)ic, &report);
+	if (relief_meshes[cell] == NULL)
+		fprintf(stderr, "warning: terrain mesh: %s\n", report.message);
+	return relief_meshes[cell];
+}
+
 /* --- Background maps ----------------------------------------------------------------------- */
 
 // Background tiles sit this far below their layer, so that the captured layer, which is exact
@@ -2408,6 +2609,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	if (frame->background_count == 0)
 		return;
 	++tile_frame;
+	const bool relief_ground = relief_frame(frame, composed);
 
 	static B3DTile tiles[MAX_TILES];
 	static float tile_height[MAX_TILES];
@@ -2477,11 +2679,15 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			tiles[t].z += shift;
 			tile_height[t] = height;
 			// Batch key: atlas page and cell, mirrored, fading.
-			tile_key[t] = ((page * B3D_ATLAS_CELLS + tiles[t].cell) * 2 + tiles[t].flipped) * 3 + tiles[t].fade + 1;
+			// Terrain: background 1's tiles, not mirrored, when the frame's ground is terrain.
+			const bool relief = relief_ground && background->set == 1 && !tiles[t].flipped &&
+			                    tiles[t].cell < B3D_CELLS && relief_mesh(tiles[t].cell) != NULL;
+			tile_key[t] = (((page * B3D_ATLAS_CELLS + tiles[t].cell) * 2 + tiles[t].flipped) * 3 + tiles[t].fade + 1) * 2 +
+			              relief;
 		}
 	}
 
-	enum { KEYS = TILE_PAGES * B3D_ATLAS_CELLS * 6 };
+	enum { KEYS = TILE_PAGES * B3D_ATLAS_CELLS * 12 };
 	static int key_count[KEYS], key_next[KEYS];
 	memset(key_count, 0, sizeof(key_count));
 	for (int t = 0; t < tile_count; ++t)
@@ -2517,9 +2723,11 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	{
 		if (key_count[key] == 0 || *batch_count >= MAX_BATCHES)
 			continue;
-		const int fade = key % 3 - 1;
-		const bool flipped = (key / 3 & 1) != 0;
-		const int cell = key / 6 % B3D_ATLAS_CELLS, page = key / 6 / B3D_ATLAS_CELLS;
+		const bool relief = (key & 1) != 0;
+		const int tile_key_value = key / 2;
+		const int fade = tile_key_value % 3 - 1;
+		const bool flipped = (tile_key_value / 3 & 1) != 0;
+		const int cell = tile_key_value / 6 % B3D_ATLAS_CELLS, page = tile_key_value / 6 / B3D_ATLAS_CELLS;
 		int ox, oy;
 		b3d_cell_origin(cell, &ox, &oy);
 		oy += page * B3D_ATLAS_H;
@@ -2527,7 +2735,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
 		init_batch(b);
 		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
-		b->custom_mesh = fade == 0 ? quad_mesh : fade_meshes[fade > 0];
+		b->custom_mesh = relief ? relief_mesh(cell) : fade == 0 ? quad_mesh : fade_meshes[fade > 0];
 		b->first_instance = key_next[key] - key_count[key];
 		b->instance_count = key_count[key];
 		b->albedo_texture = tile_atlas;

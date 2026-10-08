@@ -892,31 +892,6 @@ bool b3d_tile_is_cloud(int set, int tile)
 		clouds[set - 1].made_for = b3d_map_generation + 1;
 		if (SDL_getenv("TYR3D_LOG_CLOUDS") != NULL)
 		{
-			for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
-			{
-				if (clouds[set - 1].cloud[t])
-					continue;
-				const Uint8 *data = m.first_tile + t * m.tile_stride;
-				int use[16] = { 0 }, opaque = 0;
-				for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
-					if (data[p] != 0)
-					{
-						++use[data[p] >> 4];
-						++opaque;
-					}
-				if (opaque == 0)
-					continue;
-				printf("clouds: set %d tile %d not cloud, ramps:", set, t);
-				for (int r = 0; r < 16; ++r)
-					if (use[r] > 0)
-						printf(" %d:%d%%", r, use[r] * 100 / opaque);
-				printf("\n");
-			}
-			printf("clouds: set %d ramps", set);
-			for (int r = 0; r < 16; ++r)
-				if (cloud_ramp[r])
-					printf(" %d", r);
-			printf("\n");
 			printf("clouds: set %d tiles", set);
 			for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 				if (clouds[set - 1].cloud[t])
@@ -1005,6 +980,52 @@ bool b3d_water_pixel(int set, int tile, Uint8 index)
 	return index != 0 && b3d_tile_is_water(set, tile) && water_like(index);
 }
 
+/*
+ * Which levels have water, and in which background (assets/models/terrain.cfg: "water <set> <level
+ * name or its beginning>"): colours alone can't tell water from blue metal or blue rock.
+ */
+static struct
+{
+	char name[16];
+	int set;
+} water_sets[64];
+static int water_set_count = -1;
+
+static void load_terrain_config(void)
+{
+	water_set_count = 0;
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/terrain.cfg",
+	         tyr3d_resource_dir("TYR3D_MODEL_DIR", TYR3D_MODEL_DIR, "models", dir, sizeof(dir)));
+	FILE *f = fopen(path, "r");
+	if (f == NULL)
+		return;
+	char line[256];
+	while (fgets(line, sizeof(line), f) != NULL)
+	{
+		char name[16];
+		int set;
+		if (sscanf(line, " water %d %15[^\r\n]", &set, name) == 2 && water_set_count < (int)COUNTOF(water_sets))
+		{
+			SDL_strlcpy(water_sets[water_set_count].name, name, sizeof(water_sets[0].name));
+			water_sets[water_set_count].set = set;
+			++water_set_count;
+		}
+	}
+	fclose(f);
+}
+
+static bool set_has_water(int set)
+{
+	if (water_set_count < 0)
+		load_terrain_config();
+	for (int i = 0; i < water_set_count; ++i)
+		if (water_sets[i].set == set &&
+		    SDL_strncasecmp(levelName, water_sets[i].name, SDL_strlen(water_sets[i].name)) == 0)
+			return true;
+	return false;
+}
+
 bool b3d_tile_is_water(int set, int tile)
 {
 	if (set < 1 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
@@ -1012,10 +1033,11 @@ bool b3d_tile_is_water(int set, int tile)
 	if (waters[set - 1].made_for != b3d_map_generation + 1)
 	{
 		const MapSet m = map_set(set);
+		const bool water_set = set_has_water(set);
 		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 		{
 			waters[set - 1].water[t] = false;
-			if (t >= m.tile_count)
+			if (!water_set || t >= m.tile_count)
 				continue;
 			const Uint8 *data = m.first_tile + t * m.tile_stride;
 			int opaque = 0, water = 0, cool = 0;
@@ -1031,22 +1053,6 @@ bool b3d_tile_is_water(int set, int tile)
 			waters[set - 1].water[t] = opaque > 0 && !b3d_tile_is_cloud(set, t) &&
 			                           (water * 100 >= opaque * 40 || cool * 100 >= opaque * 90);
 		}
-		// Cool tiles are water only where there is real water.
-		int real = 0;
-		for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
-		{
-			const Uint8 *data = m.first_tile + t * m.tile_stride;
-			int opaque = 0, water = 0;
-			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
-				if (data[p] != 0)
-				{
-					++opaque;
-					water += water_pixel(data[p]);
-				}
-			real += opaque > 0 && water * 100 >= opaque * 40;
-		}
-		if (real < 3)
-			memset(waters[set - 1].water, 0, sizeof(waters[set - 1].water));
 		waters[set - 1].made_for = b3d_map_generation + 1;
 	}
 	return waters[set - 1].water[tile];
