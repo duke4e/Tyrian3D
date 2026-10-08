@@ -4,14 +4,15 @@ objects the game draws from several 2x2 sprites, each built whole and cut into t
 
 - zeppelin_<sprite> (I 3, 5, 39, 41, 43, 45, 77, 79, 81, 83, 115, 117, 119, 121, 154, 156, 158):
   the grey airship, 96 x 130 pixels, its nose down the screen. A netted envelope; at its stern a
-  red ducted fan ring with white blades turning under a grey bridge that carries a row of red lights;
-  swept grey fins and red frames on its back, a red sensor pod; two long gun pods hang at its
-  sides on red struts, their muzzles glowing. It floats a little above its layer. The animation
-  frames of I 3, 5, 41 and 43 (17, 55, 93, 131) turn the fan's blades: the model keeps them still.
-- redwing_<sprite> (I 201, 203, 237, 239, 241, 243, 278): the red and grey propeller-less fighter,
-  96 x 80 pixels, nose down the screen: a red beak with intakes at its cheeks, two black canopies at
-  the wing roots, a grey spine, straight wings with red panels and vents, two engine nacelles on a
-  tailplane with fins at its tips and a fin in the middle.
+  red fan duct leaning forward, held by two swept fins, with white blades in it under a grey bridge
+  that carries a row of red lamps; red frames on its back and a red sensor pod; two long gun pods
+  hang at its sides on struts, their muzzles glowing. It floats a little above its layer (about 2
+  to 35 pixels high). The animation frames of I 3, 5, 41 and 43 (17, 55, 93, 131) turn the fan's
+  blades: the model keeps them still.
+- redwing_<sprite> (I 201, 203, 237, 239, 241, 243, 278): the red and grey jet fighter, 96 x 80
+  pixels, nose down the screen: a red beak with intakes at its cheeks, two black canopies at the
+  wing roots, a grey spine, straight wings with red panels and vents, two engine nacelles on a
+  tailplane with fins at its tips and a fin in the middle (about 0 to 18 pixels high).
 
 usage: Blender -b --factory-startup -P wave3_k.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole <prefix>]
@@ -39,7 +40,7 @@ ENEMIES = w.ENEMIES
 
 # --- Helpers ---------------------------------------------------------------------------------------
 
-def tube(name, points, radius, mat, segments=12, squash=1.0, smooth_angle=60, caps=True):
+def tube(name, points, radius, mat, segments=12, squash=1.0, smooth_angle=60):
     """A tube through 3D points with rounded ends; radius a number or one per point; squash scales
     its cross-section towards the up direction (a band taller or flatter than wide)."""
     pts = [Vector(p) for p in points]
@@ -218,7 +219,7 @@ def zeppelin_whole():
     glass = pal("zep_glass", 1, metallic=0.5, roughness=0.12)
 
     # The envelope.
-    env = lathe_y("hull", k.profile(HULL, 1.0), hull, ZX, ZC, segments=48, squash=SQ, smooth_angle=70)
+    lathe_y("hull", k.profile(HULL, 1.0), hull, ZX, ZC, segments=48, squash=SQ, smooth_angle=70)
     # The net over it: girders along it, converging at the nose, and a few hoops bowed towards it.
     def on_hull(x, y, lift=0.0):
         return (x, y, hull_top(x, y) + lift)
@@ -289,9 +290,12 @@ def zeppelin_whole():
         f = (x + 22.4) / 11.9
         zc_ = 18.4 + (root_z - 18.4) * f ** 0.8
         yc, half = (y0 + y1) / 2, (y1 - y0) / 2
-        fin_rings.append([Vector((x, yc + half * math.cos(2 * math.pi * j / 16) * (0.9 if math.cos(2 * math.pi * j / 16)
-                                                                                        > 0 else 1.0),
-                                  zc_ + th / 2 * math.sin(2 * math.pi * j / 16))) for j in range(16)])
+        ring_ = []
+        for j in range(16):
+            a = 2 * math.pi * j / 16
+            ca = math.cos(a)  # the leading edge (towards the back) a little blunter than the trailing one
+            ring_.append(Vector((x, yc + half * ca * (0.9 if ca > 0 else 1.0), zc_ + th / 2 * math.sin(a))))
+        fin_rings.append(ring_)
     fin = k.loft("stern_fin", fin_rings, steel)
     k.smooth(fin, 50)
     mirror([fin], ZX)
