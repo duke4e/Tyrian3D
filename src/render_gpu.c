@@ -4593,6 +4593,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->alpha_cutoff = 0.5f;
 		if (terrain_rings[row->set].water != NULL)
 			set_glints(b, terrain_rings[row->set].water);
+		else if (settings3d.effects)
+			b->normal_scale = -BACKGROUND_RELIEF;  // the relief the lights bring out (see set_glints)
 	}
 
 	// The ground's plants, on the rows drawn.
@@ -5041,49 +5043,108 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
-// The brightest of the explosions' lights (particles3d.h) as the scene's point lights, placed as
-// everything else on their plane (aligned).
-static void add_explosion_lights(BTBHGPUSceneLighting *lighting)
+// The scene's point lights: the explosions' (particles3d.h) and the glows of shots and other
+// lit things (their sprites' colour, a little above them, reaching the ground), the most
+// important of them (energy times reach) up to the fork's limit, placed as everything else on
+// their plane (aligned). Shots light the ground and the models they pass, with the ground's
+// relief (see set_glints).
+#define GLOW_LIGHT_ENERGY 2.4f   // per unit of the glow's strength
+#define GLOW_LIGHT_LOW 0.35f     // the light at this fraction of the glow's height (under it: it lights the
+                                 // ground, not the shot's own model, seen from above)
+#define GLOW_LIGHT_REACH 2.6f    // the light reaches this many glow diameters beyond the ground below it
+
+typedef struct
 {
-	int chosen[BTBH_GPU_SCENE_POINT_LIGHTS];
-	float energies[BTBH_GPU_SCENE_POINT_LIGHTS];
-	int count = 0;
-	for (int i = 0; i < p3d_light_count; ++i)
+	float position[3], radius, color[3], energy;
+} PointLight;
+
+static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame *frame, const Uint32 colors[256],
+                                 bool glow_lights)
+{
+	enum { MAX_CANDIDATES = 512 };
+	static PointLight candidates[MAX_CANDIDATES];
+	static float importance[MAX_CANDIDATES];
+	int candidate_count = 0;
+
+	for (int i = 0; i < p3d_light_count && candidate_count < MAX_CANDIDATES; ++i)
 	{
-		const float energy = p3d_light_energy(&p3d_lights[i], ahead);
+		const P3DLight *l = &p3d_lights[i];
+		const float energy = p3d_light_energy(l, ahead);
 		if (energy <= 0.02f)
 			continue;
-		// Keep the brightest: insert in order, dropping the dimmest when full.
-		int at = count < BTBH_GPU_SCENE_POINT_LIGHTS ? count : BTBH_GPU_SCENE_POINT_LIGHTS - 1;
-		if (count == BTBH_GPU_SCENE_POINT_LIGHTS && energy <= energies[at])
+		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : terrain_lift(l->x, l->y));
+		const float k = align_scale(height);
+		PointLight *out = &candidates[candidate_count];
+		out->position[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
+		out->position[1] = height;
+		const float y = l->y + explodeMove * ahead;
+		out->position[2] = align.on ? align.cz + (y - align.cz) * k : y;
+		out->radius = l->radius * k;
+		for (int c = 0; c < 3; ++c)
+			out->color[c] = l->color[c] / 255.0f;
+		out->energy = energy;
+		importance[candidate_count++] = energy * l->radius * 4.0f;  // explosions first
+	}
+
+	for (int g = 0; glow_lights && g < frame->glow_count && candidate_count < MAX_CANDIDATES; ++g)
+	{
+		const L3DGlow *glow = &frame->glows[g];
+		if (glow->strength <= 0.05f || glow->size <= 1.0f)
 			continue;
-		while (at > 0 && energies[at - 1] < energy)
+		const float height = l3d_layer_height(glow->layer) * rgpu_camera.height_scale * GLOW_LIGHT_LOW;
+		const float k = align_scale(height);
+		const float x = glow->x + glow->vx * ahead, y = glow->y + glow->vy * ahead;
+		PointLight *out = &candidates[candidate_count];
+		out->position[0] = align.on ? align.cx + (x - align.cx) * k : x;
+		out->position[1] = height;
+		out->position[2] = align.on ? align.cz + (y - align.cz) * k : y;
+		out->radius = (height + glow->size * GLOW_LIGHT_REACH) * k;
+		const Uint8 *c = (const Uint8 *)&colors[glow->color];
+		// The sprite's colour, saturated a little (a dark red shot still throws red light).
+		const float peak = SDL_max(SDL_max(c[0], c[1]), SDL_max(c[2], 1));
+		for (int i = 0; i < 3; ++i)
+			out->color[i] = c[i] / peak;
+		out->energy = glow->strength * GLOW_LIGHT_ENERGY;
+		importance[candidate_count++] = out->energy * glow->size;
+	}
+
+	// The most important, in order.
+	int count = 0;
+	int chosen[BTBH_GPU_SCENE_POINT_LIGHTS];
+	for (int i = 0; i < candidate_count; ++i)
+	{
+		int at = count < BTBH_GPU_SCENE_POINT_LIGHTS ? count : BTBH_GPU_SCENE_POINT_LIGHTS - 1;
+		if (count == BTBH_GPU_SCENE_POINT_LIGHTS && importance[i] <= importance[chosen[at]])
+			continue;
+		while (at > 0 && importance[chosen[at - 1]] < importance[i])
 		{
-			energies[at] = energies[at - 1];
 			chosen[at] = chosen[at - 1];
 			--at;
 		}
-		energies[at] = energy;
 		chosen[at] = i;
 		if (count < BTBH_GPU_SCENE_POINT_LIGHTS)
 			++count;
 	}
 	for (int n = 0; n < count; ++n)
 	{
-		const P3DLight *l = &p3d_lights[chosen[n]];
-		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : terrain_lift(l->x, l->y));
-		const float k = align_scale(height);
+		const PointLight *l = &candidates[chosen[n]];
 		float *out = lighting->point_lights[n];
-		out[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
-		out[1] = height;
-		out[2] = align.on ? align.cz + (l->y + explodeMove * ahead - align.cz) * k : l->y + explodeMove * ahead;
-		out[3] = l->radius * k;
-		out[4] = l->color[0] / 255.0f;
-		out[5] = l->color[1] / 255.0f;
-		out[6] = l->color[2] / 255.0f;
-		out[7] = energies[n];
+		memcpy(out, l->position, 3 * sizeof(float));
+		out[3] = l->radius;
+		memcpy(out + 4, l->color, 3 * sizeof(float));
+		out[7] = l->energy;
 	}
 	lighting->point_light_count = (uint32_t)count;
+	if (SDL_getenv("TYR3D_LOG_LIGHTS") != NULL && ahead == 0)
+	{
+		printf("lights: %d candidates (%d glows in the frame), %d used:", candidate_count, frame->glow_count, count);
+		for (int n = 0; n < SDL_min(count, 6); ++n)
+		{
+			const float *o = lighting->point_lights[n];
+			printf(" [%.0f,%.0f,%.0f r%.0f e%.2f]", o[0], o[1], o[2], o[3], o[7]);
+		}
+		printf("\n");
+	}
 
 	// TYR3D_TEST_LIGHT=<x>,<y>,<height>,<radius>,<energy>: one more light, to check the lighting.
 	const char *test = SDL_getenv("TYR3D_TEST_LIGHT");
@@ -5529,8 +5590,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	static int explosion_lights = -1;  // TYR3D_EXPLOSION_LIGHTS=0 leaves them out
 	if (explosion_lights < 0)
 		explosion_lights = SDL_getenv("TYR3D_EXPLOSION_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_EXPLOSION_LIGHTS")) != 0;
+	static int glow_lights = -1;  // TYR3D_GLOW_LIGHTS=0: shots and other glows don't light their surroundings
+	if (glow_lights < 0)
+		glow_lights = SDL_getenv("TYR3D_GLOW_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_GLOW_LIGHTS")) != 0;
 	if (settings3d.effects && explosion_lights)
-		add_explosion_lights(&lighting);
+		add_explosion_lights(&lighting, frame, colors, glow_lights);
 
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
