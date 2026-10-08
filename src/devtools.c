@@ -230,11 +230,22 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 
 /*
  * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
- * Return, Down...) when that frame is presented, then each next one so many milliseconds after the
- * one before (menus wait for keys without presenting frames).
+ * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long) when that
+ * frame is presented, then each next one so many milliseconds after the one before (menus wait for
+ * keys without presenting frames).
  */
 static char test_keys[256];
 static const char *next_test_key = NULL;
+
+static Uint32 SDLCALL release_mouse(void *userdata, SDL_TimerID timer, Uint32 interval)
+{
+	(void)timer, (void)interval;
+	SDL_Event event = { 0 };
+	event.type = SDL_EVENT_MOUSE_BUTTON_UP;
+	event.button.button = (Uint8)(intptr_t)userdata;
+	SDL_PushEvent(&event);
+	return 0;
+}
 
 static Uint32 SDLCALL release_key(void *userdata, SDL_TimerID timer, Uint32 interval)
 {
@@ -249,6 +260,30 @@ static Uint32 SDLCALL release_key(void *userdata, SDL_TimerID timer, Uint32 inte
 
 static void press_key(const char *name)
 {
+	// "<key>*<ms>": held that long (default 100 ms). MouseLeft, MouseRight, MouseMiddle: mouse buttons.
+	char key[32];
+	snprintf(key, sizeof(key), "%s", name);
+	Uint32 hold = 100;
+	char *star = strchr(key, '*');
+	if (star != NULL)
+	{
+		hold = (Uint32)SDL_max(strtol(star + 1, NULL, 10), 1);
+		*star = '\0';
+	}
+	name = key;
+	const int mouse_button = strcmp(name, "MouseLeft") == 0 ? SDL_BUTTON_LEFT : strcmp(name, "MouseRight") == 0 ? SDL_BUTTON_RIGHT
+	                       : strcmp(name, "MouseMiddle") == 0 ? SDL_BUTTON_MIDDLE : 0;
+	if (mouse_button != 0)
+	{
+		printf("devtools: pressing %s for %u ms\n", name, hold);
+		SDL_Event event = { 0 };
+		event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+		event.button.button = (Uint8)mouse_button;
+		event.button.down = true;
+		SDL_PushEvent(&event);
+		SDL_AddTimer(hold, release_mouse, (void *)(intptr_t)mouse_button);
+		return;
+	}
 	const SDL_Scancode scancode = SDL_GetScancodeFromName(name);
 	if (scancode == SDL_SCANCODE_UNKNOWN)
 	{
@@ -263,7 +298,7 @@ static void press_key(const char *name)
 	event.key.down = true;
 	SDL_PushEvent(&event);
 	// Released a little later, so the game sees it held.
-	SDL_AddTimer(100, release_key, (void *)(intptr_t)scancode);
+	SDL_AddTimer(hold, release_key, (void *)(intptr_t)scancode);
 }
 
 // Presses the key at next_test_key ("<n>:<key>"), returns the delay to the next one, or 0.
