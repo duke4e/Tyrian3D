@@ -736,6 +736,9 @@ static struct
 
 static const Uint8 *screen_without_texts(const SDL_Surface *screen);
 static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h);
+static bool fonts_enabled(void);
+static const TextRecord *frame_texts[32];
+static int frame_text_count;
 
 // A colour over the whole window (straight alpha), drawn last: a menu's or the store's fade.
 static float canvas_fade[4];
@@ -1553,7 +1556,24 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 	convert_screen(hud, screen_rgba);
 	for (int y = 0; y < L3D_PLAYFIELD_H; ++y)
 		memset(screen_rgba + y * SCREEN_W, 0, L3D_PLAYFIELD_W * sizeof(Uint32));
-	if (split)
+	// The game's texts on the playfield are drawn in Oxanium (playfield_text_quads): their pixels
+	// stay out of the overlay.
+	static Uint8 text_pixels[L3D_PLAYFIELD_W * L3D_PLAYFIELD_H];
+	memset(text_pixels, 0, sizeof(text_pixels));
+	frame_text_count = fonts_enabled() ? text_records_frame(frame_texts, (int)COUNTOF(frame_texts)) : 0;
+	for (int i = 0; i < frame_text_count; ++i)
+	{
+		const TextRecord *r = frame_texts[i];
+		for (int y = 0; y < r->h; ++y)
+			for (int x = 0; x < r->w; ++x)
+			{
+				const int px = r->x + x - L3D_PLAYFIELD_X, py = r->y + y;
+				if (px >= 0 && px < L3D_PLAYFIELD_W && py >= 0 && py < L3D_PLAYFIELD_H &&
+				    r->after[y * r->w + x] != r->before[y * r->w + x])
+					text_pixels[py * L3D_PLAYFIELD_W + px] = 1;
+			}
+	}
+	if (split && !fonts_enabled())
 		add_message();
 
 	for (int l = 0; l < frame->layer_count; ++l)
@@ -1569,7 +1589,7 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 			for (int x = 0; x < L3D_PLAYFIELD_W; ++x)
 			{
 				const int i = row * L3D_WIDTH + x + L3D_PLAYFIELD_X;
-				if (layer->cover[i])
+				if (layer->cover[i] && !text_pixels[y * L3D_PLAYFIELD_W + x])
 					screen_rgba[y * SCREEN_W + x] = rgb_palette[layer->index[i]];
 			}
 		}
@@ -1829,13 +1849,15 @@ static const Uint8 *screen_without_texts(const SDL_Surface *screen)
 
 // The kept texts as text, a screen pixel (x, y) at window (ox + x * kx, oy + y * ky); only those
 // within the first clip_w x clip_h of the screen.
-static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h)
+static void text_record_quads(const TextRecord *const *texts, int count, int x_offset, float ox, float oy, float kx, float ky,
+                              int clip_w, int clip_h)
 {
 	static const int fonts[3] = { TEXT_LARGE, TEXT_NORMAL, TEXT_TINY };
-	for (int i = 0; i < screen_text_count; ++i)
+	for (int i = 0; i < count; ++i)
 	{
-		const TextRecord *r = screen_texts[i];
-		if (r->shadow_only || r->text_x < 0 || r->text_y < 0 || r->text_x + r->text_w > clip_w + 2 ||
+		const TextRecord *r = texts[i];
+		const int text_x = r->text_x - x_offset;
+		if (r->shadow_only || text_x < 0 || r->text_y < 0 || text_x + r->text_w > clip_w + 2 ||
 		    r->text_y + r->text_h > clip_h + 2 || r->text_h <= 0)
 			continue;
 		// Its colour: the brightest of the pixels it drew.
@@ -1876,7 +1898,30 @@ static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w
 			cap *= r->text_w * kx * 1.08f / width;
 		// The game's capitals' tops and ours alike (descenders make some texts taller).
 		const float game_cap = caps[SDL_clamp(r->font, 0, 2)] * ky;
-		text_quads(font, text, ox + r->text_x * kx, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, color, cap * 0.09f);
+		text_quads(font, text, ox + text_x * kx, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, color, cap * 0.09f);
+	}
+}
+
+static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h)
+{
+	text_record_quads(screen_texts, screen_text_count, 0, ox, oy, kx, ky, clip_w, clip_h);
+}
+
+// The texts the game drew on the playfield in the frame shown (the overlay: score, lives...), and
+// its message, in Oxanium where the playfield is in the window.
+static void playfield_text_quads(const Layout3D *layout)
+{
+	if (!fonts_enabled())
+		return;
+	const float kx = layout->playfield[2] / L3D_PLAYFIELD_W, ky = layout->playfield[3] / L3D_PLAYFIELD_H;
+	text_record_quads(frame_texts, frame_text_count, L3D_PLAYFIELD_X, layout->playfield[0], layout->playfield[1], kx, ky,
+	                  L3D_PLAYFIELD_W, L3D_PLAYFIELD_H);
+	if (layout->split && textErase > 0 && text_window_message[0] != '\0' && !menu.on)
+	{
+		const float color[4] = { 0.86f, 0.86f, 0.9f, 1.0f };
+		const float cap = 5.4f * ky;
+		text_quads(TEXT_TINY, text_window_message, layout->playfield[0] + 20 * kx,
+		           layout->playfield[1] + (MESSAGE_AT + 1) * ky, cap, color, cap * 0.09f);
 	}
 }
 
@@ -5726,6 +5771,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 		hud_panel_hd(hud);
 	}
+	playfield_text_quads(&layout);
 
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;

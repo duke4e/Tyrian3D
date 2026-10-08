@@ -15,6 +15,13 @@
 static TextRecord records[RECORDS];
 static int record_count = 0;
 
+// The texts drawn on the playfield into the 3D frame being captured (its overlay: the score, the
+// players' lives...), for the frame last captured.
+#define FRAME_RECORDS 32
+static TextRecord frame_records[FRAME_RECORDS];
+static int frame_record_count = 0;
+static Uint32 frame_records_for = 0;
+
 static int depth = 0;          // nested text drawing calls
 static TextRecord *open = NULL;  // the outermost call's record, while it draws
 static const SDL_Surface *open_surface = NULL;
@@ -49,19 +56,37 @@ static void copy_rect(const SDL_Surface *surface, const TextRecord *r, Uint8 *ou
 void text_record_begin(const SDL_Surface *surface, int x, int y, const char *text, unsigned int font, int alignment,
                        bool shadow_only)
 {
-	if (depth++ > 0 || !recording(surface) || font > 2)
+	if (depth++ > 0 || font > 2)
+		return;
+	const bool playfield = l3d_enabled && l3d_capturing && surface == game_screen && l3d_current_layer() == L3D_OVERLAY;
+	if (!playfield && !recording(surface))
 		return;
 	const int width = JE_textWidth(text, font);
 	if (alignment == 1)
 		x -= width / 2;
 	else if (alignment == 2)
 		x -= width;
-	TextRecord *r = &records[record_count < RECORDS ? record_count : RECORDS - 1];
-	if (record_count == RECORDS)
+	TextRecord *r;
+	if (playfield)
 	{
-		// Full: the oldest goes.
-		memmove(&records[0], &records[1], sizeof(records[0]) * (RECORDS - 1));
-		r = &records[RECORDS - 1];
+		if (frame_records_for != l3d_frame_number)
+		{
+			frame_records_for = l3d_frame_number;
+			frame_record_count = 0;
+		}
+		if (frame_record_count == FRAME_RECORDS)
+			return;
+		r = &frame_records[frame_record_count++];
+	}
+	else
+	{
+		r = &records[record_count < RECORDS ? record_count : RECORDS - 1];
+		if (record_count == RECORDS)
+		{
+			// Full: the oldest goes.
+			memmove(&records[0], &records[1], sizeof(records[0]) * (RECORDS - 1));
+			r = &records[RECORDS - 1];
+		}
 	}
 	r->text_x = x;
 	r->text_y = y;
@@ -87,6 +112,11 @@ void text_record_end(void)
 	if (--depth > 0 || open == NULL)
 		return;
 	copy_rect(open_surface, open, open->after);
+	if (open >= frame_records && open < frame_records + FRAME_RECORDS)
+	{
+		open = NULL;
+		return;
+	}
 	// The same text again in the same place replaces the old record.
 	const int index = (int)(open - records);
 	for (int i = 0; i < (record_count < RECORDS ? record_count : RECORDS - 1); ++i)
@@ -121,5 +151,16 @@ int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max)
 		if (changed > 0 && kept * 100 >= changed * 85)
 			out[count++] = r;
 	}
+	return count;
+}
+
+int text_records_frame(const TextRecord **out, int max)
+{
+	if (frame_records_for != l3d_frame_number)
+		return 0;
+	int count = 0;
+	for (int i = 0; i < frame_record_count && count < max; ++i)
+		if (frame_records[i].w > 0 && frame_records[i].h > 0)
+			out[count++] = &frame_records[i];
 	return count;
 }

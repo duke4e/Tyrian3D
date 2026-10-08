@@ -34,4 +34,8 @@ void text_record_end(void);
 // The records a screen still shows (each text's changed pixels mostly as drawn), oldest first.
 int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max);
 
+// The texts drawn on the playfield into the overlay of the 3D frame last captured (the game's own
+// coordinates: x from the playfield's left edge plus L3D_PLAYFIELD_X).
+int text_records_frame(const TextRecord **out, int max);
+
 #endif /* TEXT_RECORD_H */
