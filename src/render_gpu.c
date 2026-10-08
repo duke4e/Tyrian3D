@@ -1105,6 +1105,7 @@ static bool cloud_background(const L3DBackground *background, bool composed);
 static bool water_overlay(const L3DBackground *background);
 static bool relief_frame(const L3DFrame *frame, const bool *composed);
 static bool terrain_background(const L3DFrame *frame, const L3DBackground *background);
+static float solid_top(int set);
 static const B3DTerrain *frame_terrains[B3D_SETS + 1];
 static float terrain_lift(float x, float y);
 
@@ -2586,6 +2587,9 @@ static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *i
 		// Drifting a little with the wind, bobbing slowly.
 		position[i][0] = puff->x + sinf(glint_time * 0.4f + puff->z * 0.05f) * 1.2f;
 		position[i][1] = heights[cloud_canvases[puff->canvas].layer] + puff->rise;
+		// Under background 3's solids (drawn over the clouds), the puffs stay below their tops.
+		if (cloud_canvases[puff->canvas].set == 2 && frame_terrains[3] != NULL)
+			position[i][1] = SDL_min(position[i][1], solid_top(3) - 1.5f - puff->radius * 0.5f);
 		position[i][2] = puff->z + speed;
 		const float d[3] = { position[i][0] - camera->position[0], position[i][1] - camera->position[1],
 		                     position[i][2] - camera->position[2] };
