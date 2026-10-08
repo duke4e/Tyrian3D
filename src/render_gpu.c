@@ -120,6 +120,10 @@ static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 static BTBHGPUTexture *layer_water = NULL;
 static BTBHGPUTexture *tile_water = NULL;
 static BTBHGPUTexture *composed_water = NULL;
+#define CLOUD_TEXELS 512   // canvas size in texels
+#define CLOUD_SCALE 2      // game pixels per texel
+#define MAX_CLOUD_CANVASES 2
+static BTBHGPUTexture *cloud_texture = NULL;  // CLOUD_TEXELS x CLOUD_TEXELS * MAX_CLOUD_CANVASES
 static Uint32 layer_water_rgba[L3D_WIDTH * ATLAS_H];
 static float glint_time = 0;  // seconds of game time, for the waves
 
@@ -425,6 +429,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	white_texture = create_texture(1, 1, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_texture = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_water = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
+	cloud_texture = create_texture_filtered(CLOUD_TEXELS, CLOUD_TEXELS * MAX_CLOUD_CANVASES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB,
+	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	const Uint32 white = 0xffffffff;
 	btbh_gpu_texture_update_rgba8(white_texture, (const uint8_t *)&white, 0, 0, 1, 1);
 	quad_mesh = create_quad_mesh(1, 1);
@@ -459,6 +465,7 @@ void rgpu_shutdown(void)
 	particle_texture = NULL;
 	billboard_mesh = NULL;
 	composed_texture = NULL;
+	cloud_texture = NULL;
 	tile_indices_valid = false;
 	memset(tile_pages, 0, sizeof(tile_pages));
 	quad_mesh = NULL;
@@ -1829,168 +1836,324 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 	}
 }
 
-/* --- Clouds (M8) ------------------------------------------------------------------------------- */
+/* --- Clouds --------------------------------------------------------------------------------------- */
 
-// Cloud tiles (b3d_tile_is_cloud) of backgrounds that aren't blended or filtered are volumetric
-// puffs built from the tiles as sprites, joined where neighbouring cloud tiles meet; they cast
-// shadows like the other objects. add_background_batches collects them instead of drawing them.
+/*
+ * Cloud tiles (b3d_tile_is_cloud) of backgrounds 2 and 3 are soft clouds: add_background_batches
+ * collects them instead of drawing them, and for each background they are drawn into a canvas at
+ * half resolution, blurred into soft edges and shaded by their thickness from the light's side.
+ * The canvas is drawn as two translucent slices at the background's height (some depth in
+ * perspective) and once more, dark and faint, on the ground where the sun casts its shadow.
+ */
 typedef struct
 {
-	Uint8 set, tile, open;
-	bool flipped;
-	float x, z, height, brightness;
-	Uint32 page_hash;
-	const Uint32 *page_colors;
+	Uint8 set, tile;
+	bool flipped, blended;  // blended: the game mixes these clouds half with what is below
+	int layer;
+	float x, z;
+	const Uint32 *colors;
 } CloudTile;
 
-#define MAX_CLOUD_TILES 512
+#define MAX_CLOUD_TILES 1024
 static CloudTile cloud_tiles[MAX_CLOUD_TILES];
 static int cloud_tile_count = 0;
 static Uint32 cloud_page_colors[4][256];  // by set: the colours its tiles are drawn in
+
+static struct
+{
+	bool used, blended;
+	int set, layer;
+	float x0, z0;  // game pixels, the canvas's top left
+	int w, h;      // texels
+} cloud_canvases[MAX_CLOUD_CANVASES];
 
 static bool clouds_enabled(void)
 {
 	return m3d_enabled;
 }
 
-// A background whose cloud tiles become puffs.
+// How far each map has scrolled (game pixels, by set), so the clouds' detail stays with the map.
+static float map_scroll[4];
+
+// Smooth value noise, 0-1, with a lattice of `cell` pixels.
+static float cloud_noise(float x, float z, float cell, Uint32 seed)
+{
+	const float fx = x / cell, fz = z / cell;
+	const int ix = (int)floorf(fx), iz = (int)floorf(fz);
+	float tx = fx - ix, tz = fz - iz;
+	tx = tx * tx * (3 - 2 * tx);
+	tz = tz * tz * (3 - 2 * tz);
+	float corner[4];
+	for (int k = 0; k < 4; ++k)
+	{
+		Uint32 h = (Uint32)(ix + (k & 1)) * 73856093u ^ (Uint32)(iz + (k >> 1)) * 19349663u ^ seed * 83492791u;
+		h ^= h >> 13;
+		h *= 0x5bd1e995u;
+		h ^= h >> 15;
+		corner[k] = (h & 0xffffu) / 65535.0f;
+	}
+	const float top = corner[0] + (corner[1] - corner[0]) * tx, bottom = corner[2] + (corner[3] - corner[2]) * tx;
+	return top + (bottom - top) * tz;
+}
+
+// Billowing detail: a few octaves of noise.
+static float cloud_billows(float x, float z)
+{
+	return 0.5f * cloud_noise(x, z, 26.0f, 1) + 0.3f * cloud_noise(x, z, 11.0f, 2) + 0.2f * cloud_noise(x, z, 5.0f, 3);
+}
+
+// A background whose cloud tiles are clouds.
 static bool cloud_background(const L3DBackground *background, bool composed)
 {
-	return clouds_enabled() && background->set >= 2 && !background->blend && !composed &&
-	       background->effect_count == 0;
+	return clouds_enabled() && background->set >= 2 && background->effect_count == 0 && !composed &&
+	       b3d_set_has_clouds(background->set);
 }
 
-static VolumeSheet cloud_sheets[4];
-static unsigned int cloud_sheet_generation[4];
-
-static VolumeSheet *get_cloud_sheet(int set, const Uint32 colors[256])
+static void box_blur(float *values, float *scratch, int w, int h, int radius)
 {
-	VolumeSheet *entry = &cloud_sheets[set];
-	if (entry->data == NULL || cloud_sheet_generation[set] != b3d_map_generation + 1)
+	for (int y = 0; y < h; ++y)  // rows
 	{
-		if (entry->data != NULL)
-			release_volume_sheet(entry);
-		static const Uint8 keys[4];
-		entry->data = &keys[set];
-		b3d_tile_sprites(set, entry->indices, entry->cover);
-		cloud_sheet_generation[set] = b3d_map_generation + 1;
-	}
-	const Uint32 hash = hash_colors(colors);
-	if (entry->texture == NULL || entry->colors_hash != hash)
-	{
-		static Uint32 rgba[V3D_ATLAS_W * V3D_ATLAS_H];
-		for (int i = 0; i < V3D_ATLAS_W * V3D_ATLAS_H; ++i)
-			rgba[i] = entry->cover[i] ? colors[entry->indices[i]] : 0;
-		if (entry->texture == NULL)
+		float sum = 0;
+		for (int x = -radius; x <= radius; ++x)
+			sum += values[y * w + SDL_clamp(x, 0, w - 1)];
+		for (int x = 0; x < w; ++x)
 		{
-			BTBHGPUTextureReport report;
-			entry->texture = btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)rgba, V3D_ATLAS_W, V3D_ATLAS_H, 0,
-				BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+			scratch[y * w + x] = sum / (2 * radius + 1);
+			sum += values[y * w + SDL_min(x + radius + 1, w - 1)] - values[y * w + SDL_max(x - radius, 0)];
 		}
-		else
-			btbh_gpu_texture_update_rgba8(entry->texture, (const uint8_t *)rgba, 0, 0, V3D_ATLAS_W, V3D_ATLAS_H);
-		entry->colors_hash = hash;
 	}
-	return entry->texture != NULL ? entry : NULL;
+	for (int x = 0; x < w; ++x)  // columns
+	{
+		float sum = 0;
+		for (int y = -radius; y <= radius; ++y)
+			sum += scratch[SDL_clamp(y, 0, h - 1) * w + x];
+		for (int y = 0; y < h; ++y)
+		{
+			values[y * w + x] = sum / (2 * radius + 1);
+			sum += scratch[SDL_min(y + radius + 1, h - 1) * w + x] - scratch[SDL_max(y - radius, 0) * w + x];
+		}
+	}
 }
 
-// The sides on which a cloud tile continues in a neighbouring cloud tile.
-static void join_cloud_tiles(int first, int count)
+// Draws one background's cloud tiles into canvas `c` (on the game's ticks).
+static void build_cloud_canvas(int c, int set, int layer, bool blended)
 {
-	for (int a = first; a < first + count; ++a)
-	{
-		CloudTile *t = &cloud_tiles[a];
-		t->open = 0;
-		for (int b = first; b < first + count; ++b)
+	enum { N = CLOUD_TEXELS * CLOUD_TEXELS };
+	static float cover[N], red[N], green[N], blue[N], scratch[N];
+	static float sharp_cover[N], sharp_red[N], sharp_green[N], sharp_blue[N];
+	static Uint32 rgba[N];
+
+	float x0 = 1e9f, z0 = 1e9f, x1 = -1e9f, z1 = -1e9f;
+	for (int t = 0; t < cloud_tile_count; ++t)
+		if (cloud_tiles[t].set == set)
 		{
-			const CloudTile *u = &cloud_tiles[b];
-			if (a == b || u->set != t->set)
+			x0 = SDL_min(x0, cloud_tiles[t].x);
+			z0 = SDL_min(z0, cloud_tiles[t].z);
+			x1 = SDL_max(x1, cloud_tiles[t].x + B3D_TILE_W);
+			z1 = SDL_max(z1, cloud_tiles[t].z + B3D_TILE_H);
+		}
+	const int margin = 8 * CLOUD_SCALE;  // room for the soft edges
+	x0 -= margin;
+	z0 -= margin;
+	x1 += margin;
+	z1 += margin;
+	const float size = CLOUD_TEXELS * CLOUD_SCALE;
+	if (x1 - x0 > size)
+	{
+		const float centre = L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2.0f;
+		x0 = SDL_max(x0, centre - size / 2);
+		x1 = x0 + size;
+	}
+	if (z1 - z0 > size)
+		z0 = z1 - size;  // keep the near part
+	const int w = SDL_min(CLOUD_TEXELS, (int)ceilf((x1 - x0) / CLOUD_SCALE));
+	const int h = SDL_min(CLOUD_TEXELS, (int)ceilf((z1 - z0) / CLOUD_SCALE));
+	cloud_canvases[c].used = true;
+	cloud_canvases[c].blended = blended;
+	cloud_canvases[c].set = set;
+	cloud_canvases[c].layer = layer;
+	cloud_canvases[c].x0 = floorf(x0);
+	cloud_canvases[c].z0 = floorf(z0);
+	cloud_canvases[c].w = w;
+	cloud_canvases[c].h = h;
+	x0 = floorf(x0);
+	z0 = floorf(z0);
+
+	memset(cover, 0, sizeof(float) * w * h);
+	memset(red, 0, sizeof(float) * w * h);
+	memset(green, 0, sizeof(float) * w * h);
+	memset(blue, 0, sizeof(float) * w * h);
+	for (int t = 0; t < cloud_tile_count; ++t)
+	{
+		const CloudTile *tile = &cloud_tiles[t];
+		const Uint8 *data = tile->set == set ? b3d_tile_pixels(tile->set, tile->tile) : NULL;
+		if (data == NULL)
+			continue;
+		for (int y = 0; y < B3D_TILE_H; ++y)
+		{
+			const int ty = (int)(tile->z + y - z0) / CLOUD_SCALE;
+			if (ty < 0 || ty >= h)
 				continue;
-			int side;  // where u is: 0 above, 1 right, 2 below, 3 left
-			if (u->z == t->z && u->x == t->x + B3D_TILE_W)
-				side = 1;
-			else if (u->z == t->z && u->x == t->x - B3D_TILE_W)
-				side = 3;
-			else if (u->x == t->x && u->z == t->z + B3D_TILE_H)
-				side = 2;
-			else if (u->x == t->x && u->z == t->z - B3D_TILE_H)
-				side = 0;
-			else
-				continue;
-			// Mirrored tiles have their left and right swapped.
-			const int mine_side = t->flipped && (side & 1) ? side ^ 2 : side;
-			const int theirs_side = u->flipped && ((side + 2) % 4 & 1) ? (side + 2) % 4 ^ 2 : (side + 2) % 4;
-			Uint32 mine = b3d_tile_edge(t->set, t->tile, mine_side);
-			Uint32 theirs = b3d_tile_edge(u->set, u->tile, theirs_side);
-			if (side == 0 || side == 2)
+			for (int x = 0; x < B3D_TILE_W; ++x)
 			{
-				// Top and bottom edges run left to right; mirroring reverses them.
-				Uint32 r = 0;
-				if (t->flipped)
-				{
-					for (int i = 0; i < B3D_TILE_W; ++i)
-						r |= ((mine >> i) & 1u) << (B3D_TILE_W - 1 - i);
-					mine = r;
-					r = 0;
-				}
-				if (u->flipped)
-				{
-					for (int i = 0; i < B3D_TILE_W; ++i)
-						r |= ((theirs >> i) & 1u) << (B3D_TILE_W - 1 - i);
-					theirs = r;
-				}
+				const Uint8 value = data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)];
+				const int tx = (int)(tile->x + x - x0) / CLOUD_SCALE;
+				if (value == 0 || tx < 0 || tx >= w)
+					continue;
+				const Uint8 *color = (const Uint8 *)&tile->colors[value];
+				const int i = ty * w + tx;
+				cover[i] += 1.0f / (CLOUD_SCALE * CLOUD_SCALE);
+				red[i] += color[0];
+				green[i] += color[1];
+				blue[i] += color[2];
 			}
-			int edge = 0, shared = 0;
-			for (Uint32 m = mine; m != 0; m &= m - 1)
-				++edge;
-			for (Uint32 m = mine & theirs; m != 0; m &= m - 1)
-				++shared;
-			if (edge >= 3 && shared * 5 >= edge * 3)
-				t->open |= (Uint8)(1u << mine_side);
 		}
 	}
+	// Soft edges: the cover blurred (about a gaussian); colours blurred by cover, so that the edges
+	// take their neighbours' colours.
+	for (int i = 0; i < w * h; ++i)
+	{
+		const float n = cover[i] * CLOUD_SCALE * CLOUD_SCALE;
+		if (n > 0)
+		{
+			red[i] = red[i] / n * cover[i];
+			green[i] = green[i] / n * cover[i];
+			blue[i] = blue[i] / n * cover[i];
+		}
+	}
+	// The cloud's own texture, lightly softened, inside; widely blurred colours at the soft edges.
+	memcpy(sharp_cover, cover, sizeof(float) * w * h);
+	memcpy(sharp_red, red, sizeof(float) * w * h);
+	memcpy(sharp_green, green, sizeof(float) * w * h);
+	memcpy(sharp_blue, blue, sizeof(float) * w * h);
+	box_blur(sharp_cover, scratch, w, h, 1);
+	box_blur(sharp_red, scratch, w, h, 1);
+	box_blur(sharp_green, scratch, w, h, 1);
+	box_blur(sharp_blue, scratch, w, h, 1);
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		box_blur(red, scratch, w, h, 2);
+		box_blur(green, scratch, w, h, 2);
+		box_blur(blue, scratch, w, h, 2);
+		box_blur(cover, scratch, w, h, 2);
+	}
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			const int i = y * w + x;
+			const float thickness = cover[i];
+			if (thickness < 0.02f)
+			{
+				rgba[i] = 0;
+				continue;
+			}
+			// Billows: thicker and thinner patches that drift slowly with the wind, fixed to the map.
+			const float map_x = x0 + (x + 0.5f) * CLOUD_SCALE + glint_time * 3.0f;
+			const float map_z = z0 + (y + 0.5f) * CLOUD_SCALE - map_scroll[set & 3];
+			const float billow = cloud_billows(map_x, map_z);
+			// Lit from the upper left: brighter where the cloud thins towards the light, darker on the
+			// far side; thin parts let more of the ground through.
+			const float towards = cover[SDL_max(y - 3, 0) * w + SDL_max(x - 3, 0)];
+			const float away = cover[SDL_min(y + 3, h - 1) * w + SDL_min(x + 3, w - 1)];
+			const float shade = SDL_clamp(1.0f + 1.8f * (away - towards), 0.68f, 1.25f) * (0.8f + 0.4f * billow);
+			const float t = SDL_clamp((thickness * (0.55f + 0.9f * billow) - 0.06f) / 0.55f, 0.0f, 1.0f);
+			const float alpha = t * t * (3 - 2 * t) * 0.85f;
+			Uint8 *out = (Uint8 *)&rgba[i];
+			float base[3] = { red[i] / thickness, green[i] / thickness, blue[i] / thickness };
+			if (sharp_cover[i] > 0.15f)
+			{
+				const float k = SDL_min(1.0f, (sharp_cover[i] - 0.15f) / 0.3f);
+				base[0] += (sharp_red[i] / sharp_cover[i] - base[0]) * k;
+				base[1] += (sharp_green[i] / sharp_cover[i] - base[1]) * k;
+				base[2] += (sharp_blue[i] / sharp_cover[i] - base[2]) * k;
+			}
+			for (int k = 0; k < 3; ++k)
+			{
+				const float whiter = base[k] + (255.0f - base[k]) * 0.3f;  // clouds whiter than the tiles
+				out[k] = (Uint8)SDL_clamp(whiter * shade, 0.0f, 255.0f);
+			}
+			out[3] = (Uint8)(alpha * 255.0f);
+		}
+	btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)rgba, 0, c * CLOUD_TEXELS, w, h);
+	// A clear texel beyond the canvas's right and bottom edges, so filtering there fades out.
+	static Uint32 clear[CLOUD_TEXELS + 1];
+	if (w < CLOUD_TEXELS)
+		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, w, c * CLOUD_TEXELS, 1, SDL_min(h + 1, CLOUD_TEXELS));
+	if (h < CLOUD_TEXELS)
+		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, 0, c * CLOUD_TEXELS + h, SDL_min(w + 1, CLOUD_TEXELS), 1);
+	if (SDL_getenv("TYR3D_LOG_CLOUDS") != NULL)
+		printf("clouds: canvas %d set %d layer %d at %.0f,%.0f, %dx%d texels (frame %u)\n", c, set, layer, x0, z0, w, h,
+		       l3d_frame_number);
 }
 
-static void add_cloud_batches(int *instance_count, int *batch_count)
+static void add_cloud_quad(int c, float height, float x_shift, float z_shift, float shade, float alpha, int *instance_count,
+                           int *batch_count)
 {
-	bool done[MAX_CLOUD_TILES] = { false };
-	for (int c = 0; c < cloud_tile_count; ++c)
+	if (*instance_count >= MAX_INSTANCES || *batch_count >= MAX_BATCHES)
+		return;
+	const float speed = background_speed[cloud_canvases[c].set & 3] * ahead;
+	Mat4 transform = mat4_identity();
+	transform.m[0] = (float)(cloud_canvases[c].w * CLOUD_SCALE);
+	transform.m[10] = (float)(cloud_canvases[c].h * CLOUD_SCALE);
+	transform.m[12] = cloud_canvases[c].x0 + x_shift;
+	transform.m[13] = height;
+	transform.m[14] = cloud_canvases[c].z0 + z_shift + speed;
+	float *instance = instances + *instance_count * 24;
+	write_instance(instance, &transform, shade);
+	instance[19] = alpha;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = quad_mesh;
+	b->first_instance = (*instance_count)++;
+	b->instance_count = 1;
+	b->albedo_texture = cloud_texture;
+	b->uv_scale_x = (float)cloud_canvases[c].w / CLOUD_TEXELS;
+	b->uv_scale_y = (float)cloud_canvases[c].h / (CLOUD_TEXELS * MAX_CLOUD_CANVASES);
+	b->uv_offset_y = (float)c / MAX_CLOUD_CANVASES;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
+}
+
+static void add_cloud_batches(const float *heights, bool new_frame, int *instance_count, int *batch_count)
+{
+	if (new_frame)
 	{
-		const CloudTile *first = &cloud_tiles[c];
-		if (done[c])
-			continue;
-		VolumeSheet *entry = get_cloud_sheet(first->set, first->page_colors);
-		BTBHGPUCustomMesh *mesh = entry != NULL ? get_volume_mesh(entry, b3d_tile_sprite(first->tile), true,
-		                                                          V3D_STYLE_RAISED, first->open) : NULL;
-		const int first_instance = *instance_count;
-		for (int d = c; d < cloud_tile_count; ++d)
+		for (int c = 0; c < MAX_CLOUD_CANVASES; ++c)
+			cloud_canvases[c].used = false;
+		int canvases = 0;
+		for (int t = 0; t < cloud_tile_count && canvases < MAX_CLOUD_CANVASES; ++t)
 		{
-			const CloudTile *t = &cloud_tiles[d];
-			if (done[d] || t->set != first->set || t->tile != first->tile || t->open != first->open ||
-			    t->flipped != first->flipped)
-				continue;
-			done[d] = true;
-			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
-				continue;
-			// The mesh is centred on the tile; mirrored tiles are mirrored meshes.
-			Mat4 transform = mat4_translation(t->x + B3D_TILE_W / 2.0f, t->height, t->z + B3D_TILE_H / 2.0f);
-			if (t->flipped)
-				transform.m[0] = -1;
-			write_instance(instances + *instance_count * 24, &transform, t->brightness);
-			++*instance_count;
+			bool done = false;
+			for (int c = 0; c < canvases; ++c)
+				done |= cloud_canvases[c].set == cloud_tiles[t].set;
+			if (!done)
+			{
+				build_cloud_canvas(canvases, cloud_tiles[t].set, cloud_tiles[t].layer, cloud_tiles[t].blended);
+				++canvases;
+			}
 		}
-		const int count = *instance_count - first_instance;
-		if (count == 0 || *batch_count >= MAX_BATCHES)
+	}
+
+	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+	                           sun_direction[2] * sun_direction[2]);
+	const float sun[3] = { sun_direction[0] / length, sun_direction[1] / length, sun_direction[2] / length };
+	for (int c = 0; c < MAX_CLOUD_CANVASES; ++c)
+	{
+		if (!cloud_canvases[c].used)
 			continue;
-		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
-		init_batch(b);
-		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
-		b->custom_mesh = mesh;
-		b->first_instance = first_instance;
-		b->instance_count = count;
-		b->albedo_texture = entry->texture;
-		b->unlit_enabled = 1;  // shaded by the mesh's vertex colours (v3d_build_mesh)
-		b->alpha_cutoff = 0.5f;
+		const float height = heights[cloud_canvases[c].layer];
+		// The shadow on the ground, where the sun's light through the cloud lands.
+		const float ground = heights[0] + 0.15f, drop = height - ground + 30.0f;  // clouds float higher than their layer
+		add_cloud_quad(c, ground, sun[0] * drop / -sun[1], sun[2] * drop / -sun[1], 0.0f, cloud_canvases[c].blended ? 0.22f : 0.3f,
+		               instance_count, batch_count);
+		// The cloud: two slices, a little apart, for some depth; clouds the game blends with what is
+		// below let about half of it through.
+		const float opacity = cloud_canvases[c].blended ? 0.42f : 0.7f;
+		add_cloud_quad(c, height - 1.5f, 0, 0, 0.94f, opacity, instance_count, batch_count);
+		add_cloud_quad(c, height + 1.5f, 0, 0, 1.0f, opacity, instance_count, batch_count);
 	}
 }
 
@@ -2219,27 +2382,26 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const int first = tile_count;
 		tile_count += b3d_collect_tiles(background, ground_zero, rect[0], rect[1], rect[2], rect[3],
 		                                tiles + tile_count, capacity - tile_count);
-		// Cloud tiles are puffs (add_cloud_batches), standing on their layer.
+		// Cloud tiles are clouds (add_cloud_batches).
 		if (cloud_background(background, composed[i]))
 		{
 			memcpy(cloud_page_colors[background->set], page_colors, sizeof(page_colors));
-			const int first_cloud = cloud_tile_count;
 			int kept = first;
 			for (int t = first; t < tile_count; ++t)
 			{
 				const int tile = tiles[t].cell % B3D_TILES_PER_SET;
 				if (tiles[t].cell < B3D_CELLS && tiles[t].cell / B3D_TILES_PER_SET + 1 == background->set &&
-				    b3d_tile_is_cloud(background->set, tile) && cloud_tile_count < MAX_CLOUD_TILES)
+				    b3d_tile_is_cloud(background->set, tile))
 				{
-					cloud_tiles[cloud_tile_count++] = (CloudTile){
-						(Uint8)background->set, (Uint8)tile, 0, tiles[t].flipped, tiles[t].x, tiles[t].z + shift,
-						heights[background->layer], tiles[t].brightness, 0, cloud_page_colors[background->set] };
+					if (cloud_tile_count < MAX_CLOUD_TILES)
+						cloud_tiles[cloud_tile_count++] = (CloudTile){
+							(Uint8)background->set, (Uint8)tile, tiles[t].flipped, background->blend, background->layer,
+							tiles[t].x, tiles[t].z, cloud_page_colors[background->set] };
 					continue;
 				}
 				tiles[kept++] = tiles[t];
 			}
 			tile_count = kept;
-			join_cloud_tiles(first_cloud, cloud_tile_count - first_cloud);
 		}
 		for (int t = first; t < tile_count; ++t)
 		{
@@ -2812,6 +2974,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// which reuse what was made of the frame.
 	static Uint32 presented_frame = 0;
 	const bool new_frame = presented_frame != l3d_frame_number || ahead == 0;
+	b3d_clouds = clouds_enabled();  // blended backgrounds of clouds aren't composed
 	presented_frame = l3d_frame_number;
 
 	// Layers that background maps were drawn into get the map's tiles beneath them.
@@ -2842,6 +3005,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		background_speed[1] = backMove;
 		background_speed[2] = backMove2;
 		background_speed[3] = backMove3;
+		for (int set = 0; set < 4; ++set)
+			map_scroll[set] += background_speed[set];
 		for (int l = 0; l < frame->layer_count; ++l)
 			layer_speed[l] = frame->layers[l].type == L3D_EXPLOSION ? explodeMove : 0;
 		for (int i = 0; i < frame->background_count; ++i)
@@ -2941,10 +3106,10 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
+	add_cloud_batches(heights, new_frame, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
-	add_cloud_batches(&instance_count, &batch_count);
 
 	// Shadows: objects (models and volumetric sprites) cast the sun's shadow; the unlit surfaces
 	// (layers, background tiles, volumetric sprites) darken in it, lit models are shaded by it.

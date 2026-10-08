@@ -5,7 +5,6 @@
 
 #include "config.h"
 #include "palette.h"
-#include "volume3d.h"
 #include "paths3d.h"
 #include "pcxmast.h"
 #include "varz.h"
@@ -540,12 +539,19 @@ int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float
 
 /* --- Filtered backgrounds ------------------------------------------------------------------- */
 
+bool b3d_clouds = false;
+
 void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS])
 {
 	int last = -1;
 	for (int i = 0; i < frame->background_count; ++i)
-		if (frame->backgrounds[i].effect_count > 0 || frame->backgrounds[i].blend)
+	{
+		const L3DBackground *b = &frame->backgrounds[i];
+		// A blended background of clouds isn't blended in the 3D view (its clouds are the canvas).
+		const bool blended = b->blend && !(b3d_clouds && b3d_set_has_clouds(b->set));
+		if (b->effect_count > 0 || blended)
 			last = i;
+	}
 	for (int i = 0; i < frame->background_count; ++i)
 		composed[i] = i <= last;
 }
@@ -799,9 +805,9 @@ void b3d_export_maps(const char *dir)
 }
 
 /*
- * Clouds (M8). Tiles of backgrounds 2 and 3 that are light, soft colours with no dark outline
- * (clouds, mist) are shown as volumetric puffs instead of flat tiles: the renderer builds them
- * with the volumetric sprites' builder (volume3d.h) from the tiles laid out as 2x2 sprites.
+ * Clouds. Tiles of backgrounds 2 and 3 that are light, soft colours with no dark outline (clouds,
+ * mist) are shown as soft clouds above the ground instead of flat tiles (the renderer's cloud
+ * canvas); the game blends background 2's clouds with what is below, the 3D view doesn't.
  */
 static struct
 {
@@ -840,12 +846,77 @@ bool b3d_tile_is_cloud(int set, int tile)
 		return false;
 	if (clouds[set - 1].made_for != b3d_map_generation + 1)
 	{
+		// Tiles that clearly are clouds give the clouds' main colour ramp; tiles drawn in good part in
+		// it are cloud too (the clouds' shaded parts, their edges).
 		const MapSet m = map_set(set);
+		int ramp_use[16] = { 0 }, ramp_total = 0;
 		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
-			clouds[set - 1].cloud[t] = t < m.tile_count && classify_cloud(m.first_tile + t * m.tile_stride);
+		{
+			const Uint8 *data = m.first_tile + t * m.tile_stride;
+			clouds[set - 1].cloud[t] = t < m.tile_count && classify_cloud(data);
+			if (!clouds[set - 1].cloud[t])
+				continue;
+			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+				if (data[p] != 0)
+				{
+					++ramp_use[data[p] >> 4];
+					++ramp_total;
+				}
+		}
+		bool cloud_ramp[16];
+		int main_ramp = 0;
+		for (int r = 0; r < 16; ++r)
+		{
+			cloud_ramp[r] = ramp_total > 0 && ramp_use[r] * 33 >= ramp_total;  // 3 % of the clouds' pixels
+			if (ramp_use[r] > ramp_use[main_ramp])
+				main_ramp = r;
+		}
+		for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET && ramp_total > 0; ++t)
+		{
+			if (clouds[set - 1].cloud[t])
+				continue;
+			const Uint8 *data = m.first_tile + t * m.tile_stride;
+			int opaque = 0, in_ramps = 0, in_main = 0;
+			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+				if (data[p] != 0)
+				{
+					++opaque;
+					in_ramps += cloud_ramp[data[p] >> 4];
+					in_main += data[p] >> 4 == main_ramp;
+				}
+			// The clouds' shaded parts and edges mix in darker ramps (water, shadow): enough of the
+			// clouds' main ramp makes a cloud.
+			(void)in_ramps;
+			clouds[set - 1].cloud[t] = opaque > 0 && in_main * 20 >= opaque * 7;
+		}
 		clouds[set - 1].made_for = b3d_map_generation + 1;
 		if (SDL_getenv("TYR3D_LOG_CLOUDS") != NULL)
 		{
+			for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
+			{
+				if (clouds[set - 1].cloud[t])
+					continue;
+				const Uint8 *data = m.first_tile + t * m.tile_stride;
+				int use[16] = { 0 }, opaque = 0;
+				for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+					if (data[p] != 0)
+					{
+						++use[data[p] >> 4];
+						++opaque;
+					}
+				if (opaque == 0)
+					continue;
+				printf("clouds: set %d tile %d not cloud, ramps:", set, t);
+				for (int r = 0; r < 16; ++r)
+					if (use[r] > 0)
+						printf(" %d:%d%%", r, use[r] * 100 / opaque);
+				printf("\n");
+			}
+			printf("clouds: set %d ramps", set);
+			for (int r = 0; r < 16; ++r)
+				if (cloud_ramp[r])
+					printf(" %d", r);
+			printf("\n");
 			printf("clouds: set %d tiles", set);
 			for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 				if (clouds[set - 1].cloud[t])
@@ -856,50 +927,18 @@ bool b3d_tile_is_cloud(int set, int tile)
 	return clouds[set - 1].cloud[tile];
 }
 
-unsigned int b3d_tile_sprite(int tile)
+const Uint8 *b3d_tile_pixels(int set, int tile)
 {
-	// 2x2 sprites of 12x14 cells in a sheet of 19 columns: 9 tiles a row, 8 rows (72 tiles).
-	return (unsigned int)((tile / 9) * 2 * V3D_COLUMNS + (tile % 9) * 2 + 1);
+	return set >= 1 && set <= B3D_SETS && tile >= 0 && tile < B3D_TILES_PER_SET
+		? cell_pixels((set - 1) * B3D_TILES_PER_SET + tile) : NULL;
 }
 
-void b3d_tile_sprites(int set, Uint8 *indices, Uint8 *cover)
+bool b3d_set_has_clouds(int set)
 {
-	memset(indices, 0, V3D_ATLAS_W * V3D_ATLAS_H);
-	memset(cover, 0, V3D_ATLAS_W * V3D_ATLAS_H);
-	if (set < 1 || set > B3D_SETS)
-		return;
-	const MapSet m = map_set(set);
-	for (int t = 0; t < m.tile_count && t < B3D_TILES_PER_SET; ++t)
-	{
-		const Uint8 *data = m.first_tile + t * m.tile_stride;
-		const int ox = (t % 9) * B3D_TILE_W, oy = (t / 9) * B3D_TILE_H;
-		for (int y = 0; y < B3D_TILE_H; ++y)
-			for (int x = 0; x < B3D_TILE_W; ++x)
-			{
-				const Uint8 v = data[y * B3D_TILE_W + x];
-				indices[(oy + y) * V3D_ATLAS_W + ox + x] = v;
-				cover[(oy + y) * V3D_ATLAS_W + ox + x] = v != 0;
-			}
-	}
-}
-
-Uint32 b3d_tile_edge(int set, int tile, int side)
-{
-	if (set < 1 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
-		return 0;
-	const MapSet m = map_set(set);
-	if (tile >= m.tile_count)
-		return 0;
-	const Uint8 *data = m.first_tile + tile * m.tile_stride;
-	Uint32 bits = 0;
-	const int n = side == 0 || side == 2 ? B3D_TILE_W : B3D_TILE_H;
-	for (int i = 0; i < n; ++i)
-	{
-		const int x = side == 1 ? B3D_TILE_W - 1 : side == 3 ? 0 : i;
-		const int y = side == 0 ? 0 : side == 2 ? B3D_TILE_H - 1 : i;
-		bits |= (Uint32)(data[y * B3D_TILE_W + x] != 0) << i;
-	}
-	return bits;
+	for (int t = 0; t < B3D_TILES_PER_SET; ++t)
+		if (b3d_tile_is_cloud(set, t))
+			return true;
+	return false;
 }
 
 void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask)
