@@ -5324,6 +5324,63 @@ static void scene_post(BTBHGPUScenePost *post, const BTBHGPUWindowReport *window
 	post->anti_aliasing = (Uint8)anti_aliasing;
 }
 
+// The fork's radiance cascades (holographic): light from everything that glows spreads over the
+// playfield and bounces off the ground and the models, on top of the scene's own lighting (the
+// fork's additive mode; the pixel art takes the light rather than giving it, see present_3d).
+// With the Effects setting; TYR3D_RC=off|low|high (default low).
+static BTBHGPUSceneRadianceCascadesTier radiance_cascades_tier(void)
+{
+	static int tier = -1;
+	if (tier < 0)
+	{
+		const char *value = SDL_getenv("TYR3D_RC");
+		tier = value != NULL && (SDL_strcasecmp(value, "off") == 0 || strcmp(value, "0") == 0) ? BTBH_GPU_SCENE_RC_OFF
+		     : value != NULL && SDL_strcasecmp(value, "high") == 0 ? BTBH_GPU_SCENE_RC_HIGH : BTBH_GPU_SCENE_RC_LOW;
+	}
+	return settings3d.effects ? (BTBHGPUSceneRadianceCascadesTier)tier : BTBH_GPU_SCENE_RC_OFF;
+}
+
+// The field: square, a power of two (as the holographic cascades need), covering the playfield
+// and what the camera sees above it, without occluders.
+#define RC_CELLS 128
+#define RC_CELL 4.0f  // world units (game pixels)
+
+static void add_radiance_cascades(BTBHGPUScenePost *post)
+{
+	const BTBHGPUSceneRadianceCascadesTier tier = radiance_cascades_tier();
+	if (tier == BTBH_GPU_SCENE_RC_OFF)
+		return;
+	static float samples[RC_CELLS * RC_CELLS * 2];
+	static bool filled = false;
+	if (!filled)
+	{
+		for (int i = 0; i < RC_CELLS * RC_CELLS; ++i)
+		{
+			samples[i * 2] = 1000000.0f;
+			samples[i * 2 + 1] = 0.0f;
+		}
+		filled = true;
+	}
+	static float intensity = -1;
+	if (intensity < 0)
+		intensity = SDL_getenv("TYR3D_RC_INTENSITY") != NULL ? (float)SDL_atof(SDL_getenv("TYR3D_RC_INTENSITY")) : 1.0f;
+	BTBHGPUSceneRadianceCascades *rc = &post->radiance_cascades;
+	rc->tier = tier;
+	rc->backend = BTBH_GPU_SCENE_RC_BACKEND_HOLOGRAPHIC;
+	rc->indirect_intensity = SDL_clamp(intensity, 0.0f, 2.0f);
+	rc->hero_omni_emitter_index = -1;
+	rc->additive = 1;  // the scene's own lighting stays; glows add their light
+	rc->occlusion_cascade_count = 1;
+	BTBHGPUSceneRadianceCascadesOcclusionCascade *field = &rc->occlusion_cascades[0];
+	field->origin_world_x = floorf((L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2.0f - RC_CELLS * RC_CELL / 2) / RC_CELL) * RC_CELL;
+	field->origin_world_z = floorf((L3D_PLAYFIELD_H / 2.0f - RC_CELLS * RC_CELL / 2) / RC_CELL) * RC_CELL;
+	field->cell_size = RC_CELL;
+	field->width = RC_CELLS;
+	field->height = RC_CELLS;
+	field->revision = 1;
+	field->samples = samples;
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -5558,6 +5615,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	}
 	for (int i = first_particle_batch; i < batch_count; ++i)
 		casts_shadow[i] = 0;
+	// With the radiance cascades, the pixel art (unlit) takes their light instead of giving it:
+	// the light comes from what glows (particles, glows, emissive parts of models).
+	if (radiance_cascades_tier() != BTBH_GPU_SCENE_RC_OFF)
+		for (int i = 0; i < first_particle_batch; ++i)
+			if (batches[i].unlit_enabled != 0)
+				batches[i].rc_receiver = 1;
 
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &camera, shadows);
@@ -5599,6 +5662,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
+	add_radiance_cascades(&post);
 
 	BTBHGPUSceneReport scene_report;
 	if (btbh_gpu_window_scene_present_instances_with_visibility(window,
@@ -5616,6 +5680,11 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		present_canvas(quads, quad_count, spotlight, true, &window_frame);
 		return;
 	}
+	if (SDL_getenv("TYR3D_LOG_RC") != NULL && ahead == 0 && l3d_frame_number % 100 == 0)
+		printf("rc: requested %d active %d backend %d fallback %d, %ux%u\n", scene_report.radiance_cascades.requested_tier,
+		       scene_report.radiance_cascades.active_tier, scene_report.radiance_cascades.active_backend,
+		       scene_report.radiance_cascades.fallback_reason, scene_report.radiance_cascades.internal_width,
+		       scene_report.radiance_cascades.internal_height);
 
 	present_canvas(quads, quad_count, spotlight, false, &window_frame);
 }
