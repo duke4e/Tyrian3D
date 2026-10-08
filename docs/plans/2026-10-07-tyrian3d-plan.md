@@ -313,21 +313,23 @@ izvan mape).
 
 ## 4. Stanje
 
-Gotovo na branchu `tyrian3d/m1-tools`: M1; M2 (volumetrijski spriteovi i semantika animacija);
-M3 u prvoj verziji (modeli svih brodova, uključivo dvodijelne Dragonwing i Nort Ship,
-sidekickovi kao volumetrijski spriteovi, boje iz palete, preglednik modela); M4 (igralište što veće s panelom
-HUD-a uz rub u višoj rezoluciji, postavke, posebne razine, strane mape generirane WFC-om unaprijed); M5.2 stanja;
-M5.3 predmeti; M5.4 sjene; prvi val modela neprijatelja (M5.1: oko 30 tipova, 50 % pojavljivanja u epizodi 1 — blokovi, kupole, mine, mlažnjaci,
-mjehurići, projektil, ornament...; reference su Lady0101 upscaleovi u `upscale/out`); M7 u prvoj
-verziji (čestice eksplozija i njihova svjetla, sjaj metaka, bloom); M8 odsjaji na vodi i duboko zvjezdano polje; M9 macOS paket i svi modovi igre
-u 3D-u; M10 glazba kao MIDI kroz SoundFont (uživo i izvoz) i zvučni efekti upscalani AudioSR-om;
-glatki prikaz na refreshu monitora između tickova, manji input lag, sistemski pokazivač miša.
+Gotovo na branchu `tyrian3d/m1-tools`, po milestoneima:
 
-Na čekanju korisnika: AI upscale spriteova i panela HUD-a (`upscale/in` → `upscale/out`) prije
-složenijih modela neprijatelja; dojam o MIDI glazbi, odzivu i pokazivaču.
+| Milestone | Stanje |
+| --- | --- |
+| M1 Alati | gotovo (odabir razine, autopilot, sweep, katalog, pipeline modela, `models.cfg`) |
+| M2 Volumetrijski spriteovi | gotovo (pokrivenost 100 %, semantika animacija, spojeni dijelovi velikih neprijatelja) |
+| M3 Brodovi igrača | gotovo (modeli svih brodova, dvodijelni, sidekickovi volumetrijski) |
+| M4 Widescreen i HUD | gotovo (igralište preko prozora, HUD uz rub u 4× i preko upscalanog panela, postavke, posebne razine, WFC strane, poravnanje slojeva) |
+| M5 Neprijatelji epizode 1, predmeti, sjene | gotovo (oko 30 modela, 50 % pojavljivanja; stanja; predmeti; sjene) |
+| M6 Bossovi i ostale epizode | gotovo uz odluku: model ima svaki tip epizoda 2–5 koji se pojavljuje više od 100 puta, osim plamenova, lave i dijelova velikih struktura; bossovi i višedijelni neprijatelji su volumetrijski dijelovi spojeni bez šava |
+| M7 Efekti i svjetlo | gotovo (metci kao svjetleći 3D objekti — to su i "laseri kao trake", čestice i svjetla eksplozija, superpixeli kao iskre, bloom, SMAA; tonemapping ostaje Reinhard i bez gradinga jer boje moraju ostati paletne; tilt-shift izostavljen) |
+| M8 Okruženje | gotovo uz odluku: reljef tla iz svjetline (vidi se pod svjetlima eksplozija), odsjaji na vodi, duboko zvjezdano polje, WFC strane; 3D propovi za strukture u tileovima prelaze u fazu uljepšavanja (plan ih je i označio dugoročnima) |
+| M9 Robustnost i izdanje | macOS: svi modovi, sweep svih epizoda, Vulkan (MoltenVK), `.app` s licencama (`LICENSES.md`); Windows i Linux kasnije na Windows stroju (odluka korisnika, bez GitHub Actions) |
+| M10 Zvuk | gotovo (MIDI kroz SoundFont, upscalani zvučni efekti) |
 
-Sljedeće: M5.1 dalje po učestalosti, M6 bossovi, M7 laseri i svjetla eksplozija, M8 oblaci, M9
-Windows i Linux.
+Nakon plana (korisnikov redoslijed, 2026-10-08): uljepšavanje igre, pa novi brodovi, oružja,
+neprijatelji i nova proceduralna epizoda.
 
 ## 5. Ideje korisnika (2026-10-07)
 
