@@ -154,8 +154,21 @@ bool dev_start_game(void)
 				player[0].items.sidekick[k] = 24;  // Companion Ship Quicksilver
 		difficultyLevel++;
 	}
+	else if (mode != NULL && strcmp(mode, "galaga") == 0)
+	{
+		// The secret level's mode (the "]g" script command): the second ship joins with a Vulcan
+		// Cannon, as the script sets it up, in a two-player game.
+		onePlayerAction = true;
+		twoPlayerMode = true;
+		galagaMode = true;
+		player[1].items = player[0].items;
+		player[1].items.weapon[REAR_WEAPON].id = 15;  // Vulcan Cannon
+		for (uint k = 0; k < COUNTOF(player[1].items.sidekick); ++k)
+			player[1].items.sidekick[k] = 0;
+	}
 	else if (mode != NULL && strcmp(mode, "full") != 0)
-		fprintf(stderr, "warning: TYR3D_MODE must be full, arcade, two, timed:<1-2> or super:<1-%d>\n", SA_LASTSHIP);
+		fprintf(stderr, "warning: TYR3D_MODE must be full, arcade, two, galaga, timed:<1-2> or super:<1-%d>\n",
+		        SA_LASTSHIP);
 	initialDifficulty = difficultyLevel;
 
 	constantPlay = true;  // skip shops: they jump straight to the next level
