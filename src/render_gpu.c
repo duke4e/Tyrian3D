@@ -3404,6 +3404,54 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 	return ring->texture != NULL ? ring : NULL;
 }
 
+// Under the 3D palms, the palms painted in the map give way to the ground round them: their green
+// pixels take the average colour of the other pixels just outside the palm.
+static void erase_painted_palms(Uint32 *rgba, int width, int map_row)
+{
+	const B3DVegetation *veg = b3d_vegetation();
+	if (veg == NULL || map_row < 0 || map_row >= veg->rows)
+		return;
+	const int top = map_row * B3D_TILE_H;
+	for (int r = SDL_max(map_row - 1, 0); r <= SDL_min(map_row + 1, veg->rows - 1); ++r)
+		for (int i = veg->row_start[r]; i < veg->row_start[r + 1]; ++i)
+		{
+			const B3DPlant *p = &veg->plants[i];
+			if (p->kind != B3D_PALM)
+				continue;
+			const float radius = p->size / 8.0f * 1.15f;
+			const int cx = p->x, cy = p->y - top;
+			// The ground round the palm.
+			float sum[3] = { 0, 0, 0 };
+			int n = 0;
+			const int ring_r = (int)radius + 3;
+			for (int y = SDL_max(cy - ring_r, 0); y <= SDL_min(cy + ring_r, B3D_TILE_H - 1); ++y)
+				for (int x = SDL_max(cx - ring_r, 0); x <= SDL_min(cx + ring_r, width - 1); ++x)
+				{
+					const float d = sqrtf((float)((x - cx) * (x - cx) + (y - cy) * (y - cy)));
+					const Uint8 *c = (const Uint8 *)&rgba[y * width + x];
+					if (d < radius || d > radius + 3 || c[3] == 0 || (c[1] > c[0] && c[1] > c[2]) || c[0] + c[1] + c[2] < 150)
+						continue;
+					sum[0] += c[0];
+					sum[1] += c[1];
+					sum[2] += c[2];
+					++n;
+				}
+			if (n == 0)
+				continue;
+			for (int y = SDL_max(cy - (int)radius, 0); y <= SDL_min(cy + (int)radius, B3D_TILE_H - 1); ++y)
+				for (int x = SDL_max(cx - (int)radius, 0); x <= SDL_min(cx + (int)radius, width - 1); ++x)
+				{
+					Uint8 *c = (Uint8 *)&rgba[y * width + x];
+					const bool green = c[1] > c[0] && c[1] > c[2];
+					const bool dark = c[0] + c[1] + c[2] < 150;  // the palm's outline and shadow
+					if (c[3] == 0 || (!green && !dark) || (x - cx) * (x - cx) + (y - cy) * (y - cy) > radius * radius)
+						continue;
+					for (int k = 0; k < 3; ++k)
+						c[k] = (Uint8)(sum[k] / n);
+				}
+		}
+}
+
 // Puts a map row into its slot of the ring, unless it is there already.
 static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
 {
@@ -3440,6 +3488,8 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 					*wet = water_color;
 			}
 	}
+	if (set == 1)
+		erase_painted_palms(rgba, ring->width, map_row);
 	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
 	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
 	                              B3D_TILE_H);
@@ -3551,7 +3601,7 @@ static void build_palm(PlantBuilder *b, const B3DVegetation *veg)
 	for (int f = 0; f < FRONDS; ++f)
 	{
 		const float a = 6.2831853f * (f + 0.3f * plant_random(&seed)) / FRONDS;
-		const float dx = cosf(a), dz = sinf(a), length = 0.95f + 0.2f * plant_random(&seed);
+		const float dx = cosf(a), dz = sinf(a), length = 1.15f + 0.25f * plant_random(&seed);
 		Uint32 left[STEPS + 1], mid[STEPS + 1], right[STEPS + 1];
 		for (int i = 0; i <= STEPS; ++i)
 		{
