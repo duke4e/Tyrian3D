@@ -176,12 +176,16 @@ static bool parse_option(const char *token, M3DAppearance *a)
 	}
 	if (key_length == 4 && strncmp(token, "glow", 4) == 0)
 	{
-		// glow=<size>[:<strength>[:<palette index>]]
+		// glow=<size>[:<strength>[:<palette index>[:<dx>:<dy>]]]
 		a->glow_size = option_float(value, 0.0f);
 		const char *colon = strchr(value, ':');
 		a->glow_strength = colon != NULL ? option_float(colon + 1, DEFAULT_GLOW_STRENGTH) : DEFAULT_GLOW_STRENGTH;
 		const char *colon2 = colon != NULL ? strchr(colon + 1, ':') : NULL;
 		a->glow_color = colon2 != NULL ? (Uint8)SDL_clamp(atoi(colon2 + 1), 0, 255) : 0;
+		const char *colon3 = colon2 != NULL ? strchr(colon2 + 1, ':') : NULL;
+		const char *colon4 = colon3 != NULL ? strchr(colon3 + 1, ':') : NULL;
+		a->glow_dx = colon3 != NULL ? option_float(colon3 + 1, 0.0f) : 0.0f;
+		a->glow_dy = colon4 != NULL ? option_float(colon4 + 1, 0.0f) : 0.0f;
 		return true;
 	}
 	return false;
