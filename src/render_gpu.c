@@ -166,10 +166,16 @@ static bool background_layer(L3DLayerType type)
 	       type == L3D_BG2_OVER || type == L3D_BG3_OVER;
 }
 
+// Backgrounds' surfaces with the Effects setting: the sun's glints on water (where mask says), and
+// a gentle relief from the pixels' brightness that the explosions' lights bring out (a negative
+// normal scale, see the fork's shader).
+#define BACKGROUND_RELIEF 3.0f
+
 static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
 {
 	if (!settings3d.effects)
 		return;
+	b->normal_scale = -BACKGROUND_RELIEF;
 	b->surface_variant = BTBH_GPU_SCENE_SURFACE_GLINTS;
 	b->orm_texture = mask;
 	b->surface_time = glint_time;
