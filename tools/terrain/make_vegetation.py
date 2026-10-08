@@ -4,10 +4,11 @@ palms, trees and grass, found by their colour, stored as an asset (assets/terrai
 the game draws as models on the terrain (palms and trees standing, grass as blades in the wind).
 
 - Palms: small green patches on other ground (desert maps; "palms": true in levels.json).
-- Trees: large green areas of strong texture (canopies): a tree on each bright top.
+- Trees: large green areas of strong texture (canopies): a tree on each bright top (palms with
+  "forest": "palm" in levels.json, for palm jungles).
 - Grass: large smooth green areas: clumps of blades every few pixels.
-No palms or trees where ground enemies stand or pass (export/terrain/ground.txt), so nothing hides
-them, no grass where they stand, and nothing over holes. "vegetation": false in a map's levels.json entry turns it off.
+No palms or trees where ground enemies stand (export/terrain/ground.txt; the game clears the plants
+under the ones that move as they pass), and nothing over holes. "vegetation": false in a map's levels.json entry turns it off.
 
 usage: <python with numpy, scipy and PIL> tools/terrain/make_vegetation.py <map hash>... | all
 
@@ -57,10 +58,10 @@ def detect(name, rgb, s):
     spread = np.sqrt(np.maximum(ndimage.uniform_filter(lum * lum, 9) - mean * mean, 0))
     texture = ndimage.uniform_filter(spread, 25)
 
-    # Not where ground enemies stand or pass, nor over space.
-    # (Grass is low: only where they stand.)
-    standing, moving = mt.ground_enemies(name)
-    keep_clear = mt.footprint(lum.shape, standing + moving, 5)
+    # Not where ground enemies stand, nor over space. (Where they pass, the game clears the plants
+    # under them as they go; grass is low: kept clear a little less.)
+    standing, _ = mt.ground_enemies(name)
+    keep_clear = mt.footprint(lum.shape, standing, 5)
     keep_low = mt.footprint(lum.shape, standing, 2)
     if s.get("void") == "hole":
         keep_clear |= mt.void_mask(rgb)
@@ -82,10 +83,18 @@ def detect(name, rgb, s):
     if forest.any():
         tops = ndimage.gaussian_filter(lum, 2.0)
         inside = ndimage.binary_erosion(forest, np.ones((5, 5), bool)) & ~keep_clear
-        for x, y in peaks(tops, inside, 5):
-            plants.append((x, y, TREE, 4.5 + rng.random() * 2.5, rng.random(), 0.8 + rng.random() * 0.4))
-        colours[2] = rgb[forest].mean(0)
-        colours[3] = np.percentile(rgb[forest], 90, axis=0)
+        if s.get("forest") == "palm":
+            # A palm jungle (SAVARA's): palms on the canopy's bright tops.
+            for x, y in peaks(tops, inside, 6):
+                plants.append((x, y, PALM, 6.0 + rng.random() * 2.5, rng.random(), 0.8 + rng.random() * 0.4))
+            if not colours[0].any():
+                colours[0] = np.percentile(rgb[forest], 70, axis=0)
+                colours[1] = np.array([0.42, 0.30, 0.18]) * (0.6 + 0.8 * lum[~green].mean())
+        else:
+            for x, y in peaks(tops, inside, 5):
+                plants.append((x, y, TREE, 4.5 + rng.random() * 2.5, rng.random(), 0.8 + rng.random() * 0.4))
+            colours[2] = rgb[forest].mean(0)
+            colours[3] = np.percentile(rgb[forest], 90, axis=0)
     if meadow.any():
         inside = ndimage.binary_erosion(meadow, np.ones((3, 3), bool)) & ~keep_low
         step = s.get("grass_step", 5)

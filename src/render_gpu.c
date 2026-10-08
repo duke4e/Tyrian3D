@@ -3807,7 +3807,7 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 		tile_rgba[i] = tile_opaque[i] || (ground_zero && tile_ground[i]) ? colors[tile_indices[i]] : 0;
 	bleed_into_clear(tile_rgba, B3D_ATLAS_W, 0, B3D_ATLAS_H);
 	btbh_gpu_texture_update_rgba8(tile_atlas, (const uint8_t *)tile_rgba, 0, page * B3D_ATLAS_H, B3D_ATLAS_W, B3D_ATLAS_H);
-	// Water: the opaque pixels of water tiles (b3d_tile_is_water), with their cells' borders.
+	// Water: the water pixels of tiles with water (b3d_tile_has_water), with their cells' borders.
 	{
 		static const Uint8 water_rgba[4] = { 0, 0, 255, 255 };
 		Uint32 water;
@@ -3816,7 +3816,7 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 		for (int set = 1; set <= B3D_SETS; ++set)
 			for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 			{
-				if (!b3d_tile_is_water(set, t))
+				if (!b3d_tile_has_water(set, t))
 					continue;
 				int ox, oy;
 				b3d_cell_origin((set - 1) * B3D_TILES_PER_SET + t, &ox, &oy);
@@ -4110,7 +4110,7 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 		if (cell >= 0)
 			b3d_cell_origin(cell, &ox, &oy);
 		const int tile = cell >= 0 ? cell % B3D_TILES_PER_SET : 0;
-		const bool water_tile = cell >= 0 && ring->water != NULL && b3d_tile_is_water(set, tile);
+		const bool water_tile = cell >= 0 && ring->water != NULL && b3d_tile_has_water(set, tile);
 		for (int y = 0; y < B3D_TILE_H; ++y)
 			for (int x = 0; x < B3D_TILE_W; ++x)
 			{
@@ -4612,6 +4612,28 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		return;
 	make_plant_meshes(veg);
 	const B3DTerrain *ground = frame_terrains[1];
+
+	// No plants under ground enemies, where they are now (the vegetation tool clears only where
+	// they stand still): a circle round each, in the map's pixels.
+	enum { MAX_CLEARINGS = 128 };
+	float clearings[MAX_CLEARINGS][3];
+	int clearing_count = 0;
+	for (int o = 0; o < frame->object_count && clearing_count < MAX_CLEARINGS && lift_ground != NULL; ++o)
+	{
+		const L3DObject *object = &frame->objects[o];
+		if (object->layer != L3D_GROUND_ENEMY || object->wreck)
+			continue;
+		int mx, my;
+		if (!b3d_map_point(lift_ground, object->x, object->y, &mx, &my))
+			continue;
+		const M3DModel *model = object->model >= 0 && object->model < m3d_model_count ? &m3d_models[object->model] : NULL;
+		const float radius = (model != NULL && model->size > 0 ? model->size / 2.0f : 13.0f) + 3.0f;
+		clearings[clearing_count][0] = (float)mx;
+		clearings[clearing_count][1] = (float)my;
+		clearings[clearing_count][2] = radius * radius;
+		++clearing_count;
+	}
+
 	for (int kind = 0; kind < B3D_PLANT_KINDS && *batch_count < MAX_BATCHES; ++kind)
 	{
 		if (plant_meshes.meshes[kind] == NULL)
@@ -4627,6 +4649,14 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			{
 				const B3DPlant *p = &veg->plants[i];
 				if (p->kind != kind)
+					continue;
+				bool cleared = false;
+				for (int c = 0; c < clearing_count && !cleared; ++c)
+				{
+					const float dx = p->x - clearings[c][0], dy = p->y - clearings[c][1];
+					cleared = dx * dx + dy * dy < clearings[c][2];
+				}
+				if (cleared)
 					continue;
 				const float size = p->size / 8.0f, turn = p->turn / 256.0f * 6.2831853f;
 				const float x = p->x, z = p->y - row->map_row * (float)B3D_TILE_H;

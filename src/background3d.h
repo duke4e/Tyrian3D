@@ -148,6 +148,7 @@ void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask);
 // pixels (L3D_WIDTH x L3D_ROWS) that a background's water tiles cover, and the average colour of a
 // set's water (false if it has none).
 bool b3d_tile_is_water(int set, int tile);
+bool b3d_tile_has_water(int set, int tile);  // water in good part, or a shore
 // Whether a pixel (palette index) of a tile is water: in a water tile, the water's colours.
 bool b3d_water_pixel(int set, int tile, Uint8 index);
 void b3d_water_mask(const L3DBackground *b, Uint8 *mask);

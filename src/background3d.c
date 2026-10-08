@@ -999,8 +999,15 @@ void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask)
 static struct
 {
 	unsigned int made_for;  // b3d_map_generation + 1, or 0
-	bool water[B3D_TILES_PER_SET];
+	Uint8 water[B3D_TILES_PER_SET];  // WATER_* below
 } waters[B3D_SETS];
+
+enum
+{
+	WATER_NONE,
+	WATER_SHORE,  // some water (a shore): its plainly blue pixels are water
+	WATER_TILE,   // water in good part: its cool and dark pixels are water too (crests, glare, troughs)
+};
 
 static bool water_pixel(Uint8 index)
 {
@@ -1025,9 +1032,14 @@ static bool water_like(Uint8 index)
 	return (c[2] >= c[0] && c[2] + 8 >= c[1]) || brightest < 40;
 }
 
+static int water_class(int set, int tile);
+
 bool b3d_water_pixel(int set, int tile, Uint8 index)
 {
-	return index != 0 && b3d_tile_is_water(set, tile) && water_like(index);
+	if (index == 0)
+		return false;
+	const int water = water_class(set, tile);
+	return water == WATER_TILE ? water_like(index) : water == WATER_SHORE && water_pixel(index);
 }
 
 /*
@@ -1078,15 +1090,25 @@ static bool set_has_water(int set)
 
 bool b3d_tile_is_water(int set, int tile)
 {
+	return water_class(set, tile) == WATER_TILE;
+}
+
+bool b3d_tile_has_water(int set, int tile)
+{
+	return water_class(set, tile) != WATER_NONE;
+}
+
+static int water_class(int set, int tile)
+{
 	if (set < 1 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
-		return false;
+		return WATER_NONE;
 	if (waters[set - 1].made_for != b3d_map_generation + 1)
 	{
 		const MapSet m = map_set(set);
 		const bool water_set = set_has_water(set);
 		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 		{
-			waters[set - 1].water[t] = false;
+			waters[set - 1].water[t] = WATER_NONE;
 			if (!water_set || t >= m.tile_count)
 				continue;
 			const Uint8 *data = m.first_tile + t * m.tile_stride;
@@ -1098,10 +1120,15 @@ bool b3d_tile_is_water(int set, int tile)
 					water += water_pixel(data[p]);
 					cool += water_like(data[p]);
 				}
-			// Tiles with water in good part (shores too), or drawn all in the water's cool colours
-			// (the sun's glare); their water pixels are water (b3d_water_pixel). Clouds are not water.
-			waters[set - 1].water[t] = opaque > 0 && !b3d_tile_is_cloud(set, t) &&
-			                           (water * 100 >= opaque * 40 || cool * 100 >= opaque * 90);
+			// Tiles with water in good part, or drawn all in the water's cool colours (the sun's
+			// glare); shores, with a little of it (their plainly blue pixels only, so the land's
+			// shadows stay land). Their water pixels are water (b3d_water_pixel). Clouds are not water.
+			if (opaque == 0 || b3d_tile_is_cloud(set, t))
+				continue;
+			if (water * 100 >= opaque * 40 || cool * 100 >= opaque * 90)
+				waters[set - 1].water[t] = WATER_TILE;
+			else if (water * 100 >= opaque * 6)
+				waters[set - 1].water[t] = WATER_SHORE;
 		}
 		waters[set - 1].made_for = b3d_map_generation + 1;
 	}
@@ -1116,7 +1143,7 @@ void b3d_water_mask(const L3DBackground *b, Uint8 *mask)
 	for (int t = 0; t < count; ++t)
 	{
 		const B3DTile *tile = &tiles[t];
-		if (tile->cell / B3D_TILES_PER_SET + 1 != b->set || !b3d_tile_is_water(b->set, tile->cell % B3D_TILES_PER_SET))
+		if (tile->cell / B3D_TILES_PER_SET + 1 != b->set || !b3d_tile_has_water(b->set, tile->cell % B3D_TILES_PER_SET))
 			continue;
 		const Uint8 *data = cell_pixels(tile->cell);
 		for (int y = 0; y < B3D_TILE_H; ++y)
@@ -1128,8 +1155,8 @@ void b3d_water_mask(const L3DBackground *b, Uint8 *mask)
 			{
 				const int column = (int)tile->x + x;
 				if (column >= 0 && column < L3D_WIDTH &&
-				    water_like(data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)]) &&
-				    data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)] != 0)
+				    b3d_water_pixel(b->set, tile->cell % B3D_TILES_PER_SET,
+				                    data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)]))
 					mask[row * L3D_WIDTH + column] = 1;
 			}
 		}
