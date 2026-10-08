@@ -1662,6 +1662,8 @@ void JE_itemScreen(void)
 
 void draw_ship_illustration(void)
 {
+	video_showcase_begin();  // Tyrian3D: the 3D view shows the ship as a model over the box
+
 	// full of evil hardcoding
 
 	// ship
@@ -1752,6 +1754,12 @@ void draw_ship_illustration(void)
 
 	// shield
 	blit_sprite_hv(VGAScreenSeg, 28, 23, OPTION_SHAPES, 26, 15, shields[player[0].items.shield].mpwr - 10);
+
+	// Tyrian3D: the shield's arc stays on the box under the ship's model.
+	SDL_Surface *backdrop = video_showcase_backdrop();
+	if (backdrop != NULL)
+		blit_sprite_hv(backdrop, 28, 23, OPTION_SHAPES, 26, 15, shields[player[0].items.shield].mpwr - 10);
+	video_showcase_end();
 }
 
 void load_cubes(void)
@@ -3286,7 +3294,8 @@ void JE_weaponSimUpdate(void)
 	else
 		blit_sprite(VGAScreenSeg, 20, 146, OPTION_SHAPES, 17);  // hide power level interface
 
-	JE_drawItem(1, player[0].items.ship, player[0].x - 5, player[0].y - 7);
+	if (!video_sim_ship(player[0].x + 7, player[0].y + 7))
+		JE_drawItem(1, player[0].items.ship, player[0].x - 5, player[0].y - 7);
 }
 
 void JE_weaponViewFrame(void)
@@ -3297,6 +3306,7 @@ void JE_weaponViewFrame(void)
 	(*    drawportconfigbuttons;*/
 
 	update_and_draw_starfield(VGAScreen, 1);
+	video_sim_begin();  // Tyrian3D: the 3D view draws the ship and shots as models
 
 	mouseX = player[0].x;
 	mouseY = player[0].y;

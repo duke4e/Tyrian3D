@@ -50,6 +50,30 @@ void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const 
 void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, const int (*shades)[4], int shade_count,
                           const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect);
 
+// A box of the store's screen as a scene (the illustration of the ship, the weapon simulator): its
+// picture without the ship (and shots) on the ground seen from straight above, models over it, the
+// screen over everything but where it still shows the picture.
+typedef struct
+{
+	int model;
+	float x, y;    // screen pixels
+	float height;  // above the picture, screen pixels
+	float size;    // footprint, screen pixels (0: the model's own size, game pixels)
+	float yaw, pitch, roll;  // degrees
+} RGPUShowcaseObject;
+
+typedef struct
+{
+	SDL_Rect pane;             // the box (screen pixels)
+	const Uint8 *backdrop;     // the screen with the box's picture under the models (SCREEN_W x SCREEN_H)
+	const Uint8 *transparent;  // where the screen is as this, the scene shows
+	const RGPUShowcaseObject *objects;
+	int object_count;
+	float fade[4];             // a colour over everything (RGBA 0-1)
+} RGPUShowcase;
+
+void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, const SDL_Rect *dst);
+
 float rgpu_playfield_scale(void);
 // A window point (points) as a position on the player's plane in the view shown last, in game
 // screen coordinates, and back. False before a 3D frame was shown (or above the horizon).

@@ -125,6 +125,7 @@ static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
 #define SPOT_W 320
 #define SPOT_H 200
 static BTBHGPUTexture *spot_texture = NULL;
+static BTBHGPUTexture *showcase_texture = NULL;  // the store's picture under its ship (rgpu_present_showcase)
 static Uint32 spot_rgba[SPOT_W * SPOT_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 
@@ -614,6 +615,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	panel_texture = create_texture_filtered(PANEL_HD_W, PANEL_HD_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR,
 	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	spot_texture = create_texture_filtered(SPOT_W, SPOT_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	showcase_texture = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	layer_atlas = create_texture_filtered(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
 	layer_water = create_texture(L3D_WIDTH, ATLAS_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	tile_atlas = create_texture_filtered(B3D_ATLAS_W, B3D_ATLAS_H * TILE_PAGES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter());
@@ -707,8 +709,10 @@ static struct
 	const Uint8 *backdrop;    // the screen as it was when the frame showed (SCREEN_W x SCREEN_H)
 	const int (*shades)[4];   // the boxes the menu darkened: x1, y1, x2, y2 (JE_barShade's)
 	int shade_count;
-	float fade[4];            // a colour over everything, straight alpha
 } menu;
+
+// A colour over the whole window (straight alpha), drawn last: a menu's or the store's fade.
+static float canvas_fade[4];
 
 // A rectangle of the screen texture (in screen pixels) drawn to a rectangle of the window.
 typedef struct
@@ -805,18 +809,18 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 		vertex_count += 6;
 	}
 
-	// A menu's fade (the palette's) over everything.
-	if (menu.on && menu.fade[3] > 0)
+	// A fade (the palette's) over everything.
+	if (canvas_fade[3] > 0)
 	{
 		const CanvasQuad whole = { 0, 0, (float)frame->logical_width, (float)frame->logical_height, 0, 0, 1, 1 };
 		push_quad(vertices + vertex_count, &whole, 1, 1);
 		for (int i = 0; i < 6; ++i)
 		{
 			BTBHGPUCanvasVertex *v = &vertices[vertex_count + i];
-			v->red = menu.fade[0];
-			v->green = menu.fade[1];
-			v->blue = menu.fade[2];
-			v->alpha = menu.fade[3];
+			v->red = canvas_fade[0];
+			v->green = canvas_fade[1];
+			v->blue = canvas_fade[2];
+			v->alpha = canvas_fade[3];
 		}
 		BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
 		b->first_vertex = vertex_count;
@@ -1622,10 +1626,11 @@ void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, cons
 	menu.backdrop = backdrop;
 	menu.shades = shades;
 	menu.shade_count = shade_count;
-	memcpy(menu.fade, fade, sizeof(menu.fade));
+	memcpy(canvas_fade, fade, sizeof(canvas_fade));
 	ahead = 0;
 	present_3d(screen, frame, dst);
 	menu.on = false;
+	canvas_fade[3] = 0;
 
 	// The screen's pixels where the playfield's part of them shows.
 	int w = 0, h = 0;
@@ -4843,6 +4848,90 @@ static void shadow_view_projection(const Camera3D *camera, float out[16])
 	memcpy(out, result.m, sizeof(result.m));
 }
 
+// The sun and the sky: models are lit by them; layers and volumetric sprites are unlit. The sun is
+// strong against the sky, as in the sprites' own shading: lit from the upper left, with clear
+// highlights and shadows.
+static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camera, bool shadows)
+{
+	memset(lighting, 0, sizeof(*lighting));
+	lighting->spot_falloff = 1.0f;
+	lighting->spot_inner_cutoff = 0.92388f;
+	lighting->spot_outer_cutoff = 0.70711f;
+	lighting->spot_range = 50.0f;
+	lighting->ambient_red = 0.55f;
+	lighting->ambient_green = 0.58f;
+	lighting->ambient_blue = 0.68f;
+	lighting->ambient_energy = 0.6f;
+	const float *sun = sun_direction;
+	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+	lighting->directional_x = sun[0] / sun_length;
+	lighting->directional_y = sun[1] / sun_length;
+	lighting->directional_z = sun[2] / sun_length;
+	lighting->directional_energy = SUN_ENERGY;
+	lighting->directional_red = 1.0f;
+	lighting->directional_green = 0.98f;
+	lighting->directional_blue = 0.94f;
+	set_environment(lighting);
+	const char *energies = SDL_getenv("TYR3D_LIGHTING");
+	float sky_fill = SKY_FILL;
+	if (energies != NULL)
+		sscanf(energies, "%f,%f", &lighting->directional_energy, &sky_fill);
+	for (int i = 0; i < 27; ++i)
+		lighting->irradiance_sh[i] *= sky_fill;
+	if (shadows)
+	{
+		lighting->directional_shadow_enabled = 1;
+		lighting->directional_shadow_softness = 1.0f;
+		shadow_view_projection(camera, lighting->directional_shadow_view_projection);
+	}
+}
+
+// Tone mapping, bloom, the render scale and anti-aliasing.
+static void scene_post(BTBHGPUScenePost *post, const BTBHGPUWindowReport *window_frame, Uint32 *render_w, Uint32 *render_h)
+{
+	memset(post, 0, sizeof(*post));
+	post->tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;
+	post->tonemap_white = 1.0f;
+	post->exposure = 1.0f;
+	post->contrast = 1.0f;
+	post->saturation = 1.0f;
+	post->blur_curve = 1.0f;
+	post->focus_half_width = 0.05f;
+	post->focus_point_x = 0.5f;
+	post->focus_point_y = 0.55f;
+	post->focus_direction_x = 1.0f;
+	post->highlight_threshold = 0.7f;
+	if (settings3d.effects)
+	{
+		post->bloom_intensity = bloom_parameters[0];
+		post->bloom_threshold = bloom_parameters[1];
+		post->bloom_knee = bloom_parameters[2];
+		post->bloom_radius = bloom_parameters[3];
+	}
+
+	// The scene is rendered at the window's size in points (on a high-density display, half its
+	// pixels each way) and scaled up to the window: at 4K the GPU couldn't show a frame on every
+	// refresh, and the game's art is 320x200 anyway. The HUD is drawn at full resolution.
+	// TYR3D_RENDER_SCALE=<0.25..1> sets the scale of the window's pixels instead.
+	static float scale_override = -1;
+	if (scale_override < 0)
+	{
+		const char *value = SDL_getenv("TYR3D_RENDER_SCALE");
+		scale_override = value != NULL ? SDL_clamp((float)SDL_atof(value), 0.25f, 1.0f) : 0;
+	}
+	const float render_scale = scale_override > 0 ? scale_override
+		: SDL_min(1.0f, (float)window_frame->logical_width / (float)window_frame->drawable_width);
+	*render_w = SDL_max(1u, (Uint32)(window_frame->drawable_width * render_scale + 0.5f));
+	*render_h = SDL_max(1u, (Uint32)(window_frame->drawable_height * render_scale + 0.5f));
+	post->upscale_mode = BTBH_GPU_SCENE_UPSCALE_LANCZOS;
+	// SMAA (high) smooths the models' edges; the pixel art keeps its look (TYR3D_AA=0 off, 1 SMAA
+	// low, 2 high, 3 FXAA).
+	static int anti_aliasing = -1;
+	if (anti_aliasing < 0)
+		anti_aliasing = SDL_getenv("TYR3D_AA") != NULL ? SDL_clamp(SDL_atoi(SDL_getenv("TYR3D_AA")), 0, 3) : 2;
+	post->anti_aliasing = (Uint8)anti_aliasing;
+}
+
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -5077,40 +5166,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	for (int i = first_particle_batch; i < batch_count; ++i)
 		casts_shadow[i] = 0;
 
-	// Models are lit by the sun and the sky; layers and volumetric sprites are unlit. The sun is
-	// strong against the sky, as in the sprites' own shading: lit from the upper left, with
-	// clear highlights and shadows.
-	BTBHGPUSceneLighting lighting = { 0 };
-	lighting.spot_falloff = 1.0f;
-	lighting.spot_inner_cutoff = 0.92388f;
-	lighting.spot_outer_cutoff = 0.70711f;
-	lighting.spot_range = 50.0f;
-	lighting.ambient_red = 0.55f;
-	lighting.ambient_green = 0.58f;
-	lighting.ambient_blue = 0.68f;
-	lighting.ambient_energy = 0.6f;
-	const float *sun = sun_direction;
-	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
-	lighting.directional_x = sun[0] / sun_length;
-	lighting.directional_y = sun[1] / sun_length;
-	lighting.directional_z = sun[2] / sun_length;
-	lighting.directional_energy = SUN_ENERGY;
-	lighting.directional_red = 1.0f;
-	lighting.directional_green = 0.98f;
-	lighting.directional_blue = 0.94f;
-	set_environment(&lighting);
-	const char *energies = SDL_getenv("TYR3D_LIGHTING");
-	float sky_fill = SKY_FILL;
-	if (energies != NULL)
-		sscanf(energies, "%f,%f", &lighting.directional_energy, &sky_fill);
-	for (int i = 0; i < 27; ++i)
-		lighting.irradiance_sh[i] *= sky_fill;
-	if (shadows)
-	{
-		lighting.directional_shadow_enabled = 1;
-		lighting.directional_shadow_softness = 1.0f;
-		shadow_view_projection(&camera, lighting.directional_shadow_view_projection);
-	}
+	BTBHGPUSceneLighting lighting;
+	scene_lighting(&lighting, &camera, shadows);
 	// On spotlight levels the ship carries a lamp: a spot light up the screen through the cone the
 	// game leaves lit (the darkness itself is the overlay, build_spotlight), lighting the models in it.
 	if (starShowVGASpecialCode == 2 && processorType >= 2)
@@ -5143,47 +5200,9 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	if (settings3d.effects && explosion_lights)
 		add_explosion_lights(&lighting);
 
-	BTBHGPUScenePost post = { 0 };
-	post.tonemap_mode = BTBH_GPU_SCENE_TONEMAP_REINHARD;
-	post.tonemap_white = 1.0f;
-	post.exposure = 1.0f;
-	post.contrast = 1.0f;
-	post.saturation = 1.0f;
-	post.blur_curve = 1.0f;
-	post.focus_half_width = 0.05f;
-	post.focus_point_x = 0.5f;
-	post.focus_point_y = 0.55f;
-	post.focus_direction_x = 1.0f;
-	post.highlight_threshold = 0.7f;
-	if (settings3d.effects)
-	{
-		post.bloom_intensity = bloom_parameters[0];
-		post.bloom_threshold = bloom_parameters[1];
-		post.bloom_knee = bloom_parameters[2];
-		post.bloom_radius = bloom_parameters[3];
-	}
-
-	// The scene is rendered at the window's size in points (on a high-density display, half its
-	// pixels each way) and scaled up to the window: at 4K the GPU couldn't show a frame on every
-	// refresh, and the game's art is 320x200 anyway. The HUD is drawn at full resolution.
-	// TYR3D_RENDER_SCALE=<0.25..1> sets the scale of the window's pixels instead.
-	static float scale_override = -1;
-	if (scale_override < 0)
-	{
-		const char *value = SDL_getenv("TYR3D_RENDER_SCALE");
-		scale_override = value != NULL ? SDL_clamp((float)SDL_atof(value), 0.25f, 1.0f) : 0;
-	}
-	const float render_scale = scale_override > 0 ? scale_override
-		: SDL_min(1.0f, (float)window_frame.logical_width / (float)window_frame.drawable_width);
-	const Uint32 render_w = SDL_max(1u, (Uint32)(window_frame.drawable_width * render_scale + 0.5f));
-	const Uint32 render_h = SDL_max(1u, (Uint32)(window_frame.drawable_height * render_scale + 0.5f));
-	post.upscale_mode = BTBH_GPU_SCENE_UPSCALE_LANCZOS;
-	// SMAA (high) smooths the models' edges; the pixel art keeps its look (TYR3D_AA=0 off, 1 SMAA
-	// low, 2 high, 3 FXAA).
-	static int anti_aliasing = -1;
-	if (anti_aliasing < 0)
-		anti_aliasing = SDL_getenv("TYR3D_AA") != NULL ? SDL_clamp(SDL_atoi(SDL_getenv("TYR3D_AA")), 0, 3) : 2;
-	post.anti_aliasing = (Uint8)anti_aliasing;
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, &window_frame, &render_w, &render_h);
 
 	BTBHGPUSceneReport scene_report;
 	if (btbh_gpu_window_scene_present_instances_with_visibility(window,
@@ -5203,4 +5222,188 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	}
 
 	present_canvas(quads, quad_count, spotlight, false, &window_frame);
+}
+
+/* --- The store's ship ---------------------------------------------------------------------- */
+
+/*
+ * A box of the store's screen as a scene (see RGPUShowcase): its picture lies on the ground, seen
+ * from straight above as the box shows it, models over it lit by the sun and casting their shadows.
+ *
+ * World: the box spans the playfield's width on the ground (fit_camera with no tilt fits that
+ * width exactly at height 0), its bottom on the playfield's bottom edge.
+ */
+// footprint: world units, or 0 for the model's own size times k (world units per game pixel).
+static void add_showcase_model(int model_index, float x, float z, float height, float footprint, float k, float yaw,
+                               float pitch, float roll, const Uint32 colors[256], int *instance_count, int *batch_count)
+{
+	const LoadedModel *loaded = model_index >= 0 && model_index < m3d_model_count ? get_model(model_index) : NULL;
+	if (loaded == NULL || loaded->footprint <= 0 || *batch_count >= MAX_BATCHES || *instance_count >= MAX_INSTANCES)
+		return;
+	const M3DModel *model = &m3d_models[model_index];
+	if (footprint <= 0)
+		footprint = (model->size > 0 ? model->size : loaded->footprint) * k;
+	const Mat4 chain[] = {
+		mat4_translation(x, height, z),
+		mat4_rotation(1, -yaw),
+		mat4_rotation(0, pitch),
+		mat4_rotation(2, -roll),
+		mat4_rotation(1, model->yaw),
+		mat4_rotation(0, model->pitch),
+		mat4_rotation(2, model->roll),
+		mat4_scaling(footprint / loaded->footprint),
+		mat4_translation(-loaded->center[0], -loaded->center[1], -loaded->center[2]),
+	};
+	const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+	const int instance = (*instance_count)++;
+	write_instance_world(instances + instance * 24, &transform, 1.0f);
+
+	const uint32_t material_count = loaded->material_count > 0 ? loaded->material_count : 1;
+	for (uint32_t m = 0; m < material_count && *batch_count < MAX_BATCHES; ++m)
+	{
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_MODEL;
+		b->model = loaded->gpu;
+		b->first_instance = instance;
+		b->instance_count = 1;
+		if (loaded->material_count == 0)
+			continue;
+		const BTBHGPUModelMaterialInfo *info = &loaded->materials[m];
+		b->material_slot = (int32_t)m;
+		b->albedo_texture = info->albedo_texture;
+		b->albedo_red = info->albedo_red;
+		b->albedo_green = info->albedo_green;
+		b->albedo_blue = info->albedo_blue;
+		b->albedo_alpha = info->albedo_alpha;
+		b->normal_texture = info->normal_texture;
+		b->orm_texture = info->orm_texture;
+		b->normal_scale = info->normal_scale;
+		b->occlusion = info->occlusion;
+		b->roughness = info->roughness;
+		b->metalness = info->metalness;
+		b->emission_texture = info->emission_texture;
+		b->emission_red = info->emission_red;
+		b->emission_green = info->emission_green;
+		b->emission_blue = info->emission_blue;
+		b->emission_alpha = info->emission_alpha;
+		b->emission_energy = info->emission_energy;
+		if (loaded->palette_index[m] >= 0)
+		{
+			const Uint8 *c = (const Uint8 *)&colors[loaded->palette_index[m]];
+			b->albedo_red = palette_albedo(c[0]);
+			b->albedo_green = palette_albedo(c[1]);
+			b->albedo_blue = palette_albedo(c[2]);
+		}
+		if (b->albedo_alpha < 255)
+			b->transparency_enabled = 1;
+	}
+}
+
+void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, const SDL_Rect *dst)
+{
+	BTBHGPUWindowReport window_frame;
+	if (!begin_frame(&window_frame))
+		return;
+
+	// The screen over everything but where it still shows the illustration; the box's picture
+	// without the ship beneath.
+	const SDL_Rect *p = &show->pane;
+	static Uint32 picture[SCREEN_W * SCREEN_H];
+	convert_screen(screen, screen_rgba);
+	for (int y = 0; y < p->h; ++y)
+		for (int x = 0; x < p->w; ++x)
+		{
+			const int i = (p->y + y) * SCREEN_W + p->x + x;
+			picture[y * p->w + x] = rgb_palette[show->backdrop[i]];
+			if (((const Uint8 *)screen->pixels)[(p->y + y) * screen->pitch + p->x + x] == show->transparent[i])
+				screen_rgba[i] = 0;
+		}
+	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
+	btbh_gpu_texture_update_rgba8(showcase_texture, (const uint8_t *)picture, 0, 0, p->w, p->h);
+	const CanvasQuad quad = whole_screen_quad(dst);
+	memcpy(canvas_fade, show->fade, sizeof(canvas_fade));
+
+	// The camera: straight down at the box.
+	const float logical_w = (float)window_frame.logical_width, logical_h = (float)window_frame.logical_height;
+	const float sx = dst->w / (float)SCREEN_W, sy = dst->h / (float)SCREEN_H;
+	const float wx0 = dst->x + p->x * sx, wy0 = dst->y + p->y * sy;
+	const float wx1 = wx0 + p->w * sx, wy1 = wy0 + p->h * sy;
+	const float ndc_rect[4] = { wx0 / logical_w * 2 - 1, 1 - wy1 / logical_h * 2, wx1 / logical_w * 2 - 1, 1 - wy0 / logical_h * 2 };
+	const float tilt = rgpu_camera.tilt_degrees;
+	rgpu_camera.tilt_degrees = 0;
+	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false);
+	rgpu_camera.tilt_degrees = tilt;
+	shown_view.valid = false;
+
+	const float k = (float)L3D_PLAYFIELD_W / p->w;  // world units per screen pixel
+	const float top = L3D_PLAYFIELD_H - p->h * k;
+#define SHOWCASE_X(px) (L3D_PLAYFIELD_X + ((px) - p->x) * k)
+#define SHOWCASE_Z(py) (top + ((py) - p->y) * k)
+
+	Uint32 colors[256];
+	memcpy(colors, rgb_palette, sizeof(colors));
+	sync_model_cache();
+	int instance_count = 0, batch_count = 0;
+
+	// The picture on the ground.
+	{
+		Mat4 transform = mat4_identity();
+		transform.m[0] = L3D_PLAYFIELD_W;
+		transform.m[10] = p->h * k;
+		transform.m[12] = L3D_PLAYFIELD_X;
+		transform.m[14] = top;
+		write_instance_world(instances + instance_count * 24, &transform, 1.0f);
+		BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = quad_mesh;
+		b->first_instance = instance_count++;
+		b->instance_count = 1;
+		b->albedo_texture = showcase_texture;
+		b->uv_scale_x = (float)p->w / SCREEN_W;
+		b->uv_scale_y = (float)p->h / SCREEN_H;
+		b->unlit_enabled = 1;
+	}
+
+	const int first_model_batch = batch_count;
+	for (int i = 0; i < show->object_count; ++i)
+	{
+		const RGPUShowcaseObject *o = &show->objects[i];
+		add_showcase_model(o->model, SHOWCASE_X(o->x), SHOWCASE_Z(o->y), o->height * k, o->size * k, k, o->yaw, o->pitch,
+		                   o->roll, colors, &instance_count, &batch_count);
+	}
+#undef SHOWCASE_X
+#undef SHOWCASE_Z
+
+	static Uint8 casts_shadow[MAX_BATCHES];
+	const bool shadows = shadows_enabled();
+	for (int i = 0; i < batch_count; ++i)
+	{
+		casts_shadow[i] = shadows && i >= first_model_batch;
+		if (shadows && batches[i].unlit_enabled == 1)
+			batches[i].unlit_enabled = 2;
+	}
+
+	BTBHGPUSceneLighting lighting;
+	scene_lighting(&lighting, &camera, shadows);
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, &window_frame, &render_w, &render_h);
+
+	BTBHGPUSceneReport scene_report;
+	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        camera.view_projection.m, camera.right, camera.up, camera.position,
+	        &lighting, &post, instances, instance_count, instance_count, batches, NULL, casts_shadow, batch_count,
+	        0, 0, 0, 255, &scene_report) == BTBH_GPU_OK;
+	if (!drawn)
+		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
+	present_canvas(&quad, 1, false, !drawn, &window_frame);
+	canvas_fade[3] = 0;
 }

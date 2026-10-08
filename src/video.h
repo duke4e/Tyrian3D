@@ -82,6 +82,16 @@ void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
 void JE_showVGA3D(void);
 void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2);  // JE_barShade darkened a box
+// The store's illustration of the ship: begun before it is drawn, ended once it is; what goes on its
+// box under the ship's model besides the box itself is drawn on video_showcase_backdrop (NULL if none).
+void video_showcase_begin(void);
+SDL_Surface *video_showcase_backdrop(void);
+void video_showcase_end(void);
+// The store's weapon simulator: begun each frame once its stars are drawn; the ship and the shots
+// that have models are drawn as models instead of sprites (true: don't draw the sprite).
+void video_sim_begin(void);
+bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y);
+bool video_sim_ship(int x, int y);
 // Tyrian3D: waits for the game's next tick (the delay set with setDelay*), showing the last 3D
 // frame again as often as the display refreshes, moved on in time (rgpu_present_3d_ahead).
 void video_wait_tick_3d(void);

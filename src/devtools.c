@@ -183,7 +183,8 @@ bool dev_start_game(void)
 		        SA_LASTSHIP);
 	initialDifficulty = difficultyLevel;
 
-	constantPlay = true;  // skip shops: they jump straight to the next level
+	// Skip shops (they jump straight to the next level), unless TYR3D_SHOP=1.
+	constantPlay = SDL_getenv("TYR3D_SHOP") == NULL || SDL_atoi(SDL_getenv("TYR3D_SHOP")) == 0;
 	mainLevel = (JE_byte)section;
 	gameLoaded = true;
 

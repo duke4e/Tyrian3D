@@ -19,6 +19,7 @@
 #include "video.h"
 
 #include "devtools.h"
+#include "episodes.h"
 #include "keyboard.h"
 #include "mainint.h"
 #include "opentyr.h"
@@ -27,6 +28,7 @@
 #include "mouse.h"
 #include "nortsong.h"
 #include "palette.h"
+#include "player.h"
 #include "render_gpu.h"
 #include "settings3d.h"
 #include "video_scale.h"
@@ -423,6 +425,167 @@ static void backdrop_fade(float fade[4])
 	fade[3] = SDL_clamp(fade[3], 0.0f, 1.0f);
 }
 
+/*
+ * Tyrian3D: the store's illustration of the ship (draw_ship_illustration) shows as models over its
+ * box (rgpu_present_showcase), while the screen still shows it: the box before the ship was drawn
+ * on it (with the shield's arc, see video_showcase_backdrop) and the screen once it was.
+ */
+static const SDL_Rect showcase_pane = { 3, 8, 151, 141 };
+static SDL_Surface *showcase_surface = NULL;  // the box without the ship
+static Uint8 showcase_illustrated[320 * 200];
+static bool showcase_valid = false;
+
+void video_showcase_begin(void)
+{
+	showcase_valid = false;
+	if (!l3d_enabled)
+		return;
+	if (showcase_surface == NULL &&
+	    (showcase_surface = SDL_CreateSurface(VGAScreenSeg->w, VGAScreenSeg->h, SDL_PIXELFORMAT_INDEX8)) == NULL)
+		return;
+	for (int y = 0; y < VGAScreenSeg->h; ++y)
+		memcpy((Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch,
+		       (const Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch, VGAScreenSeg->w);
+}
+
+SDL_Surface *video_showcase_backdrop(void)
+{
+	return l3d_enabled ? showcase_surface : NULL;
+}
+
+void video_showcase_end(void)
+{
+	if (!l3d_enabled || showcase_surface == NULL)
+		return;
+	for (int y = 0; y < 200; ++y)
+		memcpy(showcase_illustrated + y * 320, (const Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch, 320);
+	showcase_valid = true;
+}
+
+// The screen still shows the illustration: most of its box as it was drawn.
+static bool showcase_holds(const SDL_Surface *screen)
+{
+	if (!showcase_valid || !l3d_enabled || !m3d_enabled || screen->pixels != VGAScreenSeg->pixels)
+		return false;
+	const SDL_Rect *p = &showcase_pane;
+	int same = 0;
+	for (int y = p->y; y < p->y + p->h; ++y)
+		for (int x = p->x; x < p->x + p->w; ++x)
+			same += ((const Uint8 *)screen->pixels)[y * screen->pitch + x] == showcase_illustrated[y * 320 + x];
+	return same > p->w * p->h * 6 / 10;
+}
+
+// How dark the palette is against the store's.
+static float store_fade(void)
+{
+	float now = 0, full = 0;
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
+		now += c[0] + c[1] + c[2];
+		full += colors[i].r + colors[i].g + colors[i].b;
+	}
+	return full > 0 ? SDL_clamp(1 - now / full, 0.0f, 1.0f) : 0;
+}
+
+static int player_ship_model(void)
+{
+	const PlayerItems *items = &player[0].items;
+	const bool dragonwing = items->ship < COUNTOF(ships) && ships[items->ship].shipgraphic == 0;
+	return m3d_ship_appearance(dragonwing ? M3D_SHIP_DRAGONWING : items->ship).model;
+}
+
+// The illustration: the ship hovering over its box, turning a little and banking as if flying,
+// its sidekicks in their places.
+static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
+{
+	static Uint8 backdrop_pixels[320 * 200];
+	for (int y = 0; y < 200; ++y)
+		memcpy(backdrop_pixels + y * 320, (const Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch, 320);
+
+	const float t = SDL_GetTicks() / 1000.0f;
+	const float yaw = 16.0f * sinf(t * 0.55f), roll = 14.0f * sinf(t * 0.8f + 1.0f);
+	RGPUShowcaseObject objects[3];
+	int count = 0;
+	objects[count++] = (RGPUShowcaseObject){ player_ship_model(), 80, 86, 24.0f + 1.7f * sinf(t * 1.3f), 70.0f, yaw, 0, roll };
+	for (int i = 0; i < 2; ++i)
+	{
+		const JE_byte sidekick = player[0].items.sidekick[i];
+		if (sidekick > 0)
+			objects[count++] = (RGPUShowcaseObject){ m3d_sidekick_appearance(sidekick).model, i == 0 ? 15 : 141, 97,
+			                                         16.0f + 1.2f * sinf(t * 1.1f + i * 2.0f), 22.0f, yaw * 0.5f, 0, roll * 0.5f };
+	}
+	RGPUShowcase show = { .pane = showcase_pane, .backdrop = backdrop_pixels, .transparent = showcase_illustrated,
+	                      .objects = objects, .object_count = count };
+	show.fade[3] = store_fade();
+	rgpu_present_showcase(screen, &show, dst_rect);
+}
+
+/*
+ * The store's weapon simulator (JE_weaponViewFrame) in the 3D view: its box as it is once the
+ * stars are drawn each frame, and the ship and the shots that have models, drawn as models
+ * instead of their sprites (video_sim_ship, video_sim_shot).
+ */
+#define SIM_OBJECTS 128
+
+static const SDL_Rect sim_pane = { 8, 8, 136, 175 };
+static Uint8 sim_backdrop[320 * 200];
+static bool sim_valid = false;
+static RGPUShowcaseObject sim_objects[SIM_OBJECTS];
+static int sim_object_count = 0;
+static Uint32 sim_frame = 0;
+
+void video_sim_begin(void)
+{
+	sim_valid = l3d_enabled && m3d_enabled;
+	sim_object_count = 0;
+	++sim_frame;
+	if (sim_valid)
+		for (int y = 0; y < 200; ++y)
+			memcpy(sim_backdrop + y * 320, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+}
+
+bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y)
+{
+	M3DAppearance look;
+	if (!sim_valid || sim_object_count == SIM_OBJECTS || !m3d_shot_appearance(shots2, sprite, &look))
+		return false;
+	const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * sim_frame + (float)(x * 7 + y * 13 & 63) * 47.0f, 360.0f) : 0.0f);
+	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f, y + 7.0f,
+	                                                       l3d_layer_height(L3D_PLAYER) + look.height, 0, yaw, 0, 0 };
+	return true;
+}
+
+bool video_sim_ship(int x, int y)
+{
+	const int model = player_ship_model();
+	if (!sim_valid || model < 0 || sim_object_count == SIM_OBJECTS)
+		return false;
+	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ model, (float)x, (float)y, l3d_layer_height(L3D_PLAYER), 0, 0, 0, 0 };
+	return true;
+}
+
+// The screen still shows the simulator: most of its box as the frame began.
+static bool sim_holds(const SDL_Surface *screen)
+{
+	if (!sim_valid || !l3d_enabled || !m3d_enabled || screen->pixels != VGAScreenSeg->pixels)
+		return false;
+	const SDL_Rect *p = &sim_pane;
+	int same = 0;
+	for (int y = p->y; y < p->y + p->h; ++y)
+		for (int x = p->x; x < p->x + p->w; ++x)
+			same += ((const Uint8 *)screen->pixels)[y * screen->pitch + x] == sim_backdrop[y * 320 + x];
+	return same > p->w * p->h / 2;
+}
+
+static void present_sim(SDL_Surface *screen, const SDL_Rect *dst_rect)
+{
+	RGPUShowcase show = { .pane = sim_pane, .backdrop = sim_backdrop, .transparent = sim_backdrop,
+	                      .objects = sim_objects, .object_count = sim_object_count };
+	show.fade[3] = store_fade();
+	rgpu_present_showcase(screen, &show, dst_rect);
+}
+
 static void present_screen(SDL_Surface *src_surface)
 {
 	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
@@ -448,6 +611,21 @@ static void present_screen(SDL_Surface *src_surface)
 	}
 	backdrop_valid = false;
 
+	const bool sim = sim_holds(src_surface);
+	if (!sim)
+		sim_valid = false;
+	if (sim || showcase_holds(src_surface))
+	{
+		if (sim)
+			present_sim(src_surface, &dst_rect);
+		else
+			present_showcase(src_surface, &dst_rect);
+		last_output_rect = dst_rect;
+		last_frame_was_3d = false;
+		mouse_frame_shown();
+		return;
+	}
+
 	rgpu_present_2d(src_surface, &dst_rect);
 
 	// Save output rect to be used by mouse functions
@@ -466,6 +644,7 @@ int video_pointer_scale(void)
 void JE_showVGA3D(void)
 {
 	take_backdrop();
+	showcase_valid = sim_valid = false;
 
 	// TYR3D_TURBO (dev): only every so many ticks shows, so the game isn't held up by the display.
 	static int turbo = -1, skipped = 0;
