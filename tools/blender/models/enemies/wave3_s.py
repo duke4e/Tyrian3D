@@ -4,12 +4,12 @@ wave3_s_art.py.
 
 - gun_silo_43, gun_silo_81, gun_silo_119: the blue-grey gun emplacement sunk in the ground of SAVARA,
   SAVARA IV and SAVARA Y, which the level events place as three sprites, 43 above 81 above 119 (enemies
-  171, 172, 173; SAVARA IV sets the top one 6 pixels right and 6 down). An armoured roof with two
-  diagonal ribs at its far end, blue armour blocks at its sides, a housing with a sloped blue front
-  over a dark bay between two walls; in the bay blue pillars and the gun's cradle, the gun lying in it
-  with its muzzle over the apron and the grating in front. The frames (45, 83, 121) show the muzzle's
-  flash: the model keeps the gun cold but for a dim glow in its bore. Built whole, 24 x 67, and cut
-  into its three pieces (origin).
+  171, 172, 173; SAVARA IV sets the top one 6 pixels right and 6 down). Blue armour blocks at its
+  sides, a housing with a sloped blue front over the bay, in the bay blue pillars and the gun's cradle,
+  the gun lying in it with its muzzle out over the bay's front. The fortress round the bay (its roof,
+  walls, floor, lip, apron and grating) is the map's and not modelled. The frames (45, 83, 121) show
+  the muzzle's flash: the model keeps the gun cold but for a dim glow in its bore. Built whole,
+  24 x 67, and cut into its three pieces (origin).
 - jet_emerald (F 53): the big green jet of SAVARA and SAVARA Y, nose down the screen: a long fuselage
   with the cockpit near the nose, big wings swept back towards the top, tail planes and a fin.
 - jet_twin_tail (F 55): SAVARA's green jet with brown wings and two tail booms, blue lights on its
@@ -41,7 +41,8 @@ def silo_painter():
 
 
 def silo_whole():
-    """The emplacement on its ground plate, 24 x 67 pixels (rows 0-66 of the three sprites)."""
+    """The emplacement's machinery, 24 x 67 pixels (rows 0-66 of the three sprites), without the
+    fortress round it (the map's)."""
     f = SILO
     X, Y = f.X, f.Y
     p = silo_painter()
@@ -55,27 +56,11 @@ def silo_whole():
     hot = pal("silo_bore", 0x72, metallic=0.0, roughness=0.4, glow=0.8)
     parts = []
 
-    # The ground plate under the whole: the trench's floor between the walls, the apron in front.
-    plate = s.slab("plate", f.rect(0, 23, 0, 65), 0.0, 1.0, grey, bevel=0.3)
-    parts.append(plate)
-    # The walls either side of the bay, their tops rounded.
-    for name, c0, c1 in (("wall_l", 0, 2), ("wall_r", 21, 23)):
-        parts.append(s.slab(name, f.rect(c0, c1, 8, 49), 0.0, 6.2, grey, bevel=0.7, segments=3))
-    # The roof at the far end: an armoured plate falling a little towards the bay, two diagonal ribs
-    # converging on the housing and a seam down its middle.
-    roof = s.slab("roof", f.rect(0, 23, 0, 8), 0.0, 8.0, grey, bevel=0.8, segments=3,
-                  z_fn=lambda x, y, z: z - (0.9 * (f.top(0) - y) / 9.0 if z > 4.0 else 0.0))
-    parts.append(roof)
+    # The fortress round the bay (its floor, the walls either side, the armoured roof at the far end,
+    # the lip, apron and grating in front) is the map's own: the map draws it, the model is the gun's
+    # machinery standing in the bay.
 
-    def roof_z(y):
-        return 8.0 - 0.9 * (f.top(0) - y) / 9.0
-    for name, a, b in (("rib_l", (f.left(3) + 0.4, f.top(0) - 0.3), (X(9.5), Y(7.0))),
-                       ("rib_r", (f.right(21) - 0.6, f.top(0) - 0.6), (X(15.0), Y(7.0)))):
-        pts = [(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) for t in (0.0, 0.33, 0.66, 1.0)]
-        parts.append(w.tube(name, [(x, y, roof_z(y) + 0.05) for x, y in pts], 0.75, steel, 10, squash=0.7))
-    parts.append(s.slab("seam", f.rect(12, 12, 0, 8, inset=0.15), 0.0, 0.6, dark, bevel=0.1,
-                        z_fn=lambda x, y, z: z + roof_z(y) - 0.4))
-    # The blue armour blocks at the roof's lower corners, a blue lamp in each.
+    # The blue armour blocks at the bay's far corners, a blue lamp in each.
     for name, c0, c1, lamp_c in (("armour_l", 3, 6, 3), ("armour_r", 19, 22, 21)):
         parts.append(s.slab(name, f.rect(c0, c1, 7, 16), 0.0, 9.6, blue, bevel=0.6, segments=3))
         parts.append(w.sphere(name + "_lamp", (X(lamp_c), Y(12.0), 7.6), (0.75, 1.1, 0.75), lamp, 12, 6))
@@ -140,13 +125,6 @@ def silo_whole():
     parts.append(w.lathe_axis("bore", [(0.0, 0.01), (0.02, 1.15), (0.6, 1.1), (0.62, 0.01)], black,
                               tuple(mouth - d * 0.5), tuple(d), 16))
     parts.append(w.sphere("bore_glow", tuple(mouth - d * 0.3), (0.6, 0.6, 0.6), hot, 10, 5))
-    # In front of the bay: the lip, the plates and the grating.
-    parts.append(s.slab("lip", f.rect(0, 23, 50, 52), 0.0, 2.8, grey, bevel=0.6, segments=2))
-    parts.append(s.slab("apron", f.rect(0, 23, 53, 58), 0.0, 2.0, grey, bevel=0.4,
-                        z_fn=lambda x, y, z: z - 0.35 * (Y(53.0) - y) / 5.0 if z > 1.0 else z))
-    parts.append(s.slab("grating", f.rect(0, 23, 59, 65), 0.0, 1.5, dark, bevel=0.3))
-    for c in range(1, 23, 2):
-        parts.append(s.slab(f"slat{c}", f.rect(c, c, 59, 64, inset=0.1), 1.2, 1.9, grey, bevel=0.15))
     # The sprite's colours on everything but the lamps, the gun's bore and the slats' grey.
     skip = {"bore", "bore_glow", "barrel", "cradle"}
     for obj in parts:
@@ -155,9 +133,7 @@ def silo_whole():
         if obj.name.startswith(("rib", "arm", "brace", "foot")):
             s.paint_sprite(obj, f, p, wall_steps=2, under=black, probe=0.6, keep=lambda v: v >> 4 != 9)
         else:
-            # The plate (the bay's black floor) keeps the pixels as they are, the rest a little smoothed.
-            s.paint_pixels(obj, f, p, wall_steps=2, under=black, probe=0.6, blur=0 if obj.name == "plate" else 1,
-                           keep=lambda v: v >> 4 != 9)
+            s.paint_pixels(obj, f, p, wall_steps=2, under=black, probe=0.6, blur=1, keep=lambda v: v >> 4 != 9)
     n.merge_by_material(parts)
 
 

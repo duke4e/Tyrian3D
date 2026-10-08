@@ -2,9 +2,10 @@
 as their sprites look (models.cfg: yaw=0 unless noted). The rock arch and the stepped pyramid are in
 wave3_n_rocks.py, CORE's fire in wave3_n_fire.py.
 
-- hatch_bunker (3 18): DESERTRUN's grey bunker in the grey ground, a red-framed hatch on its top; its
-  frames (56, 94, 284) slide the hatch's doors open on a grey sensor with a red eye and close them
-  again. The model shows it open, the doors drawn back under the frame, the eye glowing.
+- hatch_bunker (3 18): the red-framed hatch in DESERTRUN's grey bunker roof; its frames (56, 94, 284)
+  slide the hatch's doors open on a grey sensor with a red eye and close them again. The model shows
+  it open, the doors drawn back under the frame, the eye glowing. The roof round it is the map's: the
+  model is the hatch on a low collar.
 - lava_bubble (3 128): CORE's glossy dark red bubble of lava on the ground, splashes round its foot
   (its frames 130 and 132 burst it).
 - horned_pod (3 1): SURFACE's grey flying pod: a round hull with a belt, a deck across its top
@@ -38,12 +39,15 @@ def mask_of(name, width):
 
 # --- 3 18: the hatch bunker ----------------------------------------------------------------------
 
+HATCH_TOP = 1.8               # the collar's top round the hatch
+HATCH_DOOR_Z = HATCH_TOP - 0.8  # the doors' middle: under the frame
+
+
 @n.model("hatch_bunker", mask=mask_of("BUNKER", 24))
 def hatch_bunker():
-    """A grey concrete housing in the grey ground, its south and east sides leaning out; on its top
-    a red frame round a deep hatch whose two doors are drawn back under the frame; in the hatch a
-    grey sensor dome on a collar, its big red eye glowing."""
-    g = w.grid(art.BUNKER_OPEN, 24)
+    """A hatch in the bunker's roof: a low grey collar round it, a red frame on the collar, the two
+    doors drawn back under the frame; in the hatch a grey sensor dome on a collar, raised, its big red
+    eye glowing. The roof round it is the map's (the sprite is the map's own pixels): not modelled."""
     grey = pal("bunker_grey", 0x05, metallic=0.25, roughness=0.6)
     grey_light = pal("bunker_grey_light", 0x07, metallic=0.25, roughness=0.55)
     grey_dark = pal("bunker_grey_dark", 0x03, metallic=0.25, roughness=0.65)
@@ -56,33 +60,21 @@ def hatch_bunker():
     eye = pal("bunker_eye", 0x75, metallic=0.0, roughness=0.15, glow=1.1)
     eye_core = pal("bunker_eye_core", 0x7b, metallic=0.0, roughness=0.1, glow=1.8)
 
-    ground = [(0, pal("bunker_ground3", 0x03, metallic=0.05, roughness=0.85)),
-              (4.4, pal("bunker_ground5", 0x05, metallic=0.05, roughness=0.8)),
-              (5.6, pal("bunker_ground6", 0x06, metallic=0.05, roughness=0.8)),
-              (6.6, pal("bunker_ground7", 0x07, metallic=0.05, roughness=0.75))]
-
-    n.soft_floor("ground", g, ground, lambda v, c, r: v >> 4 == 0, top=0.7, relief=0.5, blur=1)
-    # The housing: a block with a hole (the hatch), its edges rounded over wider to the south and east
-    # (the light strips the sprite draws there).
-    top = 5.2
-    outline = [(-10.2, 12.2), (-10.2, -10.6), (10.0, -10.6), (10.0, 12.2)]
+    # The collar: a low rim round the hatch (a hole), its outer edges rounded.
+    top = HATCH_TOP
+    outline = [(-9.9, 11.9), (-9.9, -8.9), (8.5, -8.9), (8.5, 11.9)]
     hole = [(-8.0, 10.0), (6.6, 10.0), (6.6, -7.0), (-8.0, -7.0)]
-
-    def lean(x, y, z):
-        # The south and east edges fall away over about two pixels.
-        fall = max(n.smoothstep(-8.8, -10.6, y), n.smoothstep(8.4, 10.0, x))
-        return z - (z - 0.3) * 0.75 * fall
-    housing = sh.inflate("housing", [outline, hole], grey, sh.pillow_profile(top - 0.3, 0.9), bottom=0.0,
-                         spacing=0.45, rim=0.3, z_fn=lean)
+    housing = sh.inflate("housing", [outline, hole], grey, sh.pillow_profile(top - 0.2, 0.7), bottom=0.0,
+                         spacing=0.45, rim=0.3)
     w.simplify_bottom(housing)
     k.smooth(housing, 40)
     w.paint_faces(housing, lambda c, nrm: grey_light if (nrm.y < -0.35 or nrm.x > 0.35) and nrm.z > 0.2 else
-                  grey_dark if (nrm.y > 0.35 or nrm.x < -0.35) and c.z < top - 0.5 and abs(c.x + 0.7) < 7.5 and
+                  grey_dark if (nrm.y > 0.35 or nrm.x < -0.35) and nrm.z < 0.5 and abs(c.x + 0.7) < 7.5 and
                   -7.2 < c.y < 10.2 else None)
     # The hatch: dark walls and floor, the doors drawn back under the frame (north and south).
-    w.rounded_box("pit_floor", (-0.7, 1.5, 0.9), (14.4, 16.8, 1.0), pit, bevel=0.3)
-    w.rounded_box("door_n", (-0.7, 8.9, top - 1.2), (14.2, 2.6, 0.7), door, bevel=0.25)
-    w.rounded_box("door_s", (-0.7, -5.8, top - 1.2), (14.2, 2.8, 0.7), door, bevel=0.25)
+    w.rounded_box("pit_floor", (-0.7, 1.5, 0.25), (14.4, 16.8, 0.5), pit, bevel=0.15)
+    w.rounded_box("door_n", (-0.7, 8.9, HATCH_DOOR_Z), (14.2, 2.6, 0.7), door, bevel=0.25)
+    w.rounded_box("door_s", (-0.7, -5.8, HATCH_DOOR_Z), (14.2, 2.8, 0.7), door, bevel=0.25)
     # The red frame round the hatch, its top lighter.
     loop = [(-8.6, 10.6), (7.2, 10.6), (7.2, -7.6), (-8.6, -7.6)]
     pts = []
@@ -102,6 +94,8 @@ def hatch_bunker():
     w.sphere("dome", (cx, cy, 1.4), (3.9, 3.7, 3.4), sensor, 24, 12)
     w.sphere("eye", (cx, cy + 0.2, 3.4), (2.7, 2.6, 1.7), eye, 24, 12)
     w.sphere("eye_core", (cx - 0.5, cy + 0.6, 4.8), (1.0, 1.0, 0.45), eye_core, 12, 6)
+    # Nothing below the roof (the game would lift the model by what reaches below it).
+    sh.flat_bottom(w.meshes())
 
 
 # --- 3 128: the lava bubble ----------------------------------------------------------------------

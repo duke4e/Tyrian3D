@@ -1,23 +1,29 @@
-"""Batch AH of wave 3 (sheet M): MINERS' banded rock column and its broken look, modelled as the sprites look
-(models.cfg: yaw=0). The kit is wave3_ah_kit.py, the pixels wave3_ah_art.py.
+"""Batch AH of wave 3 (sheet M): MINERS' banded rock column and its broken look (models.cfg: yaw=0). The kit is
+wave3_ah_kit.py, the pixels wave3_ah_art.py.
 
 MINERS puts the column together from six ground enemies (1191-1196): 163, 165 at (x, y - 57), (x + 24, y - 57),
 201, 203 at (x, y - 29), (x + 24, y - 29) and 239, 241 at (x, y - 1), (x + 24, y - 1): 48 x 84 pixels, its foot
 on the red ground at the bottom. Each piece is an enemy of its own; the upper four leave their broken looks in
 their place when destroyed (dgr 167, 169, 205, 207; dlevel -1), the lower two just go.
 
-The sprites draw a thick octagonal pillar of rock standing on the ground, seen from the side and above: its pale
-top, two drums below it parted by dark grooves, its foot on the red ground. The model leans the pillar up the
-screen from its foot (as the tall towers of wave3_x_tower.py and the spire of wave3_z_rock.py do), so that from
-above it covers the sprites and its pale head rises highest (about 38 pixels over the ground).
+The sprites draw a thick octagonal pillar of rock standing on the ground in the game's oblique view (its side seen
+from the front and above): its pale top (rows 2-33), two drums below it parted by dark grooves, its foot on the
+red ground (row 79). The model stands upright (batch AV): its footprint (44 x 30 pixels) on the ground where the
+sprites draw the foot (rows 49-79), its top 40 pixels above the ground. It is built in the sprites' oblique view
+(each point z above the ground moved K z up the screen, so that the model lies over the sprites as they draw it),
+painted there by the sprites' pixels and cut into the pieces along the sprites' edges, and each piece is then
+stood upright (moved K z back down the screen): every piece is the part of the pillar its sprite draws (the upper
+pieces the top and the back of the upper drum, the middle ones the upper drum, the lower ones the lower drum and
+the foot), so the pieces' parts lie below their sprites' centres (up to 60 pixels for the top ones). The red ground
+round the foot is the map's (the game draws it under the column): not modelled.
 
-- rock_column_tl, _tr, _ml, _mr, _bl, _br (M 163, 165, 201, 203, 239, 241): the pillar, cut into its six pieces;
-  the lower two with the red ground round the foot.
-- rock_column_wreck_tl, _tr, _ml, _mr (M 167, 169, 205, 207): the head and the upper drum broken open, dark
-  hollows gouged into them where the sprites show the rock's grey insides.
+- rock_column_tl, _tr, _ml, _mr, _bl, _br (M 163, 165, 201, 203, 239, 241): the pillar, cut into its six pieces.
+- rock_column_wreck_tl, _tr, _ml, _mr (M 167, 169, 205, 207): the top and the upper drum broken open, dark
+  hollows gouged into them where the sprites show the rock's grey insides, the top's back right corner broken off.
 
 usage: Blender -b --factory-startup -P wave3_ah_rock.py -- [--only name,name] [--preview <prefix>] [--check 1]
-       [--stats 1] [--whole <prefix>]
+       [--stats 1] [--whole <prefix> (renders the whole column in the sprites' oblique view)]
+       (names: the pieces, e.g. --only rock_column_tl,rock_column_bl; the whole: rock_column, rock_column_wreck)
 """
 import math
 import os
@@ -25,7 +31,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_ah_kit as kit  # noqa: E402
@@ -34,35 +40,48 @@ from wave3_ah_kit import k, sh, w, pal  # noqa: E402
 ROCK = kit.frame("ROCK", 48, (24, 42))
 BROKEN = kit.frame("ROCK_WRECK", 48, (24, 42))
 
-THETA = math.radians(18.0)      # the pillar's lean up the screen
-SIN, COS = math.sin(THETA), math.cos(THETA)
-A, B, POWER = 22.3, 12.5, 3.2   # the cross-section: half-width, half-thickness, superellipse power
+A, D, POWER = 22.3, 15.0, 3.2   # the cross-section: half-width, half-depth, superellipse power (the drawn top)
 BOTTOM_Y = -37.6                # the foot's front edge (row 79)
-TOP_Y = 40.0                    # the head's far edge (row 2)
-FOOT_Y = BOTTOM_Y + B * SIN     # the axis at the foot
-FOOT_Z = 2.4
-LENGTH = (TOP_Y - B * SIN - FOOT_Y) / COS
-UP = Vector((0.0, -SIN, COS))   # the cross-sections' "up", square to the axis
-AXIS = Vector((0.0, COS, SIN))
+CY = BOTTOM_Y + D               # the pillar's axis: its footprint over rows 49-79, where the sprites draw the foot
+HEIGHT = 40.0                   # the top's edge above the ground (its crown CROWN more)
+CROWN = 1.4
+TOP_FRONT_Y = 9.0               # where the sprites draw the top's front edge (row 33)
+K = (TOP_FRONT_Y - BOTTOM_Y) / HEIGHT   # the oblique view: a point z above the ground is drawn K z up the screen
 
 
-def t_of_row(row):
-    """The distance along the axis whose section's top lies over a row of the art."""
-    y = 42.0 - row - 0.5
-    return (y + B * SIN - FOOT_Y) / COS
+def z_of_row(row):
+    """The height on the pillar's front whose point the sprites draw on a row (edge) of the art."""
+    return (42.0 - row - BOTTOM_Y) / K
 
 
-def axis(t):
-    return Vector((0.0, FOOT_Y, FOOT_Z)) + AXIS * t
+# The drums and grooves (rows of the art on the pillar's front: a groove 33-37 under the top, the upper drum 37-53,
+# a groove 53-56, the lower drum 56-72 and its foot rounding into the ground over 72-79).
+Z_DRUM1 = z_of_row(55.5)        # the lower drum's top
+Z_DRUM2 = (z_of_row(54.0), z_of_row(36.5) - 0.8)   # the upper drum
+Z_HEAD = z_of_row(36.5) - 1.6   # the top cap's foot, in the upper drum's rounded top (its edge dark: the groove)
+
+
+def drawn(objects):
+    """Into the sprites' oblique view: each point moved K z up the screen."""
+    for obj in objects:
+        sh.apply_modifiers(obj)
+        obj.data.transform(Matrix.Shear("XY", 4, (0.0, K)))
+
+
+def upright(objects):
+    """Back out of the oblique view: each point moved K z down the screen."""
+    for obj in objects:
+        sh.apply_modifiers(obj)
+        obj.data.transform(Matrix.Shear("XY", 4, (0.0, -K)))
 
 
 def _outline(segments):
-    """The cross-section's superellipse (A x B, unit scale) as (s, h) points spaced evenly along it."""
+    """The cross-section's superellipse (A x D) as (x, y) points spaced evenly along it, round (0, 0)."""
     fine = []
     for i in range(720):
         a = 2 * math.pi * i / 720
         ca, sa = math.cos(a), math.sin(a)
-        fine.append((math.copysign(abs(ca) ** (2 / POWER), ca) * A, math.copysign(abs(sa) ** (2 / POWER), sa) * B))
+        fine.append((math.copysign(abs(ca) ** (2 / POWER), ca) * A, math.copysign(abs(sa) ** (2 / POWER), sa) * D))
     lengths = [0.0]
     for i in range(720):
         (x0, y0), (x1, y1) = fine[i], fine[(i + 1) % 720]
@@ -82,92 +101,89 @@ def _outline(segments):
 _OUTLINES = {}
 
 
-def section(t, scale=1.0, segments=72, lift=0.0, xscale=1.0):
-    """A cross-section of the pillar at t: the superellipse A x B scaled by `scale` (and its width by `xscale`),
-    its points spaced evenly."""
+def section(z, scale=1.0, segments=72):
+    """A horizontal cross-section of the pillar at height z, scaled by `scale` about its axis."""
     if segments not in _OUTLINES:
         _OUTLINES[segments] = _outline(segments)
-    c = axis(t)
-    return [c + Vector((s_ * scale * xscale, 0.0, 0.0)) + UP * (h * scale + lift) for s_, h in _OUTLINES[segments]]
+    return [Vector((x * scale, CY + y * scale, z)) for x, y in _OUTLINES[segments]]
 
 
-def head_width(t):
-    """The head narrows towards its end as the sprites draw it: its half-width 22.3 up to row 20, 17.5 at row 7."""
-    t20, t7 = t_of_row(20.0), t_of_row(7.0)
-    if t <= t20:
-        return 1.0
-    f = min(1.0, (t - t20) / (t7 - t20))
-    return (22.3 - 4.8 * f) / 22.3
+def axis(z):
+    return Vector((0.0, CY, z))
 
 
-# Where the drums and grooves lie along the axis (rows of the art: the head 2-33, a groove 33-37, the upper drum
-# 37-53, a groove 53-56, the lower drum 56-72 and its foot rounding into the ground over 72-79).
-T_HEAD = t_of_row(34.5)
-T_GROOVE1 = t_of_row(36.5)
-T_DRUM2 = t_of_row(54.0)
-T_GROOVE2 = t_of_row(55.5)
-
-
-def drum(name, t0, t1, mat, round0=1.6, round1=1.6, step=1.0, end_cap=None, xprofile=None):
-    """A drum of the pillar from t0 to t1, its ends rounded over round0 / round1 (end_cap: the head's long
-    rounded end instead, over that length)."""
-    ts = []
-    count = max(2, int(math.ceil((t1 - t0) / step)))
+def drum(name, z0, z1, mat, round0=1.6, round1=1.6, step=1.0):
+    """A drum of the pillar from z0 to z1, its ends rounded over round0 / round1."""
+    zs = []
+    count = max(2, int(math.ceil((z1 - z0) / step)))
     for i in range(count + 1):
-        ts.append(t0 + (t1 - t0) * i / count)
-    # Finer at the rounded ends.
-    extra = [t0 + round0 * f for f in (0.15, 0.4, 0.7)] + [t1 - (end_cap or round1) * f for f in (0.05, 0.15, 0.3, 0.5, 0.7)]
-    ts = sorted(set(round(t, 4) for t in ts + extra if t0 <= t <= t1))
+        zs.append(z0 + (z1 - z0) * i / count)
+    zs += [z0 + round0 * f for f in (0.15, 0.4, 0.7)] + [z1 - round1 * f for f in (0.05, 0.15, 0.3, 0.5, 0.7)]
+    zs = sorted(set(round(z, 4) for z in zs if z0 <= z <= z1))
     rings = []
-    for t in ts:
-        d0, d1 = t - t0, t1 - t
+    for z in zs:
+        d0, d1 = z - z0, z1 - z
         scale = 1.0
         if d0 < round0:
             u = 1.0 - d0 / round0
             scale = min(scale, 0.9 + 0.1 * math.sqrt(max(0.0, 1.0 - u * u)))
-        r1 = end_cap or round1
-        if d1 < r1:
-            u = 1.0 - d1 / r1
-            floor_ = 0.25 if end_cap else 0.9
-            scale = min(scale, floor_ + (1.0 - floor_) * math.sqrt(max(0.0, 1.0 - u * u)))
-        rings.append(section(t, scale, xscale=xprofile(t) if xprofile else 1.0))
-    obj = k.loft(name, rings, mat, start_point=axis(ts[0]), end_point=axis(ts[-1]))
+        if d1 < round1:
+            u = 1.0 - d1 / round1
+            scale = min(scale, 0.9 + 0.1 * math.sqrt(max(0.0, 1.0 - u * u)))
+        rings.append(section(z, scale))
+    obj = k.loft(name, rings, mat, start_point=axis(zs[0]), end_point=axis(zs[-1]))
     return k.smooth(obj, 55)
 
 
-def rock_noise(obj, amount, seed, scale=2.2, keep_ends=None):
-    """Roughens a drum: each vertex moves along its direction from the axis by smooth noise."""
+def head(name, mat, edge=2.2):
+    """The pillar's top: a cap from Z_HEAD up to HEIGHT, its edge rounded over `edge`, its top rising a little to
+    a low crown in its middle (a fine grid on top, for the sprites' pixels to paint)."""
+    outline = [(x, CY + y) for x, y in _outline(96)]
+
+    def z_of(x, y, e):
+        rr = min(1.0, (abs(x) / A) ** POWER + (abs(y - CY) / D) ** POWER)
+        return HEIGHT - edge * (1.0 - e) + CROWN * (1.0 - rr)
+    obj = kit.heightfield(name, [outline], z_of, mat, spacing=1.1, smooth_angle=55, edge=edge)
+    sh.cut_planes([obj], [((0, 0, Z_HEAD), (0, 0, -1))])
+    return obj
+
+
+def rock_noise(obj, amount, seed, scale=2.2):
+    """Roughens a drum: each vertex moves out from the axis by smooth noise (and the top's up and down)."""
     rng = __import__("random").Random(seed)
     waves = [(Vector([rng.uniform(-1, 1) for _ in range(3)]).normalized() / scale, rng.uniform(0, 6.3))
              for _ in range(9)]
     sh.apply_modifiers(obj)
     for v in obj.data.vertices:
         co = v.co
-        t = (co - Vector((0.0, FOOT_Y, FOOT_Z))).dot(AXIS)
-        out = co - axis(t)
-        if out.length < 1e-6:
-            continue
+        out = co - axis(co.z)
         d = sum(math.sin(wv.dot(co) + ph) for wv, ph in waves) / math.sqrt(len(waves))
-        v.co = co + out.normalized() * d * amount
+        on_top = min(1.0, max(0.0, (co.z - HEIGHT + 1.0) / 1.0))
+        if out.length > 1e-6:
+            co = co + out.normalized() * d * amount * (1.0 - on_top)
+        v.co = co + Vector((0.0, 0.0, d * amount * 0.9 * on_top))
     return obj
 
 
 def gouge(obj, depth_at, max_depth):
-    """Pushes the vertices in towards the axis by depth_at(x, y) * max_depth (hollows)."""
+    """Hollows: pushes the vertices in by depth_at(x, y) * max_depth (depth_at in the sprites' oblique view, where
+    each point is drawn): the sides in towards the axis, the top down."""
     sh.apply_modifiers(obj)
     for v in obj.data.vertices:
-        d = depth_at(v.co.x, v.co.y)
+        co = v.co
+        d = depth_at(co.x, co.y + K * co.z)
         if d <= 0:
             continue
-        t = (v.co - Vector((0.0, FOOT_Y, FOOT_Z))).dot(AXIS)
-        inward = axis(t) - v.co
-        if inward.length < 1e-6:
-            continue
-        v.co += inward.normalized() * min(inward.length * 0.7, d * max_depth)
+        inward = axis(co.z) - co
+        on_top = min(1.0, max(0.0, (co.z - HEIGHT + 3.0) / 2.0))
+        side = inward.normalized() * min(inward.length * 0.7, d * max_depth) if inward.length > 1e-6 else Vector()
+        down = Vector((0.0, 0.0, -min(6.5, d * max_depth * 0.7)))
+        v.co = co + side * (1.0 - on_top) + down * on_top
     return obj
 
 
 def column_whole(broken=False):
+    """The column in the sprites' oblique view, painted (see the module's doc)."""
     f = BROKEN if broken else ROCK
     tag = "rcw" if broken else "rc"
     finish = {10: (0.05, 0.75), 11: (0.05, 0.75), 0: (0.05, 0.85), 1: (0.05, 0.8), 4: (0.05, 0.7), 5: (0.05, 0.7),
@@ -187,15 +203,16 @@ def column_whole(broken=False):
     dark = pal(f"{tag}_groove", 0x01, metallic=0.05, roughness=0.9)
 
     parts = []
-    parts.append(drum("drum1", -4.0, T_GROOVE2, rock, round0=0.1, round1=1.8))
-    parts.append(drum("drum2", T_DRUM2, T_GROOVE1, rock, round0=1.8, round1=1.8))
-    parts.append(drum("head", T_HEAD, LENGTH, rock, round0=1.8, end_cap=6.0, xprofile=head_width))
+    parts.append(drum("drum1", -0.6, Z_DRUM1, rock, round0=0.8, round1=1.8))
+    parts.append(drum("drum2", Z_DRUM2[0], Z_DRUM2[1], rock, round0=1.8, round1=1.8))
+    parts.append(head("head", rock))
     for i, obj in enumerate(parts):
         rock_noise(obj, 0.55 if obj.name == "head" else 0.35, seed=5 + i)
     # The grooves: the core between the drums, dark.
-    for name, t0, t1 in (("core1", T_GROOVE2 - 1.0, T_DRUM2 + 1.0), ("core2", T_GROOVE1 - 1.0, T_HEAD + 1.0)):
-        rings = [section(t, 0.86, 40) for t in (t0, (t0 + t1) / 2, t1)]
-        k.smooth(k.loft(name, rings, dark, start_point=axis(t0), end_point=axis(t1)), 50)
+    cores = []
+    for name, z0, z1 in (("core1", Z_DRUM1 - 1.0, Z_DRUM2[0] + 1.0), ("core2", Z_DRUM2[1] - 1.0, Z_HEAD + 1.0)):
+        rings = [section(z, 0.86, 40) for z in (z0, (z0 + z1) / 2, z1)]
+        cores.append(k.smooth(k.loft(name, rings, dark, start_point=axis(z0), end_point=axis(z1)), 50))
 
     if broken:
         # Hollows where the broken sprites show the dark grey insides (ramp 6), deepest in their middles.
@@ -205,34 +222,51 @@ def column_whole(broken=False):
         for obj in parts:
             if obj.name in ("head", "drum2"):
                 gouge(obj, lambda x, y: max(0.0, depth(x, y) - 0.2) * 1.4 if y > -14.0 else 0.0, 9.0)
-            if obj.name == "head":
-                # Its upper right broken away along the diagonal from (col 23, row 2) to (col 46, row 26).
-                kit.cut_plane(obj, (11.0, 27.5, 0.0), (24.0, 23.0, 0.0))
-            if obj.name in ("head", "drum2"):
                 rock_noise(obj, 0.45, seed=11)
+    drawn(parts + cores)
+    if broken:
+        # The top's back right corner broken away, along the diagonal the sprites draw from (col 23, row 2) to
+        # (col 46, row 26).
+        for obj in parts:
+            if obj.name == "head":
+                kit.cut_plane(obj, (11.0, 27.5, 0.0), (24.0, 23.0, 0.0))
     for obj in parts:
         kit.clip_below(obj, 0.0)
         paint(obj)
 
-    # The red ground round the foot (the lower pieces, rows 56-83): a thin bed in its shades.
-    ground = [[None] * 48 for _ in range(84)]
-    for r in range(56, 84):
-        for c in range(48):
-            v = ROCK.g[r][c] if r < len(ROCK.g) else None
-            ground[r][c] = v if v is not None and v >> 4 == 4 else 0x46
-    kit.xk.floor_bed("ground", ground, (24, 42), top=0.35, prefix=f"{tag}_ground", shades_=(3, 4, 5, 6, 7, 8), ramp=4)
+    # The top's rounded edge and foot (steep once upright) in one dark tan: the sprites' pixels streak them.
+    edge_mat = paint.material(10, 4)
+
+    def steep(n):
+        u = Vector((n.x, n.y, n.z + K * n.y))  # the face's normal once upright
+        return u.length > 1e-6 and u.z / u.length < 0.75
+    kit.paint_faces(parts[2], lambda c, n: edge_mat if steep(n) else None)
 
 
 def broken_whole():
     column_whole(broken=True)
 
 
-kit.pieced("rock_column", column_whole, (48, 84),
-           [kit.quarter(f"rock_column_{n_}", ROCK, 24 * (i % 2), 28 * (i // 2)) for i, n_ in
-            enumerate(("tl", "tr", "ml", "mr", "bl", "br"))])
-kit.pieced("rock_column_wreck", broken_whole, (48, 84),
-           [kit.quarter(f"rock_column_wreck_{n_}", BROKEN, 24 * (i % 2), 28 * (i // 2)) for i, n_ in
-            enumerate(("tl", "tr", "ml", "mr"))])
+def column_piece(builder, box, centre):
+    """A piece of the column: the part its sprite draws (the whole in the oblique view cut along the sprite's
+    edges), stood upright, round its sprite's centre."""
+    builder()
+    w.bake()
+    kept = sh.cut_box(w.meshes(), *box)
+    upright(kept)
+    sh.move(kept, -centre[0], -centre[1])
+    for obj in kept:
+        k.smooth(obj, 40)
+
+
+for whole_fn, f, names in ((column_whole, ROCK, ("tl", "tr", "ml", "mr", "bl", "br")),
+                           (broken_whole, BROKEN, ("tl", "tr", "ml", "mr"))):
+    prefix = "rock_column_wreck" if whole_fn is broken_whole else "rock_column"
+    for i, n_ in enumerate(names):
+        piece_name, box, centre, mask = kit.quarter(f"{prefix}_{n_}", f, 24 * (i % 2), 28 * (i // 2))
+        kit.model(piece_name, mask=mask)(lambda fn=whole_fn, box=box, centre=centre: column_piece(fn, box, centre))
+    # The whole, for --whole (its views in the oblique view, as the sprites draw it).
+    kit.pieced(prefix, whole_fn, (48, 84), [])
 
 
 if __name__ == "__main__":

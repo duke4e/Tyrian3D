@@ -6,9 +6,9 @@ look (models.cfg: yaw=0).
   above 39, 41, 43; events 516-521 and 522-527 at (x, y), (x + 24, y), (x + 48, y), (x, y + 28), (x + 24,
   y + 28), (x + 48, y + 28), all on one layer per event group): a heap of angular grey boulders sunk in a
   dark pit in the brown dirt, a big block with a broad lit top behind smaller ones. The boulders are convex
-  hulls with flat facets painted with the sprite's greys; the dirt round the pit is laid as brown cobbles
-  where the sprites draw it (wave3_p_kit.brown_dirt, as batch P laid the dirt of TYRIAN and HOLES), the pit
-  as a dark floor. Built whole and cut into its six sprites (origin).
+  hulls with flat facets painted with the sprite's greys; the dirt round the pit and the pit's floor are the
+  map's (the sprites carry a copy of them) and not modelled. Built whole and cut into its six sprites
+  (origin).
 
 usage: Blender -b --factory-startup -P wave3_aa_rocks.py -- [--only name,name] [--preview <prefix>]
        [--check 1] [--stats 1] [--whole <prefix>]
@@ -17,11 +17,9 @@ import os
 import random
 import sys
 
-import numpy as np
-
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_aa_kit as kit  # noqa: E402
-from wave3_aa_kit import art, w, p, pal, Frame  # noqa: E402
+from wave3_aa_kit import art, w, pal, Frame  # noqa: E402
 
 ROCKS = Frame(art.ROCKS, 72, (36, 28))
 
@@ -57,7 +55,6 @@ PEBBLES = [(22.5, 42.5, 1.6), (25.5, 44.0, 1.2), (46.5, 43.0, 1.7), (48.5, 45.0,
 
 def rocks_whole():
     f = ROCKS
-    g = f.g
     greys = {s: pal(f"hrocks_grey{s:x}", s, metallic=0.08, roughness=0.75) for s in (2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb)}
     shade = f.shade(0, blur=1)
 
@@ -68,7 +65,7 @@ def rocks_whole():
     # steep sides a shade darker, what faces down darker still).
     for name, foot, top in BOULDERS:
         pts = [(f.X(c - 0.5), f.Y(r - 0.5), 0.0) for c, r in foot] + [(f.X(c - 0.5), f.Y(r - 0.5), z) for c, r, z in top]
-        # The foot a little below the floor, so that the boulders sit in it.
+        # The foot a little below the ground, so that the boulders sit in it.
         pts += [(x, y, -0.6) for x, y, _ in pts[:len(foot)]]
         rock = kit.convex_rock("rock_" + name, pts, grey(5))
         kit.paint_facets(rock, lambda x, y: shade(x, y) + 1.4, grey, wall_drop=1.4, under=grey(2))
@@ -77,20 +74,8 @@ def rocks_whole():
         w.lumpy(f"pebble{i}", (f.X(c), f.Y(r), 0.2), (rad, rad * rnd.uniform(0.8, 1.1), rad * 0.7), grey(2 + i % 2),
                 seed=20 + i, amount=0.2, segments=12, rings=6)
 
-    # The dirt round the pit: brown cobbles over the sprite's dirt.
-    def is_dirt(v, c, r):
-        return v is not None and v >> 4 == 1
-    p.brown_dirt("dirt", g, is_dirt, prefix="hrocks", origin=(f.ox, f.oy))
-
-    # The pit: a dark floor over everything else.
-    h, wd = len(g), f.width
-    keep = np.array([[g[r][c] is not None and g[r][c] >> 4 != 1 for c in range(wd)] for r in range(h)])
-    heights = np.full((h, wd), 0.25)
-    index = np.array([[0 if (g[r][c] is None or g[r][c] >> 4 == 2 or (g[r][c] & 15) < 3) else 1 for c in range(wd)]
-                      for r in range(h)])
-    p.bed("pit", heights, index, [pal("hrocks_pit", 0x20, metallic=0.0, roughness=0.95),
-                                  pal("hrocks_pit_grey", 0x03, metallic=0.0, roughness=0.9)],
-          (f.ox, f.oy), z0=0.0, keep=keep)
+    # The dirt round the pit and the pit's dark floor are the map's (the sprites carry a copy of them): not
+    # modelled.
 
 
 kit.pieced("holes_rocks", rocks_whole, (72, 56),

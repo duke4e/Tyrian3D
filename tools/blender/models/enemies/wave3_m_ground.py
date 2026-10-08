@@ -6,16 +6,19 @@ in wave3_m_shell.py.
   building of TORM and BONUS, which event 12 places as four sprites (5 and 7 above 43 and 45): a
   tall spine with three green windows glowing in its roof (its frames light them one after the
   other), a roof sloping down to the left, a ribbed block with a pipe along it at the right and a
-  plinth with vents in front, on a patch of the foliage; built whole and cut (origin).
+  plinth with vents in front; built whole and cut (origin). The patch of foliage the sprites draw it on
+  is the map's ground (the game draws it under the building), so the model has none.
 - field_gun_barrel, field_gun_breech, field_gun_mount (J 89; J 127 and 129 below it): the heavy grey
   gun of TORM, BONUS and BOTANY A, which the events place as 89 above 127 with 129 to its right
   (and an empty sprite, 119, for the muzzle flash): a long barrel with a red tip and two red lights
-  along it, raised up the screen to the left on a curved neck from a base on the foliage, a red light
-  glowing in the base (its frames brighten it as it fires); built whole and cut (origin).
+  along it, raised up the screen to the left on a curved neck from a base on the ground (the sprites'
+  foliage is the map's, not modelled), a red light glowing in the base (its frames brighten it as it
+  fires); built whole and cut (origin).
 - lens_pad (J 77): the grey pad on the ground of TORM and BONUS, an oval puck with a green lens glowing
   in a ringed socket in it (its frames brighten the lens).
-- eye_orb (J 83): the grey armoured orb of TORM on its brackets on the foliage, open on its red eye
-  (its frames open the shell and light the eye: the model shows it open, the eye glowing).
+- eye_orb (J 83): the grey armoured orb of TORM on its brackets on the ground (the sprite's foliage is
+  the map's, not modelled), open on its red eye (its frames open the shell and light the eye: the model
+  shows it open, the eye glowing).
 
 usage: Blender -b --factory-startup -P wave3_m_ground.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole block|gun --preview <prefix>]
@@ -78,20 +81,15 @@ def block_whole():
     """A grey building on the foliage: a tall spine with three green windows glowing in its roof
     between a light frame and a pillar, a roof sloping down to the left of it, a ribbed block with
     a pipe along it at the right, and a plinth with vents and a light ledge in front."""
-    g = w.grid(art.BLD, 48)
     m = greys("block")
     window = pal("block_window", 0xc8, metallic=0.1, roughness=0.12, glow=1.0)
     window_lit = pal("block_window_lit", 0xcc, metallic=0.1, roughness=0.1, glow=1.6)
-    footprint = [(-10.6, 24.0), (2.0, 24.0), (2.0, 21.2), (15.6, 21.2), (16.6, 19.6), (16.6, -16.4), (14.6, -19.2),
-                 (-20.2, -19.2), (-20.2, 13.8)]
-
-    def on_block(c, r):
-        return inside(footprint, c + 0.5 - 24, 28 - r - 0.5)
-    w.foliage("foliage", g, lambda v, c, r: w.is_leaf(v) and not on_block(c, r), "block", origin=BLOCK_ORIGIN)
+    # No foliage under it: the sprite's patch of leaves is the map's ground, which the game draws under it
+    # (batch AV); the building stands on the ground, every part down to z 0.
 
     # The plinth along the front, under everything.
     plinth = wedge("plinth", [(-20.2, -19.2), (14.6, -19.2), (16.6, -16.4), (16.6, -4.0), (-20.2, -4.0)],
-                     lambda x, y: 7.0 if y > -15.2 else 7.0 - (-15.2 - y) * 1.1, m["grey"], bevel=0.45, z0=0.4)
+                     lambda x, y: 7.0 if y > -15.2 else 7.0 - (-15.2 - y) * 1.1, m["grey"], bevel=0.45, z0=0.0)
     w.paint_faces(plinth, lambda c, n: m["dark"] if n.y < -0.5 else m["light"] if n.z > 0.5 and c.y < -14.0 else None)
     # The ledge along the plinth's front and the vents in its top.
     w.rounded_box("ledge", (-1.8, -15.0, 6.9), (36.0, 1.6, 1.2), m["pale"], bevel=0.4)
@@ -105,7 +103,7 @@ def block_whole():
     def slope(x, y):
         return 8.0 + 8.0 * min(1.0, max(0.0, (x + 19.6) / 8.6))
     roof = wedge("roof", [(-20.2, -6.0), (-10.6, -6.0), (-10.6, 24.0), (-20.2, 13.8)], slope, m["grey"], bevel=0.5,
-                   z0=4.0)
+                   z0=0.0)
     w.paint_faces(roof, lambda c, n: m["mid"] if n.z > 0.5 and c.y > 6.0 else m["dark"] if n.z < 0.3 else None)
     w.tube("roof_rim", [(-19.6, -5.5, 8.4), (-19.6, 13.6, 8.4), (-11.0, 23.4, 15.6)], 0.6, m["pale"], 8)
     # The pillar and the spine with the windows.
@@ -153,22 +151,19 @@ def gun_whole():
     """A long grey barrel raised up the screen to the left, a red tip and two red lights along it,
     its rear narrowing into a curved neck down to a base of two blocks standing on the foliage, a
     red light glowing in a slot in the right one."""
-    g = w.grid(art.CANNON, 72)
     m = greys("gun")
     red = pal("gun_red", 0x74, metallic=0.4, roughness=0.35)
     red_dark = pal("gun_red_dark", 0x72, metallic=0.4, roughness=0.4)
     light = pal("gun_light", 0x77, metallic=0.0, roughness=0.3, glow=1.3)
     light_core = pal("gun_light_core", 0x7a, metallic=0.0, roughness=0.3, glow=1.6)
     bore = pal("gun_bore", 0x01, metallic=0.3, roughness=0.7)
-    # The foliage under the mount: the lower right 48 x 28 pixels of the art.
-    sub = [row[24:72] for row in g[28:56]]
-    leaves = w.foliage("foliage", sub, lambda v, c, r: w.is_leaf(v), "gun", origin=(12, 0))
-    leaves.data.transform(Matrix.Translation((0.0, -0.05, 0.0)))  # clear of the barrel's sprite above
+    # No foliage under the mount: the sprites' leaves are the map's ground, which the game draws under it
+    # (batch AV); the base stands on the ground.
     # The base: a foot at the left, the housing with the light at the right.
-    foot = w.block("foot", (5.0, -17.2), 4.4, 5.2, 5.0, m["grey"], taper=0.8, rounding=1.6, power=3.0, segments=32,
-                   z0=0.6)
-    house = w.block("house", (14.6, -16.0), 5.8, 6.2, 7.0, m["grey"], taper=1.0, rounding=2.0, power=3.0, segments=32,
-                    z0=0.6)
+    foot = w.block("foot", (5.0, -17.2), 4.4, 5.2, 5.6, m["grey"], taper=0.8, rounding=1.6, power=3.0, segments=32,
+                   z0=0.0)
+    house = w.block("house", (14.6, -16.0), 5.8, 6.2, 7.6, m["grey"], taper=1.0, rounding=2.0, power=3.0, segments=32,
+                    z0=0.0)
     for obj in (foot, house):
         w.paint_faces(obj, lambda c, n: m["mid"] if n.z > 0.8 else m["dark"] if n.y < -0.5 or n.x > 0.6 else None)
     w.rounded_box("light_slot", (16.9, -17.6, 6.0), (3.4, 8.4, 3.0), m["black"], bevel=0.4)
@@ -249,15 +244,13 @@ def lens_pad():
 def eye_orb():
     """A grey armoured orb on the foliage, held in brackets at its lower right; its shell is drawn
     back from its front, where a red eye glows in a dark socket, seams running round it."""
-    g = w.grid(art.J83, 24)
     m = greys("orb")
     eye = pal("orb_eye", 0x77, metallic=0.0, roughness=0.15, glow=1.3)
     eye_core = pal("orb_eye_core", 0x7b, metallic=0.0, roughness=0.1, glow=1.8)
     shell_edge = pal("orb_shell_edge", 0x0b, metallic=0.65, roughness=0.25)
 
-    def ball(c, r):
-        return ((c + 0.5 - 11.0) / 9.6) ** 2 + ((r + 0.5 - 11.0) / 9.2) ** 2 < 1.0
-    w.foliage("foliage", g, lambda v, c, r: w.is_leaf(v) and not ball(c, r), "orb")
+    # No foliage under it: the sprite's leaves are the map's ground, which the game draws under it (batch AV);
+    # the orb stands on its brackets on the ground.
     cx, cy, rad = px(10.5), py(10.5), 8.6
     orb = w.sphere("orb", (cx, cy, 8.4), (rad, rad, 7.6), m["mid"], 36, 18)
     w.paint_faces(orb, lambda c, n: m["light"] if n.z > 0.75 and n.x < 0.2 else m["dark"] if n.z < 0.1 else None)

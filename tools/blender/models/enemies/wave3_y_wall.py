@@ -5,19 +5,27 @@ The levels build the wall from 2x2 sprites, one column of three (top, middle, bo
 a left end (8 169 / 207 / 245), a slot (277 / 203 / 241), one or three rock columns (167 / 205 / 243),
 a slot again and a right end (161 / 199 / 237), all on one layer (events 6, 7, 10 or 15).
 
-- ixm_wall_rock_top, _mid, _low (8 167, 205, 243): the rock: a ridge of tan boulders whose top runs
-  level from the back edge to the middle of the middle sprite, then falls to the ground in ribs and
-  fingers of rock at the bottom.
-- ixm_wall_slot_top, _mid, _low (8 277, 203, 241): a red machine set into the ridge between rocks: a
+- ixm_wall_rock_top, _mid, _low (8 167, 205, 243): the rock: a wall of tan boulders, level on top, its
+  front a cliff of ribs and fingers of rock falling to the ground.
+- ixm_wall_slot_top, _mid, _low (8 277, 203, 241): a red machine set into the wall between rocks: a
   housing with a lip at the back and a glowing window on top (277's frames brighten it: it glows), a
-  smaller lit panel, two bars down the front slope and a grille of red bars over a dark well, ending in
-  a red foot.
+  smaller lit panel, two bars at the top's front edge and, down the cliff, a grille of red bars over a
+  dark well, ending in a red foot.
 - ixm_wall_end_l_top, _mid, _low (8 169, 207, 245) and ixm_wall_end_r_top, _mid, _low (8 161, 199, 237):
   the wall's ends, the rock rounding off.
 
 Each column's left and right edges have the same section (the ridge, its boulders faded out at the edges),
 so the columns meet whatever their neighbours; every piece is cut from its column and drawn at its own
 origin (origin). ixm_wall_end_l_low replaces rock_tip (8 245, wave2_g.py), a low tip made alone.
+
+The wall stands upright. The sprites draw it in the game's oblique view: its top of boulders (rows 0-44) and,
+below it, its face of rock ribs (rows 44-69) seen from the front. Modelled as drawn, the face was a long ramp
+falling down the screen; now the wall is built as drawn and then stood up (upright()): the face turned into a
+vertical cliff, HEIGHT (20) pixels high, its ribs standing out of it and a dark cliff behind them where the
+sprites show gaps between them, and the top moved SHIFT (14) pixels down the screen onto the cliff. The cliff
+stands at y -16.5, between the drawn foot (-28.5) and the drawn edge of the top (-2.5), so that every piece keeps
+a part of the wall (its footprint y -16.5 .. 27.5; from the game's tilted camera the top shows about where the
+sprites draw it); the slot's window lies in the middle piece.
 
 usage: Blender -b --factory-startup -P wave3_y_wall.py -- [--only names] [--preview <prefix>] [--check 1]
        [--whole <prefix>]
@@ -35,6 +43,10 @@ SLOT_HOT = y.frame("SLOT_HOT", 24, (12, 14))
 CREST = 15.0        # the height of the ridge's top
 FRONT = 6.0         # where the ridge starts falling (y)
 FOOT = -28.5        # where it reaches the ground (y)
+EDGE = -2.5         # where the top ends and the face begins, as drawn (y; row 44)
+FACE = EDGE - FOOT  # the face's height as drawn (down the screen)
+HEIGHT = 20.0       # the wall's height, stood up
+SHIFT = 14.0        # how far the top moves down the screen when the wall stands up (the cliff at EDGE - SHIFT)
 COLUMNS = [("end_l", -36.0, (169, 207, 245)), ("slot", -12.0, (277, 203, 241)), ("rock", 12.0, (167, 205, 243)),
            ("end_r", 36.0, (161, 199, 237))]
 
@@ -113,6 +125,44 @@ def paint_rock(obj, mats):
     return y.paint_faces(obj, pick)
 
 
+def build_backing(name, c0, mat):
+    """The cliff behind the face's ribs, which shows between them once the wall stands: the column's face rows
+    (from just above EDGE down) filled across between their outermost rock pixels, 1.2 pixels under the ridge's
+    surface (behind the ribs)."""
+    rows = column_mask(c0)
+    filled = []
+    for r, line in enumerate(rows):
+        cols = [c for c, ch in enumerate(line) if ch == "#"]
+        if 42 - (r + 0.5) > EDGE + 1.5 or not cols:
+            filled.append("." * len(line))
+            continue
+        filled.append("." * cols[0] + "#" * (cols[-1] - cols[0] + 1) + "." * (len(line) - cols[-1] - 1))
+    polys = sh.outlines(filled, "#", (48, 42), smooth=2, epsilon=0.35, min_area=1.0)
+    obj = y.heightfield(name, polys, lambda x, yy: max(0.3, ridge(yy) - 1.2), mat, spacing=0.6)
+    y.simplify_bottom(obj)
+    return obj
+
+
+def upright(objects):
+    """Stands the wall up: every vertex of the parts built as drawn (the top above EDGE, the face below it,
+    its surface at ridge(y)) moved to the upright wall: the top's down the screen by SHIFT, raised so that the
+    ridge's surface lies at HEIGHT (what stands out of it, the boulders, as high as drawn); the face's turned into
+    a vertical cliff at y EDGE - SHIFT (the drawn foot at the ground, EDGE at HEIGHT), what stood out of the
+    ridge's surface standing out of the cliff towards the viewer (down the screen), what lay under it (the
+    part's underside, its rounded rims) at most a pixel behind the cliff, a thin shell over the cliff."""
+    for obj in objects:
+        mesh = obj.data
+        for v in mesh.vertices:
+            x, yd, zd = v.co
+            base = ridge(yd)
+            if yd >= EDGE:
+                v.co = (x, yd - SHIFT, min(zd, base) * HEIGHT / base + max(0.0, zd - base))
+            else:
+                v.co = (x, EDGE - SHIFT - max(zd - base, -1.0), HEIGHT * max(0.0, (yd - FOOT) / FACE))
+        mesh.update()
+    return objects
+
+
 def build_column(name, c0, mats, ends=None):
     """The rock of one column (art columns c0 .. c0 + 23): a heightfield over its pixels."""
     x0 = c0 - 48.0
@@ -181,12 +231,17 @@ def slot_machine(cx):
 
 # --- The whole and its pieces ----------------------------------------------------------------------------
 
-def build_wall():
+def build_wall(stand=True):
+    """The whole wall, upright (stand=False: as drawn, for painting by the sprites' pixels; then upright())."""
     mats = rock_mats()
     for name, cx, _ in COLUMNS:
         c0 = int(cx - 12 + 48)
         build_column(f"rock_{name}", c0, mats)
+        build_backing(f"rock_back_{name}", c0, mats[3])
     slot_machine(-12.0)
+    if stand:
+        y.bake()
+        upright(y.meshes())
 
 
 PIECES = []

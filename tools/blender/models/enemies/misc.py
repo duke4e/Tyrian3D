@@ -268,12 +268,20 @@ def purple_fighter():
 
 
 def red_gem_panel():
+    """The red gem (sheet S 229, columns 4-18, rows 4-23) in its dark bezel, held by four dark clips (above,
+    below, beside it). The grey stone round it in the sprite is the map's floor: no plate under it."""
     k.reset()
-    plate = k.material("redgem_plate", palette=5, metallic=0.5, roughness=0.45)
+    plate = k.material("redgem_plate", palette=2, metallic=0.5, roughness=0.45)
     red = k.material("redgem_gem", palette=116, metallic=0.25, roughness=0.15, emission=(200, 20, 0),
                      emission_strength=0.3)
-    k.pillow("plate", 11.8, 13.8, 2.6, plate, rounding=1.2, dome=0.2)
-    k.pillow("gem", 7.0, 9.0, 3.0, red, rounding=2.4, dome=1.2).location = (0.0, 0.0, 2.4)
+    gx = -0.5
+    k.pillow("bezel", 8.3, 10.7, 1.4, plate, rounding=0.7, dome=0.1).location = (gx, 0.0, 0.0)
+    k.pillow("gem", 7.3, 9.7, 3.2, red, rounding=2.4, dome=1.2).location = (gx, 0.0, 0.6)
+    for name, centre, size in (("clip_left", (-9.0, 0.5, 1.5), (3.6, 11.0, 3.0)),
+                               ("clip_right", (8.2, 0.5, 1.5), (3.6, 11.0, 3.0)),
+                               ("clip_top", (0.0, 10.7, 1.3), (8.0, 3.0, 2.6)),
+                               ("clip_bottom", (-0.5, -10.8, 1.3), (7.0, 3.0, 2.6))):
+        k.bevel(k.box(name, centre, size, plate), 0.5)
     export("redgem_panel")
 
 

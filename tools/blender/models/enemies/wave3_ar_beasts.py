@@ -95,23 +95,24 @@ ZEP_PIECES = [(ZEP_FRAMES[s], x0, x1, y0, y1) for s, x0, x1, y0, y1 in zk.ZEPPEL
 # --- DESERTRUN's hatch bunker -------------------------------------------------------------------------------------
 
 HATCH_TOP, HATCH_BOTTOM = 10.0, -7.0   # the hatch's north and south edges (inside the red frame)
-DOOR_Z = 5.2 - 1.2                     # as wave3_n's doors: under the frame's top
+DOOR_Z = nb.HATCH_DOOR_Z               # as wave3_n's doors: under the frame
 
 
-def hatch_bunker(north_end, south_end, sensor_drop):
-    """wave3_n's bunker with its doors as a frame draws them: the north door from the hatch's north edge down to
-    north_end, the south one from south_end down to the south edge (they meet at 0.5 when shut); the sensor lowered
-    by sensor_drop (under the shut doors). The bunker is first made light exactly as wave3_n's build loop makes it
-    (baked, the triangle budget), so that its parts are the same as hatch_bunker's; the new doors cost fewer
-    triangles than the old ones, so that the loop's budget leaves them alone."""
+def hatch_bunker(north_end, south_end, shut):
+    """wave3_n's bunker (the hatch on its collar) with its doors as a frame draws them: the north door from the
+    hatch's north edge down to north_end, the south one from south_end down to the south edge (they meet at 0.5 when
+    shut); when shut, the sensor is down under the doors, unseen: left out (lowered, it would reach below the ground,
+    and the game lifts a model by what reaches below it). The bunker is first made light exactly as wave3_n's build
+    loop makes it (baked, the triangle budget), so that its parts are the same as hatch_bunker's; the new doors cost
+    fewer triangles than the old ones, so that the loop's budget leaves them alone."""
     nb.hatch_bunker()
     w.bake()
     n.budget()
     for name in ("door_n", "door_s"):
         bpy.data.objects.remove(bpy.data.objects[name])
-    if sensor_drop:
+    if shut:
         for name in ("collar", "strut-1", "strut1", "dome", "eye", "eye_core"):
-            bpy.data.objects[name].data.transform(Matrix.Translation((0.0, 0.0, -sensor_drop)))
+            bpy.data.objects.remove(bpy.data.objects[name])
     door = pal("bunker_door_lid", 0x04, metallic=0.4, roughness=0.45)
     door_edge = pal("bunker_door", 0x02, metallic=0.5, roughness=0.4)
     rib = pal("bunker_door_rib", 0x05, metallic=0.4, roughness=0.4)
@@ -133,10 +134,10 @@ def hatch_bunker(north_end, south_end, sensor_drop):
                    segments=8, squash=0.6)
 
 
-HATCH = {18: (0.5, 0.5, 2.2), 56: (3.0, -2.0, 0.0), 94: (5.0, -4.0, 0.0)}
-for sprite, (ne, se, drop) in HATCH.items():
+HATCH = {18: (0.5, 0.5, True), 56: (3.0, -2.0, False), 94: (5.0, -4.0, False)}
+for sprite, (ne, se, shut) in HATCH.items():
     n.model(f"hatch_bunker_{sprite}", mask=lambda sprite=sprite: kit.sheet_mask("enemy_3", sprite))(
-        lambda ne=ne, se=se, drop=drop: hatch_bunker(ne, se, drop))
+        lambda ne=ne, se=se, shut=shut: hatch_bunker(ne, se, shut))
 
 
 # --- CORE's lava bubble --------------------------------------------------------------------------------------------

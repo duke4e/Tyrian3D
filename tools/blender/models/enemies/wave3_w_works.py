@@ -6,10 +6,12 @@ sprites the level events place (origin); the kit is wave3_w_kit.py, the pixels w
   267, 269): the bronze pump of ASTEROID1, ASTEROID2, ASTEROID?, ASTCITY and AST. CITY (enemies 338-342:
   event 12 places 267, 269, 229, 231 as the sheet arranges them, another event puts the dome 115 above
   229). On the house's roof a bronze cross: a long arm across it, a tower with a gold inset at its right
-  and a golden cabinet behind that, a leg down its front to the floor ending in a gold band; from the
-  arm a dark shaft with a slot of light leans up the screen to the golden onion dome of three tiers that
-  the dome's sprite draws above the house (its frames move the dome's highlights: the model is polished
-  gold). The dome is an enemy of its own: its piece holds the dome and the shaft's top.
+  and a golden cabinet behind that, a leg down its front to the ground ending in a gold band; on the
+  arm a dark shaft with a slot of light standing upright under the golden onion dome of three tiers (the
+  sprites draw the tower in the game's oblique view, the shaft leaning up the screen to the dome drawn
+  above the house: modelled upright, batch AV; its frames move the dome's highlights: the model is
+  polished gold). The dome is an enemy of its own: its piece holds the dome and its collar, standing on
+  the shaft over the house's top left piece (Drawn, drawn_pieced).
 - cargo_pod_tl, cargo_pod_tr, cargo_pod_ml, cargo_pod_mr, cargo_pod_bl, cargo_pod_br (P 165, 167 above
   203, 205 above 241, 243): the cargo pod of ASTEROID1, ASTEROID2, ASTCITY, AST. CITY and AST ROCK
   (enemies 343-348 and 1035-1040): a long grey container lying on the house, its sides chamfered and
@@ -18,10 +20,15 @@ sprites the level events place (origin); the kit is wave3_w_kit.py, the pixels w
 - asteroid_rig_crane_l, asteroid_rig_crane_r, asteroid_rig_tl, asteroid_rig_tr, asteroid_rig_bl,
   asteroid_rig_br (P 9, 11 above 1, 3 above 39, 41): the drilling rig of ASTEROID1 and AST ROCK (enemies
   332-337 and 1024-1029: event 12 places 39, 41, 1, 3, two more put the crane's halves 9 and 11 above
-  them): on the house a gold collar round the bore hole, gold lugs and anchors; a mast leaning up the
-  screen from the house's back to the crane's brown head, a bent pipe beside it, dark stays from the
-  head to the anchors and the drill string from the head down into the hole (1 and 3 animate the drill
-  going in and out: the model shows it in the hole).
+  them): on the house a gold collar round the bore hole, gold lugs and anchors; a derrick standing upright
+  over the hole, the crane's brown head on four dark stays down to the anchors, a bent pipe beside them
+  and the drill string straight down from the head into the hole (the sprites draw it in the game's
+  oblique view, the stays leaning up the screen to the head drawn above the house: modelled upright,
+  batch AV; 1 and 3 animate the drill going in and out: the model shows it in the hole). The crane's
+  halves hold the head and the stays' upper parts, over the house's top pieces (Drawn, drawn_pieced).
+
+The asteroid floor the sprites draw round the house is the map's ground, which the game draws under it: the
+models have none of it (batch AV); the house and the pump's leg stand on the ground (z 0).
 
 usage: Blender -b --factory-startup -P wave3_w_works.py -- [--only name,name] [--preview <prefix>]
        [--check 1] [--stats 1] [--whole <prefix>]
@@ -30,7 +37,7 @@ import math
 import os
 import sys
 
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_w_kit as kit  # noqa: E402
@@ -72,10 +79,88 @@ def along(start, angle):
     return (lambda t: s + d * t), d
 
 
+# --- Upright structures and the sprites' oblique view -----------------------------------------------------
+
+class Drawn:
+    """How the sprites draw an upright structure in the game's oblique view: a point at height z is drawn
+    shift(z) pixels further up the screen, shift interpolated between knots (height, shift) (the first's
+    below them, the last's above). The models stand upright (batch AV: modelled as drawn they leaned up the
+    screen); their pieces are still cut where the sprites draw them (the cut boxes in drawn space), so a
+    tower's top belongs to the sprite drawn above the house even though it now stands over the house, and
+    wrecks are damaged where their sprites draw the damage."""
+
+    def __init__(self, *knots):
+        self.knots = knots
+
+    def shift(self, z):
+        knots = self.knots
+        if z <= knots[0][0]:
+            return knots[0][1]
+        for (za, sa), (zb, sb) in zip(knots, knots[1:]):
+            if z <= zb:
+                return sa + (sb - sa) * (z - za) / (zb - za)
+        return knots[-1][1]
+
+    def drawn(self, objects, sign=1.0):
+        """Moves the objects' vertices to where the sprites draw them (sign -1: back upright)."""
+        for obj in objects:
+            sh.apply_modifiers(obj)
+            obj.data.transform(obj.matrix_world)
+            obj.matrix_world = Matrix.Identity(4)
+            for v in obj.data.vertices:
+                v.co.y += sign * self.shift(v.co.z)
+            obj.data.update()
+        return objects
+
+    def upright(self, objects):
+        return self.drawn(objects, -1.0)
+
+
+def drawn_pieced(name, builder, size, pieces, drawn):
+    """As kit.pieced, the pieces (kit.quarter) cut where the sprites draw them (see Drawn): each piece a model
+    of its own, built whole, moved to drawn space, cut, stood upright again and moved to its sprite's centre.
+    The whole object stays registered for --whole."""
+    kit.pieced(name, builder, size, [])
+
+    def build(box, centre):
+        builder()
+        w.bake()
+        kept = sh.cut_box(drawn.drawn(w.meshes()), *box)
+        drawn.upright(kept)
+        sh.move(kept, -centre[0], -centre[1])
+        for obj in kept:
+            k.smooth(obj, 40)
+    for piece_name, box, centre, mask in pieces:
+        kit.model(piece_name, mask=mask)(lambda box=box, centre=centre: build(box, centre))
+
+
 # --- P 115 above 229 231 / 267 269: the bronze pump and its golden dome ----------------------------------
 
 PUMP = kit.Frame(art.PUMP, 48, (24, 42))
-PUMP_LEAN = 63.0
+PUMP_ROOF = 10.0
+PUMP_AXIS = (PUMP.X(14.0), PUMP.Y(47.0))   # the shaft's axis: where the sprite draws its foot on the arm
+PUMP_DOME_Z = 23.0                         # the dome's foot, on the shaft's top
+PUMP_DOME_SCALE = 0.58                     # the dome's tiers, drawn 26 rows tall, are this much as high
+PUMP_LEAN = 63.0                           # the sprites draw the shaft leaning up the screen this far
+# The onion dome's profile (distance along its axis, radius) as the sprite draws it: the widest of each tier
+# at rows 22, 14.5 and 8.
+PUMP_DOME = [(0.0, 3.6), (1.2, 6.5), (2.8, 8.8), (5.1, 9.6), (7.4, 9.0), (9.2, 7.2), (10.1, 6.4), (11.2, 6.9),
+             (13.5, 7.6), (15.3, 6.6), (16.8, 5.0), (18.2, 5.4), (20.8, 5.6), (22.6, 4.2), (23.6, 2.4), (24.2, 2.2),
+             (25.2, 2.1), (26.0, 1.0), (26.3, 0.0)]
+# The dome is drawn above the house (its own sprite, 115): in drawn space it moves 30 pixels up the screen,
+# the shaft under it not at all (the shaft's top is below the dome's collar).
+PUMP_DRAWN = Drawn((PUMP_DOME_Z - 1.75, 0.0), (PUMP_DOME_Z - 1.65, 30.0))
+
+
+def pump_dome_as_drawn():
+    """The move that lays the upright dome (and its collar) where the sprites draw it, leaning up the screen
+    along the drawn shaft (the old model's dome), for the wreck's damage; its inverse stands it up again."""
+    roof = PUMP_ROOF
+    at, d = along((PUMP.X(14.0), PUMP.Y(47.0), roof + 3.0), PUMP_LEAN)
+    drawn_base = at((PUMP.Y(26.5) - PUMP.Y(47.0)) / d.y)
+    base = Vector((PUMP_AXIS[0], PUMP_AXIS[1], PUMP_DOME_Z))
+    return (Matrix.Translation(drawn_base) @ Matrix.Rotation(-math.radians(PUMP_LEAN), 4, "X") @
+            Matrix.Diagonal((1.0, 1.0, 1.0 / PUMP_DOME_SCALE, 1.0)) @ Matrix.Translation(-base))
 
 
 def pump_whole():
@@ -83,8 +168,8 @@ def pump_whole():
     X, Y = f.X, f.Y
     m = bronze_mats("pump")
     hm = kit.house_mats("pump")
+    # No floor round the house: the sprites' floor is the map's ground, which the game draws under it (batch AV).
     kit.house("pump", f, 28, hatches=False, m=hm)
-    kit.house_floor("pump", f, 28, extra=lambda c, r: r < 28 or (11 <= c <= 19 and r <= 81))
     roof = 10.0
 
     # The arm across the roof (rows 45-56) and its lower left lobe (rows 55-62).
@@ -116,10 +201,10 @@ def pump_whole():
         kit.rounded_box(f"cabinet_seam{c}", (X(c) + 0.5, Y(32.0), roof + 10.0), (0.6, 6.5, 0.5), m["gold_dark"],
                         bevel=0.2)
 
-    # The leg down the front: over the roof (rows 56-69), down the house's front, along the floor to row 81.
+    # The leg down the front: over the roof (rows 56-69), down the house's front, along the ground to row 81.
     y_front = f.bottom(70)
-    leg = kit.prism_x("leg", [(f.top(56), roof - 0.5), (y_front + 0.6, roof - 0.5), (y_front + 0.6, 0.2),
-                              (f.bottom(81), 0.2), (f.bottom(81), 1.9), (y_front - 5.0, 2.4), (y_front - 2.6, 4.2),
+    leg = kit.prism_x("leg", [(f.top(56), roof - 0.5), (y_front + 0.6, roof - 0.5), (y_front + 0.6, 0.0),
+                              (f.bottom(81), 0.0), (f.bottom(81), 1.9), (y_front - 5.0, 2.4), (y_front - 2.6, 4.2),
                               (y_front - 0.6, 9.0), (y_front + 1.5, roof + 2.6), (f.top(56), roof + 2.6)],
                       f.left(11), f.right(19), m["bronze"], bevel=0.8, segments=3)
 
@@ -138,50 +223,43 @@ def pump_whole():
                         roof + 3.1, m["gold"], bevel=0.4, segments=2)
     paint_lit(leg_gold, m["gold"], m["gold_lit"], m["gold_dark"])
 
-    # The shaft from the arm up the screen to the dome: a square bronze column leaning back, a dark slot
-    # down its top with a lamp in it.
-    at, d = along((X(14.0), Y(47.0), roof + 3.0), PUMP_LEAN)
-    t_top = (Y(26.5) - Y(47.0)) / d.y
-    length = t_top + 1.5
-    shaft = kit.rounded_box("shaft", (0.0, length / 2, 0.0), (7.6, length, 5.6), m["bronze"], bevel=0.8,
-                            segments=2)
-    slot = kit.rounded_box("shaft_slot", (0.0, length * 0.55, 2.7), (3.4, length * 0.55, 0.6), m["slot"], bevel=0.2)
-    lamp = w.sphere("shaft_lamp", (0.0, length * 0.62, 2.9), (1.0, 1.1, 0.5),
-                    pal("pump_lamp", 0x1c, metallic=0.2, roughness=0.3, glow=1.4), 12, 6)
-    for obj in (shaft, slot, lamp):
-        sh.apply_modifiers(obj)
-    kit.rotate_about([shaft, slot, lamp], "X", math.radians(90.0 - PUMP_LEAN), (0.0, 0.0, 0.0))
-    sh.move([shaft, slot, lamp], at(0.0).x, at(0.0).y, at(0.0).z)
+    # The shaft standing upright on the arm (the sprite draws it in the oblique view, leaning up the screen
+    # to the dome: batch AV), a square bronze column with a dark slot down its front, a lamp in it.
+    ax, ay = PUMP_AXIS
+    z_top = PUMP_DOME_Z - 1.8  # under the dome's collar
+    shaft = kit.rounded_box("shaft", (ax, ay, (roof + 3.0 + z_top) / 2), (7.6, 5.6, z_top - roof - 3.0), m["bronze"],
+                            bevel=0.8, segments=2)
     paint_lit(shaft, m["bronze"], m["bronze_lit"], m["bronze_dark"])
+    kit.rounded_box("shaft_slot", (ax, ay - 2.75, roof + 8.2), (3.4, 0.6, 4.8), m["slot"], bevel=0.2)
+    w.sphere("shaft_lamp", (ax, ay - 2.95, roof + 8.9), (1.0, 0.5, 1.1),
+             pal("pump_lamp", 0x1c, metallic=0.2, roughness=0.3, glow=1.4), 12, 6)
 
-    # The golden onion dome: three tiers and a knob along the shaft's axis.
-    base = at(t_top)
-    # The tiers where the sprite draws them: the widest of each at rows 22, 14.5 and 8 (t = distance along
-    # the axis from the shaft's top; seen from above a tier of radius r spans r cos(lean) up and down).
-    prof = [(0.0, 3.6), (1.2, 6.5), (2.8, 8.8), (5.1, 9.6), (7.4, 9.0), (9.2, 7.2), (10.1, 6.4), (11.2, 6.9),
-            (13.5, 7.6), (15.3, 6.6), (16.8, 5.0), (18.2, 5.4), (20.8, 5.6), (22.6, 4.2), (23.6, 2.4), (24.2, 2.2),
-            (25.2, 2.1), (26.0, 1.0), (26.3, 0.0)]
+    # The golden onion dome on the shaft: three tiers and a knob (the dome's sprite draws them 26 rows tall
+    # in the oblique view, here a little lower), a collar where it meets the shaft.
+    base = Vector((ax, ay, PUMP_DOME_Z))
+    d = Vector((0.0, 0.0, 1.0))
+    prof = [(t * PUMP_DOME_SCALE, r) for t, r in PUMP_DOME]
     dome_gold = pal("pump_dome", 0x1b, metallic=0.6, roughness=0.22)
-    dome = w.lathe_axis("dome", k.profile(prof, 0.6), dome_gold, tuple(base), tuple(d), 32)
+    dome = w.lathe_axis("dome", k.profile(prof, 0.5), dome_gold, tuple(base), tuple(d), 32)
     waist = pal("pump_dome_waist", 0x17, metallic=0.6, roughness=0.3)
 
     def paint_dome(c, nrm):
-        t = (Vector(c) - base).dot(d)
+        t = (Vector(c) - base).dot(d) / PUMP_DOME_SCALE
         for t0, t1 in ((9.5, 10.7), (16.2, 17.4), (23.2, 24.0)):
             if t0 <= t <= t1:
                 return waist
         return None
     kit.paint_faces(dome, paint_dome)
-    # A collar where the shaft meets the dome.
     w.lathe_axis("dome_collar", [(-1.6, 4.4), (-1.4, 5.2), (0.2, 5.2), (0.4, 4.4)], m["bronze_dark"], tuple(base),
                  tuple(d), 32)
 
 
-kit.pieced("bronze_pump", pump_whole, (48, 84), [
+# The dome's piece (its own enemy, drawn above the house) holds the dome and its collar, standing on the shaft
+# over the house's top left piece.
+drawn_pieced("bronze_pump", pump_whole, (48, 84), [
     kit.quarter("pump_dome", PUMP, 0, 0),
     kit.quarter("bronze_pump_tl", PUMP, 0, 28), kit.quarter("bronze_pump_tr", PUMP, 24, 28),
-    kit.quarter("bronze_pump_bl", PUMP, 0, 56), kit.quarter("bronze_pump_br", PUMP, 24, 56)])
-
+    kit.quarter("bronze_pump_bl", PUMP, 0, 56), kit.quarter("bronze_pump_br", PUMP, 24, 56)], PUMP_DRAWN)
 
 
 # --- P 165 167 / 203 205 / 241 243: the cargo pod ------------------------------------------------------
@@ -203,8 +281,8 @@ def crate_whole():
     X, Y = f.X, f.Y
     hm = kit.house_mats("crate")
     g = hm["grey"]
+    # No floor round the house: the sprites' floor is the map's ground, which the game draws under it (batch AV).
     kit.house("crate", f, 28, m=hm, plain=True)
-    kit.house_floor("crate", f, 28, extra=lambda c, r: r < 28)
     roof = 10.0
     z0, top = roof + 0.4, roof + 11.0
     # The pod, lofted along y from its front end (row 55) to its back end (row 14).
@@ -258,7 +336,22 @@ kit.pieced("cargo_pod", crate_whole, (48, 84), [
 # --- P 9 11 / 1 3 / 39 41: the drilling rig ------------------------------------------------------------
 
 RIG = kit.Frame(art.RIG, 48, (24, 42))
-RIG_HEAD_Z = 26.0
+RIG_ROOF = 10.8
+RIG_HEAD_Z = 33.0                          # the head plank's underside, high over the bore hole
+RIG_RISE = RIG.Y(10.0) - RIG.Y(46.5)       # the sprites draw the hub this far up the screen from the hole
+RIG_PLANK_RISE = 4.5                       # and the plank on it this much further (its top seen from above)
+# The derrick stands upright over the bore hole (the sprites draw it in the oblique view, its stays leaning up
+# the screen from the anchors to the head drawn above the house: batch AV); drawn space leans it back, from the
+# anchors' tops up to the stays' tops under the head, and the plank's top a little further.
+RIG_DRAWN = Drawn((RIG_ROOF + 1.2, 0.0), (RIG_HEAD_Z - 2.6, RIG_RISE), (RIG_HEAD_Z + 2.4, RIG_RISE + RIG_PLANK_RISE))
+
+
+def side_offset(direction, v, length):
+    """`v` without its part along `direction`, `length` long: a highlight along a pipe, on its lit side."""
+    d = Vector(direction).normalized()
+    v = Vector(v)
+    v = v - d * v.dot(d)
+    return v.normalized() * length
 
 
 def torus(name, centre, major, minor, mat, segments=40, sides=12, scale_y=1.0):
@@ -273,9 +366,9 @@ def rig_whole():
     m = bronze_mats("rig")
     hm = kit.house_mats("rig")
     g = hm["grey"]
+    # No floor round the house: the sprites' floor is the map's ground, which the game draws under it (batch AV).
     kit.house("rig", f, 28, hatches=False, m=hm)
-    kit.house_floor("rig", f, 28, extra=lambda c, r: r < 28)
-    roof = 10.8
+    roof = RIG_ROOF
     steel = pal("rig_steel", 0x04, metallic=0.6, roughness=0.35)
     steel_lit = pal("rig_steel_lit", 0x07, metallic=0.6, roughness=0.3)
     wood = {s_: pal(f"rig_head{s_:x}", 0x10 + s_, metallic=0.15, roughness=0.6) for s_ in (5, 7, 9, 0xa)}
@@ -298,62 +391,76 @@ def rig_whole():
         kit.slab(f"anchor_{name}_hole", sh.ellipse(X(c), Y(r), rx * 0.5, ry * 0.5, count=20), roof + 1.2, roof + 1.7,
                  m["gold_dark"], bevel=0.1, segments=1)
 
-    # The head: a brown plank across the top (rows 1-5) on a dark hub (rows 6-11) where the stays meet.
-    # The plank: its top (rows 1-4) and its front (rows 5-6 right of the bent pipe), its right end slanting.
+    def up(c, r, z):
+        """The upright point the sprites draw at pixel (c, r) at height z (see RIG_DRAWN)."""
+        return Vector((X(c), Y(r) - RIG_DRAWN.shift(z), z))
+
+    # The head over the bore hole: a brown plank across the top (rows 1-5) on a dark hub (rows 6-11) where
+    # the stays meet. The plank: its top (rows 1-4) and its front (rows 5-6 right of the bent pipe), its right
+    # end slanting. Built where the sprites draw it, moved down the screen over the hole, the plank onto the hub.
     plank = [(f.left(10), f.bottom(4)), (f.left(16), f.bottom(4)), (f.left(16), f.bottom(6)), (f.right(30), f.bottom(6)),
              (f.right(31), f.bottom(5)), (f.right(31), f.top(4)), (f.right(28), f.top(2) - 0.2), (f.right(25), f.top(1)),
              (f.left(11), f.top(1)), (f.left(10), f.top(2))]
     head = kit.slab("head", plank, RIG_HEAD_Z, RIG_HEAD_Z + 2.4, wood[9], bevel=0.6, segments=2)
     paint_lit(head, wood[7], wood[0xa], wood[5], wall=wood[5], under=wood[5])
     hub_c = Vector((X(20.5), Y(9.0), RIG_HEAD_Z - 1.4))
-    kit.rounded_box("hub", tuple(hub_c), (8.0, 5.0, 3.6), g[3], bevel=0.8)
+    hub = kit.rounded_box("hub", tuple(hub_c), (8.0, 5.0, 3.6), g[3], bevel=0.8)
     post = kit.prism_x("post", [(f.top(5), RIG_HEAD_Z + 0.4), (f.top(5), RIG_HEAD_Z - 0.6), (Y(11.0), RIG_HEAD_Z - 3.4),
                                 (Y(11.0), RIG_HEAD_Z - 1.6)], f.left(18), f.right(23), wood[7], bevel=0.4)
     paint_lit(post, wood[7], wood[0xa], wood[5], wall=wood[5], under=wood[5])
+    sh.move([hub, post], 0.0, -RIG_RISE)
+    sh.move([head], 0.0, -RIG_RISE - RIG_PLANK_RISE)
 
-    # The stays: thick dark pipes from the hub down to the anchors, gold collars round them where they
-    # pass the house's back; the drill string from the hub into the hole.
+    # The stays: thick dark pipes from the hub down to the anchors, gold collars round them where the sprites
+    # draw them passing the house's back; the drill string straight down from the hub into the hole.
     top_z = RIG_HEAD_Z - 2.6
     stays = [("l", 17.5, "l"), ("ml", 20.0, "bl"), ("mr", 27.0, "br"), ("r", 29.5, "r")]
     ends = {}
     for name, c_top, anchor in stays:
         c, r, _, _ = anchors[anchor]
-        a_ = Vector((X(c_top), Y(9.5), top_z))
+        a_ = up(c_top, 9.5, top_z)
         b_ = Vector((X(c), Y(r), roof + 1.2))
         ends[name] = (a_, b_)
         w.tube(f"stay_{name}", [a_, b_], 1.65, steel, 12)
-        w.tube(f"stay_{name}_hi", [a_ + Vector((-0.7, 0.3, 1.25)), b_ + Vector((-0.7, 0.3, 1.25))], 0.38, steel_lit,
-               6)
-        # The collar where the stay crosses row 34.
-        t = (Y(34.0) - a_.y) / (b_.y - a_.y)
+        hi = side_offset(b_ - a_, (-0.7, 0.3, 1.25), 1.45)
+        w.tube(f"stay_{name}_hi", [a_ + hi, b_ + hi], 0.38, steel_lit, 6)
+        # The collar where the sprites draw the stay crossing row 34 (as far along it).
+        t = (Y(34.0) - Y(9.5)) / (b_.y - Y(9.5))
         pc = a_ + (b_ - a_) * t
         d = (b_ - a_).normalized()
         w.lathe_axis(f"stay_{name}_collar", [(-1.3, 1.9), (-1.1, 2.5), (1.1, 2.5), (1.3, 1.9)], m["gold"],
                      tuple(pc), tuple(d), 20)
-    a_ = Vector((X(23.5), Y(10.0), top_z - 0.4))
+    a_ = Vector((hx, hy, top_z - 0.4))
     b_ = Vector((hx, hy, roof - 1.5))
     w.tube("drill", [a_, b_], 1.9, steel, 14)
-    w.tube("drill_hi", [a_ + Vector((-0.8, 0.3, 1.4)), b_ + Vector((-0.8, 0.3, 1.4))], 0.42, steel_lit, 6)
+    hi = side_offset(b_ - a_, (-0.8, 0.3, 1.4), 1.6)
+    w.tube("drill_hi", [a_ + hi, b_ + hi], 0.42, steel_lit, 6)
     d = (b_ - a_).normalized()
     for i, frac in enumerate((0.28, 0.55, 0.8)):
         pc = a_ + (b_ - a_) * frac
         w.lathe_axis(f"drill_joint{i}", [(-0.9, 2.0), (-0.6, 2.5), (0.6, 2.5), (0.9, 2.0)], g[6], tuple(pc), tuple(d), 16)
 
     # The bent pipe down the head's left: from the plank's end along the left of the stays, curving in to
-    # the outer stay.
+    # the outer stay where the sprites draw it meeting it (row 24); upright, it drops from under the plank.
     a_, b_ = ends["l"]
-    t = (Y(24.0) - a_.y) / (b_.y - a_.y)
+    t = (Y(24.0) - Y(9.5)) / (b_.y - Y(9.5))
     join = a_ + (b_ - a_) * t
-    start = Vector((X(11.5), Y(3.5), RIG_HEAD_Z + 0.6))
-    path = w.catmull([start, Vector((X(11.5), Y(5.5), RIG_HEAD_Z - 2.0)), Vector((X(11.6), Y(16.0), RIG_HEAD_Z - 7.5)),
-                      Vector((X(12.0), Y(21.5), join.z + 1.5)), join], 0.8)
+    z_start = RIG_HEAD_Z + 0.6
+
+    def drop(r):  # its height where the sprites draw it at row r
+        return z_start + (join.z - z_start) * (r - 3.5) / (24.0 - 3.5)
+    path = w.catmull([up(11.5, 3.5, z_start), up(11.5, 5.5, RIG_HEAD_Z - 2.0), up(11.6, 16.0, drop(16.0)),
+                      up(12.0, 21.5, drop(21.5)), join], 0.8)
     w.tube("bent_pipe", path, 1.6, g[5], 12)
-    w.tube("bent_pipe_hi", [v + Vector((-0.5, 0.2, 0.9)) for v in path[1:-1]], 0.3, g[8], 6)
+    w.tube("bent_pipe_hi", [v + side_offset(path[i + 2] - path[i], (-0.5, 0.2, 0.9), 1.03)
+                            for i, v in enumerate(path[1:-1])], 0.3, g[8], 6)
 
 
-kit.pieced("asteroid_rig", rig_whole, (48, 84), [
+# The crane's halves (enemies of their own, drawn above the house) hold the head and the stays' upper parts,
+# standing over the house's top pieces.
+drawn_pieced("asteroid_rig", rig_whole, (48, 84), [
     kit.quarter("asteroid_rig_crane_l", RIG, 0, 0), kit.quarter("asteroid_rig_crane_r", RIG, 24, 0),
     kit.quarter("asteroid_rig_tl", RIG, 0, 28), kit.quarter("asteroid_rig_tr", RIG, 24, 28),
-    kit.quarter("asteroid_rig_bl", RIG, 0, 56), kit.quarter("asteroid_rig_br", RIG, 24, 56)])
+    kit.quarter("asteroid_rig_bl", RIG, 0, 56), kit.quarter("asteroid_rig_br", RIG, 24, 56)], RIG_DRAWN)
 
 kit.run()

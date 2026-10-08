@@ -2,11 +2,13 @@
 (models.cfg: yaw=0). The objects the game draws in pieces (the bunker, the sphere on its legs, the red dome
 with its arm) are in wave3_ac_ice.py; the kit is wave3_ac_kit.py, the pixels wave3_ac_art.py.
 
-- ice_vent (7 55): the crater in the ice plateau with a red-hot orb in it: a rounded mound of ice whose relief
-  follows the sprite's shades, a lip round the pit, light ridges running down from it with dark cracks between
-  them, its edge falling away to the plateau (about 7 pixels high with the orb); the orb glows, a yellow-white
-  core breaking through it up and to the left (its frames 93, 131 make it flare when it fires). Drawn at its
-  own origin (its foot on the ground layer).
+- ice_vent (7 55): the crater in the ice plateau with a red-hot orb in it: a round mound of ice about 20
+  pixels across round the orb, whose relief follows the sprite's shades, a lip round the pit, light ridges
+  running down from it with dark cracks between them, its edge falling away to the plateau (about 7 pixels high
+  with the orb); the orb glows, a yellow-white core breaking through it up and to the left (its frames 93, 131
+  make it flare when it fires). The plateau the sprite draws round it out to its edges is the map's ice (the
+  3D ground shows it): the mound ends well inside them. Drawn at its own origin (its foot on the ground
+  layer).
 - cross_beacon (7 13): the grey frame flying in CAMANIS: two dark crossbars with vents, joined by two grey bows
   that bend in towards the middle where they turn blue, a blue crystal pinched at its waist between them, a red
   beacon on each crossbar's outer edge (its frames 15, 17 light the beacons up: they glow).
@@ -84,26 +86,24 @@ def pixel_relief(name, fr, keep, z_of, paint, step=1.0):
 
 @a.model("ice_vent", lambda: VENT.mask(), size=(24, 28))
 def ice_vent():
-    """The mound of ice: the plateau's level at its edge, rising to the lip round the pit (about 4 pixels
-    high); the light ridges stand out and the dark cracks sink in, as the sprite shades them. The orb sits in
-    the pit, half sunk."""
+    """The mound of ice round the orb (not the plateau round it: that is the map's ice): the ground's level
+    at its round edge, rising to the lip round the pit (about 4 pixels high); the light ridges stand out and the
+    dark cracks sink in, as the sprite shades them. The orb sits in the pit, half sunk."""
     ice = a.Painter("vent_ice", shades={3: (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)}, metallic=0.05,
                     roughness=0.32)
     shade = VENT.shade(3, blur=1)
     broad = VENT.shade(3, blur=3)
     ox, oy = ORB
-    outline_rx, outline_ry, power = 12.0, 14.0, 4.0
+    outline_rx, outline_ry = 10.0, 10.5   # the mound's round outline, centred on the orb
 
     def inside(x, y):
-        """How far inside the mound's rounded outline (0 at it, about the distance in pixels)."""
-        u = abs(x) / outline_rx
-        v = abs(y) / outline_ry
-        rr = (u ** power + v ** power) ** (1 / power)
+        """How far inside the mound's outline (0 at it, about the distance in pixels)."""
+        rr = math.hypot((x - ox) / outline_rx, (y - oy) / outline_ry)
         return (1.0 - rr) * min(outline_rx, outline_ry)
 
     def z_of(x, y):
         d = math.hypot((x - ox) / 1.0, (y - oy) / 0.85)
-        fade = smoothstep(0.0, 3.5, inside(x, y))
+        fade = smoothstep(0.0, 4.5, inside(x, y))
         # The mound: highest at the lip, the ridges running down the screen from it.
         lip = 3.6 * math.exp(-((d - ORB_R - 0.6) / 2.2) ** 2)
         mound = 1.6 * smoothstep(13.0, 4.0, d) + lip

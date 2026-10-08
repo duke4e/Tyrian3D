@@ -7,8 +7,8 @@ Each of the six pieces leaves its wreck in its place when destroyed (enemies 522
 water, rubble and stones strewn round it, the brown dirt round the pit as before.
 
 - holes_rocks_tl_damaged ... holes_rocks_br_damaged (E 7, 9, 11, 45, 47, 49): wave3_aa_rocks' whole (rocks_whole)
-  built with no boulders and painted by the damaged sprites (the same dirt and pit floor), the pool and the rubble
-  added, cut as holes_rocks_tl ... _br are (origin).
+  built with no boulders, the pool and the rubble added, cut as holes_rocks_tl ... _br are (origin). The dirt and
+  the pit's floor round them are the map's (the sprites carry a copy of them): not modelled.
 
 usage: Blender -b --factory-startup -P wave3_ap_pit.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
@@ -36,7 +36,7 @@ def is_pool(v):
 
 
 def pit_damaged():
-    # The original whole without its boulders and stones, from the damaged pixels (its dirt and its pit floor).
+    # The original whole without its boulders and stones (nothing left: the dirt and the pit floor are the map's).
     saved = orig.ROCKS, orig.BOULDERS, orig.PEBBLES
     orig.ROCKS, orig.BOULDERS, orig.PEBBLES = DAMAGED, [], []
     try:

@@ -5,24 +5,25 @@ events say how the pieces are placed. The creatures and ships of sheet G are in 
 
 - cliff_bunker_top, cliff_bunker_base (G 153 above G 191): the bunker set into the foot of TORM's grey
   cliffs (events: 758 = 153 at (x, y - 28), 759 = 191 at (x, y); the levels also put two side by side,
-  24 pixels apart, so the cliff joins across its sides): basalt columns rounded at their tops sloping
-  down to a grey housing on the leaves, a pipe running down the cliff into the housing, the housing's
-  framed window open on a red eye (its frames roll the shutter up and light the eye: the model shows it
-  open, the shutter rolled at the window's top, the eye glowing), a support block, a grille of bars and
-  a strut under it in the leaves.
+  24 pixels apart): a grey housing on a casing, its framed window open on a red eye (its frames roll the
+  shutter up and light the eye: the model shows it open, the shutter rolled at the window's top, the eye
+  glowing), a support block, a grille of bars and a strut under it in the leaves. The cliff round it and
+  the leaves are the map's (the sprites carry a copy of them) and not modelled.
 - jaw_gun_a_left, jaw_gun_a_right (G 229 beside G 231) and jaw_gun_b_left, jaw_gun_b_right (G 267 beside
   G 269): the jawed guns lying in TORM's and BOTANY's leaves (events: 753 = 229 at (x, y), 754 = 231 at
   (x + 24, y); 756 = 267, 757 = 269 likewise): a long grey hull, a hooked cap at one end, a lens box and a
   plate on its top, a dark jaw under it with a red glow in its mouth and teeth hanging into the leaves,
   and at the other end an axle out to a bracket that bends down to a red muzzle (its frames flash the
   muzzle and the mouth: both glow). The second gun is the first one mirrored (its sprites are, one pixel
-  over). Built whole and cut in two (origin).
+  over). Built whole and cut in two (origin). The leaves round it are the map's: not modelled.
 - mortar_breech, mortar_muzzle, mortar_mount, mortar_leaves (G 165 and 167 above G 203 and 205): the
   mortar of TORM, BONUS and BOTANY A (events: 768 = 165 at (x, y - 28), 769 = 167 at (x + 24, y - 28),
   770 = 203 at (x, y), 771 = 205 at (x + 24, y)): a thick grey barrel raised up the screen and to the
   right, a red-ringed muzzle and red lights along it, on a neck down to a mount on the leaves, a red
   light glowing in a slot in its elbow, a fist-like block beside it; the right lower sprite is only
   leaves (its frames flash the muzzle and the lights: they glow). Built whole and cut in four (origin).
+  The leaves are the map's (the lower sprites carry a copy of them): not modelled, so the right lower
+  piece holds only the bits of the mount that reach into it.
 
 usage: Blender -b --factory-startup -P wave3_r.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole bunker|gun_a|gun_b|mortar --preview <prefix>]
@@ -35,7 +36,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_r_kit as r  # noqa: E402
-from wave3_r_kit import art, k, sh, w, pal  # noqa: E402
+from wave3_r_kit import k, sh, w, pal  # noqa: E402
 
 
 # --- G 153 above G 191: the bunker in the cliff --------------------------------------------------------
@@ -53,11 +54,10 @@ def bpy(row):
 
 @r.whole("bunker", (24, 56))
 def bunker_whole():
-    """Basalt columns rounded at their tops, sloping down to a grey housing whose framed window is open on
-    a glowing red eye, the shutter rolled up at its top; a pipe down the cliff into the housing; under the
-    housing a support block, a grille of bars and a strut standing in the leaves; the cliff's foot runs on
-    down both sides to the leaves."""
-    g = w.grid(art.BUNKER, 24)
+    """A grey housing whose framed window is open on a glowing red eye, the shutter rolled up at its
+    top, tilted to face the screen on a casing standing on the ground; under the housing's front a
+    support block, a grille of bars and a strut standing in the leaves. The cliff round it and the
+    leaves are the map's (the sprite carries a copy of them): not modelled."""
     gm = r.greys("bunker")
     seam = pal("bunker_seam", 0x01, metallic=0.3, roughness=0.7)
     pit = pal("bunker_pit", 0x01, metallic=0.2, roughness=0.5)
@@ -65,63 +65,8 @@ def bunker_whole():
     eye_hot = pal("bunker_eye_hot", 0x7b, metallic=0.0, roughness=0.1, glow=1.6)
     eye_core = pal("bunker_eye_core", 0x7e, metallic=0.0, roughness=0.1, glow=2.2)
 
-    # The leaves: every leaf pixel (the foot of the art and among the bars under the housing).
-    r.foliage("foliage", g, lambda v, c, row: r.is_leaf(v) and row >= 33, "bunker", origin=BUNKER_ORIGIN, top=1.2)
-
-    # The cliff: the grey pixels above the housing and down both sides of it, a slope of basalt rising up
-    # the screen, its relief and colours from the sprite's shades.
-    cliff = set()
-    for row in range(41):
-        for c in range(24):
-            v = r.at(g, c, row)
-            if v is None or v >> 4 != 0:
-                continue
-            if row <= 17 or c <= 2 or c >= 22:
-                cliff.add((c, row))
-            elif c in (20, 21) and row <= 32:
-                cliff.add((c, row))
-    shade = w.sampler(g, BUNKER_ORIGIN, value=lambda v: v & 15, blur=1, keep=lambda v: v is not None and v >> 4 == 0)
-
-    # The basalt columns lying down the slope, their upper ends rounded (the sprite's arches), between the
-    # dark creases at columns 3, 12 and 16: (left, right, top, height). The right one runs on across the
-    # sprite's side into the left one of the next bunker (the levels put them 24 pixels apart).
-    columns = [(-8.5, 0.5, 26.6, 2.6), (1.0, 4.1, 24.8, 1.4), (4.9, 15.5, 25.6, 2.8), (4.9 - 24, 15.5 - 24, 25.6, 2.8)]
-
-    def column_lift(x, y):
-        lift = 0.0
-        for x0, x1, top, h in columns:
-            mid, half = (x0 + x1) / 2, (x1 - x0) / 2
-            end = top - half
-            d = abs(x - mid) / half if y <= end else math.hypot(x - mid, (y - end) * 1.3) / half
-            if d < 1.0 and y > 8.0:
-                lift = max(lift, h * math.sqrt(1.0 - d * d) ** 0.8)
-        return lift
-
-    def cliff_z(x, y):
-        # The slope: 13 at the cliff's foot behind the housing, 21 at its top; the sides fall to 8 at
-        # the leaves.
-        z = 13.0 + 8.0 * r.smoothstep(9.5, 25.0, y) if y >= 9.5 else 13.0 - 5.0 * r.smoothstep(9.5, -12.0, y)
-        return z + 0.3 * (shade(x, y) - 4.5) + column_lift(x, y)
-
-    bands = [(0, gm[2]), (2.5, gm[3]), (3.5, gm[4]), (4.5, gm[5]), (5.5, gm[6]), (6.5, gm[7]), (7.6, gm[9]),
-             (9.0, gm[0xb])]
-    rock = r.heightfield("cliff", cliff, cliff_z, lambda c, n: r.band(shade(c.x, c.y) - (1.5 if n.z < 0.6 else 0), bands),
-                         origin=BUNKER_ORIGIN, sub=2, mats=(gm[3],), smooth_angle=35, target=2400)
-    r.stats_print(rock)
-
-    # The panel on the cliff (rows 8-13, columns 4-12).
-    panel = w.rounded_box("panel", (bpx(8) - 0.0, (bpy(8) + bpy(13)) / 2, 0.0), (8.6, 5.6, 1.4), gm[6], bevel=0.45)
-    panel.data.transform(Matrix.Translation((0, 0, cliff_z(bpx(8), (bpy(8) + bpy(13)) / 2) + 0.2)))
-    # The pipe down the cliff (column 16, rows 3-13) to its fitting (rows 14-16) on the housing's back.
-    pipe_x = bpx(16)
-    path = [(pipe_x, y, cliff_z(pipe_x, y) + 0.9) for y in (bpy(2), bpy(5), bpy(9), bpy(12))]
-    path.append((pipe_x, bpy(14.5), 15.0))
-    w.tube("pipe", w.catmull(path, 0.6), 1.05, gm[7], 12)
-    w.rounded_box("fitting", (bpx(15.5), bpy(15.2), 14.4), (6.6, 3.0, 2.4), gm[5], bevel=0.6)
-    w.rounded_box("fitting_band", (bpx(15.5), bpy(15.2), 15.6), (5.0, 1.2, 0.8), gm[8], bevel=0.3)
-
-    # The housing: a block tilted to face the screen (its window looks up and down the screen a little),
-    # its back in the cliff. Built facing up, then tilted.
+    # The housing: a block tilted to face the screen (its window looks up and down the screen a little).
+    # Built facing up, then tilted.
     tilt = math.radians(28)
     cx, cy, cz = -0.5, 3.4, 10.0
     hw, hd, ht = 8.5, 8.4, 6.0  # half width, half depth (along the face), thickness
@@ -150,6 +95,19 @@ def bunker_whole():
         sh.apply_modifiers(p)
         p.data.transform(rot)
 
+    # The casing under the housing's back: a wedge from the ground up to it (the cliff held it before).
+    low = rot @ Vector((0.0, -hd + 0.6, -ht + 0.3))
+    high = rot @ Vector((0.0, hd - 0.6, -ht + 0.3))
+    profile = [(low.y, 0.0), (high.y, 0.0), (high.y, high.z), (low.y, low.z)]
+    casing = k.slab("casing", profile, cx - hw + 0.6, cx + hw - 0.6, gm[4], bevel_width=0.5, bevel_segments=2)
+    sh.apply_modifiers(casing)
+    casing.data.transform(Matrix(((0, 0, 1, 0), (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 0, 1))))
+    k.recalc_normals(casing)
+    k.smooth(casing, 40)
+    for i, x in enumerate((-5.5, 4.5)):  # ribs down its sides
+        w.rounded_box(f"casing_rib{i}", (cx + x, (low.y + high.y) / 2 + 1.0, high.z / 2), (1.4, high.y - low.y - 2.0,
+                                                                                        high.z - 0.6), gm[6], bevel=0.4)
+
     # Under the housing: the support block (left), the grille of bars and the strut (right).
     sup = w.block("support", (bpx(4.5), bpy(36.0)), 2.9, 3.6, 5.2, gm[5], rounding=0.9, power=4)
     w.paint_faces(sup, lambda c, n: gm[7] if n.z > 0.6 and c.x < bpx(4) else None)
@@ -161,8 +119,6 @@ def bunker_whole():
            12)
     w.lathe_axis("strut_collar", [(0.0, 1.2), (0.2, 1.6), (1.4, 1.6), (1.6, 1.2)], gm[6], (bpx(17), bpy(34.0), 4.4),
                  (0, -1, -0.5), 12)
-    # The black gap at the housing's right side (columns 20-21): a dark recess in the cliff.
-    w.rounded_box("gap", (bpx(20.5), bpy(25.0), 6.0), (2.0, 13.0, 1.0), seam, bevel=0.3)
 
 
 def bunker_piece(box, centre):
@@ -206,7 +162,8 @@ def hull_along_x(name, sections, mat, segments=32, power=2.6):
 def gun_whole(mirrored=False):
     """A long grey hull lying on the leaves, a hook curling down at its left end, a lens box and a plate
     on its top, a dark jaw under it with teeth hanging into the leaves and a red glow in its mouth; at its
-    right end an axle out to a bracket that bends down to a red muzzle, an arm on its top."""
+    right end an axle out to a bracket that bends down to a red muzzle, an arm on its top. The leaves are
+    the map's."""
     gm = r.greys("gun")
     seam = pal("gun_seam", 0x01, metallic=0.3, roughness=0.7)
     lens = pal("gun_lens", 0x0e, metallic=0.1, roughness=0.1, glow=0.5)
@@ -269,9 +226,7 @@ def gun_whole(mirrored=False):
     w.sphere("muzzle_hot", tuple(mz + d * 1.6), (0.8, 0.8, 0.6), muzzle_hot, 10, 5)
     if mirrored:
         r.mirror_x(w.meshes(), -0.5)
-    # The leaves, from the sprites' own pixels (the second gun's are not quite a mirror image).
-    leaves = w.grid(art.GUN_B if mirrored else art.GUN_A, 48)
-    r.foliage("foliage", leaves, lambda v, c, row: r.is_leaf(v), "gun", origin=GUN_ORIGIN, top=1.2)
+    # The leaves round it are the map's (the sprites carry a copy of them): not modelled.
 
 
 r.whole("gun_a", (48, 28))(lambda: gun_whole(False))
@@ -319,17 +274,14 @@ def frame_along(d):
 def mortar_whole():
     """A thick grey barrel raised up the screen and to the right, its muzzle ringed in red, red lights
     along it, its breech on a neck down to a mount on the leaves: an elbow with a red light glowing in a
-    slot, a fist-like block beside it."""
-    g = w.grid(art.MORTAR, 48)
+    slot, a fist-like block beside it. The leaves round it are the map's."""
     gm = r.greys("mortar")
     seam = pal("mortar_seam", 0x01, metallic=0.3, roughness=0.7)
     red = pal("mortar_red", 0x72, metallic=0.3, roughness=0.35)
     light = pal("mortar_light", 0x75, metallic=0.0, roughness=0.3, glow=1.1)
     light_hot = pal("mortar_light_hot", 0x7a, metallic=0.0, roughness=0.25, glow=1.6)
 
-    # The leaves: the lower half only (the upper sprites have none).
-    leaves = r.foliage("foliage", g[28:56], lambda v, c, row: r.is_leaf(v), "mortar", origin=(24, 0), top=1.2)
-    leaves.data.transform(Matrix.Translation((0.0, -0.05, 0.0)))  # clear of the upper sprites' cut
+    # The leaves round its mount are the map's (the lower sprites carry a copy of them): not modelled.
 
     # The barrel: from its breech over the neck up to the muzzle (the sprite's diagonal, raised).
     B = Vector((mpx(17.9), mpy(31.4), 8.0))

@@ -5,13 +5,16 @@ MINERS's ground is red sand with patches of dark red rock laid with hexagonal ce
 it); the level puts these objects of the same rock on it, all on the ground layer, all at the top of the screen
 (y = -29) where the ground carries them down:
 
-- red_spire_l, red_spire_r (L 231 beside 233, enemies 1148, 1149): a tall spike of the rock, its foot along the
-  sprites' bottom edge and its point up the screen, leaning up the screen as the sprites draw it rising.
+- red_spire_l, red_spire_r (L 231 beside 233, enemies 1148, 1149): a tall spike of the rock standing upright
+  (the sprites draw it in the game's oblique view, its side seen from the front: modelled as drawn it leaned up
+  the screen): its round foot (about 20 x 16 pixels) on the ground at the sprites' bottom edge, its point about
+  25 pixels above the foot's middle.
 - red_mound_a_l, red_mound_a_r (L 234 beside 236, enemies 1144, 1145) and red_mound_b_l, red_mound_b_r (L 271
   beside 273, enemies 1146, 1147): low ridges of the rock along the sprites' bottom edge.
 - tan_dome_tl, tan_dome_tr, tan_dome_bl, tan_dome_br (L 161 163 above 199 201, enemies 1151-1154): a tan
-  creature in a patch of the rock (which fills the lower sprites): a fat body rising to a head up the screen
-  with a red glowing nub on top, a thick leg on each side reaching out and down into the rock. The upper
+  creature standing on the ground: a fat body rising to a head up the screen with a red glowing nub on top, a
+  thick leg on each side reaching out and down to the ground. The patch of rock the lower sprites draw round
+  it is the map's ground (the 3D ground shows it): left out. The upper
   pieces' frames swell the nub into a fire ball (165/167, 203/205): the model keeps it glowing (glow).
 
 Each object is built whole and cut into its sprites (origin).
@@ -58,17 +61,34 @@ def halves(name, f):
 
 # --- L 231 233: the spire --------------------------------------------------------------------------
 
+SPIRE_AXIS = (-1.0, -5.0)   # the foot's middle: under the drawn point (columns 21-23), its edge on the sprites' edge
+SPIRE_FOOT = (10.0, 8.0)    # the foot's half-sizes (the drawn base is 22 pixels wide, columns 12-33)
+SPIRE_HEIGHT = 25.0
+
+
+def spire_lobes(a):
+    """The foot's outline wobbles (a rough rock, not a cone): its radius at angle a, relative."""
+    return 1.0 + 0.07 * math.sin(3 * a + 0.6) + 0.05 * math.sin(5 * a + 2.1) + 0.04 * math.sin(8 * a + 0.3)
+
+
 def spire_whole():
+    """The spike upright on its round foot, its sides a little full, rising straight to its point, laid with the
+    rock's hex cells (painted by the sprite's shades under it)."""
     f = SPIRE
-    polys = kit.polys_of(f, lambda v, c, r: c < 40, smooth=2, epsilon=0.3)
-    foot, tip = f.bottom(27), f.top(0)
+    ax, ay = SPIRE_AXIS
+    rx, ry = SPIRE_FOOT
+    outline = []
+    for i in range(64):
+        a = 2 * math.pi * i / 64
+        r = spire_lobes(a)
+        outline.append((ax + rx * r * math.cos(a), ay + ry * r * math.sin(a)))
 
     def height(x, y, e):
-        # A ridge (e back to the distance from the outline: a peaked cross-section) rising to the point.
-        t = max(0.0, min(1.0, (y - foot) / (tip - foot)))
-        ridge = min(1.0, 1.7 * (1.0 - math.sqrt(max(0.0, 1.0 - e * e))))
-        return 0.4 + ridge * (3.0 + 17.0 * t ** 0.8)
-    hex_rock("spire", f, polys, height, edge=7.0, size=3.2, relief=0.55)
+        a = math.atan2((y - ay) / ry, (x - ax) / rx)
+        rr = math.hypot((x - ax) / rx, (y - ay) / ry) / spire_lobes(a)
+        t = max(0.0, 1.0 - rr)
+        return 0.3 + SPIRE_HEIGHT * t * (1.0 + 0.3 * (1.0 - t))
+    hex_rock("spire", f, [outline], height, edge=2.0, size=3.0, relief=0.45)
 
 
 kit.pieced("red_spire", spire_whole, (48, 28), halves("red_spire", SPIRE))
@@ -102,11 +122,6 @@ def dome_whole():
     tan_at = kit.field_sampler(f, tan_field)
     tans = kit.bands("dome_tan", 0xa, (4, 5, 6, 7, 8, 9, 10, 11, 12, 13), metallic=0.1, roughness=0.5)
 
-    # The rock patch filling the lower sprites (rows 28-55): a thin bed of hex cells.
-    rows = [(f.left(0) + 0.01, f.bottom(55) + 0.01), (f.right(47) - 0.01, f.bottom(55) + 0.01),
-            (f.right(47) - 0.01, f.top(28) - 0.01), (f.left(0) + 0.01, f.top(28) - 0.01)]
-    hex_rock("dome_bed", f, [rows], lambda x, y, e: 0.35 + 0.5 * e, edge=1.0, size=3.6, relief=0.5, seed=5)
-
     # The body: lofted along the screen from its tail (row 48) to its head (row 17), flat underneath.
     rings = []
     for row, hw, h in reversed(k.profile(BODY, 0.5)):
@@ -120,7 +135,7 @@ def dome_whole():
     w.sphere("nub", (cx, Y(18.2), 13.9), (1.9, 1.7, 1.5), nub, 16, 8)
     w.sphere("nub_hot", (cx - 0.3, Y(18.0), 15.0), (0.9, 0.8, 0.6), nub_hot, 10, 5)
 
-    # The legs: from the shoulders out and down the screen into the rock (columns 4-15 and their mirror).
+    # The legs: from the shoulders out and down the screen to the ground (columns 4-15 and their mirror).
     leg_lit, leg = tans[6][1], tans[3][1]
     for side in (-1, 1):
         def P(col, row, z):
@@ -131,7 +146,7 @@ def dome_whole():
                  for i in range(len(path))]
         limb = w.tube(f"leg{side}", path, radii, leg_lit, 18)
         kit.paint_by(limb, lambda x, y: tan_at(x, y) + 0.4, tans, wall_drop=1.6)
-        # The knuckle where it meets the rock.
+        # The knuckle where it meets the ground.
         w.sphere(f"foot{side}", tuple(P(7.0, 44.6, 0.8)), (2.6, 2.0, 1.2), leg, 14, 7)
     sh.flat_bottom(w.meshes(), 0.0)
 

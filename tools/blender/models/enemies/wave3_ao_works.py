@@ -9,10 +9,12 @@ place (models.cfg: origin, yaw=0, as the intact pieces). The kit is wave3_ao_kit
   ember glowing in the larger one and scraps of plating in it, the plating round them crumpled and sooty, the
   ribs on its right side broken where they cross the hole. The pod's front pieces stay (their dgr is 0).
 - pump_dome_wreck (P 121: the wreck of the golden dome 115, enemy 338): the onion dome burnt black-brown,
-  holed and dented, a red-hot gash down its right side.
+  holed and dented, a red-hot gash down its right side (upright on the shaft as the intact dome: damaged
+  laid where the sprites draw it, then stood up again).
 - asteroid_rig_wreck_crane_l, asteroid_rig_wreck_crane_r (P 47, 49: the wrecks of the crane's halves 9, 11,
   enemies 332, 333 and 1024, 1025): the brown head scorched in its middle, the bent pipe on its left snapped,
-  the two stays on the right broken off under the head.
+  the two stays on the right broken off under the head (the derrick upright as the intact one: damaged laid
+  where the sprites draw it, then stood up again).
 - tan_launcher_wreck (P 235: the wreck of the tan launcher 277, enemy 197): its barrels blown out of the
   housing, the bores torn open and burnt.
 - block_wreck (P 87: the wreck of the small block with the lid, 279 and 53, enemies 198 and 457): the lid
@@ -109,15 +111,22 @@ def pump_wreck():
     gash = kit.field(fi, fd, lambda dv, iv: kit.is_hot(dv), blur=1)
     p = kit.hot_painter("aopump", {0xa: (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc), 0: (1, 2, 3)}, metallic=0.45,
                         roughness=0.55, finish={0xa: (0.45, 0.55)}, ember=1.2)
+    # The dome stands upright on the shaft (batch AV): damaged laid where the sprites draw it, leaning up the
+    # screen above the house, then stood up again.
+    lay = works.pump_dome_as_drawn()
     for obj in [o for o in kit.meshes() if o.name in ("dome", "dome_collar")]:
-        if True:
-            kit.pixelate(obj, fi, 1.0, (fi.left(0), fi.right(23), top_piece, fi.top(0)))
-            kit.sink(obj, holes, 2.4, mode="normal", seed=3.0, roughness=0.5, box=(-99, 99, top_piece + 0.3, 99))
-            kit.sink(obj, gash, 1.2, mode="normal", seed=5.0, roughness=0.4, box=(-99, 99, top_piece + 0.3, 99))
-            kit.repaint(obj, fi, fd, p, walls=1, pixel=False, blur=1, default=p(0xa3))
+        obj.data.transform(lay)
+        kit.pixelate(obj, fi, 1.0, (fi.left(0), fi.right(23), top_piece, fi.top(0)))
+        kit.sink(obj, holes, 2.4, mode="normal", seed=3.0, roughness=0.5, box=(-99, 99, top_piece + 0.3, 99))
+        kit.sink(obj, gash, 1.2, mode="normal", seed=5.0, roughness=0.4, box=(-99, 99, top_piece + 0.3, 99))
+        kit.repaint(obj, fi, fd, p, walls=1, pixel=False, blur=1, default=p(0xa3))
+        w.bake()
+        obj.data.transform(lay.inverted())
 
 
-wkit.pieced("pump_dome_wreck", pump_wreck, (48, 84), [wkit.quarter("pump_dome_wreck", PUMP_DMG, 0, 0)])
+# Cut as the intact dome's piece is (wave3_w_works.drawn_pieced): the dome on the shaft over the house.
+works.drawn_pieced("pump_dome_wreck", pump_wreck, (48, 84), [wkit.quarter("pump_dome_wreck", PUMP_DMG, 0, 0)],
+                   works.PUMP_DRAWN)
 
 
 # --- P 47 49: the drilling rig's crane, wrecked ----------------------------------------------------------
@@ -133,12 +142,18 @@ def rig_wreck():
     p = kit.hot_painter("aorig", {0: (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12), 1: (0, 1, 2, 3, 4, 5, 6, 7, 9),
                                   0xa: (1, 2, 3, 5, 7, 9)}, metallic=0.4, roughness=0.55)
     # The crane's halves only (rows 0-27): the head scorched, the bent pipe snapped, the right stays broken off.
+    # The derrick stands upright over the bore hole (batch AV): damaged laid where the sprites draw it, leaning
+    # up the screen, then stood up again.
     box = (fi.left(0), fi.right(47), fi.top(28) + 0.05, fi.top(0))
+    works.RIG_DRAWN.drawn(kit.meshes())
     kit.wreck(kit.meshes(), fi, fd, p, box)
+    works.RIG_DRAWN.upright(kit.meshes())
 
 
-wkit.pieced("asteroid_rig_wreck", rig_wreck, (48, 84), [
-    wkit.quarter("asteroid_rig_wreck_crane_l", RIG_DMG, 0, 0), wkit.quarter("asteroid_rig_wreck_crane_r", RIG_DMG, 24, 0)])
+# Cut as the intact crane's halves are (wave3_w_works.drawn_pieced): the head and the stays' upper parts.
+works.drawn_pieced("asteroid_rig_wreck", rig_wreck, (48, 84), [
+    wkit.quarter("asteroid_rig_wreck_crane_l", RIG_DMG, 0, 0), wkit.quarter("asteroid_rig_wreck_crane_r", RIG_DMG, 24, 0)],
+    works.RIG_DRAWN)
 
 
 # --- P 87: the small block's wreck --------------------------------------------------------------------------

@@ -9,12 +9,12 @@ and cobbles where the sprites draw them (wave3_p_kit.boulders).
   purple floor that runs into grey rocks at the panel's edges; the middle one (eye_block) is a purple
   housing with a blue glass eye, two blue capsules and a grille of teeth (origin, so the floors meet).
 - gold_domes_tl, _tr, _bl, _br (2 77, 79 above 115, 117): the dark steel housing on the dirt of TYRIAN
-  and HOLES with four golden domes (a big one with a raised plate between two slots, two at its sides
+  and HOLES (the dirt is the map's ground, not modelled) with four golden domes (a big one with a raised plate between two slots, two at its sides
   in steel clamps fed by golden pipes, one at the bottom with a dark port); event 12 places the four
   sprites as the sheet arranges them. Built whole and cut (origin).
 - gold_pyramid_tl, _tr, _bl, _br (2 81, 83 above 119, 121): its neighbour: a dark steel capsule with
   two fangs, a golden pyramid lying on it pointing up the screen, a golden rod down from it and golden
-  horns curling out over the dirt. Built whole and cut (origin).
+  horns curling out to the ground (the sprites' dirt is the map's, not modelled). Built whole and cut (origin).
 - red_works_tl, _tr, _bl, _br (2 15, 17 above 53, 55): TYRIAN's red works in the rocks: a steel deck
   crowded with red blocks and pipes, a column of two glowing yellow grilles, a tan box with a red
   button, a dark recess with a tan floor and tan rails. Built whole and cut (origin).
@@ -230,12 +230,8 @@ def domes_whole():
     """A dark steel housing on the dirt carrying four golden domes: a big one at the top with a raised
     plate between two dark slots, two at its sides held by steel clamps and fed by golden pipes from
     the big one, and one at the bottom with a dark port."""
-    g = grid(art.DOMES, 48)
     m = gold_mats("gdome")
-    mask = machine_mask(g)
-    under = [[mask[r][c] or inside_outline(DOMES_HOUSING, c, r) for c in range(48)] for r in range(56)]
-    w.brown_dirt("dirt", g, lambda v, c, r: not under[r][c] and v is not None, prefix="gdome", origin=(24, 28),
-                 keep_base=lambda v, c, r: True)
+    # No dirt round it: the sprites' dirt is the map's ground, which the game draws under it (batch AV).
     housing("housing", DOMES_HOUSING, m, 2.6)
     domes = {"big": ((-4.5, 16.4, 1.6), (12.2, 10.9, 8.2)), "left": ((-16.0, -3.0, 1.4), (7.2, 5.4, 4.8)),
              "right": ((7.0, -3.0, 1.4), (6.8, 5.4, 4.8)), "bottom": ((-4.5, -12.6, 1.4), (6.8, 5.8, 5.0))}
@@ -269,13 +265,8 @@ def pyramid_whole():
     between them, panels on its upper part; a golden pyramid lies on it pointing up the screen, its left
     face lit and its right one dark, a golden rod running down from it; golden horns curl out over the
     dirt either side."""
-    g = grid(art.PYRAMID, 48)
     m = gold_mats("gpyr")
-    inside = [[inside_outline(PYRAMID_HOUSING, c, r) for c in range(48)] for r in range(56)]
-    horn_px = [[v is not None and ramp(v) == 1 and shade(v) >= 5 and not inside[r][c] and r < 26
-                for c, v in enumerate(row)] for r, row in enumerate(g)]
-    w.brown_dirt("dirt", g, lambda v, c, r: not inside[r][c] and not horn_px[r][c] and v is not None,
-                 prefix="gpyr", origin=(24, 28), keep_base=lambda v, c, r: True)
+    # No dirt round it: the sprites' dirt is the map's ground, which the game draws under it (batch AV).
     body = housing("housing", PYRAMID_HOUSING, m, 5.0, radius=1.8, crown=0.8)
     top = lambda x, y: sh.surface_z(body, x, y, 5.0)  # noqa: E731
     # Panels on the upper part, a slot between the fangs below.
@@ -308,7 +299,7 @@ def pyramid_whole():
     w.tube("rod", [(-3.5, 0.0, zb + 1.6), (-3.5, -3.5, top(-3.5, -3.5) + 0.5), (-3.5, -7.5, top(-3.5, -7.5) + 0.3)],
            1.1, m["gold"], 10)
     w.rounded_box("rod_collar", (-3.5, -0.9, zb + 1.2), (3.4, 1.4, 2.4), m["dark"], bevel=0.5)
-    # The horns curling out over the dirt.
+    # The horns curling out and down to the ground.
     for i, pts in enumerate((((10.0, 8.6), (7.0, 10.5), (5.0, 12.6), (4.2, 15.0)),
                              ((10.0, 14.6), (7.5, 16.5), (5.5, 18.6), (4.6, 21.2)),
                              ((30.6, 9.5), (33.0, 11.5), (35.0, 13.5), (36.4, 15.6)),
@@ -316,7 +307,7 @@ def pyramid_whole():
         path = []
         for j, (c, r) in enumerate(pts):
             x, y = XY(c, r)
-            path.append((x, y, 3.4 - 2.2 * j / (len(pts) - 1)))
+            path.append((x, y, 3.4 - 2.8 * j / (len(pts) - 1)))
         path = w.catmull(path, 0.5)
         radii = [1.0 - 0.35 * j / (len(path) - 1) for j in range(len(path))]
         w.tube(f"horn{i}", path, radii, m["gold"], 8)

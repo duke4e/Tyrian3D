@@ -15,6 +15,8 @@ wave3_ah_art.py.
 - miners_tank_l, miners_tank_r (M 159, 161; enemies 1189, 1190 side by side): MINERS' blue tank on the red
   ground: a long blue body with panels and a tan rail along its back, a taller end plate on its left and a
   small tab under its right end.
+The red ground the roller's and the tank's sprites draw round them is the map's (the game draws it under them):
+the models have none (batch AV); they stand on the ground at z 0.
 
 usage: Blender -b --factory-startup -P wave3_ah.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
@@ -150,34 +152,10 @@ def pixel_paint(obj, painter, f):
     return obj
 
 
-def red_ground(tag, f):
-    """The red ground the MINERS sprites draw round their objects, as a thin bed over the whole sprite in the
-    shades of its red pixels; the shadows the sprites draw on it (its darker reds) take the shade of a lit
-    ground pixel from rows near them (the game casts its own), and under the object the red's middle shade."""
-    import random
-    rnd = random.Random(4)
-    lit = [(r, v) for r, row in enumerate(f.g) for v in row if v is not None and v >> 4 == 4 and (v & 15) >= 6]
-    g = []
-    for r in range(len(f.g)):
-        line = []
-        for c in range(f.width):
-            v = f.g[r][c]
-            if v is None or v >> 4 != 4:
-                v = 0x47
-            elif (v & 15) < 6:
-                near = [pv for pr, pv in lit if abs(pr - r) <= 3] or [0x47]
-                v = rnd.choice(near)
-            line.append(v)
-        g.append(line)
-    return kit.xk.floor_bed("ground", g, (f.ox, f.oy), top=0.35, prefix=f"{tag}_ground", shades_=(5, 6, 7, 8, 9),
-                            ramp=4)
-
-
 # --- M 155, 157: the roller --------------------------------------------------------------------------------------
 
 def roller_whole():
     f = ROLLER
-    red_ground("ro", f)
     grey = kit.RampPainter("ro", f, ramps={0, 6, 5}, fallback=6, blur=1, wall=1.0,
                            shades={0: (3, 5, 7, 9, 11, 12), 6: (6, 8, 9, 10, 11, 12, 13), 5: (13, 15)},
                            finish={0: (0.6, 0.3), 6: (0.6, 0.3), 5: (0.5, 0.3)})
@@ -186,8 +164,8 @@ def roller_whole():
     rubber = pal("ro_rubber", 0x03, metallic=0.1, roughness=0.6)
     rib = pal("ro_rib", 0x06, metallic=0.2, roughness=0.5)
 
-    # The black roller (cols 10-32, rows 7-19), ribbed round.
-    axis_z = 7.2
+    # The black roller (cols 10-32, rows 7-19), ribbed round, its ribs on the ground.
+    axis_z = 6.5
     x0, x1 = f.left(10) + 0.2, f.right(32) - 0.5
     y_mid = (f.Y(7) + f.Y(19)) / 2
     w.lathe_axis("roller", [(0.0, 5.4), (0.4, 6.1), (x1 - x0 - 0.4, 6.1), (x1 - x0, 5.4)], rubber,
@@ -204,16 +182,16 @@ def roller_whole():
     wy = (f.Y(2) + f.Y(23)) / 2
     wr = 10.4
     wheel = w.lathe_axis("wheel", [(0.0, wr - 1.0), (0.5, wr), (wx1 - wx0 - 0.5, wr), (wx1 - wx0, wr - 1.0)], steel,
-                         (wx0, wy, wr + 0.3), (1, 0, 0), 40)
+                         (wx0, wy, wr), (1, 0, 0), 40)
     for i in range(14):
         a = 2 * math.pi * (i + 0.5) / 14
-        cz, cy = wr + 0.3 + (wr + 0.6) * math.sin(a), wy + (wr + 0.6) * math.cos(a)
+        cz, cy = wr + (wr + 0.6) * math.sin(a), wy + (wr + 0.6) * math.cos(a)
         if cz < 0.8:
             continue
         tooth = w.rounded_box(f"tooth{i}", (0.0, 0.0, 0.0), (wx1 - wx0 - 0.8, 2.2, 1.8), steel_dark, bevel=0.3)
         sh.apply_modifiers(tooth)
         tooth.data.transform(Matrix.Translation(((wx0 + wx1) / 2, cy, cz)) @ Matrix.Rotation(a + math.pi / 2, 4, "X"))
-    hub = w.lathe_axis("hub", [(0.0, 3.6), (0.8, 3.4), (1.6, 2.2)], steel_dark, (wx1, wy, wr + 0.3), (1, 0, 0), 20)
+    hub = w.lathe_axis("hub", [(0.0, 3.6), (0.8, 3.4), (1.6, 2.2)], steel_dark, (wx1, wy, wr), (1, 0, 0), 20)
     grey(wheel)
 
     # The motor block (cols 32-44, rows 1-26) with eight plates on its top (2 x 4).
@@ -244,7 +222,6 @@ kit.pieced("miners_roller", roller_whole, (48, 28),
 
 def tank_whole():
     f = TANK
-    red_ground("tk", f)
     paint = kit.RampPainter("tk", f, ramps={3, 8, 6, 10, 5}, fallback=3, blur=1, wall=1.2,
                             shades={3: (3, 4, 5, 6, 7, 8, 9, 10), 8: (0, 2, 4), 6: (1, 2, 3, 4, 5), 10: (4, 5, 6, 7, 8),
                                     5: (1, 3)},

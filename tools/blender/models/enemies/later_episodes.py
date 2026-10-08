@@ -141,30 +141,35 @@ def block_chevron():
 
 
 def panel_pills():
-    """A grey plate with three red capsules standing in it (sheet S 153 and 191)."""
+    """Three red capsules, each lying in its own grey cradle on the ground (sheet S 191 draws them up the
+    screen, 153 across it). The grey round them in the sprites is the map's floor: no plate under them."""
     k.reset()
-    plate = k.material("pills_plate", palette=6, metallic=0.5, roughness=0.45)
+    grey = k.material("pills_plate", palette=8, metallic=0.5, roughness=0.4)
     red = k.material("pills_red", palette=116, metallic=0.2, roughness=0.2, emission=(200, 20, 0),
                      emission_strength=0.25)
-    k.pillow("plate", 11.6, 13.6, 3.0, plate, rounding=1.4, dome=0.3)
-    for x in (-6.5, 0.0, 6.5):
-        k.smooth(k.lathe(f"pill{x}", [(-9.0, 0.3), (-8.0, 2.0), (-6.5, 2.6), (6.5, 2.6), (8.0, 2.0), (9.0, 0.3)], red,
-                         segments=16, axis_x=x, axis_z=3.4, squash=0.8), 60)
+    for x in (-8.0, 0.0, 8.0):  # S 191's columns 1-6, 9-14, 17-22
+        k.pillow(f"cradle{x}", 3.7, 9.9, 1.8, grey, rounding=0.8, dome=0.1).location = (x, 0.0, 0.0)
+        k.smooth(k.lathe(f"pill{x}", [(-9.0, 0.4), (-8.6, 1.5), (-8.0, 2.2), (-7.2, 2.65), (-6.2, 2.8),
+                                            (6.2, 2.8), (7.2, 2.65), (8.0, 2.2), (8.6, 1.5), (9.0, 0.4)], red,
+                         segments=16, axis_x=x, axis_z=2.3, squash=0.85), 60)
     export("panel_pills")
 
 
 def panel_gems():
-    """A grey plate with a cross of grooves and two red gems (sheet D 127)."""
+    """A round grey boss with a cross of grooves and two red gems (sheet D 127: the disc of columns 1-22, rows
+    5-22). The floor tiles in the sprite's corners are the map's ground (the game draws it under the boss): no
+    square plate under it."""
     k.reset()
     plate = k.material("gems_plate", palette=6, metallic=0.5, roughness=0.45)
     dark = k.material("gems_dark", palette=3, metallic=0.4, roughness=0.6)
     red = k.material("gems_red", palette=118, metallic=0.3, roughness=0.15, emission=(220, 30, 0),
                      emission_strength=0.4)
-    k.pillow("plate", 11.6, 13.6, 3.5, plate, rounding=1.6, dome=0.4)
-    k.box("groove_x", (0, 0, 3.6), (20.0, 1.6, 0.6), dark)
-    k.box("groove_y", (0, 0, 3.6), (1.6, 24.0, 0.6), dark)
-    for y in (4.0, -4.0):
-        gem(f"gem{y}", (0.0, y, 3.4), 2.6, 3.0, 2.2, red, sides=6)
+    cy = 0.4  # the disc's middle
+    k.pillow("plate", 10.9, 9.3, 3.5, plate, rounding=1.8, dome=0.5, power=2.0).location = (0.0, cy, 0.0)
+    k.box("groove_x", (0, cy, 3.65), (17.0, 1.6, 0.6), dark)
+    k.box("groove_y", (0, cy, 3.65), (1.6, 14.4, 0.6), dark)
+    for y in (3.4, -3.2):
+        gem(f"gem{y}", (0.0, cy + y, 3.4), 2.6, 3.0, 2.2, red, sides=6)
     export("panel_gems")
 
 

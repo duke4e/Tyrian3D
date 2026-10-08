@@ -33,7 +33,7 @@ import math
 import os
 import sys
 
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_i_art as art  # noqa: E402
@@ -95,14 +95,20 @@ def machine_label(v, c, r):
         if 13 <= c <= 28 and 12 <= r <= 16:
             return "x"  # the slot in the shoulder
         return "-"
+    # The chimney and the post are upright: the sprite draws them in the oblique view, their height
+    # up the screen above their footprints. Those pixels ("^") are left out (no part, no hull).
+    if 29 <= c <= 38 and 4 <= r <= 10:
+        return "^"  # the chimney's height, as drawn
+    if 5 <= c <= 10 and 19 <= r <= 24:
+        return "^"  # the post's height, as drawn
     if not lit:
         return ","
-    if 29 <= c <= 37 and 4 <= r <= 17 and s >= 2 and not (r >= 11 and c <= 30):
-        return "C"  # the chimney
+    if 30 <= c <= 37 and 11 <= r <= 17 and s >= 2:
+        return "C"  # the chimney's footprint
     if 14 <= c <= 41 and 7 <= r <= 18:
         return "T"  # the shoulder
-    if 5 <= c <= 10 and 19 <= r <= 31:
-        return "E"  # the post at the arm's end
+    if 5 <= c <= 10 and 25 <= r <= 31:
+        return "E"  # the post's footprint, at the arm's end
     if 11 <= c <= 31 and 20 <= r <= 30:
         return "A"  # the arm
     if 34 <= c <= 47 and 28 <= r <= 34:
@@ -131,7 +137,7 @@ def machine_whole():
     steel_dark = pal("cm_steel_dark", 0x04, metallic=0.55, roughness=0.4)
     parts = []
     # The hull: everything, low and dark, under the parts.
-    hull_rows = [row[:48].ljust(96, ".") for row in a.rows(lambda v, c, r: "#")]
+    hull_rows = ["".join("." if ch in ".^" else "#" for ch in row[:48]).ljust(96, ".") for row in labels]
     parts.append(region("hull", a, hull_rows, "#", 2.4, radius=0.9, bands=dark[1:4:2], select=lambda v, c, r: True,
                         smooth=2, epsilon=0.6, min_area=2.0, spacing=0.6, side=0, coarse_from=1.2))
 
@@ -140,12 +146,15 @@ def machine_whole():
         y0, y1 = Y(r0), Y(r1)
         return lambda x, y, z: z + z0 + (z1 - z0) * w.hk.smoothstep(y0, y1, y)
 
-    # The shoulder with its red vent, and the chimney rising from it.
+    # The shoulder with its red vent, and the chimney standing upright beside it, with a cap.
     parts.append(region("shoulder", a, left, "TC", 7.5, radius=0.6, crown=0.2, bands=grey, smooth=1, epsilon=0.9,
                         min_area=2.0, target=1500))
     parts.append(region("vent", a, left, "x", 5.6, radius=0.4, bands=red, smooth=1, epsilon=0.3, min_area=0.5))
-    parts.append(region("chimney", a, left, "C", 12.0, radius=0.6, crown=0.2, bands=grey, smooth=1, epsilon=0.9,
-                        z_fn=slope(0.0, 1.6, 17, 5), target=700))
+    parts.append(region("chimney", a, left, "C", 14.0, radius=0.7, crown=0.2, bands=grey, smooth=1, epsilon=0.9,
+                        target=700))
+    w.rounded_box("chimney_cap", (X(33.5), Y(14.0), 14.2), (8.6, 7.6, 0.9), steel_dark, bevel=0.35)
+    w.rounded_box("chimney_mouth", (X(33.5), Y(14.0), 14.45), (5.2, 4.2, 0.6), pal("cm_soot", 0x01, metallic=0.1,
+                                                                                    roughness=0.9), bevel=0.2)
     # The arm, the red strip along it, its red studs, the upright post at its end.
     parts.append(region("arm", a, left, "Al", 6.0, radius=0.6, crown=0.2, bands=grey, smooth=1, epsilon=0.9,
                         select=lambda v, c, r: left[r][c] == "A"))
@@ -153,12 +162,11 @@ def machine_whole():
     for c, r in ((15.5, 23), (21.0, 23)):
         w.rounded_box(f"stud{c}", (X(c), Y(r), 6.2), (1.6 if c < 20 else 1.0, 2.6, 1.0),
                       pal("cm_stud", 0x47, metallic=0.35, roughness=0.3), bevel=0.3)
-    post_x = X(8.0)
-    w.lathe("post", [(Y(31.6), 0.4), (Y(31.3), 1.8), (Y(30.6), 2.6), (Y(19.6), 2.6), (Y(19.0), 1.9), (Y(18.7), 0.4)],
-            steel, axis="y", at=(post_x, 5.4), segments=20, squash=1.0)
-    for r in (21.5, 28.5):
-        w.lathe(f"post_band{r}", [(Y(r) - 0.6, 2.75), (Y(r) + 0.6, 2.75)], steel_dark, axis="y", at=(post_x, 5.4),
-                segments=20)
+    post = (X(8.0), Y(28.0))
+    w.lathe("post", [(0.0, 3.0), (1.0, 3.0), (1.3, 2.6), (11.0, 2.6), (11.6, 1.9), (11.9, 0.4)], steel, axis="z",
+            at=post, segments=20)
+    for z in (3.4, 8.6):
+        w.lathe(f"post_band{z}", [(z - 0.6, 2.75), (z + 0.6, 2.75)], steel_dark, axis="z", at=post, segments=20)
     # The red plates.
     parts.append(region("chest", a, left, "R", 9.5, radius=0.8, crown=0.5, bands=red, smooth=1, epsilon=0.8,
                         target=800))
@@ -230,28 +238,17 @@ def deli_mite():
 
 # --- ^ 45: the floor eye ---------------------------------------------------------------------------
 
-def floor_slab(a, rows, name="floor", height=0.8, prefix="floor"):
-    """The dark floor (or brick wall) the sprite is drawn on, as a thin slab coloured in its shades."""
-    dark = w.ramp_bands(prefix, 0, [(0.0, 1), (2.2, 2), (3.4, 4), (4.8, 5)], metallic=0.2, roughness=0.7)
-    return region(name, a, rows, "#", height, radius=0.3, bands=dark, smooth=0, epsilon=0.2, min_area=4.0, blur=1,
-                  select=lambda v, c, r: True, spacing=0.6, coarse_from=0.8)
-
-
 @model("deli_floor_eye", [(45, True)])
 def deli_floor_eye():
-    """A machine set in UNDERDELI's dark floor: two pillars (the left one lit) with a glowing orange
-    eye between them, a hood sloping down in front of them and two steps below."""
+    """A machine standing on UNDERDELI's dark floor (none of the floor is modelled: the map draws
+    it): two upright ribbed pillars (the sprite draws them in the oblique view, rows 2-10; here they
+    stand on their footprints, rows 6-10, their height along z), a dark housing between them with a
+    glowing orange eye on its sloping front, a rounded body in front of them and two feet below."""
     a = w.Art(art.S45, 24, (12, 14))
     X, Y = a.X, a.Y
 
     def label(v, c, r):
         s = v & 15
-        if v >> 4 == 7:
-            return "e"
-        if 2 <= r <= 10 and 3 <= c <= 8 and s >= 4:
-            return "P"
-        if 2 <= r <= 10 and 13 <= c <= 19 and s >= 3:
-            return "Q"
         if 11 <= r <= 16 and 2 <= c <= 19 and s >= 4:
             return "H"
         if 18 <= r <= 20 and (2 <= c <= 9 or 14 <= c <= 20) and s >= 4:
@@ -259,21 +256,48 @@ def deli_floor_eye():
         return "-"
     rows = a.rows(label)
     grey = w.ramp_bands("feye_grey", 0, GREY, metallic=0.55, roughness=0.35)
-    floor_slab(a, a.rows(lambda v, c, r: "#"), prefix="feye_floor")
-    region("pillar_left", a, rows, "P", 6.5, radius=0.7, crown=0.3, bands=grey, smooth=1, epsilon=0.6)
-    region("pillar_right", a, rows, "Q", 5.8, radius=0.7, crown=0.3, bands=grey, smooth=1, epsilon=0.6)
-
-    def hood_slope(x, y, z):
-        return z + 1.6 * w.hk.smoothstep(Y(16.5), Y(11.5), y)
-    region("hood", a, rows, "H", 3.6, radius=0.9, crown=0.6, bands=grey, smooth=1, epsilon=0.6, z_fn=hood_slope)
-    region("steps", a, rows, "S", 2.8, radius=0.6, crown=0.2, bands=grey, smooth=1, epsilon=0.5)
-    # The eye: a glowing lens in a dark socket between the pillars.
+    steel = pal("feye_steel", 0x09, metallic=0.6, roughness=0.3)
+    steel_light = pal("feye_steel_light", 0x0b, metallic=0.6, roughness=0.25)
+    steel_dark = pal("feye_steel_dark", 0x05, metallic=0.5, roughness=0.4)
     socket = pal("feye_socket", 0x02, metallic=0.3, roughness=0.6)
-    w.rounded_box("socket", (X(11), Y(8.5), 1.6), (4.0, 6.0, 3.2), socket, bevel=0.6)
+    # The pillars: upright, ribbed, on a plinth, with a cap. Symmetric about the eye (column 11).
+    eye_x = X(11)
+    for name, dx in (("pillar_left", -5.75), ("pillar_right", 5.75)):
+        x, y = eye_x + dx, Y(8.5)
+        w.rounded_box(f"{name}_plinth", (x, y, 0.7), (6.4, 5.6, 1.4), steel_dark, bevel=0.35)
+        w.rounded_box(name, (x, y, 5.9), (5.4, 4.6, 10.0), steel, bevel=0.9, segments=3)
+        for i, rx in enumerate((-1.3, 0.0, 1.3)):  # ribs down the front
+            w.rounded_box(f"{name}_rib{i}", (x + rx, y - 2.2, 5.8), (0.7, 0.8, 8.4), steel_light, bevel=0.25)
+        w.rounded_box(f"{name}_band", (x, y, 8.8), (5.8, 5.0, 0.8), steel_dark, bevel=0.25)
+        w.rounded_box(f"{name}_cap", (x, y, 11.2), (6.2, 5.4, 1.2), steel_light, bevel=0.45)
+    # The housing between the pillars, its front sloping back so the eye looks up and forward.
+    hx0, hx1, hy0, hy1 = eye_x - 2.6, eye_x + 2.6, Y(10.5), Y(3.0)
+    housing = k.mesh_object("housing", [
+        (hx0, hy0, 0.0), (hx1, hy0, 0.0), (hx1, hy1, 0.0), (hx0, hy1, 0.0),
+        (hx0, hy0, 4.0), (hx1, hy0, 4.0), (hx1, hy1, 9.4), (hx0, hy1, 9.4),
+        (hx0, hy1 - 2.4, 9.4), (hx1, hy1 - 2.4, 9.4)],
+        [(0, 3, 2, 1), (0, 1, 5, 4), (4, 5, 9, 8), (8, 9, 6, 7), (1, 2, 6, 9, 5), (0, 4, 8, 7, 3), (3, 7, 6, 2)],
+        socket)
+    k.recalc_normals(housing)
+    k.bevel(housing, 0.4, 2)
+    w.sh.apply_modifiers(housing)
+    k.smooth(housing, 40)
+    w.rounded_box("housing_cap", (eye_x, hy1 - 1.2, 9.6), (5.6, 3.0, 0.7), steel_light, bevel=0.3)
+    # The eye: a glowing lens on the slope, facing up and forward.
     lens = pal("feye_lens", 0x77, metallic=0.0, roughness=0.15, glow=1.4, color=(255, 80, 10))
     hot = pal("feye_hot", 0x7d, metallic=0.0, roughness=0.1, glow=2.2, color=(255, 220, 90))
-    w.ellipsoid("lens", (X(11), Y(8.6), 3.2), (1.6, 2.1, 1.3), lens, 16, 8)
-    w.ellipsoid("lens_hot", (X(11), Y(8.2), 4.15), (0.7, 0.8, 0.45), hot, 12, 6)
+    tilt = Matrix.Rotation(math.atan2(5.4, hy1 - 2.4 - hy0), 4, "X")
+    ey, ez = (hy0 + hy1 - 2.4) / 2, 6.7
+    for name, radii, mat, lift in (("eye_rim", (2.2, 2.9, 0.6), steel_dark, 0.0), ("lens", (1.6, 2.3, 0.9), lens, 0.3),
+                                   ("lens_hot", (0.7, 0.9, 0.5), hot, 0.95)):
+        obj = w.ellipsoid(name, (0.0, 0.0, 0.0), radii, mat, 18, 9)
+        obj.data.transform(Matrix.Translation((eye_x, ey, ez)) @ tilt @ Matrix.Translation((0, 0, lift)))
+    # The body in front of the pillars, rising to them, and the two feet.
+
+    def body_slope(x, y, z):
+        return z + 2.2 * w.hk.smoothstep(Y(16.5), Y(11.0), y)
+    region("body", a, rows, "H", 4.4, radius=1.2, crown=0.6, bands=grey, smooth=1, epsilon=0.6, z_fn=body_slope)
+    region("feet", a, rows, "S", 2.8, radius=0.6, crown=0.2, bands=grey, smooth=1, epsilon=0.5)
     w.sh.flat_bottom(w.meshes())
 
 
@@ -283,11 +307,11 @@ CRAB = w.Art(art.CRAB, 72, (36, 14))
 
 
 def crab_whole():
-    """UNDERDELI's red-clawed machine set in a brick wall: a grey dome with a red Y on it between two
-    red balls, grey balls beside them, big red hooks at both ends and two small red pincers below."""
+    """UNDERDELI's red-clawed machine on its brick wall (the wall is the map's, not modelled): a grey
+    dome with a red Y on it between two red balls, grey balls beside them, big red hooks at both ends
+    and two small red pincers below, joined by steel arms."""
     a = CRAB
     X, Y = a.X, a.Y
-    floor_slab(a, a.rows(lambda v, c, r: "#"), name="wall", prefix="crab_wall")
     grey = w.ramp_bands("crab_grey", 0, GREY, metallic=0.55, roughness=0.35)
     red = w.ramp_bands("crab_red", 4, RED, metallic=0.35, roughness=0.3)
 
@@ -298,8 +322,6 @@ def crab_whole():
             return "H"
         if red_ and r >= 16 and 26 <= c <= 47:
             return "p"
-        if not red_ and s >= 3 and 12 <= r <= 19 and (19 <= c <= 28 or 42 <= c <= 51):
-            return "g"
         return "-"
     rows = a.rows(label)
     # The dome and the red Y on it.
@@ -333,8 +355,21 @@ def crab_whole():
     region("hooks", a, rows, "H", 5.5, radius=2.4, crown=0.4, bands=red, smooth=2, epsilon=0.4, z_fn=hook_slope,
            blur=1)
     region("pincers", a, rows, "p", 3.6, radius=1.6, crown=0.2, bands=red, smooth=2, epsilon=0.4, blur=1, target=900)
-    region("shoulders", a, rows, "g", 3.4, radius=1.2, crown=0.3, bands=grey, smooth=2, epsilon=0.5, blur=1,
-           target=1000)
+    for name, c, r in (("shoulder_l", 25.0, 15.0), ("shoulder_r", 46.0, 15.5)):
+        joint_ball = w.ellipsoid(name, (X(c), Y(r), 1.4), (3.4, 2.6, 2.6), steel[0][1], 22, 11)
+        w.paint_bands(joint_ball, a.field(lambda v, c_, r_: v >> 4 == 0 and abs(c_ - c) < 5 and 12 <= r_ <= 18,
+                                          blur=1), steel)
+    # No wall under it (the map draws the wall): the parts are joined by steel arms instead, from
+    # the dome through the red ball and the grey knob to the hook, and from under the red ball by
+    # the grey shoulder to the pincer.
+    joint = pal("crab_joint", 0x05, metallic=0.6, roughness=0.35)
+    for arm, leg in ((((31.0, 9.6, 3.2), (27.0, 9.7, 3.0), (18.0, 10.2, 2.8), (12.6, 9.4, 3.2)),
+                      ((26.5, 12.0, 2.0), (25.0, 15.0, 2.2), (29.0, 18.8, 1.5))),
+                     (((41.0, 9.6, 3.2), (45.5, 9.7, 3.0), (54.0, 10.2, 2.8), (59.4, 9.4, 3.2)),
+                      ((45.5, 12.0, 2.0), (46.0, 15.5, 2.2), (43.0, 19.0, 1.5)))):
+        side = "l" if arm[0][0] < 36 else "r"
+        w.tube(f"arm_{side}", w.catmull([(X(c), Y(r), z) for c, r, z in arm], 0.5), 1.5, joint, segments=12)
+        w.tube(f"leg_{side}", w.catmull([(X(c), Y(r), z) for c, r, z in leg], 0.5), 1.25, joint, segments=10)
     w.sh.flat_bottom(w.meshes())
 
 
@@ -515,11 +550,11 @@ RING = w.Art(art.RING, 48, (24, 28))
 
 
 def ring_whole():
-    """A machine of UNDERDELI set in a brick wall: a red bulb on a red stalk under a grey hood, and
-    below it two grey rings lying on the wall, each round a red cylinder."""
+    """A machine of UNDERDELI on its brick wall (the wall is the map's, not modelled): a red bulb on a
+    red stalk under a grey hood, and below it two grey rings, each round a red cylinder, held by a
+    yoke under the stalk's foot."""
     a = RING
     X, Y = a.X, a.Y
-    floor_slab(a, a.rows(lambda v, c, r: "#"), name="wall", prefix="ring_wall")
     grey = w.ramp_bands("ring_grey", 0, GREY, metallic=0.55, roughness=0.35)
     red = w.ramp_bands("ring_red", 4, RED, metallic=0.35, roughness=0.3)
 
@@ -533,7 +568,7 @@ def ring_whole():
         return "-"
     rows = a.rows(label)
     region("hood", a, rows, "D", 6.5, radius=2.6, crown=0.4, bands=grey, smooth=2, epsilon=0.5, rim=1.0, aspect=1.4,
-           target=2400)
+           target=2400, min_area=3.0)
     bulb = w.ellipsoid("bulb", (X(24.5), Y(18.2), 3.4), (5.0, 4.6, 4.8), red[0][1], 28, 14)
     w.paint_bands(bulb, a.field(lambda v, c, r: v >> 4 == 4 and 12 <= r <= 23, blur=1), red)
     region("stalk", a, rows, "s", 4.6, radius=2.0, crown=0.2, bands=red, smooth=2, epsilon=0.4, rim=0.8, aspect=1.4,
@@ -558,6 +593,12 @@ def ring_whole():
         w.paint_bands(piston, a.field(lambda v, c_, r_: v >> 4 == 4 and abs(c_ - c) <= 3 and 27 <= r_ <= 44,
                                       blur=1), red)
         w.lathe(f"{name}_band", [(Y(40.9), 2.85), (Y(39.6), 2.85)], steel, axis="y", at=(x, 3.2), segments=20)
+    # No wall under it (the map draws the wall): a steel yoke under the stalk's foot holds the rings.
+    yoke = pal("ring_yoke", 0x05, metallic=0.6, roughness=0.35)
+    w.tube("yoke", w.catmull([(X(c), Y(r), z) for c, r, z in ((15.2, 34.0, 2.0), (19.5, 31.4, 2.4),
+                                                                (29.5, 31.4, 2.4), (33.8, 34.0, 2.0))], 0.5),
+           1.3, yoke, segments=12)
+    w.ellipsoid("hub", (X(24.5), Y(30.8), 1.4), (3.8, 2.2, 2.4), yoke, 20, 10)
     w.sh.flat_bottom(w.meshes())
 
 

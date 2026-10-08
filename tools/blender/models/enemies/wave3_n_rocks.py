@@ -12,9 +12,9 @@ yaw=0). The machines and ships are in wave3_n.py.
   piece keeps a part of it (262 the top, 281 the left, 282 the right of the bottom row). The 1x1 nub
   in the notch of the left leg (3 180) is desert_rock_tip (wave2_h.py).
 - pyramid_<sprite> (3 153, 155, 191, 193): SURFACE's stepped pyramid on the sand, four tiers with
-  battered walls, the sand round it a low slab; the levels place the four as a block (event 12) and
-  put the capstone (3 3, pyramid_cap) on its top platform (event 10, 10 pixels right and 33 up from
-  the bottom left piece).
+  battered walls (the sand round it is the map's: not modelled); the levels place the four as a
+  block (event 12) and put the capstone (3 3, pyramid_cap) on its top platform (event 10, 10 pixels
+  right and 33 up from the bottom left piece).
 - pyramid_cap (3 3, 1x1): the golden capstone on the pyramid, drawn at its own origin on the
   platform's height; its frames 4 and 5 brighten it (it glows a little).
 
@@ -198,13 +198,8 @@ def frustum(name, outer, inset, z_prev, z_top, mats, bevel=0.35):
 def pyramid_whole():
     """SURFACE's stepped pyramid: four tiers of tan stone, their leaning walls dark on the south, light
     on the west and mid on the east as the sprite draws them, and a platform on top where the capstone
-    stands (a model of its own, pyramid_cap); round it the sand of the sprites as a low slab."""
-    g = w.grid(art.TEMPLE, 48)
-    sand = [(0, pal("pyramid_sand4", 0xa4, metallic=0.0, roughness=0.9)),
-            (5.5, pal("pyramid_sand6", 0xa6, metallic=0.0, roughness=0.9)),
-            (7.5, pal("pyramid_sand8", 0xa8, metallic=0.0, roughness=0.9)),
-            (9.0, pal("pyramid_sand9", 0xa9, metallic=0.0, roughness=0.9))]
-    n.soft_floor("sand", g, sand, lambda v, c, r: v >> 4 == 0xa, origin=PYRAMID_ORIGIN, top=0.8, relief=0.8)
+    stands (a model of its own, pyramid_cap). The sand round it is the map's (the sprites carry a copy
+    of it): not modelled."""
     top = pal("pyramid_top", 0x15, metallic=0.0, roughness=0.75)
     south = pal("pyramid_south", 0x12, metallic=0.0, roughness=0.8)
     west = pal("pyramid_west", 0x1a, metallic=0.0, roughness=0.7)

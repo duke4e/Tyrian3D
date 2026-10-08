@@ -5,22 +5,21 @@
   side by side (the middle one longest) in which red bars glow.
 - bronze_whorl (A 91; its frames A 129 only light its slot): a thick bronze ring with a dished middle, a
   lug at its upper right and a drip running down from its bottom, a red light glowing in its opening at
-  the lower left. The sprite stands on a square of the ground's brown earth; the model keeps only a low round
-  mound of that earth round its foot, so it sits on the 3D ground as the sprite sits on the map.
+  the lower left. The sprite stands on a square of the ground's brown earth: that is the map's ground, which
+  the game draws under it, so the model has none of it (batch AV) and stands on the 3D ground.
 
 usage: Blender -b --factory-startup -P wave3_q_bronze.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
 """
 import math
 import os
-import random
 import sys
 
 from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_q_kit as q  # noqa: E402
-from wave3_q_kit import art, sh, pal  # noqa: E402
+from wave3_q_kit import art, pal  # noqa: E402
 
 ORIGIN = (12, 14)
 
@@ -104,27 +103,12 @@ WHORL_GAP = 222.0                  # the opening, at the lower left (degrees)
 @q.model("bronze_whorl", [(91, True)])
 def bronze_whorl():
     br = bronze("whorl")
-    earth = {s: pal(f"whorl_earth{s}", 0x10 | s, metallic=0.0, roughness=0.9) for s in range(4, 9)}
     red = pal("whorl_red", 0x75, metallic=0.1, roughness=0.3, glow=1.0)
     red_hot = pal("whorl_red_hot", 0x79, metallic=0.05, roughness=0.25, glow=1.4)
     dish = pal("whorl_dish", 0x15, metallic=0.55, roughness=0.4)
     parts = []
 
-    # The mound of earth: low and round, its edge feathered into the ground, a little rough.
-    rnd = random.Random(4)
-    bumps = [(rnd.uniform(-9, 9), rnd.uniform(-10, 10), rnd.uniform(1.5, 3.0), rnd.uniform(-0.25, 0.3)) for _ in range(18)]
-
-    def mound(x, y, e=1.0):
-        r = math.hypot((x - WHORL.x) / 9.5, (y - WHORL.y + 1.0) / 10.5)
-        z = 1.2 * max(0.0, 1.0 - r * r) ** 1.5 + 0.1
-        z += sum(h * math.exp(-((x - bx) ** 2 + (y - by) ** 2) / (s * s)) for bx, by, s, h in bumps) * max(0.0, 1 - r)
-        return max(0.05, z)
-    disc = sh.ellipse(WHORL.x, WHORL.y - 1.0, 9.5, 10.5, 0.0, 48)
-    ground = q.heightfield("mound", [disc], mound, earth[6], spacing=0.6)
-    q.w.simplify_bottom(ground)
-    q.paint_faces(ground, lambda c, n: earth[max(4, min(8, int(round(6.0 + 2.5 * (n.x * -0.5 + n.y * 0.5)))))])
-    q.decimate(ground, 1400)
-    parts.append(ground)
+    # No mound of earth under it: the sprite's earth is the map's ground (batch AV).
 
     # The ring: a thick C, heavier at the upper left (the sprite's bright crescent), open at the lower left.
     gap = math.radians(WHORL_GAP)

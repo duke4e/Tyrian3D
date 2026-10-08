@@ -1,10 +1,12 @@
 """Enemies of wave 3, batch W, continued (sheet P: the asteroid levels): ASTEROID?'s tan launcher, modelled as
 its sprite looks (models.cfg: yaw=0); the kit is wave3_w_kit.py, the pixels wave3_w_art.py.
 
-- tan_launcher (P 277): a tan housing on the asteroid's floor, arched over two stubby barrels that point
+- tan_launcher (P 277): a tan housing standing on the ground, arched over two stubby barrels that point
   down the screen and up, each in a blue-grey breech, a tan sleeve and a tan muzzle round a red glowing
   bore; a dark blue window in the housing's top, a blue-grey cowl at its back and red fins at its sides.
-  The frames push the barrels out (275, 273, 271) and then hide it (0): the model shows them in.
+  The frames push the barrels out (275, 273, 271) and then hide it (0): the model shows them in. The
+  asteroid floor the sprite draws round it is the map's ground (the game draws it under it): not modelled
+  (batch AV); the housing, the fins and the barrels' feet stand on the ground (z 0).
 
 usage: Blender -b --factory-startup -P wave3_w_launcher.py -- [--preview <prefix>] [--check 1] [--stats 1]
 """
@@ -35,11 +37,11 @@ def tan_launcher():
     red = pal("tl_red", 0x74, metallic=0.3, roughness=0.4)
     bore = pal("tl_bore", 0x74, metallic=0.0, roughness=0.5, glow=0.7)
 
-    kit.floor_bed("tl_floor", (24, 28), lambda c, r: True, (f.ox, f.oy), prefix="tl")
+    # No floor under it: the sprite's floor is the map's ground, which the game draws under it (batch AV).
 
     # The housing: an arched block over the breeches (rows 0-11, columns 2-20).
-    house = w.block("housing", (X(11.0), Y(6.0)), 9.4, 5.8, 7.0, tan, taper=0.8, rounding=2.6, power=3.0,
-                    segments=32, z0=0.2, dome=1.2)
+    house = w.block("housing", (X(11.0), Y(6.0)), 9.4, 5.8, 7.2, tan, taper=0.8, rounding=2.6, power=3.0,
+                    segments=32, z0=0.0, dome=1.2)
     kit.paint_faces(house, lambda c, nrm: tan if nrm.z > 0.85 else tan_lit if (nrm.z > 0.2 and (nrm.x < -0.3 or
                                                                                               nrm.y > 0.3)) else
                     tan_dark)
@@ -51,7 +53,7 @@ def tan_launcher():
     kit.rounded_box("t_bar", (X(11.0), Y(3.4), 7.9), (13.0, 2.4, 1.0), tan_lit, bevel=0.4)
     kit.rounded_box("t_stem", (X(11.0), Y(5.2), 8.0), (3.2, 2.6, 1.0), tan_lit, bevel=0.4)
     for name, c0, c1 in (("fin_l", 1, 2), ("fin_r", 20, 22)):
-        kit.prism_x(name, [(f.top(7), 1.0), (f.top(7), 6.0), (f.bottom(9), 6.4), (f.bottom(11), 1.0)],
+        kit.prism_x(name, [(f.top(7), 0.0), (f.top(7), 6.0), (f.bottom(9), 6.4), (f.bottom(11), 0.0)],
                     f.left(c0) + 0.3, f.right(c1) - 0.3, red, bevel=0.3)
 
     # The barrels: down the screen and up from the housing's front, the red bore glowing in each muzzle.
@@ -70,8 +72,8 @@ def tan_launcher():
         kit.paint_faces(sleeve, lambda c_, nrm: tan_dark if nrm.z < 0.1 else tan_lit if nrm.y > 0.4 else None)
         mouth = start + d * 10.55
         w.lathe_axis(f"bore_{name}", [(0.0, 1.85), (0.3, 1.85), (0.32, 0.01)], bore, tuple(mouth), tuple(d), 14)
-        # The barrel's foot on the floor.
-        kit.rounded_box(f"foot_{name}", (X(c), Y(12.5), 0.9), (6.0, 4.0, 1.6), blue_dark, bevel=0.5)
+        # The barrel's foot on the ground.
+        kit.rounded_box(f"foot_{name}", (X(c), Y(12.5), 0.85), (6.0, 4.0, 1.7), blue_dark, bevel=0.5)
 
 
 kit.run()

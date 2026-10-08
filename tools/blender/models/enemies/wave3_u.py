@@ -2,9 +2,10 @@
 (models.cfg: yaw=0). The black orb is in wave3_u_orb.py, the tracked carrier with its launcher and robot in
 wave3_u_carrier.py, the hangar in wave3_u_hangar.py; the kit is wave3_u_kit.py, the pixels wave3_u_art.py.
 
-- green_lamp_bunker (S 277): the grey sentry post of the asteroid levels in its rubble: a tower at the back
-  with a visor whose green lamp blinks (the frames 125, 11 brighten and darken it: it glows), a rounded
-  armoured front over the ground, two pipes down over it and a third under it into the rubble.
+- green_lamp_bunker (S 277): the grey sentry post of the asteroid levels: a tower at the back with a visor
+  whose green lamp blinks (the frames 125, 11 brighten and darken it: it glows), a rounded armoured front over
+  the ground, two pipes down over it and a third from under it to the ground. The grey rubble round it in the
+  sprite is the map's ground (the 3D ground shows it): the model leaves it out.
 - maze_pipe_end_l, maze_pipe, maze_pipe_cage, maze_pipe_end_r (S 1, 7, 115, 3): the dark blue pipe the
   levels lay across MINEMAZE's and GAUNTLET's corridors, one sprite after another along a row (enemies 586,
   588 or 589 repeated, 587): its left end, a plain segment, the segment with the ring cage round its red
@@ -35,7 +36,8 @@ def grey_mats(prefix, metallic=0.45, roughness=0.42):
 @u.model("green_lamp_bunker", [(277, True)])
 def green_lamp_bunker():
     """A tower at the back with a visor (grey glass over the green lamp), a rounded armoured front (a half
-    dome against the tower) falling to the ground, pipes over it and under it, in grey rubble."""
+    dome against the tower) falling to the ground, pipes over it and under it. The rubble the sprite draws round
+    it is the map's ground: left out."""
     g0 = u.grid(art.BUNKER, 24)
     origin = (12, 14)
     m = grey_mats("glb", metallic=0.3, roughness=0.45)
@@ -46,20 +48,7 @@ def green_lamp_bunker():
     pipe = pal("glb_pipe", 0x0a, metallic=0.6, roughness=0.3)
     pipe_dark = pal("glb_pipe_dark", 0x06, metallic=0.55, roughness=0.35)
 
-    # The sentry's footprint: the tower (rows 0-6, columns 4-19) and the front (rows 7-15).
-    def is_body(c, r):
-        if r <= 6:
-            return 4 <= c <= 19
-        if r <= 15:
-            return math.hypot((c + 0.5 - 11.5) / 8.0, (r + 0.5 - 6.5) / 9.2) <= 1.0
-        return False
-
-    # The shadows the sprite draws beside and below it (the game casts its own) become rubble.
-    shadow = lambda v, c, r: (not is_body(c, r)) and ((19 <= c <= 23 and r <= 18) or (4 <= c <= 18 and 15 <= r <= 23))
-    g = u.refill(g0, shadow, lambda v, c, r: r >= 19 or c <= 3, seed=7, darker=1)
-    u.rubble("rubble", g, lambda v, c, r: not is_body(c, r), "glb", origin, rmin=1.8, rmax=2.8, height=0.55,
-             segments=7, rings=4)
-
+    # The sentry: the tower (rows 0-6, columns 4-19) and the front (rows 7-15).
     # The tower: a block with rounded edges, lighter on top.
     top = 9.0
     tower = w.block("tower", (-0.2, 10.6), 8.0, 3.5, top, m[9], taper=0.6, rounding=1.1, power=6.0, segments=48)

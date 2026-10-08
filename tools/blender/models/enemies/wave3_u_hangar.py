@@ -5,8 +5,9 @@
   above 51, 53 above 89, 91): the levels place it as six sprites (enemies 326, 327 at the top and the four of
   event 12, 330, 331 above 328, 329). A grey hangar with a pitched roof, its ridge up the screen and its far
   end pointed like a prow, the numbers 92 and 26 painted on its slopes, its front sloping down to the ground
-  with a barred door in it, a pale kerb before it and a ribbed apron, a pipe along its left side, in grey
-  rubble. Built whole, 48 x 84, and cut into its six pieces (origin).
+  with a barred door in it. The pale kerb before it, the ribbed apron, the light rim along its left side and the
+  grey rubble round it are the map's floor (the 3D ground shows it): left out. Built whole, 48 x 84, and cut into
+  its six pieces (origin).
 
 usage: Blender -b --factory-startup -P wave3_u_hangar.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole hangar --preview <prefix>]
@@ -126,36 +127,8 @@ def hangar_whole():
     for x in (X0 + 0.35, X1 - 0.35):
         parts.append(w.tube(f"eave{x}", [(x, y_far(x) - 0.3, EAVES + 0.1), (x, y_near(x) + 0.3, EAVES + 0.1)], 0.45, eave, 8))
 
-    # The kerb before the front (rows 66-69) and the ribbed apron (rows 70-79).
-    kerb = pal("rh_kerb", 0x08, metallic=0.1, roughness=0.7)
-    kerb_dark = pal("rh_kerb_dark", 0x05, metallic=0.1, roughness=0.7)
-    k_obj = w.rounded_box("kerb", ((X0 - 2.0 + X1 + 1.0) / 2, (py(65.6) + py(69.4)) / 2, 0.75),
-                          (X1 - X0 + 3.0, py(65.6) - py(69.4), 1.5), kerb, bevel=0.4)
-    sh.apply_modifiers(k_obj)
-    w.paint_faces(k_obj, lambda c, n: kerb if n.z > 0.7 else kerb_dark)
-    parts.append(k_obj)
-    apron = pal("rh_apron", 0x02, metallic=0.2, roughness=0.7)
-    rib = pal("rh_rib", 0x06, metallic=0.4, roughness=0.5)
-    y0, y1 = py(79.5), py(69.5)
-    parts.append(w.rounded_box("apron", ((X0 - 3.0 + X1 + 1.5) / 2, (y0 + y1) / 2, 0.35), (X1 - X0 + 4.5, y1 - y0, 0.7),
-                               apron, bevel=0.2))
-    for i in range(10):
-        x = X0 - 1.5 + i * 4.0
-        parts.append(w.rounded_box(f"apron_rib{i}", (x, (y0 + y1) / 2, 0.8), (1.3, y1 - y0 - 0.6, 0.9), rib, bevel=0.3))
-
-    # The pipe along its left side (columns 4-5, rows 28-65), on brackets.
-    pipe = pal("rh_pipe", 0x0c, metallic=0.6, roughness=0.3)
-    bracket = pal("rh_bracket", 0x05, metallic=0.4, roughness=0.5)
-    x = px(4.5)
-    parts.append(w.tube("pipe", [(x, py(27.6), 1.6), (x, py(65.0), 1.6)], 0.95, pipe, 12))
-    for i, y in enumerate((py(31.0), py(43.0), py(55.0))):
-        parts.append(w.rounded_box(f"bracket{i}", (x + 0.6, y, 0.8), (2.6, 1.2, 1.6), bracket, bevel=0.3))
-
-    # The rubble at its sides and at the bottom (and under the pipe).
-    in_rubble = lambda v, c, r: r >= 28 and (r >= 80 or c <= 5 or c >= 43)  # noqa: E731
-    g2 = u.refill(g, lambda v, c, r: in_rubble(v, c, r) and c in (4, 5) and r <= 66,
-                  lambda v, c, r: in_rubble(v, c, r) and c <= 3, seed=11)
-    parts += u.rubble("rubble", g2, in_rubble, "rh", ORIGIN, rmin=1.6, rmax=2.6, height=0.6, segments=7, rings=4)
+    # (The pale kerb before the front and the ribbed apron, rows 66-79, the light rim along its left side, columns
+    # 4-5, and the rubble round it are the map's floor, which the 3D ground shows: not modelled.)
     return u.meshes()
 
 

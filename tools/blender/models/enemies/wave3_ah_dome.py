@@ -3,10 +3,11 @@ wreck, modelled as the sprites look (models.cfg: yaw=0). The kit is wave3_ah_kit
 
 The levels put the dome together from six ground enemies (536-541, or 1082-1087 in episode 5): 45, 47, 49 at
 (x, y - 28), (x + 24, y - 28), (x + 48, y - 28) above 83, 85, 87 at (x, y), (x + 24, y), (x + 48, y): 72 x 56
-pixels on its square of stone floor. Each piece is an enemy of its own, and each leaves its wreck in its place
+pixels on its square of stone floor (the map's ground: the game draws it under the dome, so the models have no
+floor tiles round the shell; batch AV). Each piece is an enemy of its own, and each leaves its wreck in its place
 when destroyed (dgr 39, 41, 43, 77, 79, 81; dlevel -1), so the wreck is cut exactly as the dome.
 
-- armour_dome_tl, _tm, _tr, _bl, _bm, _br (M 45, 47, 49, 83, 85, 87): a low grey shell on the stone floor tiles;
+- armour_dome_tl, _tm, _tr, _bl, _bm, _br (M 45, 47, 49, 83, 85, 87): a low grey shell on the ground;
   on its top a raised red housing, two pillars joined in a U round a recess in which a red capsule lies on a grey
   mount, pointing up the screen; light ridges curving from the housing down to the rim on both sides, two small
   dark ports above them and two large bronze lenses in grey bezels below; red armour on the lower flanks; at the
@@ -32,8 +33,8 @@ DOME = kit.frame("DOME", 72, (36, 28))
 WRECK = kit.frame("WRECK", 72, (36, 28))
 
 CX, CY, RX, RY = 0.5, 1.0, 30.7, 25.3   # the shell's outline (cols 6-66, rows 2-51)
-FLOOR = 0.6                              # the floor tiles' top
-RIM = 1.0                                # the shell's foot above the tiles
+FLOOR = 0.6                              # the shell's foot: straight up from the ground (where the tiles' top was)
+RIM = 1.0                                # and the rim above it
 HEIGHT = 15.5                            # the shell's top above its foot
 
 
@@ -141,14 +142,8 @@ def dome_whole(wreck=False):
             zz -= 2.4 * max(0.0, dent(x, y) - 0.2) * min(1.0, (1.0 - rr(x, y)) * 6.0)
         return zz
 
-    # The floor tiles round it (ramp 0): stones standing a little above their mortar.
-    bands = [(0, pal(f"{tag}_floor1", 0x01, metallic=0.05, roughness=0.85)),
-             (2.5, pal(f"{tag}_floor3", 0x03, metallic=0.05, roughness=0.85)),
-             (4.5, pal(f"{tag}_floor5", 0x05, metallic=0.05, roughness=0.8)),
-             (6.5, pal(f"{tag}_floor7", 0x07, metallic=0.05, roughness=0.8)),
-             (8.5, pal(f"{tag}_floor9", 0x09, metallic=0.05, roughness=0.75))]
-    is_floor = lambda v, c, r: v >> 4 == 0 and not inside(f.X(c), f.Y(r), -0.5)
-    w.floor("tiles", f.g, bands, is_floor, origin=(36, 28), top=FLOOR, relief=0.5, edge=0.4)
+    # No floor tiles round it: they are the map's ground (batch AV). The shell stands on the ground, its sides
+    # straight down to z 0 from its foot.
 
     # The shell.
     shell = kit.heightfield("shell", [kit.ellipse(CX, CY, RX, RY, 120)], lambda x, y: surface(x, y), None,

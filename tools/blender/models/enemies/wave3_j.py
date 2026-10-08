@@ -19,7 +19,8 @@ look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py.
 - medallion_red (D 117): the red winged medallion with an orange gem, D 79's red relative.
 - bronze_beetle (D 16): the bronze beetle with red wing cases and green hooked legs.
 
-The ground machines stand on a low slab of the tiled floor the sprites draw round them (wave3_j_kit.floor).
+The ground machines stand directly on the ground: the tiled floor the sprites draw round them is the map's (the game
+draws it under them), so the models have none (batch AV); their parts that stood on it reach down to z 0.
 
 usage: Blender -b --factory-startup -P wave3_j.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole dome_cannon --preview <prefix>]
@@ -39,12 +40,14 @@ D = "enemy_D"
 
 # --- D 275: the cage turret ----------------------------------------------------------------------
 
+LAMP_Z = 2.0  # the cage turret's lamps' axis: on the ground (their half height 2.0)
+
+
 @model("cage_turret", [(D, 275, True)])
 def cage_turret():
     """A tan armoured body whose top is a lattice of raised bars over dark steel windows (a lens in
     the lower middle one), steel pipes out to red lamps at both sides, a tan stub with two steel
     knobs at the back and a tan gun pointing down the screen, its muzzle glowing red."""
-    g = w.grid(art.D275, 24)
     tan = pal("cage_tan", 0xa8, metallic=0.55, roughness=0.35)
     tan_light = pal("cage_tan_light", 0xab, metallic=0.55, roughness=0.3)
     tan_dark = pal("cage_tan_dark", 0xa4, metallic=0.5, roughness=0.45)
@@ -54,7 +57,6 @@ def cage_turret():
     lamp = pal("cage_lamp", 0x75, metallic=0.1, roughness=0.3, glow=1.1)
     muzzle = pal("cage_muzzle", 0x76, metallic=0.0, roughness=0.3, glow=1.4)
 
-    w.floor("floor", g, w.floor_bands("cage"), lambda v, c, r: v >> 4 == 0)
     top = 6.0  # the body's top (the windows); the bars stand on it
     # The body: a rounded block under the lattice, tan sides, its top the dark steel of the windows.
     body = w.block("body", (-0.5, 4.4), 8.9, 8.1, top, tan, taper=0.7, rounding=1.0, power=5.0, segments=36)
@@ -82,18 +84,20 @@ def cage_turret():
     # The steel pipes out to the lamps, through the side windows.
     for side in (-1, 1):
         x_in, x_out = px(11.0) + side * 5.0, px(11.0) + side * 10.2
-        w.tube(f"pipe{side}", [(x_in, py(9.8), top - 0.4), (x_out, py(9.8), top - 2.2)], 1.05, steel_light, 12)
+        w.tube(f"pipe{side}", [(x_in, py(9.8), top - 0.4), (x_out, py(9.8), LAMP_Z + 0.4)], 1.05, steel_light, 12)
         w.sphere(f"pipe_ball{side}", (px(11.0) + side * 6.0, py(9.8), top + 0.2), (0.95, 0.95, 0.9), steel_light, 12, 6)
-    # The lamps: red capsules standing along the sides.
+    # The lamps: red capsules lying along the sides on the ground.
     for side, x in ((-1, px(1.6)), (1, px(21.4))):
-        w.tube(f"lamp{side}", [(x, py(7.3), 3.6), (x, py(13.0), 3.6)], 1.75, lamp, 14, squash=1.15)
-        w.lathe_axis(f"lamp_cap{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(6.4), 3.6), (0, -1, 0), 14)
-        w.lathe_axis(f"lamp_capb{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(13.6), 3.6), (0, 1, 0), 14)
-    # At the back: a tan stub into the floor, two steel knobs beside it.
+        w.tube(f"lamp{side}", [(x, py(7.3), LAMP_Z), (x, py(13.0), LAMP_Z)], 1.75, lamp, 14, squash=1.15)
+        w.lathe_axis(f"lamp_cap{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(6.4), LAMP_Z), (0, -1, 0),
+                     14)
+        w.lathe_axis(f"lamp_capb{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(13.6), LAMP_Z), (0, 1, 0),
+                     14)
+    # At the back: a tan stub into the ground, two steel knobs on the ground beside it.
     w.tube("stub", [(px(11.0), py(3.0), top - 1.4), (px(11.0), py(0.6), top - 2.6), (px(11.0), py(-0.4), 0.4)], 1.5,
            tan, 14)
     for x in (px(7.6), px(15.6)):
-        w.sphere(f"knob{x}", (x, py(0.8), 1.6), (1.3, 1.1, 1.3), steel_light, 14, 8)
+        w.sphere(f"knob{x}", (x, py(0.8), 1.3), (1.3, 1.1, 1.3), steel_light, 14, 8)
     # At the front: a steel neck and the gun pointing down the screen, its muzzle glowing.
     w.lathe_axis("neck", [(0.0, 2.1), (1.0, 2.3), (2.6, 1.9), (3.2, 2.2)], steel_light, (px(11.0), py(17.0), 3.4),
                  (0, -1, 0), 20)
@@ -118,10 +122,9 @@ def rounded_rect(x0, x1, y0, y1, radius, count=10):
 
 @model("red_furnace", [(D, 267, True)])
 def red_furnace():
-    """A red housing with rounded edges on the tiled floor: a deep well down its middle with a
+    """A red housing with rounded edges on the ground: a deep well down its middle with a
     glowing element in it, a raised rim round the well, dark slots at both sides with steel knobs,
     and red rails clamped to its sides."""
-    g = w.grid(art.D267, 24)
     red = pal("furnace_red", 0x47, metallic=0.45, roughness=0.35)
     red_light = pal("furnace_red_light", 0x4b, metallic=0.45, roughness=0.3)
     red_dark = pal("furnace_red_dark", 0x43, metallic=0.4, roughness=0.45)
@@ -131,7 +134,6 @@ def red_furnace():
     knob = pal("furnace_knob", 0x0b, metallic=0.75, roughness=0.2)
     bolt = pal("furnace_bolt", 0x17, metallic=0.6, roughness=0.35)
 
-    w.floor("floor", g, w.floor_bands("furnace"), lambda v, c, r: v >> 4 == 0)
     height = 7.2
     outline = rounded_rect(-10.0, 7.0, -12.0, 14.0, 3.0)
     well = rounded_rect(-4.0, 1.0, -5.0, 9.0, 1.0, 4)
@@ -156,21 +158,20 @@ def red_furnace():
         w.rounded_box(f"slot_floor{x}", (x, 2.0, 1.0), (3.4, 10.4, 1.4), slot, bevel=0.3)
         for y in (5.0, -1.0):
             w.sphere(f"knob{x}{y}", (x, y, 2.6), (1.25, 1.25, 1.4), knob, 16, 8)
-    # The rails clamped to the sides.
+    # The rails clamped to the sides, lying on the ground.
     for x, xin in ((px(0.9), -9.6), (px(19.6), 6.6)):
-        w.tube(f"rail{x}", [(x, py(6.0), 2.6), (x, py(17.6), 2.6)], 1.2, red, 12)
+        w.tube(f"rail{x}", [(x, py(6.0), 1.2), (x, py(17.6), 1.2)], 1.2, red, 12)
         for y in (py(7.3), py(16.0)):
-            w.tube(f"clamp{x}{y}", [(x, y, 2.6), (xin, y, 3.4)], 0.55, bolt, 8)
+            w.tube(f"clamp{x}{y}", [(x, y, 1.2), (xin, y, 2.0)], 0.55, bolt, 8)
 
 
 # --- D 193: the eye tub --------------------------------------------------------------------------
 
 @model("eye_tub", [(D, 193, True)])
 def eye_tub():
-    """A bronze tub of staves with two dark bands and a rolled rim, standing on the tiled floor; its
+    """A bronze tub of staves with two dark bands and a rolled rim, standing on the ground; its
     iris is open (four grey petals drawn back against the rim) on a glowing red eye, and a red
     light burns on its front."""
-    g = w.grid(art.D169, 24)
     cx, cy = -0.5, 3.4
     bronze = pal("tub_bronze", 0x15, metallic=0.55, roughness=0.4)
     stave = pal("tub_stave", 0x13, metallic=0.5, roughness=0.45)
@@ -182,9 +183,7 @@ def eye_tub():
     core = pal("tub_eye_core", 0x7b, metallic=0.0, roughness=0.2, glow=1.8)
     light = pal("tub_light", 0x74, metallic=0.0, roughness=0.3, glow=1.0)
 
-    def on_tub(c, r):
-        return ((c + 0.5 - 12 - cx) / 11.2) ** 2 + ((14 - r - 0.5 - cy) / 13.0) ** 2 < 1.0 and r < 24
-    w.floor("floor", g, w.floor_bands("tub"), lambda v, c, r: v >> 4 == 0 and not on_tub(c, r))
+    # No floor round it: the sprite's tiles are the map's ground (batch AV); the tub stands on the ground.
     height = 8.4
     # The tub: up the outside, over the rolled rim, down the inside to a floor.
     profile = [(0.0, 10.2), (2.0, 10.6), (4.2, 10.8), (6.4, 10.6), (7.9, 10.3), (8.3, 10.0), (height, 9.4),
@@ -221,12 +220,10 @@ def eye_tub():
 
 @whole("dome_cannon", (24, 56))
 def dome_cannon_whole():
-    """A brown dome on the tiled floor: its north half ribbed bronze, a red band across it with two
+    """A brown dome on the ground: its north half ribbed bronze, a red band across it with two
     lights in a tan frame, a seam down its south side; from its top a heavy dark cannon reaches up
-    the screen through a grey, a tan and a red collar, its muzzle open. Built whole (the floor of
-    both sprites included) and cut in two at y = 0."""
-    g = w.grid(art.TOWER, 24)
-    origin = (12, 28)
+    the screen through a grey, a tan and a red collar, its muzzle open. Built whole and cut in two at
+    y = 0; the tiled floor both sprites draw round it is the map's ground (batch AV): not modelled."""
     brown = pal("cannon_brown", 0x14, metallic=0.5, roughness=0.4)
     rib_light = pal("cannon_rib", 0x18, metallic=0.55, roughness=0.35)
     rib_dark = pal("cannon_rib_dark", 0x15, metallic=0.5, roughness=0.4)
@@ -238,9 +235,6 @@ def dome_cannon_whole():
     grey = pal("cannon_grey", 0x09, metallic=0.7, roughness=0.3)
     bore = pal("cannon_bore", 0x01, metallic=0.2, roughness=0.7)
 
-    def on_object(c, r):
-        return (3 <= c <= 18 and r <= 19) or ((c - 10.5) / 10.5) ** 2 + ((r - 32.0) / 13.0) ** 2 < 1.0
-    w.floor("floor", g, w.floor_bands("cannon"), lambda v, c, r: v >> 4 == 0 and not on_object(c, r), origin=origin)
     # The dome.
     dcx, dcy = -1.5, -4.6
     dome = k.ellipsoid("dome", (dcx, dcy, 0.0), (9.8, 12.2, 9.0), brown, 40, 20)
@@ -290,7 +284,6 @@ model("dome_cannon_dome", [(D, 283, True)])(lambda: dome_cannon_piece(-28, 0))
 def vent_dome():
     """A grey armoured block reaching in from the top of the sprite, its south end rounded, panel
     seams across and along it, and a red-hot crescent vent under its rounded front."""
-    g = w.grid(art.D241, 24)
     grey = pal("vent_grey", 0x09, metallic=0.6, roughness=0.3)
     grey_light = pal("vent_grey_light", 0x0b, metallic=0.6, roughness=0.25)
     seam_mat = pal("vent_seam", 0x06, metallic=0.5, roughness=0.4)
@@ -298,10 +291,7 @@ def vent_dome():
     hotter = pal("vent_hotter", 0x76, metallic=0.0, roughness=0.3, glow=1.5)
     cx, cy, half, r_end = -1.0, 2.5, 8.0, 4.6
 
-    def on_dome(c, r):
-        x, y = c + 0.5 - 12, 14 - r - 0.5
-        return abs(x - cx) < half + 0.6 and (y > cy or ((x - cx) / (half + 0.6)) ** 2 + ((y - cy) / (r_end + 0.6)) ** 2 < 1)
-    w.floor("floor", g, w.floor_bands("vent"), lambda v, c, r: v >> 4 == 0 and not on_dome(c, r))
+    # No floor round it: the sprite's tiles are the map's ground (batch AV); the block stands on the ground.
     outline = [(cx + half, 18.0), (cx - half, 18.0)]
     for i in range(25):
         a = math.radians(180 + 180 * i / 24)

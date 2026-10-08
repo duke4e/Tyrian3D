@@ -7,7 +7,8 @@ The slot column's three pieces switch to their damaged sprites when hit hard (en
 running through what is left; the rock beside it pitted.
 
 - ixm_wall_slot_top_damaged, ixm_wall_slot_mid_damaged, ixm_wall_slot_low_damaged (8 163, 201, 239): wave3_y_wall's
-  whole wall (build_wall), damaged and cut as ixm_wall_slot_top, _mid and _low are (origin).
+  whole wall (build_wall), damaged as drawn (the damage follows the damaged sprites' pixels), then stood up as the
+  intact wall is (wave3_y_wall.upright) and cut as ixm_wall_slot_top, _mid and _low are (origin).
 
 usage: Blender -b --factory-startup -P wave3_ap_ixm.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
@@ -30,7 +31,7 @@ SLOT_PARTS = ("house", "lip", "window", "band", "panel", "bar_", "well", "grille
 
 
 def wall_damaged():
-    orig.build_wall()
+    orig.build_wall(stand=False)
     w.bake()
     dmg = kit.Damage(WALL, DAMAGED, keep=lambda c, r: 24 <= c < 48)
     slot = [o for o in w.meshes() if o.name.startswith(SLOT_PARTS)]
@@ -57,6 +58,7 @@ def wall_damaged():
     kit.sink(rock, dmg, 1.4, min_z=0.5, seed=2.0)
     for obj in w.meshes():
         k.smooth(obj, 40)
+    orig.upright(w.meshes())
 
 
 PIECES = [(name + "_damaged", box, centre,

@@ -5,12 +5,15 @@ launcher in wave3_w_launcher.py; the kit is wave3_w_kit.py, the pixels wave3_w_a
 
 - block_house_tl, block_house_tr, block_house_bl, block_house_br (P 153, 155 above 191, 193): the grey
   block house of ASTEROID2, ASTEROID?, ASTCITY and AST. CITY (enemies 313-316, which event 12 places as
-  the sheet arranges them): a block 40 x 43 pixels with rounded corners on the asteroid's floor, its roof
+  the sheet arranges them): a block 40 x 43 pixels with rounded corners standing on the ground, its roof
   laid with fifteen raised panels; three of them are hatches the frames sink (157/161 and their
   neighbours), set a little lower in dark gaps. Built whole and cut into its pieces (origin).
 - block_door (P 279): ASTEROID?'s small block in the floor with a lid over a well in its top; the frames
   lift the lid (281, 245, 283): the model shows it a little open over a dark slit.
 - block_slot (P 53): the same block with its lid open, standing up the screen over the dark well.
+
+The asteroid floor the sprites draw round these (map tile 372) is the map's ground, which the game draws under
+them: the models have none of it (batch AV), the blocks stand on the ground (z 0).
 
 usage: Blender -b --factory-startup -P wave3_w.py -- [--only name,name] [--preview <prefix>]
        [--check 1] [--stats 1] [--whole <prefix>]
@@ -30,8 +33,8 @@ HOUSE = kit.Frame(art.BLOCKS, 48, (24, 28))
 
 
 def block_house_whole():
+    # No floor round it: the sprites' floor is the map's ground, which the game draws under it (batch AV).
     parts, _ = kit.house("house", HOUSE, 0)
-    kit.house_floor("house", HOUSE, 0)
 
 
 kit.pieced("block_house", block_house_whole, (48, 56), [
@@ -77,10 +80,7 @@ def small_block(prefix, f, angle, glow=0.0):
     if glow:
         w.sphere(prefix + "_inner", ((fx0 + fx1) / 2, (fy0 + fy1) / 2 - 1.0, height - 2.9), (2.6, 2.2, 0.25),
                  pal(prefix + "_inner", 0x74, metallic=0.0, roughness=0.5, glow=glow), 12, 5)
-    # The floor round it.
-    body_poly = sh.inset(outline, 1.0)
-    kit.floor_bed(prefix + "_floor", (24, 28), lambda c, r: not kit.inside_poly(body_poly, f.X(c), f.Y(r)),
-                  (f.ox, f.oy), prefix=prefix)
+    # No floor round it: the sprite's floor is the map's ground, which the game draws under it (batch AV).
     kit.merge()
 
 

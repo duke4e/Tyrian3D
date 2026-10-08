@@ -8,7 +8,8 @@ look (models.cfg: yaw=0 unless noted):
 - purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
 - flesh_stinger (5 207): BRAINIAC's fleshy stinger, a capped beak of two halves.
 - green_eye (5 79): EYESPY's green eyeball, authored looking up the screen (models.cfg: yaw=aim).
-- eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids.
+- eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
+  the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
 - red_link (5 168): a link of BRAINIAC's chain of red brains in steel clamps (as brain_clamp, 5 166).
 - hanging_pod (5 170): BRAINIAC's grey pod with a red eye hanging from a steel bracket.
@@ -333,31 +334,34 @@ def green_eye():
 
 @model("eye_hatch", 164)
 def eye_hatch():
-    """A hatch in BRAINIAC's floor (the sprite fills its square; its corners are the dark floor): a
-    purple frame with arms reaching to the square's edges, sunk round a dark socket in which a red eye
-    glows between two lids (the frames open and close it; the model keeps it half open)."""
-    a = w.Art(art.HATCH, (12, 14))
-    floor = pal("hatch_floor", 0x66, metallic=0.2, roughness=0.6)
+    """A hatch in BRAINIAC's floor: a dark housing sunk round a dark socket in which a red eye glows between
+    two lids (the frames open and close it; the model keeps it half open), a dark hood over the eye and a
+    block under it. The purple octagon the sprite draws it in (its arms reaching to the square's edges) and
+    the dark corners are the floor's own pattern, which the map draws under it: not modelled (batch AV)."""
     frame = pal("hatch_frame", 0x56, metallic=0.35, roughness=0.4)
     light = pal("hatch_light", 0x59, metallic=0.35, roughness=0.35)
     dark = pal("hatch_dark", 0x51, metallic=0.3, roughness=0.5)
+    housing = pal("hatch_housing", 0x53, metallic=0.35, roughness=0.45)
     red = pal("hatch_eye", 0x77, metallic=0.0, roughness=0.15, glow=1.6)
     hot = pal("hatch_eye_hot", 0x7b, metallic=0.0, roughness=0.1, glow=2.2)
-    w.rounded_box("floor", (0.0, 0.0, 0.2), (24.0, 28.0, 0.4), floor, bevel=0.1)
-    polys = a.polys(rows=a.select(lambda c, r, ch: ch != "G"), smooth=2, epsilon=0.45)
     ex, ey = 0.5, 1.2  # the eye's centre
 
     def frame_z(x, y, z):
         q = math.hypot((x - ex) / 6.4, (y - ey) / 7.4)
         return z - 2.0 * w.smoothstep(1.15, 0.75, q) * min(1.0, z / 2.0)
-    body = w.plate("frame", polys, frame, 3.2, radius=1.2, base=0.3, spacing=0.65, z_fn=frame_z)
+    # The housing: the sprite's dark machine (columns 4-19, rows 3-21), its middle sunk round the socket.
+    outline = [(-3.6, 10.6), (3.8, 10.6), (6.6, 7.8), (7.7, 3.4), (7.7, -3.6), (6.2, -7.7), (-5.2, -7.7),
+               (-7.6, -3.6), (-7.6, 3.4), (-6.6, 7.8)]
+    body = w.plate("frame", [sh._chaikin(outline, 2)], housing, 3.0, radius=1.2, base=0.0, spacing=0.5,
+                   z_fn=frame_z)
     w.simplify_flat(body)
-    # Ridges along the arms (the sprite's lattice).
-    for path in ([(-11.6, 2.0), (-7.6, 5.8), (-3.6, 9.6), (-3.0, 13.6)], [(12.6, 2.0), (8.6, 5.8), (4.6, 9.6), (4.0, 13.6)],
-                 [(-11.6, -1.0), (-7.6, -6.0), (-3.6, -10.2), (-3.0, -13.6)],
-                 [(12.6, -1.0), (8.6, -6.0), (4.6, -10.2), (4.0, -13.6)]):
-        pts = w.catmull([(x, y, sh.surface_z(body, x, y, 3.0) - 0.15) for x, y in path], 1.0)
-        w.tube("ridge", pts, 0.45, light, 6)
+    # A purple ring round its top edge.
+    rim = sh.inset(sh._chaikin(outline[::-1], 2), 0.9)
+    w.tube("rim", [(x, y, sh.surface_z(body, x, y, 2.6) - 0.1) for x, y in rim + rim[:1]], 0.4, frame, 6)
+    # The hood over the eye and the block under it (the sprite's dark plates above and below the socket).
+    w.rounded_box("hood", (-0.2, 7.8, 2.0), (5.0, 5.6, 4.0), dark, bevel=0.9)
+    w.rounded_box("hood_edge", (-0.2, 5.2, 3.7), (4.4, 0.8, 0.8), light, bevel=0.3)
+    w.rounded_box("block", (0.6, -5.2, 1.6), (8.2, 4.4, 3.2), dark, bevel=0.8)
     # The socket: a dark bowl round the eye, its rim a ring.
     w.sphere("socket", (ex, ey, 1.4), (5.6, 4.4, 1.2), dark, 24, 8)
     rim = [(ex + 5.9 * math.cos(t), ey + 4.8 * math.sin(t)) for t in [2 * math.pi * i / 32 for i in range(33)]]

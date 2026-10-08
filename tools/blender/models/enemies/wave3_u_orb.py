@@ -2,9 +2,10 @@
 AST. CITY, AST ROCK); modelled as its sprites look (models.cfg: yaw=0).
 
 - claw_orb_tl, claw_orb_tr, claw_orb_bl, claw_orb_br (S 39, 41 above 77, 79): the levels place it as four
-  sprites (event 12: enemies 311, 312 above 309, 310). A big glossy black orb sunk in a stone floor, held by
+  sprites (event 12: enemies 311, 312 above 309, 310). A big glossy black orb standing on the ground, held by
   bronze shoulders at its sides and a studded bronze band across its front, two dark curved claws hanging
-  from the band round a small ball in a pit below it. The frames (43, 47 and their neighbours) heat the
+  from the band round a small ball below it. The stone floor the sprites draw round it is the map's ground
+  (the 3D ground shows it): left out. The frames (43, 47 and their neighbours) heat the
   small ball red and let it cool: the model shows it as a dark ember that glows. Built whole, 48 x 56, and
   cut into its four pieces (origin).
 
@@ -33,19 +34,8 @@ def py(row):
     return ORIGIN[1] - (row + 0.5)
 
 
-def machine(v, c, r):
-    """The machine's pixels (the rest is the stone floor)."""
-    x, y = px(c), py(r)
-    if ((x - ORB[0]) / (ORB_R[0] + 0.4)) ** 2 + ((y - ORB[1]) / (ORB_R[1] + 0.4)) ** 2 <= 1.0:
-        return True
-    if v >> 4 != 0 and v >> 4 != 5 and v >> 4 != 6:
-        return True
-    return 8 <= c <= 35 and 35 <= r <= 51 and (v & 15) <= 2
-
-
 @u.whole("orb", (48, 56))
 def orb_whole():
-    g = u.grid(art.ORB, 48)
     black = pal("co_black", 0x01, metallic=0.35, roughness=0.1)
     glint = pal("co_glint", 0x0e, metallic=0.1, roughness=0.1, glow=0.5)
     pit = pal("co_pit", 0x01, metallic=0.2, roughness=0.6)
@@ -55,12 +45,9 @@ def orb_whole():
     ember = pal("co_ember", 0x42, metallic=0.25, roughness=0.12, glow=0.6)
     parts = []
 
-    # The stone floor round it, sunk into a dark pit under the machine.
-    parts.append(w.floor("floor", g, w.floor_bands("co"), lambda v, c, r: not machine(v, c, r), origin=ORIGIN,
-                         top=1.0, relief=0.5))
-
-    # The orb: a glossy black ellipsoid sunk in the floor, a soft glint on its upper left, a dark collar
-    # where it meets the floor.
+    # (The stone floor round it is the map's: not modelled.)
+    # The orb: a glossy black ellipsoid sunk in the ground, a soft glint on its upper left, a dark collar
+    # where it meets the ground.
     orb = w.sphere("orb", ORB, ORB_R, black, 48, 24)
     parts.append(orb)
     gx, gy = px(12.0), py(13.0)
@@ -102,7 +89,7 @@ def orb_whole():
         w.paint_faces(claw, lambda c, n: tan[7] if n.z > 0.7 else tan[5] if n.z > 0.2 else tan[2])
         parts.append(claw)
 
-    # The small ball in the pit below the band: a dark ember, glowing.
+    # The small ball below the band: a dark ember, glowing.
     parts.append(w.sphere("ball", (px(22.5), py(45.0), 3.4), (6.6, 6.2, 4.6), ember, 28, 14))
     parts.append(w.sphere("ball_glint", (px(20.6), py(43.0), 7.25), (1.3, 1.1, 0.5), glint, 12, 6))
 
