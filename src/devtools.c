@@ -113,6 +113,16 @@ bool dev_start_game(void)
 		player[0].items.sidekick[RIGHT_SIDEKICK] = (JE_byte)SDL_clamp(right, 0, OPTION_NUM);
 	}
 
+	// "<front>,<rear>[,<power>]": the weapons, ids as in the shop's weapon ports, and their power (1-11).
+	const char *weapons = SDL_getenv("TYR3D_WEAPONS");
+	int front = 0, rear = 0, power = 1;
+	if (weapons != NULL && sscanf(weapons, "%d,%d,%d", &front, &rear, &power) >= 1)
+	{
+		player[0].items.weapon[FRONT_WEAPON].id = (JE_byte)SDL_clamp(front, 0, PORT_NUM);
+		player[0].items.weapon[REAR_WEAPON].id = (JE_byte)SDL_clamp(rear, 0, PORT_NUM);
+		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (JE_byte)SDL_clamp(power, 1, 11);
+	}
+
 	// Other game modes, as newGame() and newSuperArcadeGame() set them up.
 	const char *mode = SDL_getenv("TYR3D_MODE");
 	int mode_number = 1;

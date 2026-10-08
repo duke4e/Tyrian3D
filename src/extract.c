@@ -575,6 +575,17 @@ void dev_extract(const char *dir)
 			fprintf(json, "%s%d", k ? ", " : "", o->gr[k]);
 		fprintf(json, "], \"charge\": %d}", o->pwr);
 	}
+	// The weapon ports as the shop sells them: name and the weapons of their 11 power levels.
+	fprintf(json, "\n  ],\n  \"ports\": [");
+	for (int port = 1; port <= PORT_NUM; ++port)
+	{
+		fprintf(json, "%s\n    {\"id\": %d, \"name\": ", port > 1 ? "," : "", port);
+		json_string(json, weaponPort[port].name);
+		fprintf(json, ", \"weapons\": [");
+		for (int level = 0; level < 11; ++level)
+			fprintf(json, "%s%d", level ? ", " : "", weaponPort[port].op[0][level]);
+		fprintf(json, "]}");
+	}
 	// The shots: every sprite a weapon fires (its pattern's graphic and the animation's frames),
 	// with the weapons and who fires them (the player's ports, or enemies).
 	fprintf(json, "\n  ],\n  \"shots\": [");
