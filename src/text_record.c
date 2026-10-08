@@ -8,9 +8,10 @@
 #include "sprite.h"
 #include "video.h"
 
+#include <stdlib.h>
 #include <string.h>
 
-#define RECORDS 96
+#define RECORDS 256
 
 static TextRecord records[RECORDS];
 static int record_count = 0;
@@ -21,6 +22,8 @@ static int record_count = 0;
 static TextRecord frame_records[FRAME_RECORDS];
 static int frame_record_count = 0;
 static Uint32 frame_records_for = 0;
+
+static TextRecord pending;      // a screen's text while it is drawn
 
 static int depth = 0;          // nested text drawing calls
 static TextRecord *open = NULL;  // the outermost call's record, while it draws
@@ -66,6 +69,13 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
 		x -= width / 2;
 	else if (alignment == 2)
 		x -= width;
+	// (Without the spaces some texts end in: they take no pixels.)
+	char trimmed[sizeof(((TextRecord *)NULL)->text)];
+	SDL_strlcpy(trimmed, text, sizeof(trimmed));
+	for (int i = (int)strlen(trimmed) - 1; i >= 0 && trimmed[i] == ' '; --i)
+		trimmed[i] = '\0';
+	text = trimmed;
+	const int text_width = JE_textWidth(text, font);
 	TextRecord *r;
 	if (playfield)
 	{
@@ -79,26 +89,20 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
 		r = &frame_records[frame_record_count++];
 	}
 	else
-	{
-		r = &records[record_count < RECORDS ? record_count : RECORDS - 1];
-		if (record_count == RECORDS)
-		{
-			// Full: the oldest goes.
-			memmove(&records[0], &records[1], sizeof(records[0]) * (RECORDS - 1));
-			r = &records[RECORDS - 1];
-		}
-	}
+		r = &pending;
 	r->text_x = x;
 	r->text_y = y;
-	r->text_w = width;
+	r->text_w = text_width;
 	r->text_h = glyphs_height(text, font);
 	SDL_strlcpy(r->text, text, sizeof(r->text));
 	r->font = (int)font;
+	// Centred on the screen (JE_fontCenter) counts as centred too.
+	r->align = alignment == 0 && abs(x + text_width / 2 - 160) <= 2 && text_width > 0 ? 1 : alignment;
 	r->shadow_only = shadow_only;
 	// The text and its shadows (up to 2 pixels off), within the screen.
 	r->x = SDL_max(x - 2, 0);
 	r->y = SDL_max(y - 2, 0);
-	r->w = SDL_min(SDL_min(x + width + 3, surface->w) - r->x, TEXT_RECORD_MAX_W);
+	r->w = SDL_min(SDL_min(x + text_width + 3, surface->w) - r->x, TEXT_RECORD_MAX_W);
 	r->h = SDL_min(SDL_min(y + r->text_h + 3, surface->h) - r->y, TEXT_RECORD_MAX_H);
 	if (r->w <= 0 || r->h <= 0 || text[0] == '\0')
 		return;
@@ -117,41 +121,87 @@ void text_record_end(void)
 		open = NULL;
 		return;
 	}
-	// The same text again in the same place replaces the old record.
-	const int index = (int)(open - records);
-	for (int i = 0; i < (record_count < RECORDS ? record_count : RECORDS - 1); ++i)
-		if (i != index && records[i].text_x == open->text_x && records[i].text_y == open->text_y &&
-		    records[i].font == open->font && strcmp(records[i].text, open->text) == 0)
-		{
-			records[i].w = 0;  // dropped (kept in place: indices stay)
-		}
-	if (index == record_count && record_count < RECORDS)
-		++record_count;
 	open = NULL;
+	// A text drawn again in the same place (menus redraw their items, highlighted or not) replaces
+	// the old record: where it was drawn over the old text, what was there before that is its
+	// "before" (so taking it back leaves no pixel text).
+	TextRecord *r = &pending;
+	for (int i = 0; i < record_count; ++i)
+	{
+		TextRecord *old = &records[i];
+		if (old->text_x != r->text_x || old->text_y != r->text_y || old->font != r->font)
+			continue;
+		for (int y = 0; y < r->h; ++y)
+			for (int x = 0; x < r->w; ++x)
+			{
+				const int ox = r->x + x - old->x, oy = r->y + y - old->y;
+				if (ox < 0 || oy < 0 || ox >= old->w || oy >= old->h)
+					continue;
+				const int k = y * r->w + x, ok = oy * old->w + ox;
+				if (old->after[ok] != old->before[ok] && r->before[k] == old->after[ok])
+					r->before[k] = old->before[ok];
+			}
+		memmove(&records[i], &records[i + 1], sizeof(records[0]) * (size_t)(record_count - i - 1));
+		--record_count;
+		break;
+	}
+	if (record_count == RECORDS)
+	{
+		// Full: the oldest goes.
+		memmove(&records[0], &records[1], sizeof(records[0]) * (RECORDS - 1));
+		--record_count;
+	}
+	records[record_count++] = *r;
 }
 
-int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max)
+// Of a record's changed pixels, how many (per cent) a picture shows as the text drew them.
+static int kept_percent(const TextRecord *r, const Uint8 *pixels, int pitch)
 {
+	int changed = 0, kept = 0;
+	for (int y = 0; y < r->h; ++y)
+		for (int x = 0; x < r->w; ++x)
+		{
+			const int k = y * r->w + x;
+			if (r->after[k] == r->before[k])
+				continue;
+			++changed;
+			kept += pixels[(r->y + y) * pitch + r->x + x] == r->after[k];
+		}
+	return changed > 0 ? kept * 100 / changed : 0;
+}
+
+int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max, Uint8 *untexted)
+{
+	for (int y = 0; y < 200; ++y)
+		memcpy(untexted + y * 320, (const Uint8 *)screen->pixels + y * screen->pitch, 320);
+	// Newest first: a text taken back shows what was under it, maybe an older text, taken back next.
+	static const TextRecord *found[RECORDS];
 	int count = 0;
-	for (int i = 0; i < record_count && count < max; ++i)
+	for (int i = record_count - 1; i >= 0; --i)
 	{
 		const TextRecord *r = &records[i];
-		if (r->w <= 0 || r->h <= 0)
+		if (r->w <= 0 || r->h <= 0 || r->y + r->h > 200)
 			continue;
-		int changed = 0, kept = 0;
+		if (kept_percent(r, untexted, 320) < 85)
+			continue;
+		const bool shown = kept_percent(r, (const Uint8 *)screen->pixels, screen->pitch) >= 60;
+
 		for (int y = 0; y < r->h; ++y)
 			for (int x = 0; x < r->w; ++x)
 			{
 				const int k = y * r->w + x;
-				if (r->after[k] == r->before[k])
-					continue;
-				++changed;
-				kept += ((const Uint8 *)screen->pixels)[(r->y + y) * screen->pitch + r->x + x] == r->after[k];
+				Uint8 *pixel = &untexted[(r->y + y) * 320 + r->x + x];
+				if (r->after[k] != r->before[k] && *pixel == r->after[k])
+					*pixel = r->before[k];
 			}
-		if (changed > 0 && kept * 100 >= changed * 85)
-			out[count++] = r;
+		if (shown)
+			found[count++] = r;
 	}
-	return count;
+	// Oldest first, as they were drawn.
+	int n = 0;
+	for (int i = count - 1; i >= 0 && n < max; --i)
+		out[n++] = found[i];
+	return n;
 }
 
 int text_records_frame(const TextRecord **out, int max)

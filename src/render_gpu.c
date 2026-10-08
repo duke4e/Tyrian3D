@@ -1813,7 +1813,7 @@ static void text_quads(int font, const char *s, float x, float y, float cap, con
  * shows (text_record.h) are taken back off a copy of it (their pixels as before each was drawn,
  * newest first), and drawn again as text. TYR3D_FONTS=0: the game's pixel fonts.
  */
-#define SCREEN_TEXTS 96
+#define SCREEN_TEXTS 256
 
 static Uint8 untexted[SCREEN_W * SCREEN_H];
 static const TextRecord *screen_texts[SCREEN_TEXTS];
@@ -1829,20 +1829,13 @@ static bool fonts_enabled(void)
 
 static const Uint8 *screen_without_texts(const SDL_Surface *screen)
 {
-	for (int y = 0; y < SCREEN_H; ++y)
-		memcpy(untexted + y * SCREEN_W, (const Uint8 *)screen->pixels + y * screen->pitch, SCREEN_W);
-	screen_text_count = fonts_enabled() ? text_records_on(screen, screen_texts, SCREEN_TEXTS) : 0;
-	for (int i = screen_text_count - 1; i >= 0; --i)
+	if (fonts_enabled())
+		screen_text_count = text_records_on(screen, screen_texts, SCREEN_TEXTS, untexted);
+	else
 	{
-		const TextRecord *r = screen_texts[i];
-		for (int y = 0; y < r->h; ++y)
-			for (int x = 0; x < r->w; ++x)
-			{
-				const int k = y * r->w + x;
-				Uint8 *pixel = &untexted[(r->y + y) * SCREEN_W + r->x + x];
-				if (r->after[k] != r->before[k] && *pixel == r->after[k])
-					*pixel = r->before[k];
-			}
+		screen_text_count = 0;
+		for (int y = 0; y < SCREEN_H; ++y)
+			memcpy(untexted + y * SCREEN_W, (const Uint8 *)screen->pixels + y * screen->pitch, SCREEN_W);
 	}
 	return untexted;
 }
@@ -1898,7 +1891,10 @@ static void text_record_quads(const TextRecord *const *texts, int count, int x_o
 			cap *= r->text_w * kx * 1.08f / width;
 		// The game's capitals' tops and ours alike (descenders make some texts taller).
 		const float game_cap = caps[SDL_clamp(r->font, 0, 2)] * ky;
-		text_quads(font, text, ox + text_x * kx, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, color, cap * 0.09f);
+		const float ours = text_width(font, text, cap);
+		const float x = r->align == 1 ? ox + (text_x + r->text_w * 0.5f) * kx - ours * 0.5f
+		              : r->align == 2 ? ox + (text_x + r->text_w) * kx - ours : ox + text_x * kx;
+		text_quads(font, text, x, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, color, cap * 0.09f);
 	}
 }
 
