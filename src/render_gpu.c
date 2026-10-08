@@ -1895,7 +1895,7 @@ static void build_modern_hud(float window_w, float window_h)
 
 	// The level's name.
 	const float since = (SDL_GetTicks() - level_since) / 1000.0f;
-	if (since < 4.0f && levelName[0] != '\0')
+	if (since < 4.0f && levelName[0] != '\0' && !menu.on)
 	{
 		const float alpha = SDL_clamp(SDL_min(since / 0.5f, (4.0f - since) / 1.0f), 0.0f, 1.0f);
 		const float title[4] = { 1.0f, 0.92f, 0.75f, alpha };
