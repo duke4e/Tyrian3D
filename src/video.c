@@ -627,7 +627,7 @@ static void present_screen(SDL_Surface *src_surface)
 		// (Shown mid-tick, the frame being captured ends here: what's drawn of the tick after the
 		// menu shows in it only in 2D.)
 		if (l3d_capturing)
-			l3d_frame_end();
+			l3d_frame_end_early();
 		float fade[4];
 		backdrop_fade(fade);
 		SDL_Rect screen_rect;

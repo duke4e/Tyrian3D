@@ -1516,10 +1516,19 @@ static void add_menu(const SDL_Surface *screen)
 			for (int i = 0; i < k; ++i)
 				expected = ((expected & 0x0f) >> 1) | (expected & 0xf0);
 			Uint32 *out = &screen_rgba[y * SCREEN_W + x];
-			if (now != expected)
+			if (now == expected)
+			{
+				if (k > 0)
+					*out = shade[k];
+			}
+			else if ((now & 0xf0) == (expected & 0xf0) && (now & 0x0f) < (expected & 0x0f))
+			{
+				// Darkened in its own hue (text shadows): darkens the scene as much.
+				const Uint8 rgba[4] = { 0, 0, 0, (Uint8)(255 * (1 - ((now & 0x0f) + 1.0f) / ((expected & 0x0f) + 1.0f))) };
+				memcpy(out, rgba, sizeof(rgba));
+			}
+			else
 				*out = rgb_palette[now];
-			else if (k > 0)
-				*out = shade[k];
 		}
 }
 

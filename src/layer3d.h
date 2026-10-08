@@ -174,6 +174,9 @@ void l3d_phase(L3DLayerType type);
 void l3d_modify(void);
 // Ends the last phase. The frame stays readable until the next l3d_frame_begin.
 void l3d_frame_end(void);
+// Ends the frame being captured from a menu shown mid-tick (on the surface its phase began on, as
+// the menu has switched VGAScreen).
+void l3d_frame_end_early(void);
 // True once per completed frame; clears the flag.
 bool l3d_take_frame(void);
 

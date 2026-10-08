@@ -76,12 +76,15 @@ const char *l3d_layer_name(L3DLayerType type)
 	return layer_info[type].name;
 }
 
-// The surface the frame is captured from (the game's screen when it began; menus switch VGAScreen).
-static const SDL_Surface *capture_surface = NULL;
+// The surface the current phase began on (VGAScreen then: the game's screen, or VGAScreen2 while
+// smoothies draw), for ending a frame a menu interrupts (menus switch VGAScreen; l3d_frame_end_early).
+static const SDL_Surface *phase_surface = NULL;
+static bool ending_early = false;
 
 static void take_snapshot(void)
 {
-	const SDL_Surface *surface = capture_surface;
+	const SDL_Surface *surface = VGAScreen;
+	phase_surface = surface;
 	const Uint8 *rows = surface_rows(surface);
 	for (int y = 0; y < L3D_ROWS; ++y)
 		memcpy(snapshot + y * L3D_WIDTH, rows + y * surface->pitch, L3D_WIDTH);
@@ -109,7 +112,7 @@ static L3DLayer *new_layer(L3DLayerType type)
 
 static void end_phase(void)
 {
-	const SDL_Surface *surface = capture_surface;
+	const SDL_Surface *surface = ending_early && phase_surface != NULL ? phase_surface : VGAScreen;
 	assert(surface->w == L3D_WIDTH && surface->h == L3D_HEIGHT);
 	const Uint8 *rows = surface_rows(surface);
 
@@ -195,7 +198,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	memset(owner, 0xff, sizeof(owner));
 
 	l3d_capturing = true;
-	capture_surface = VGAScreen;
+	phase_surface = VGAScreen;
 	phase_kind = PHASE_FULL;
 	phase_type = first_type;
 }
@@ -219,6 +222,13 @@ void l3d_modify(void)
 	end_phase();
 	take_snapshot();
 	phase_kind = PHASE_MODIFY;
+}
+
+void l3d_frame_end_early(void)
+{
+	ending_early = true;
+	l3d_frame_end();
+	ending_early = false;
 }
 
 void l3d_frame_end(void)
