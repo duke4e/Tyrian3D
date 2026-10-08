@@ -7,6 +7,7 @@
  * a model of their own, animated as in the game. It runs until Escape (or TYR3D_EXIT_AFTER frames, with
  * TYR3D_DUMP_DIR for captures), then exits.
  *
+ *   TYR3D_VIEWER_FIRST=<n>      enemies: from the n-th sprite rule of models.cfg on
  *   TYR3D_VIEWER_YAW=<degrees>   turn the models (default 0: as in the game)
  *   TYR3D_VIEWER_ROLL=<degrees>  roll them, e.g. 90 to see them from the side
  *   TYR3D_VIEWER_SPIN=<degrees>  turn them by that much every frame

@@ -76,7 +76,9 @@ static int enemy_entries(Entry *entries)
 	int sheet_count = 0;
 
 	int count = 0;
-	for (int r = 0; r < m3d_sprite_rule_count() && count < MAX_ENTRIES; ++r)
+	// TYR3D_VIEWER_FIRST=<n>: from the n-th sprite rule on (0 = the first).
+	const int first_rule = SDL_getenv("TYR3D_VIEWER_FIRST") != NULL ? SDL_atoi(SDL_getenv("TYR3D_VIEWER_FIRST")) : 0;
+	for (int r = first_rule; r < m3d_sprite_rule_count() && count < MAX_ENTRIES; ++r)
 	{
 		char letter;
 		unsigned int first;

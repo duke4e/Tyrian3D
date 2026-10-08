@@ -141,12 +141,17 @@ def ground_enemies(name):
 def footprint(shape, points, extra):
     """The pixels within each point's size (plus extra) of it."""
     mask = np.zeros(shape, bool)
-    for x, y, size in points:
-        r = size / 2 + extra
-        y0, y1 = int(max(y - r, 0)), int(min(y + r + 1, shape[0]))
-        x0, x1 = int(max(x - r, 0)), int(min(x + r + 1, shape[1]))
-        if y0 < y1 and x0 < x1:
-            mask[y0:y1, x0:x1] = True
+    if not points:
+        return mask
+    pts = np.asarray(points, np.float32)
+    for size in np.unique(pts[:, 2]):
+        sel = pts[pts[:, 2] == size]
+        xs = np.clip(np.round(sel[:, 0]).astype(int), 0, shape[1] - 1)
+        ys = np.clip(np.round(sel[:, 1]).astype(int), 0, shape[0] - 1)
+        centres = np.zeros(shape, bool)
+        centres[ys, xs] = True
+        r = int(round(size / 2 + extra))
+        mask |= ndimage.maximum_filter(centres, size=2 * r + 1)
     return mask
 
 

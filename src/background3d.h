@@ -178,6 +178,35 @@ typedef struct
 // The terrain of a background's current map (1 = the ground), or NULL if it has none (or
 // TYR3D_TERRAIN=0).
 const B3DTerrain *b3d_terrain(int set);
+/*
+ * Vegetation (polish): palms, trees and grass of the ground map, found offline by their colour
+ * (tools/terrain/make_vegetation.py, assets/terrain/<map>.veg), drawn as models on the terrain.
+ * Positions in the exported map's pixels (the generated columns included), plants in order of y.
+ */
+enum { B3D_PALM, B3D_TREE, B3D_GRASS, B3D_PLANT_KINDS };
+
+typedef struct
+{
+	Uint16 x, y;
+	Uint8 kind;
+	Uint8 size;   // eighths of a pixel
+	Uint8 turn;   // 1/256 of a full turn
+	Uint8 shade;  // 128 = as is
+} B3DPlant;
+
+typedef struct
+{
+	int count;
+	int side_columns;
+	Uint8 colors[B3D_PLANT_KINDS * 2][3];  // palm leaves, trunk; tree leaves, highlights; grass base, tips
+	const B3DPlant *plants;
+	const int *row_start;  // by map row (tile row), the first plant at or below it; rows + 1 entries
+	int rows;
+} B3DVegetation;
+
+// The current ground map's vegetation, or NULL if it has none (or TYR3D_VEGETATION=0).
+const B3DVegetation *b3d_vegetation(void);
+
 // The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
 // collected), or -1 for an empty entry.
 int b3d_map_cell(int set, int map_row, int map_column, bool *flipped);

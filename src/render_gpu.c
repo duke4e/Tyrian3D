@@ -48,6 +48,8 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
+#define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
+#define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
 
 // Direction the sun's light travels: from above and the top left of the screen, as the sprites
 // are lit. TYR3D_SUN=<x>,<y>,<z> overrides it, for tuning.
@@ -1641,7 +1643,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS)
+                       L3D_MAX_GLOWS + DEEP_STARS + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
@@ -1698,14 +1700,17 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					mat4_rotation(0, model->pitch),
 					mat4_rotation(2, model->roll),
 					mat4_scaling(scale),
-					mat4_translation(-loaded->center[0], -loaded->center[1], -loaded->center[2]),
+					// Models authored in game pixels keep their origin (the sprite's centre) on the
+					// screen; others are centred on their bounds. Both are centred in height.
+					mat4_translation(model->size > 0 ? -loaded->center[0] : 0.0f, model->keep_origin ? 0.0f : -loaded->center[1],
+					                 model->size > 0 ? -loaded->center[2] : 0.0f),
 				};
 				Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
 				// Nothing sinks into the ground: models centred on their layer's height (items on
 				// the ground enemies' layer) are lifted by what their turned bounds reach below it.
 				const float reach = fabsf(transform.m[1]) * loaded->half[0] + fabsf(transform.m[5]) * loaded->half[1] +
 				                    fabsf(transform.m[9]) * loaded->half[2];
-				if (height - reach < 0.3f)
+				if (!model->keep_origin && height - reach < 0.3f)
 					transform.m[13] += 0.3f - (height - reach);
 				write_instance(instances + *instance_count * 24, &transform, 1.0f);
 				++*instance_count;
@@ -2224,7 +2229,6 @@ typedef struct
 	Uint8 variant, canvas;  // variant: how the puff is turned and mirrored
 } CloudPuff;
 
-#define MAX_CLOUD_PUFFS 4096
 static CloudPuff cloud_puffs[MAX_CLOUD_PUFFS];
 static int cloud_puff_count = 0;
 
@@ -2331,7 +2335,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 			x1 = SDL_max(x1, cloud_tiles[t].x + B3D_TILE_W);
 			z1 = SDL_max(z1, cloud_tiles[t].z + B3D_TILE_H);
 		}
-	const int margin = 8 * CLOUD_SCALE;  // room for the soft edges
+	const int margin = 20 * CLOUD_SCALE;  // room for the soft edges and their wander
 	x0 -= margin;
 	z0 -= margin;
 	x1 += margin;
@@ -2436,6 +2440,9 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 		const float map_x = x0 + (i % w + 0.5f) * CLOUD_SCALE, map_z = z0 + (i / w + 0.5f) * CLOUD_SCALE - map_scroll[set & 3];
 		const float erode = 0.6f * cloud_noise(map_x, map_z, 34.0f, 11) + 0.4f * cloud_noise(map_x, map_z, 15.0f, 12);
 		cover[i] = SDL_max(0.0f, cover[i] - 0.7f * erode * (1 - SDL_min(1.0f, wide[i])) * SDL_min(1.0f, cover[i] * 3));
+		// Nothing at the canvas's edges (where a cloud the canvas cuts off would end in a line).
+		const int edge = SDL_min(SDL_min(i % w, w - 1 - i % w), SDL_min(i / w, h - 1 - i / w));
+		cover[i] *= SDL_clamp(edge / 6.0f, 0.0f, 1.0f);
 	}
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x)
@@ -3342,11 +3349,23 @@ typedef struct
 
 static TerrainRing terrain_rings[B3D_SETS + 1];
 
+static struct
+{
+	unsigned int generation;  // b3d_map_generation + 1 the meshes were made for
+	BTBHGPUCustomMesh *meshes[B3D_PLANT_KINDS];
+} plant_meshes;  // (vegetation)
+
+static void forget_plants(void)
+{
+	memset(&plant_meshes, 0, sizeof(plant_meshes));
+}
+
 // The terrain's meshes and textures go with the window.
 static void forget_terrain(void)
 {
 	memset(terrain_rings, 0, sizeof(terrain_rings));
 	memset(terrain_rows, 0, sizeof(terrain_rows));
+	forget_plants();
 }
 
 // A background's ring, emptied when its map or colours change.
@@ -3427,6 +3446,251 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 	if (ring->water != NULL)
 		btbh_gpu_texture_update_rgba8(ring->water, (const uint8_t *)water, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
 		                              B3D_TILE_H);
+}
+
+/*
+ * Vegetation (b3d_vegetation): palms, trees and grass clumps as models on the terrain, made here
+ * for each map in its plants' colours (unit size: the plant's size in pixels scales them), shaded
+ * by the sun into their vertex colours, swaying in the wind (grass most). They cast shadows.
+ */
+#define PLANT_VERTICES 4096
+
+
+typedef struct
+{
+	V3DVertex *vertices;
+	Uint32 *indices;
+	int vc, ic;
+	float light[3];
+} PlantBuilder;
+
+static float plant_shade(const float n[3], const float light[3])
+{
+	const float lambert = n[0] * light[0] + n[1] * light[1] + n[2] * light[2];
+	const float up = SDL_max(light[1], 0.0f);
+	return (0.5f + 0.5f * SDL_max(lambert, 0.0f)) / (0.5f + 0.5f * up);
+}
+
+static Uint32 plant_vertex(PlantBuilder *b, float x, float y, float z, const float n_in[3], const float rgb[3])
+{
+	if (b->vc >= PLANT_VERTICES)
+		return 0;
+	float n[3] = { n_in[0], n_in[1], n_in[2] };
+	const float l = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+	for (int k = 0; k < 3; ++k)
+		n[k] = l > 0 ? n[k] / l : (k == 1);
+	V3DVertex *v = &b->vertices[b->vc];
+	memset(v, 0, sizeof(*v));
+	v->position[0] = x;
+	v->position[1] = y;
+	v->position[2] = z;
+	memcpy(v->normal, n, sizeof(n));
+	v->uv[0] = v->uv[1] = 0.5f;
+	v->tangent[0] = 1;
+	v->tangent[3] = 1;
+	// Leaves lit from both sides: the better of the two.
+	float back[3] = { -n[0], -n[1], -n[2] };
+	const float shade = SDL_max(plant_shade(n, b->light), 0.8f * plant_shade(back, b->light));
+	for (int k = 0; k < 3; ++k)
+		v->color[k] = rgb[k] * shade;
+	v->color[3] = 1;
+	return (Uint32)b->vc++;
+}
+
+static void plant_triangle(PlantBuilder *b, Uint32 a, Uint32 c, Uint32 d)
+{
+	b->indices[b->ic++] = a;
+	b->indices[b->ic++] = c;
+	b->indices[b->ic++] = d;
+}
+
+static void linear_rgb(const Uint8 rgb[3], float scale, float out[3])
+{
+	for (int k = 0; k < 3; ++k)
+		out[k] = srgb_to_linear(rgb[k]) * scale;
+}
+
+static float plant_random(Uint32 *seed)
+{
+	*seed = *seed * 1664525u + 1013904223u;
+	return (*seed >> 8) / 16777216.0f;
+}
+
+// A palm: a leaning, tapering trunk with rings, and drooping fronds (unit: the crown's radius).
+static void build_palm(PlantBuilder *b, const B3DVegetation *veg)
+{
+	float leaf[3], trunk[3], dark[3];
+	linear_rgb(veg->colors[0], 1.15f, leaf);
+	linear_rgb(veg->colors[1], 1.0f, trunk);
+	for (int k = 0; k < 3; ++k)
+		dark[k] = trunk[k] * 0.7f;
+	enum { SIDES = 6, RINGS = 7 };
+	const float top_y = 1.55f, lean = 0.3f;
+	Uint32 ring[RINGS][SIDES];
+	for (int r = 0; r < RINGS; ++r)
+	{
+		const float t = r / (float)(RINGS - 1);
+		const float cx = lean * t * t, cy = top_y * t, radius = 0.11f - 0.05f * t;
+		for (int s = 0; s < SIDES; ++s)
+		{
+			const float a = 6.2831853f * s / SIDES;
+			const float n[3] = { cosf(a), 0, sinf(a) };
+			ring[r][s] = plant_vertex(b, cx + radius * cosf(a), cy, radius * sinf(a), n, (r & 1) ? trunk : dark);
+		}
+	}
+	for (int r = 0; r + 1 < RINGS; ++r)
+		for (int s = 0; s < SIDES; ++s)
+		{
+			const int s2 = (s + 1) % SIDES;
+			plant_triangle(b, ring[r][s], ring[r + 1][s], ring[r + 1][s2]);
+			plant_triangle(b, ring[r][s], ring[r + 1][s2], ring[r][s2]);
+		}
+	// Fronds: strips from the top, arching out and drooping, folded along their midrib.
+	enum { FRONDS = 8, STEPS = 7 };
+	Uint32 seed = 1234;
+	for (int f = 0; f < FRONDS; ++f)
+	{
+		const float a = 6.2831853f * (f + 0.3f * plant_random(&seed)) / FRONDS;
+		const float dx = cosf(a), dz = sinf(a), length = 0.95f + 0.2f * plant_random(&seed);
+		Uint32 left[STEPS + 1], mid[STEPS + 1], right[STEPS + 1];
+		for (int i = 0; i <= STEPS; ++i)
+		{
+			const float t = i / (float)STEPS;
+			const float out = length * t, y = top_y + 0.28f * sinf(3.14159f * t * 0.7f) - 0.75f * t * t;
+			const float width = 0.2f * sinf(3.14159f * SDL_min(t * 1.15f, 1.0f));
+			const float px = lean + dx * out, pz = dz * out;
+			float shade_rgb[3];
+			for (int k = 0; k < 3; ++k)
+				shade_rgb[k] = leaf[k] * (0.75f + 0.35f * t);
+			const float n[3] = { 0, 1, 0 };
+			mid[i] = plant_vertex(b, px, y + 0.04f, pz, n, shade_rgb);
+			left[i] = plant_vertex(b, px - dz * width, y - 0.05f * width / 0.2f, pz + dx * width, n, shade_rgb);
+			right[i] = plant_vertex(b, px + dz * width, y - 0.05f * width / 0.2f, pz - dx * width, n, shade_rgb);
+		}
+		for (int i = 0; i < STEPS; ++i)
+		{
+			plant_triangle(b, mid[i], left[i], left[i + 1]);
+			plant_triangle(b, mid[i], left[i + 1], mid[i + 1]);
+			plant_triangle(b, mid[i], mid[i + 1], right[i + 1]);
+			plant_triangle(b, mid[i], right[i + 1], right[i]);
+		}
+	}
+}
+
+// A tree seen from above: a lumpy round crown on a short trunk (unit: the crown's radius).
+static void build_tree(PlantBuilder *b, const B3DVegetation *veg)
+{
+	float leaf[3], light[3];
+	linear_rgb(veg->colors[2], 1.0f, leaf);
+	linear_rgb(veg->colors[3], 1.0f, light);
+	static const float lobes[4][4] = { { 0, 1.0f, 0, 0.85f }, { 0.45f, 0.85f, 0.2f, 0.55f }, { -0.4f, 0.8f, 0.3f, 0.5f },
+	                                   { 0.05f, 0.9f, -0.45f, 0.5f } };
+	enum { SEG = 12, BANDS = 7 };
+	for (int l = 0; l < 4; ++l)
+	{
+		Uint32 grid[BANDS + 1][SEG];
+		for (int r = 0; r <= BANDS; ++r)
+		{
+			const float phi = 3.14159f * r / BANDS;  // from the top down
+			for (int s = 0; s < SEG; ++s)
+			{
+				const float theta = 6.2831853f * s / SEG;
+				float n[3] = { sinf(phi) * cosf(theta), cosf(phi), sinf(phi) * sinf(theta) };
+				Uint32 seed = (Uint32)(l * 977 + r * 131 + s * 17);
+				const float bump = 1.0f + 0.16f * (plant_random(&seed) - 0.5f);
+				const float radius = lobes[l][3] * bump;
+				// Lighter on top, darker underneath; speckled like leaves.
+				const float up = (n[1] + 1) * 0.5f;
+				float rgb[3];
+				const float speckle = 0.85f + 0.3f * plant_random(&seed);
+				for (int k = 0; k < 3; ++k)
+					rgb[k] = (leaf[k] + (light[k] - leaf[k]) * up * up) * speckle * (0.55f + 0.45f * up);
+				grid[r][s] = plant_vertex(b, lobes[l][0] + n[0] * radius, lobes[l][1] + n[1] * radius * 0.75f,
+				                          lobes[l][2] + n[2] * radius, n, rgb);
+			}
+		}
+		for (int r = 0; r < BANDS; ++r)
+			for (int s = 0; s < SEG; ++s)
+			{
+				const int s2 = (s + 1) % SEG;
+				plant_triangle(b, grid[r][s], grid[r + 1][s2], grid[r + 1][s]);
+				plant_triangle(b, grid[r][s], grid[r][s2], grid[r + 1][s2]);
+			}
+	}
+}
+
+// A clump of grass: blades from the ground, leaning out (unit: the blades' height).
+static void build_grass(PlantBuilder *b, const B3DVegetation *veg)
+{
+	float base[3], tip[3];
+	linear_rgb(veg->colors[4], 1.0f, base);
+	linear_rgb(veg->colors[5], 1.0f, tip);
+	Uint32 seed = 99;
+	for (int i = 0; i < 7; ++i)
+	{
+		const float a = 6.2831853f * plant_random(&seed), r = 0.3f * plant_random(&seed);
+		const float x = cosf(a) * r, z = sinf(a) * r;
+		const float h = 0.6f + 0.4f * plant_random(&seed), lean = 0.25f + 0.3f * plant_random(&seed);
+		const float facing = 6.2831853f * plant_random(&seed);
+		const float wx = cosf(facing) * 0.09f, wz = sinf(facing) * 0.09f;
+		const float n[3] = { -wz, 0.3f, wx };
+		const float mid_rgb[3] = { (base[0] + tip[0]) / 2, (base[1] + tip[1]) / 2, (base[2] + tip[2]) / 2 };
+		const Uint32 b0 = plant_vertex(b, x - wx, 0, z - wz, n, base);
+		const Uint32 b1 = plant_vertex(b, x + wx, 0, z + wz, n, base);
+		const Uint32 m0 = plant_vertex(b, x + cosf(a) * lean * 0.4f - wx * 0.7f, h * 0.55f, z + sinf(a) * lean * 0.4f - wz * 0.7f, n, mid_rgb);
+		const Uint32 m1 = plant_vertex(b, x + cosf(a) * lean * 0.4f + wx * 0.7f, h * 0.55f, z + sinf(a) * lean * 0.4f + wz * 0.7f, n, mid_rgb);
+		const Uint32 t0 = plant_vertex(b, x + cosf(a) * lean, h, z + sinf(a) * lean, n, tip);
+		plant_triangle(b, b0, b1, m1);
+		plant_triangle(b, b0, m1, m0);
+		plant_triangle(b, m0, m1, t0);
+	}
+}
+
+static void make_plant_meshes(const B3DVegetation *veg)
+{
+	if (plant_meshes.generation == b3d_map_generation + 1)
+		return;
+	plant_meshes.generation = b3d_map_generation + 1;
+	static V3DVertex vertices[PLANT_VERTICES];
+	static Uint32 indices[PLANT_VERTICES * 6];
+	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
+	                           sun_direction[2] * sun_direction[2]);
+	for (int kind = 0; kind < B3D_PLANT_KINDS; ++kind)
+	{
+		if (plant_meshes.meshes[kind] != NULL)
+			btbh_gpu_custom_mesh_destroy(plant_meshes.meshes[kind]);
+		plant_meshes.meshes[kind] = NULL;
+		PlantBuilder b = { vertices, indices, 0, 0,
+		                   { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length } };
+		if (kind == B3D_PALM)
+			build_palm(&b, veg);
+		else if (kind == B3D_TREE)
+			build_tree(&b, veg);
+		else
+			build_grass(&b, veg);
+		if (b.ic == 0)
+			continue;
+		BTBHGPUCustomMeshReport report;
+		plant_meshes.meshes[kind] = btbh_gpu_window_custom_mesh_create(window, vertices, (uint32_t)(b.vc * sizeof(V3DVertex)),
+		                                                               (uint32_t)b.vc, indices, (uint32_t)b.ic, &report);
+		if (plant_meshes.meshes[kind] == NULL)
+			fprintf(stderr, "warning: plant mesh: %s\n", report.message);
+	}
+}
+
+static float terrain_height_at(const B3DTerrain *t, float mx, float my)
+{
+	const float fx = mx / t->sample, fy = my / t->sample;
+	const int sx = (int)floorf(fx), sy = (int)floorf(fy);
+	float h[4];
+	for (int k = 0; k < 4; ++k)
+	{
+		const int ix = SDL_clamp(sx + (k & 1), 0, t->width - 1), iy = SDL_clamp(sy + (k >> 1), 0, t->height - 1);
+		const Sint8 value = t->heights[iy * t->width + ix];
+		h[k] = t->holes && value == B3D_TERRAIN_HOLE ? 0.0f : value;
+	}
+	const float ax = fx - sx, ay = fy - sy;
+	return (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
 }
 
 static void add_background_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -3650,6 +3914,66 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->alpha_cutoff = 0.5f;
 		if (terrain_rings[row->set].water != NULL)
 			set_glints(b, terrain_rings[row->set].water);
+	}
+
+	// The ground's plants, on the rows drawn.
+	const B3DVegetation *veg = frame_terrains[1] != NULL ? b3d_vegetation() : NULL;
+	if (veg == NULL || !m3d_enabled)
+		return;
+	make_plant_meshes(veg);
+	const B3DTerrain *ground = frame_terrains[1];
+	for (int kind = 0; kind < B3D_PLANT_KINDS && *batch_count < MAX_BATCHES; ++kind)
+	{
+		if (plant_meshes.meshes[kind] == NULL)
+			continue;
+		const int first = *instance_count;
+		for (int r = 0; r < terrain_row_count; ++r)
+		{
+			const TerrainRowDraw *row = &terrain_row_draws[r];
+			if (row->set != 1 || row->map_row < 0 || row->map_row >= veg->rows)
+				continue;
+			const Mat4 base = aligned(&(Mat4){ .m = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, row->x, row->height, row->z, 1 } });
+			for (int i = veg->row_start[row->map_row]; i < veg->row_start[row->map_row + 1] && *instance_count < MAX_INSTANCES; ++i)
+			{
+				const B3DPlant *p = &veg->plants[i];
+				if (p->kind != kind)
+					continue;
+				const float size = p->size / 8.0f, turn = p->turn / 256.0f * 6.2831853f;
+				const float x = p->x, z = p->y - row->map_row * (float)B3D_TILE_H;
+				const float h = terrain_height_at(ground, p->x, p->y);
+				// The wind: gusts rolling over the map, the grass bending most.
+				const float wind = sinf(glint_time * 1.6f + p->x * 0.045f + p->y * 0.03f) * 0.6f +
+				                   sinf(glint_time * 3.7f + p->x * 0.11f) * 0.25f;
+				const float bend = (kind == B3D_GRASS ? 0.35f : kind == B3D_PALM ? 0.05f : 0.015f) * wind;
+				Mat4 local = mat4_identity();
+				const float c = cosf(turn), s = sinf(turn);
+				local.m[0] = c * size;
+				local.m[2] = -s * size;
+				local.m[8] = s * size;
+				local.m[10] = c * size;
+				local.m[5] = size;
+				local.m[4] = bend * size;          // up bends towards +x...
+				local.m[6] = bend * 0.4f * size;   // ...and a little down the screen
+				local.m[12] = x;
+				local.m[13] = h;
+				local.m[14] = z;
+				const Mat4 world = mat4_mul(&base, &local);
+				float *instance = instances + *instance_count * 24;
+				write_instance_world(instance, &world, row->brightness * p->shade / 128.0f);
+				++*instance_count;
+			}
+		}
+		if (*instance_count == first)
+			continue;
+		terrain_batch[*batch_count] = true;  // they cast shadows
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = plant_meshes.meshes[kind];
+		b->first_instance = first;
+		b->instance_count = (uint32_t)(*instance_count - first);
+		b->albedo_texture = white_texture;
+		b->unlit_enabled = 1;
 	}
 }
 

@@ -220,10 +220,21 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		M3DModel *model = &m3d_models[m3d_model_count++];
 		SDL_strlcpy(model->name, tokens[1], sizeof(model->name));
 		snprintf(model->path, sizeof(model->path), "%s/%s", dir, tokens[2]);
-		model->size = count > 3 ? option_float(tokens[3], 0.0f) : 0.0f;
-		model->yaw = count > 4 ? option_float(tokens[4], 0.0f) : 0.0f;
-		model->pitch = count > 5 ? option_float(tokens[5], 0.0f) : 0.0f;
-		model->roll = count > 6 ? option_float(tokens[6], 0.0f) : 0.0f;
+		// The numbers in order (size, yaw, pitch, roll); "origin" anywhere among them.
+		float numbers[4] = { 0, 0, 0, 0 };
+		int n = 0;
+		model->keep_origin = false;
+		for (int t = 3; t < count; ++t)
+		{
+			if (strcmp(tokens[t], "origin") == 0)
+				model->keep_origin = true;
+			else if (n < 4)
+				numbers[n++] = option_float(tokens[t], 0.0f);
+		}
+		model->size = numbers[0];
+		model->yaw = numbers[1];
+		model->pitch = numbers[2];
+		model->roll = numbers[3];
 		return;
 	}
 

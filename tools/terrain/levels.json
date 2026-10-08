@@ -17,7 +17,8 @@
    "1": "~",
    "5": "~"
   },
-  "level": "SURFACE"
+  "level": "SURFACE",
+  "palms": true
  },
  "0dc8da96218c0667": {
   "classes": 6,
@@ -368,7 +369,8 @@
    "4": "~",
    "5": "~"
   },
-  "level": "TIME WAR"
+  "level": "TIME WAR",
+  "palms": true
  },
  "e327bb8b274be7cd": {
   "classes": 6,
@@ -414,7 +416,8 @@
    "4": "~",
    "5": "~"
   },
-  "level": "DESERTRUN"
+  "level": "DESERTRUN",
+  "palms": true
  },
  "fb9aa666d65584d7": {
   "classes": 6,

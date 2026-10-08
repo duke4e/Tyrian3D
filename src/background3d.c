@@ -1256,3 +1256,100 @@ const B3DTerrain *b3d_terrain(int set)
 	printf("terrain: background %d: %s (%d x %d samples%s)\n", set, path, t->width, t->height, t->holes ? ", holes" : "");
 	return t;
 }
+
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	bool present;
+	B3DVegetation vegetation;
+	B3DPlant *plants;
+	int *row_start;
+} vegetation_state;
+
+const B3DVegetation *b3d_vegetation(void)
+{
+	static int enabled = -1;
+	if (enabled < 0)
+		enabled = SDL_getenv("TYR3D_VEGETATION") == NULL || SDL_atoi(SDL_getenv("TYR3D_VEGETATION")) != 0;
+	if (!enabled)
+		return NULL;
+	if (vegetation_state.made_for == b3d_map_generation + 1)
+		return vegetation_state.present ? &vegetation_state.vegetation : NULL;
+	vegetation_state.made_for = b3d_map_generation + 1;
+	vegetation_state.present = false;
+	free(vegetation_state.plants);
+	free(vegetation_state.row_start);
+	vegetation_state.plants = NULL;
+	vegetation_state.row_start = NULL;
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/%016llx.veg",
+	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
+	         (unsigned long long)b3d_map_hash(1));
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return NULL;
+	Uint8 header[16 + B3D_PLANT_KINDS * 2 * 3];
+	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYVG", 4) == 0;
+	fseek(f, 0, SEEK_END);
+	const long packed_size = ftell(f) - (long)sizeof(header);
+	fseek(f, (long)sizeof(header), SEEK_SET);
+	Uint8 *packed = header_read && packed_size > 0 ? malloc((size_t)packed_size) : NULL;
+	const bool read = packed != NULL && fread(packed, 1, (size_t)packed_size, f) == (size_t)packed_size;
+	fclose(f);
+	if (!read)
+	{
+		free(packed);
+		return NULL;
+	}
+	Uint32 values[3];
+	memcpy(values, header + 4, sizeof(values));
+	B3DVegetation *v = &vegetation_state.vegetation;
+	v->count = (int)SDL_Swap32LE(values[1]);
+	v->side_columns = (int)SDL_Swap32LE(values[2]);
+	memcpy(v->colors, header + 16, sizeof(v->colors));
+	enum { RECORD = 8 };
+	uLongf size = (uLongf)v->count * RECORD;
+	Uint8 *records = malloc(size);
+	vegetation_state.plants = malloc(sizeof(B3DPlant) * (size_t)SDL_max(v->count, 1));
+	if (records == NULL || vegetation_state.plants == NULL ||
+	    uncompress(records, &size, packed, (uLong)packed_size) != Z_OK || size != (uLongf)v->count * RECORD)
+	{
+		free(packed);
+		free(records);
+		free(vegetation_state.plants);
+		vegetation_state.plants = NULL;
+		return NULL;
+	}
+	free(packed);
+	for (int i = 0; i < v->count; ++i)
+	{
+		const Uint8 *r = records + i * RECORD;
+		B3DPlant *p = &vegetation_state.plants[i];
+		p->x = (Uint16)(r[0] | r[1] << 8);
+		p->y = (Uint16)(r[2] | r[3] << 8);
+		p->kind = r[4];
+		p->size = r[5];
+		p->turn = r[6];
+		p->shade = r[7];
+	}
+	free(records);
+	// Where each map row's plants start (they are in order of y).
+	const MapSet m = map_set(1);
+	v->rows = m.rows;
+	vegetation_state.row_start = malloc(sizeof(int) * (size_t)(m.rows + 1));
+	if (vegetation_state.row_start == NULL)
+		return NULL;
+	int i = 0;
+	for (int row = 0; row <= m.rows; ++row)
+	{
+		while (i < v->count && vegetation_state.plants[i].y < row * B3D_TILE_H)
+			++i;
+		vegetation_state.row_start[row] = i;
+	}
+	v->plants = vegetation_state.plants;
+	v->row_start = vegetation_state.row_start;
+	vegetation_state.present = true;
+	printf("vegetation: %s (%d plants)\n", path, v->count);
+	return v;
+}

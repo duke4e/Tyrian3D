@@ -12,7 +12,7 @@
 
 #include "layer3d.h"
 
-#define M3D_MAX_MODELS 256
+#define M3D_MAX_MODELS 1024
 
 // Appearance kinds besides a model index (>= 0).
 #define M3D_SPRITE (-1)  // the original sprite in its layer
@@ -24,6 +24,7 @@ typedef struct
 	char path[512];
 	float size;               // footprint in game pixels; 0 = model units are game pixels
 	float yaw, pitch, roll;   // degrees, applied to face the model up the screen
+	bool keep_origin;         // drawn at its own origin (pieces of one object), not centred in height
 } M3DModel;
 
 typedef enum
