@@ -60,7 +60,18 @@ void v3d_decode_sheet(const Sprite2_array *sheet, Uint8 *indices, Uint8 *cover);
 // direction `light` (a unit vector towards the light) plus fill light, scaled so that faces
 // pointing straight up keep exactly the sprite's colours. (Lit, the scene's ambient and specular
 // terms would lift dark colours towards grey.)
+// open_sides (V3D_OPEN_*): sides where another part of the same enemy continues the sprite.
 int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigned int index, bool large,
-                   V3DStyle style, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices);
+                   V3DStyle style, Uint8 open_sides, const float light[3], V3DVertex *vertices, int *vertex_count,
+                   Uint32 *indices);
+
+#define V3D_OPEN_TOP    1u
+#define V3D_OPEN_RIGHT  2u
+#define V3D_OPEN_BOTTOM 4u
+#define V3D_OPEN_LEFT   8u
+
+// Which pixels along a sprite's edges are covered: edges[0] top and [2] bottom (bit x), [1] right
+// and [3] left (bit y). For joining the parts of an enemy made of several sprites.
+void v3d_sprite_edges(const Sprite2_array *sheet, unsigned int index, bool large, Uint32 edges[4]);
 
 #endif /* VOLUME3D_H */

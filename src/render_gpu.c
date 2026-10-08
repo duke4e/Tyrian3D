@@ -1584,8 +1584,9 @@ struct VolumeSheet
 		Uint32 colors_hash;
 		BTBHGPUTexture *texture;
 	} filtered[4];  // the sheet with a sprite filter applied (index = filter | shade)
-	BTBHGPUCustomMesh *meshes[V3D_STYLE_COUNT][2][SHEET_SPRITES + 1];  // [style][large][sprite index]
-	bool mesh_built[V3D_STYLE_COUNT][2][SHEET_SPRITES + 1];
+	// [style][large][open sides][sprite index]
+	BTBHGPUCustomMesh *meshes[V3D_STYLE_COUNT][2][16][SHEET_SPRITES + 1];
+	bool mesh_built[V3D_STYLE_COUNT][2][16][SHEET_SPRITES + 1];
 };
 
 static VolumeSheet volume_sheets[MAX_VOLUME_SHEETS];
@@ -1601,9 +1602,10 @@ static void release_volume_sheet(VolumeSheet *entry)
 {
 	for (int s = 0; s < V3D_STYLE_COUNT; ++s)
 		for (int l = 0; l < 2; ++l)
-			for (int i = 0; i <= SHEET_SPRITES; ++i)
-				if (entry->meshes[s][l][i] != NULL)
-					btbh_gpu_custom_mesh_destroy(entry->meshes[s][l][i]);
+			for (int o = 0; o < 16; ++o)
+				for (int i = 0; i <= SHEET_SPRITES; ++i)
+					if (entry->meshes[s][l][o][i] != NULL)
+						btbh_gpu_custom_mesh_destroy(entry->meshes[s][l][o][i]);
 	if (entry->texture != NULL)
 		btbh_gpu_texture_destroy(entry->texture);
 	for (size_t f = 0; f < COUNTOF(entry->filtered); ++f)
@@ -1712,22 +1714,23 @@ static VolumeSheet *get_volume_sheet(const Sprite2_array *sheet, const Uint32 co
 	return entry->texture != NULL ? entry : NULL;
 }
 
-static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprite, bool large, int style)
+static BTBHGPUCustomMesh *get_volume_mesh(VolumeSheet *entry, unsigned int sprite, bool large, int style, Uint8 open)
 {
 	if (sprite == 0 || sprite > SHEET_SPRITES || style < 0 || style >= V3D_STYLE_COUNT)
 		return NULL;
-	BTBHGPUCustomMesh **mesh = &entry->meshes[style][large][sprite];
-	if (!entry->mesh_built[style][large][sprite])
+	open &= 15;
+	BTBHGPUCustomMesh **mesh = &entry->meshes[style][large][open][sprite];
+	if (!entry->mesh_built[style][large][open][sprite])
 	{
-		entry->mesh_built[style][large][sprite] = true;
+		entry->mesh_built[style][large][open][sprite] = true;
 		static V3DVertex vertices[V3D_MAX_VERTICES];
 		static Uint32 indices[V3D_MAX_INDICES];
 		int vertex_count = 0;
 		const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
 		                           sun_direction[2] * sun_direction[2]);
 		const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
-		const int index_count = v3d_build_mesh(entry->indices, entry->cover, sprite, large, (V3DStyle)style, light,
-		                                       vertices, &vertex_count, indices);
+		const int index_count = v3d_build_mesh(entry->indices, entry->cover, sprite, large, (V3DStyle)style, open,
+		                                       light, vertices, &vertex_count, indices);
 		if (index_count > 0)
 		{
 			BTBHGPUCustomMeshReport report;
@@ -1754,7 +1757,8 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			continue;
 
 		VolumeSheet *entry = get_volume_sheet(first->sheet, colors, colors_hash);
-		BTBHGPUCustomMesh *mesh = entry != NULL ? get_volume_mesh(entry, first->sprite, first->large, first->style) : NULL;
+		BTBHGPUCustomMesh *mesh = entry != NULL ? get_volume_mesh(entry, first->sprite, first->large, first->style,
+		                                                          first->open_sides) : NULL;
 
 		// All objects showing the same sprite in the same state share one batch.
 		const int first_instance = *instance_count;
@@ -1763,7 +1767,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			const L3DObject *object = &frame->objects[p];
 			if (done[p] || object->model != L3D_VOLUME || object->sheet != first->sheet ||
 			    object->sprite != first->sprite || object->large != first->large || object->style != first->style ||
-			    object->filter != first->filter || object->ghost != first->ghost)
+			    object->filter != first->filter || object->ghost != first->ghost || object->open_sides != first->open_sides)
 				continue;
 			done[p] = true;
 			if (mesh == NULL || *instance_count >= MAX_INSTANCES)

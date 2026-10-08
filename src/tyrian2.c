@@ -209,6 +209,45 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 // Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
 #define ENEMY_MOTION_KEY(slot) (L3D_KEY_ENEMY + (Uint32)(slot))
 
+// Tyrian3D: the sides (V3D_OPEN_*) on which another part of the same large enemy continues this
+// one's sprite: an enemy of the same size right beside it, in the same group of slots (as the
+// game makes the parts of large enemies and bosses), whose sprite meets this one's along most of
+// the shared edge. The volumetric sprites then join there without a seam.
+static Uint8 enemy_open_sides(unsigned int i)
+{
+	const bool large = enemy[i].size == 1;
+	const int w = large ? 24 : 12, h = large ? 28 : 14;
+	Uint32 mine[4];
+	v3d_sprite_edges(enemy[i].sprite2s, enemy[i].egr[SDL_max(enemy[i].enemycycle, 1) - 1], large, mine);
+	Uint8 open = 0;
+	const unsigned int group = i / 25 * 25;
+	for (unsigned int j = group; j < group + 25; ++j)
+	{
+		if (j == i || enemyAvail[j] == 1 || enemy[j].size != enemy[i].size || enemy[j].sprite2s == NULL)
+			continue;
+		// Parts not yet moved this frame may be a step behind.
+		const int dx = enemy[j].ex - enemy[i].ex, dy = enemy[j].ey - enemy[i].ey, tolerance = 3;
+		int side;  // where the other part is: 0 above, 1 right, 2 below, 3 left
+		if (abs(dy) <= tolerance && abs(dx - w) <= tolerance)
+			side = 1;
+		else if (abs(dy) <= tolerance && abs(dx + w) <= tolerance)
+			side = 3;
+		else if (abs(dx) <= tolerance && abs(dy - h) <= tolerance)
+			side = 2;
+		else if (abs(dx) <= tolerance && abs(dy + h) <= tolerance)
+			side = 0;
+		else
+			continue;
+		Uint32 theirs[4];
+		v3d_sprite_edges(enemy[j].sprite2s, enemy[j].egr[SDL_max(enemy[j].enemycycle, 1) - 1], large, theirs);
+		const int edge = __builtin_popcount(mine[side]);
+		const int shared = __builtin_popcount(mine[side] & theirs[(side + 2) % 4]);
+		if (edge >= 3 && shared * 5 >= edge * 4)
+			open |= (Uint8)(1u << side);
+	}
+	return open;
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -253,6 +292,8 @@ static bool draw_enemy_model(unsigned int i)
 		const bool added = l3d_add_volume(enemy[i].sprite2s, enemy[i].egr[enemy[i].enemycycle - 1], enemy[i].size == 1,
 		                                  ground ? V3D_STYLE_FLAT : V3D_STYLE_RAISED, x, y, height, 0.0f, 0.0f,
 		                                  enemy[i].filter);
+		if (added && !ground)
+			l3d_open_last_object(enemy_open_sides(i));
 		l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
 		l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, NULL, NULL);
 		return added;
@@ -1077,6 +1118,7 @@ start_level_first:
 	JE_drawOptions();
 
 	JE_outText(VGAScreen, 268, twoPlayerMode ? 76 : 118, levelName, 12, 4);
+	printf("level: %s (episode %d)\n", levelName, episodeNum);  // Tyrian3D: for logs and sweeps
 
 	JE_showVGA();
 	JE_gammaCorrect(&colors, gammaCorrection);

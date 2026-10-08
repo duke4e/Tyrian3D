@@ -64,6 +64,46 @@ static float luminance(Uint8 palette_index)
 	return (0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]) / 255.0f;
 }
 
+void v3d_sprite_edges(const Sprite2_array *sheet, unsigned int index, bool large, Uint32 edges[4])
+{
+	// A small cache: the same few sprites are asked about every frame.
+	static struct { const Sprite2_array *sheet; unsigned int index; bool large; Uint32 edges[4]; } cache[512];
+	edges[0] = edges[1] = edges[2] = edges[3] = 0;
+	if (sheet == NULL || sheet->data == NULL || index == 0 || index > V3D_COLUMNS * V3D_ROWS)
+		return;
+	const unsigned int slot = ((uintptr_t)sheet / 16 * 31 + index * 2 + large) % COUNTOF(cache);
+	if (cache[slot].sheet == sheet && cache[slot].index == index && cache[slot].large == large)
+	{
+		memcpy(edges, cache[slot].edges, sizeof(cache[slot].edges));
+		return;
+	}
+
+	static Uint8 indices[V3D_ATLAS_W * 2 * V3D_CELL_H], cover[V3D_ATLAS_W * 2 * V3D_CELL_H];
+	memset(cover, 0, sizeof(cover));
+	const int w = large ? 2 * V3D_CELL_W : V3D_CELL_W, h = large ? 2 * V3D_CELL_H : V3D_CELL_H;
+	decode_cell(sheet, index, 0, 0, indices, cover);
+	if (large)
+	{
+		decode_cell(sheet, index + 1, V3D_CELL_W, 0, indices, cover);
+		decode_cell(sheet, index + V3D_COLUMNS, 0, V3D_CELL_H, indices, cover);
+		decode_cell(sheet, index + V3D_COLUMNS + 1, V3D_CELL_W, V3D_CELL_H, indices, cover);
+	}
+	for (int x = 0; x < w; ++x)
+	{
+		edges[0] |= (Uint32)cover[x] << x;                          // top
+		edges[2] |= (Uint32)cover[(h - 1) * V3D_ATLAS_W + x] << x;  // bottom
+	}
+	for (int y = 0; y < h; ++y)
+	{
+		edges[1] |= (Uint32)cover[y * V3D_ATLAS_W + w - 1] << y;    // right
+		edges[3] |= (Uint32)cover[y * V3D_ATLAS_W] << y;            // left
+	}
+	cache[slot].sheet = sheet;
+	cache[slot].index = index;
+	cache[slot].large = large;
+	memcpy(cache[slot].edges, edges, sizeof(cache[slot].edges));
+}
+
 // Share of fill light in the shading; the rest follows the angle to the light.
 #define FILL_LIGHT 0.45f
 
@@ -76,7 +116,8 @@ static float shade(const float normal[3], const float light[3])
 }
 
 int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigned int index, bool large,
-                   V3DStyle style, const float light[3], V3DVertex *vertices, int *vertex_count, Uint32 *indices)
+                   V3DStyle style, Uint8 open_sides, const float light[3], V3DVertex *vertices, int *vertex_count,
+                   Uint32 *indices)
 {
 	*vertex_count = 0;
 	if (index == 0 || index > V3D_COLUMNS * V3D_ROWS)
@@ -89,7 +130,14 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 	if (ox + w > V3D_ATLAS_W || oy + h > V3D_ATLAS_H)
 		return 0;
 
-	#define COVERED(x, y) ((x) >= 0 && (x) < w && (y) >= 0 && (y) < h && sheet_cover[(oy + (y)) * V3D_ATLAS_W + ox + (x)])
+	#define COVERED_IN(x, y) ((x) >= 0 && (x) < w && (y) >= 0 && (y) < h && sheet_cover[(oy + (y)) * V3D_ATLAS_W + ox + (x)])
+	// Beyond an open side the sprite goes on (another part of the same enemy): its edge pixels
+	// continue there, so the relief doesn't drop and there is no wall.
+	#define COVERED(x, y) (COVERED_IN(x, y) || \
+		((x) == -1 && (open_sides & V3D_OPEN_LEFT) && COVERED_IN(0, y)) || \
+		((x) == w && (open_sides & V3D_OPEN_RIGHT) && COVERED_IN(w - 1, y)) || \
+		((y) == -1 && (open_sides & V3D_OPEN_TOP) && COVERED_IN(x, 0)) || \
+		((y) == h && (open_sides & V3D_OPEN_BOTTOM) && COVERED_IN(x, h - 1)))
 	#define CORNER(cx, cy) ((cy) * (w + 1) + (cx))
 
 	// Distance of each pixel corner from the silhouette's edge (two-pass chamfer).
@@ -142,7 +190,7 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 				int n = 0;
 				for (int py = cy - 1; py <= cy; ++py)
 					for (int px = cx - 1; px <= cx; ++px)
-						if (COVERED(px, py))
+						if (COVERED_IN(px, py))
 						{
 							lum += luminance(sheet_indices[(oy + py) * V3D_ATLAS_W + ox + px]);
 							++n;
@@ -249,6 +297,7 @@ int v3d_build_mesh(const Uint8 *sheet_indices, const Uint8 *sheet_cover, unsigne
 		}
 	*vertex_count = vc;
 	#undef COVERED
+	#undef COVERED_IN
 	#undef CORNER
 	return ic;
 }

@@ -77,6 +77,7 @@ typedef struct
 	bool ghost;           // half transparent (the player's ship while invulnerable)
 	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
 	bool pointer;         // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
+	Uint8 open_sides;     // L3D_VOLUME: sides another part of the same enemy continues (V3D_OPEN_*)
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -201,6 +202,9 @@ void l3d_new_object_velocity(float vx, float vy, float *out_vx, float *out_vy);
 // The ship the mouse moves directly: in the frames shown between ticks it is drawn where the mouse
 // has moved it so far (l3d_pointer_lead, game pixels), rather than moved on by its velocity.
 void l3d_pointer_last_object(void);
+// The volumetric sprite recorded last continues on these sides (V3D_OPEN_*) in another part of
+// the same enemy (the parts of large enemies and bosses join without a seam).
+void l3d_open_last_object(Uint8 sides);
 extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).

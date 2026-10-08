@@ -13,24 +13,70 @@ def _span(row):
     return (covered[0], covered[-1]) if covered else None
 
 
-def outline(rows, width=24, inset=0.15):
-    """The silhouette's outline as a counter-clockwise polygon [(x, y), ...] (left edges down,
-    right edges up; holes and notches between a row's ends are filled). The edges run through the
-    rows' middles, so slanted edges are straight lines rather than steps."""
+def _simplify(points, epsilon):
+    """Douglas-Peucker on an open polyline."""
+    if len(points) < 3:
+        return points
+    (ax, ay), (bx, by) = points[0], points[-1]
+    dx, dy = bx - ax, by - ay
+    length = (dx * dx + dy * dy) ** 0.5
+    worst, at = -1.0, 0
+    for i in range(1, len(points) - 1):
+        px, py = points[i]
+        d = abs(dy * (px - ax) - dx * (py - ay)) / length if length > 0 else ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+        if d > worst:
+            worst, at = d, i
+    if worst <= epsilon:
+        return [points[0], points[-1]]
+    return _simplify(points[:at + 1], epsilon)[:-1] + _simplify(points[at:], epsilon)
+
+
+def outline(rows, width=24, epsilon=0.75):
+    """The silhouette's outline as a counter-clockwise polygon [(x, y), ...]: the boundary of the
+    covered pixels (notches and gaps between parts stay; holes inside are filled), simplified so
+    that slanted edges are straight lines rather than steps."""
     height = len(rows)
-    spans = [(r, _span(row.ljust(width, "."))) for r, row in enumerate(rows)]
-    spans = [(r, span) for r, span in spans if span is not None]
-    left, right = [], []
-    for i, (r, (a, b)) in enumerate(spans):
-        x0, x1 = a - width / 2 + inset, b + 1 - width / 2 - inset
-        ys = [height / 2 - r - 0.5]
-        if i == 0:
-            ys = [height / 2 - r - inset] + ys
-        if i == len(spans) - 1:
-            ys = ys + [height / 2 - r - 1 + inset]
-        left += [(x0, y) for y in ys]
-        right += [(x1, y) for y in ys]
-    return left + right[::-1]
+    grid = [row.ljust(width, ".") for row in rows]
+    covered = lambda x, r: 0 <= x < width and 0 <= r < height and grid[r][x] != "."
+    # Pixel edges between covered and empty pixels, clockwise round the covered ones (rows down).
+    edges = {}
+    for r in range(height):
+        for x in range(width):
+            if not covered(x, r):
+                continue
+            if not covered(x, r - 1):
+                edges.setdefault((x, r), []).append((x + 1, r))
+            if not covered(x + 1, r):
+                edges.setdefault((x + 1, r), []).append((x + 1, r + 1))
+            if not covered(x, r + 1):
+                edges.setdefault((x + 1, r + 1), []).append((x, r + 1))
+            if not covered(x - 1, r):
+                edges.setdefault((x, r + 1), []).append((x, r))
+    loops = []
+    while edges:
+        start = next(iter(edges))
+        loop, point = [start], start
+        while True:
+            nexts = edges.get(point)
+            if not nexts:
+                break
+            nxt = nexts.pop()
+            if not nexts:
+                del edges[point]
+            if nxt == start:
+                break
+            loop.append(nxt)
+            point = nxt
+        loops.append(loop)
+    loop = max(loops, key=len)  # the outer boundary
+    # Drop points in the middle of straight runs, then simplify from the two farthest points.
+    far = max(range(len(loop)), key=lambda i: (loop[i][0] - loop[0][0]) ** 2 + (loop[i][1] - loop[0][1]) ** 2)
+    first, second = loop[:far + 1], loop[far:] + [loop[0]]
+    points = _simplify(first, epsilon)[:-1] + _simplify(second, epsilon)[:-1]
+    polygon = [(px - width / 2, height / 2 - py) for px, py in points]
+    area = sum(polygon[i][0] * polygon[(i + 1) % len(polygon)][1] - polygon[(i + 1) % len(polygon)][0] * polygon[i][1]
+               for i in range(len(polygon)))
+    return polygon if area > 0 else polygon[::-1]
 
 
 def centre_run(rows, width=24, centre=None):

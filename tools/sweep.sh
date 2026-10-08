@@ -1,30 +1,25 @@
 #!/bin/sh
-# Plays every level briefly (autopilot, no damage) and saves a contact sheet per level.
-#
-# usage: tools/sweep.sh <out_dir> [episode...]
-#   SWEEP_FRAMES  frames to run per level (default 800)
-#   SWEEP_EVERY   dump every Nth frame (default 200)
-#   SWEEP_SCALE   contact sheet scale (default 0.25)
-# Other TYR3D_* variables in the environment apply to every run (e.g. TYR3D_2D=1).
-set -eu
-OUT="$1"; shift
+# Plays every section of the episodes with the autopilot, one run after another in a small
+# window, and reports per run the level, whether it ran to the end and its warnings (plan M9).
+# usage: tools/sweep.sh <out dir> [episodes, e.g. "1 2 3 4 5"] [sections, e.g. "1 2 ... 40"] [extra env...]
+# Each run's log is <out dir>/<episode>_<section>.log; the summary is <out dir>/summary.txt.
+set -u
+OUT="$1"; EPISODES="${2:-1 2 3 4 5}"; SECTIONS="${3:-$(seq 1 40)}"
+shift 3 2>/dev/null || shift $#
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-FRAMES="${SWEEP_FRAMES:-800}"
-EVERY="${SWEEP_EVERY:-200}"
-SCALE="${SWEEP_SCALE:-0.25}"
 mkdir -p "$OUT"
-
-"$ROOT/tools/levels.py" "$ROOT/data/tyrian2000" "$@" | while read -r start name; do
-	tag="e$(echo "$start" | tr ':' 's')"
-	echo "== $start $name"
-	"$ROOT/tools/capture_run.sh" "$OUT/$tag" "$EVERY" "$FRAMES" \
-		TYR3D_START="$start" TYR3D_AUTOPILOT=1 TYR3D_GODMODE=1 > /dev/null 2>&1 || true
-	frames=$(ls "$OUT/$tag"/frame_*.bmp 2>/dev/null | grep -v layer || true)
-	if [ -n "$frames" ]; then
-		# shellcheck disable=SC2086
-		python3 "$ROOT/tools/montage.py" "$OUT/$tag.png" 4 "$SCALE" $frames
-		echo "   $OUT/$tag.png"
-	else
-		echo "   no frames (see $OUT/$tag/log.txt)"
-	fi
+: > "$OUT/summary.txt"
+for e in $EPISODES; do
+	for s in $SECTIONS; do
+		run="$OUT/run"
+		rm -rf "$run"
+		"$ROOT/tools/capture_run.sh" "$run" 100000 "${SWEEP_FRAMES:-700}" TYR3D_START="$e:$s" TYR3D_AUTOPILOT=1 \
+			TYR3D_GODMODE=1 TYR3D_WINDOW_SIZE=480x270 "$@" > /dev/null 2>&1
+		cp "$run/log.txt" "$OUT/${e}_${s}.log"
+		level=$(grep -m1 '^level:' "$run/log.txt" | sed 's/^level: //')
+		if grep -q 'exiting after' "$run/log.txt"; then status=ok; else status=FAILED; fi
+		warnings=$(grep -ci 'warning\|error' "$run/log.txt")
+		echo "$e:$s $status warnings=$warnings level=${level:-none}" | tee -a "$OUT/summary.txt"
+		rm -rf "$run"
+	done
 done
