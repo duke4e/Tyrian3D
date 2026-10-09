@@ -52,9 +52,11 @@ def level_sections(path):
 def main():
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     data_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "data", "tyrian2000")
-    episodes = [int(e) for e in sys.argv[2:]] or [1, 2, 3, 4, 5]
+    episodes = [int(e) for e in sys.argv[2:]] or [1, 2, 3, 4, 5, 6]
     for episode in episodes:
         path = os.path.join(data_dir, f"levels{episode}.dat")
+        if episode == 6:  # Tyrian3D's episode 6 is content (tools/content/episode6)
+            path = os.path.join(root, "assets", "content", "episode6", "levels6.dat")
         if not os.path.exists(path):
             continue
         for section, name in level_sections(path):

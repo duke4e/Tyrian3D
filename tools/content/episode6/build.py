@@ -28,7 +28,7 @@ OUT = os.path.join(ROOT, "assets", "content", "episode6")
 LEVELS_DIR = os.path.join(HERE, "levels")
 
 # The episode's levels in order (their json files in levels/).
-LEVELS = ["dig_site"]
+LEVELS = ["dig_site", "reef", "grey_moon", "roost", "deep_ice", "glacier", "crustgate"]
 ENEMY_D1 = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56, 33, 45, 59, 68}
 
 # The shop before the first level: lines of ]I (ships, front and rear guns, generators, engine,
@@ -114,7 +114,9 @@ def level_entries(level, importer):
     body = struct.pack("<H", len(events))
     for e in events:
         d1 = e["d1"]
-        if e["type"] in ENEMY_D1 and "ep" in e:
+        if e["type"] == 12 and "ep" in e:
+            d1 = importer.enemy_block(e["ep"], d1)
+        elif e["type"] in ENEMY_D1 and "ep" in e:
             d1 = importer.enemy(e["ep"], d1)
         body += struct.pack("<HBhhbbbB", e["t"], e["type"], d1, e["d2"], e["d3"], e["d5"], e["d6"], e["d4"])
     maps = b""
@@ -137,8 +139,9 @@ def main():
     for level in levels:
         for e in level["events"]:
             if e["type"] in ENEMY_D1 and "ep" in e and e["d1"] > 0:
-                if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"]):
-                    kept.add(e["d1"])
+                for k in range(4 if e["type"] == 12 else 1):
+                    if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k):
+                        kept.add(e["d1"] + k)
     importer = enemydata.Importer(kept)
     entries = []
     for level in levels:

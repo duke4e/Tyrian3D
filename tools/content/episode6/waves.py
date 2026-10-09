@@ -93,14 +93,16 @@ class Source:
                 block.append(dict(e, t=e["t"] - start))
         return dict(start=start, events=block, links=links)
 
-    def waves(self, max_gap=40, max_count=16, span=1500):
+    def waves(self, max_gap=40, max_count=16, span=1500, ground=False):
         """Sky and top waves: spawns in a row (no gap over max_gap, the same kind of enemy, at
-        most max_count), with the events on their links up to span after the wave's start."""
+        most max_count), with the events on their links up to span after the wave's start.
+        ground: ground enemies too (levels over open space, where nothing under them matters:
+        asteroids)."""
         boss = self.boss_links()
         events = [e for e in self.events if e["t"] < 60000]
-        ground_links = {e["d4"] for e in events if e["type"] in GROUND_SPAWNS and e["d4"]}
-        spawns = [e for e in events if e["type"] in SKY_SPAWNS | TOP_SPAWNS and e["d4"] not in boss
-                  and e["d4"] not in ground_links]
+        ground_links = set() if ground else {e["d4"] for e in events if e["type"] in GROUND_SPAWNS and e["d4"]}
+        kinds = SKY_SPAWNS | TOP_SPAWNS | (GROUND_SPAWNS if ground else set())
+        spawns = [e for e in events if e["type"] in kinds and e["d4"] not in boss and e["d4"] not in ground_links]
         waves = []
         for e in spawns:
             w = waves[-1] if waves else None

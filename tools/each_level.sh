@@ -7,6 +7,6 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/build/game"
 python3 "$ROOT/tools/levels.py" | while read -r section name; do
-	env TYR3D_WINDOWED=1 TYR3D_START="$section" TYR3D_EXIT_AFTER=80 "$@" ./tyrian3d < /dev/null 2>&1 |
+	env SDL_AUDIO_DRIVER=dummy TYR3D_WINDOWED=1 TYR3D_START="$section" TYR3D_EXIT_AFTER=80 "$@" ./tyrian3d < /dev/null 2>&1 |
 		grep "^background" | sed "s/^/$section $name: /"
 done

@@ -164,16 +164,24 @@ class Importer:
         others = [struct.unpack_from("<H", record, at)[0] for at in (71, 75)]
         return all(self._same_enemy(episode, o, seen) for o in others if 0 < o <= tyrdata.ENEMY_NUM)
 
-    def enemy(self, episode, number):
-        """An enemy of an episode as an enemy number of episode 6 (the same number when it is
-        the same there)."""
-        if number <= 0 or episode == 5 or self._same_enemy(episode, number):
-            return number
-        key = (episode, number)
-        if key in self.enemy_map:
-            return self.enemy_map[key]
-        new = self.free_enemies.pop(0)
-        self.enemy_map[key] = new
+    def enemy_block(self, episode, first, count=4):
+        """count consecutive enemies (a 4-part enemy's, event 12) as consecutive numbers of
+        episode 6."""
+        if episode == 5 or all(self._same_enemy(episode, first + k) for k in range(count)):
+            return first
+        if (episode, first) in self.enemy_map:
+            return self.enemy_map[(episode, first)]
+        block = self.free_enemies[:count]
+        assert block == list(range(block[0], block[0] + count)), "no consecutive free enemy slots"
+        # Taken in place: the parts' own references (launches, drops) come after.
+        for k in range(count):
+            self.free_enemies.remove(block[k])
+            self.enemy_map[(episode, first + k)] = block[k]
+        for k in range(count):
+            self._fill(episode, first + k, block[k])
+        return block[0]
+
+    def _fill(self, episode, number, new):
         record = bytearray(self._enemy_record(episode, number))
         for k in range(3):
             tur = record[1 + k]
@@ -184,4 +192,16 @@ class Importer:
             if 0 < other <= tyrdata.ENEMY_NUM:
                 struct.pack_into("<H", record, at, self.enemy(episode, other))
         self.data[self.enemies[new]:self.enemies[new] + ENEMY_SIZE] = record
+
+    def enemy(self, episode, number):
+        """An enemy of an episode as an enemy number of episode 6 (the same number when it is
+        the same there)."""
+        if number <= 0 or episode == 5 or self._same_enemy(episode, number):
+            return number
+        key = (episode, number)
+        if key in self.enemy_map:
+            return self.enemy_map[key]
+        new = self.free_enemies.pop(0)
+        self.enemy_map[key] = new
+        self._fill(episode, number, new)
         return new

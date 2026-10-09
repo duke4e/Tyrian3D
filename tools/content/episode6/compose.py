@@ -95,7 +95,7 @@ def expand(level):
         if p["kind"] == "boss":
             template = dict(source.boss(), length=CLOCK_END - p["start"])
         else:
-            template = source.waves()[p["index"]]
+            template = source.waves(ground=p.get("ground", False))[p["index"]]
         placed += place(template, p["start"], links, source.episode)
     head = [e for e in level["events"] if e["t"] == 0]
     rest = [e for e in level["events"] if e["t"] > 0]
@@ -103,7 +103,7 @@ def expand(level):
 
 
 def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, density=None,
-            intensity=lambda f: 0.4 + 0.6 * f, start=150):
+            intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False):
     """The level's own events and its placements (see expand). grid: the new layer 1 map (rows of
     shapes). density(row) -> chance of a ground enemy on a suitable tile there. intensity(fraction
     of the level) -> how dense the waves come (0-1)."""
@@ -120,7 +120,7 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
     placements.append(dict(kind="boss", episode=boss_source.episode, name=boss_source.name, start=boss_time))
 
     # Waves the sheets allow (four sheets in all: the boss's and the waves' most common).
-    templates = [(s, i, w) for s in wave_sources for i, w in enumerate(s.waves())
+    templates = [(s, i, w) for s in wave_sources for i, w in enumerate(s.waves(ground=ground_waves))
                  if 0 < w["count"] <= 12 and w["length"] <= 1600]
     common = {}
     for _, _, w in templates:
@@ -142,7 +142,10 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if not fitting:
             break
         source, index, w = rnd.choice(fitting)
-        placements.append(dict(kind="wave", episode=source.episode, name=source.name, index=index, start=t))
+        placement = dict(kind="wave", episode=source.episode, name=source.name, index=index, start=t)
+        if ground_waves:
+            placement["ground"] = True
+        placements.append(placement)
         spawn_span = max(e["t"] for e in w["events"] if e["type"] in W.SPAWNS)
         t += spawn_span + int(rnd.uniform(90, 260) * (1.3 - level))
 
