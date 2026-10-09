@@ -47,6 +47,7 @@
 #include "palette.h"
 #include "params.h"
 #include "picload.h"
+#include "rogue.h"
 #include "sprite.h"
 #include "tyrian2.h"
 #include "varz.h"
@@ -1059,7 +1060,8 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef NDEBUG
-	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL && SDL_getenv("TYR3D_DEBUG") == NULL)
+	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL && SDL_getenv("TYR3D_DEBUG") == NULL &&
+	    SDL_getenv("TYR3D_ROGUE") == NULL)
 		intro_logos();
 #endif
 
@@ -1083,6 +1085,7 @@ int main(int argc, char *argv[])
 #endif
 		{
 			debug_flight = false;
+			rogue_run = false;
 			if (dev_start_game())
 			{
 				// Tyrian3D dev tool: started a game at a requested level.
@@ -1091,6 +1094,10 @@ int main(int argc, char *argv[])
 			else if (debug_picker_from_environment() && debug_pick_and_start())
 			{
 				// Tyrian3D: TYR3D_DEBUG=pick, a debug flight picked from the level list.
+			}
+			else if (rogue_from_environment())
+			{
+				// Tyrian3D: TYR3D_ROGUE, a rogue run at once.
 			}
 			else if (!titleScreen())
 			{

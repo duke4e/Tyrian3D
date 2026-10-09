@@ -21,12 +21,11 @@ static int line_number = 0;
 #define WARN(...) (fprintf(stderr, "warning: content %s:%d: ", content_file, line_number), fprintf(stderr, __VA_ARGS__), \
                    fputc('\n', stderr))
 
-// Splits a line into tokens: words, key=value pairs, "quoted text" (quotes taken off, in values too).
-static int tokenize(char *line, char *tokens[MAX_TOKENS])
+int content_tokenize(char *line, char **tokens, int max)
 {
 	int count = 0;
 	char *p = line;
-	while (*p != '\0' && count < MAX_TOKENS)
+	while (*p != '\0' && count < max)
 	{
 		while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
 			++p;
@@ -243,7 +242,7 @@ void content_apply(void)
 	{
 		++line_number;
 		char *tokens[MAX_TOKENS];
-		const int count = tokenize(line, tokens);
+		const int count = content_tokenize(line, tokens, MAX_TOKENS);
 		if (count < 2)
 			continue;
 		if (strcmp(tokens[0], "weapon") == 0)

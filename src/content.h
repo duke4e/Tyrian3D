@@ -35,4 +35,8 @@
 
 void content_apply(void);
 
+// Splits a line of these files into tokens: words, key=value pairs, "quoted text" (quotes taken off,
+// in values too); a # ends the line. The count (at most max).
+int content_tokenize(char *line, char **tokens, int max);
+
 #endif /* CONTENT_H */

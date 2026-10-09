@@ -32,9 +32,12 @@ Uint32 dev_demo_idle_ms(void)
 }
 
 static long frame = 0;
+static SDL_AtomicInt key_pressed;  // TYR3D_DUMP_KEYS: a test key since the last dump
 
 static bool dumping_this_frame(void)
 {
+	if (SDL_getenv("TYR3D_DUMP_KEYS") != NULL)
+		return SDL_getenv("TYR3D_DUMP_DIR") != NULL && SDL_GetAtomicInt(&key_pressed) != 0;
 	const long dump_every = env_long("TYR3D_DUMP_EVERY", 60);
 	return SDL_getenv("TYR3D_DUMP_DIR") != NULL && dump_every > 0 && (frame + 1) % dump_every == 0 &&
 	       frame + 1 >= env_long("TYR3D_DUMP_FROM", 0);
@@ -204,6 +207,33 @@ bool dev_background_run(void)
 	return SDL_getenv("TYR3D_WINDOWED") != NULL;
 }
 
+void dev_level_tick(void)
+{
+	static const char *limit = NULL;
+	static bool looked = false;
+	if (!looked)
+		limit = SDL_getenv("TYR3D_LEVEL_TICKS"), looked = true;
+	static int ticks = 0;
+	const char *die = SDL_getenv("TYR3D_LEVEL_DIE");
+	if (limit == NULL && die == NULL)
+		return;
+	++ticks;
+	if (die != NULL && ticks == SDL_atoi(die) && player[0].is_alive)
+	{
+		printf("devtools: destroying the ship after %d ticks\n", ticks);
+		JE_playerDamage(255, &player[0]);
+		JE_playerDamage(255, &player[0]);
+	}
+	if (limit != NULL && ticks >= SDL_atoi(limit) && !reallyEndLevel)
+	{
+		printf("devtools: ending the level after %d ticks\n", ticks);
+		reallyEndLevel = true;
+		ticks = 0;
+	}
+	if (die != NULL && reallyEndLevel)
+		ticks = 0;
+}
+
 bool dev_godmode(void)
 {
 	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL;
@@ -297,6 +327,7 @@ static void press_key(const char *name)
 		return;
 	}
 	printf("devtools: pressing %s\n", name);
+	SDL_SetAtomicInt(&key_pressed, 1);
 	SDL_Event event = { 0 };
 	event.type = SDL_EVENT_KEY_DOWN;
 	event.key.scancode = scancode;
@@ -355,6 +386,7 @@ void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 	const char *dump_dir = SDL_getenv("TYR3D_DUMP_DIR");
 	if (dump_dir != NULL && rgba != NULL)
 	{
+		SDL_SetAtomicInt(&key_pressed, 0);
 		SDL_Surface *surface = SDL_CreateSurfaceFrom(width, height, SDL_PIXELFORMAT_RGBA32, (void *)rgba, pitch);
 		if (surface != NULL)
 		{

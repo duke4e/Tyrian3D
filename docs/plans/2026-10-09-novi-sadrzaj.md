@@ -5,7 +5,9 @@ tilesetovima i statistike neprijatelja, s nastavkom priče), novi brodovi i oru�
 koje postoje a ne prodaju se), overclock oružja (razine snage iznad 11), nova oružja nadahnuta
 sidekickovima i obrnuto, beskonačni mode s proceduralnim levelima. Ovo je plan za razmišljanje i
 odluke. **Stanje:** A1 (sloj sadržaja) je gotov; B je počela s prvim oružjima i sidekickovima
-(`TYRIAN3D.md`, New content).
+(`TYRIAN3D.md`, New content); C (rogue mode) ima prvu igrivu verziju: tri čina, karta s granama,
+karte iz postojećih predmeta, trgovci, elite, bossovi, dodatni životi, coreovi i unlockovi
+(`TYRIAN3D.md`, Rogue mode). Druga verzija karata (novi efekti) dolazi s overclockom (D).
 
 ## 0. Principi
 

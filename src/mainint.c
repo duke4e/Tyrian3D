@@ -37,6 +37,7 @@
 #include "lds_play.h"
 #include "loudness.h"
 #include "models3d.h"
+#include "rogue.h"
 #include "volume3d.h"
 #include "menus.h"
 #include "mouse.h"
@@ -2703,7 +2704,7 @@ void JE_endLevelAni(void)
 
 	Sint8 i;
 
-	if (!constantPlay)
+	if (!constantPlay && !rogue_run)  // Tyrian3D: not for a rogue run's items
 	{
 		// grant shipedit privileges
 
@@ -2893,7 +2894,7 @@ void JE_endLevelAni(void)
 	temp2 = twoPlayerMode ? 150 : 160;
 	JE_outTextGlow(VGAScreenSeg, 90, temp2, miscText[5-1]);
 
-	if (!constantPlay)
+	if (!constantPlay && !rogue_automatic())  // Tyrian3D: whole rogue runs for tests
 	{
 		do
 		{

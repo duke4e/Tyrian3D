@@ -119,6 +119,24 @@ rules from the original data (`tools/content/tyrdata.py` reads it), so the rules
 No shop sells them yet (that comes with the new episode and the rogue mode); the debug flight's
 loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them.
 
+## Rogue mode
+
+Start New Game → **Rogue Run**. A run is three acts of the episodes' own levels (episodes 1, 2-3
+and 4-5), each a map with branches: two or three nodes a row, three rows, then a boss. After every
+level you take one of three cards: a weapon (front or rear, its power kept), a power level, a
+sidekick, a shield or generator (better ones only), a ship, a special weapon, an extra life or
+credits; cards are common, rare or epic, rarer later in the run and after harder levels. Elite
+nodes fly a level one difficulty higher for a bounty and better cards; merchants sell cards for
+credits; the acts are Normal, Hard and Impossible. Dying without an extra life ends the run (an
+extra life flies the level again, as it began). Runs earn cores (one a level, two more a boss,
+three for winning), which buy unlocks between runs: the new weapons and sidekicks, special weapons,
+ships no shop sells, more credits, an extra life or a warmer gun at the start, a fourth card.
+
+The acts, their levels, the items and the unlocks are `assets/content/rogue.cfg` (written by
+`tools/content/make_rogue.py` from the game's data; format in `src/rogue.h`). The profile (cores,
+unlocks, runs) is `tyrian3d_rogue.cfg` beside `opentyrian.cfg`. A run skips the episode scripts'
+shops, story texts and pictures, and never writes the player's save slots.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -140,7 +158,12 @@ loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them.
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |
-| `TYR3D_CONTENT_DIR=<dir>` | Where `items.cfg` is (default `assets/content`) |
+| `TYR3D_CONTENT_DIR=<dir>` | Where `items.cfg` and `rogue.cfg` are (default `assets/content`) |
+| `TYR3D_ROGUE=<seed>`, `TYR3D_ROGUE=menu` | A rogue run at once with that seed, or the rogue screen; the profile isn't saved |
+| `TYR3D_ROGUE_AUTO=1` | In a rogue run the screens choose by themselves (whole runs with the autopilot) |
+| `TYR3D_ROGUE_UNLOCKS=all` | Every unlock for that run |
+| `TYR3D_LEVEL_TICKS=<n>`, `TYR3D_LEVEL_DIE=<n>` | End every level as cleared after n ticks, or destroy the ship after n ticks (for testing what follows) |
+| `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the frame after each test key instead of every n-th (menus) |
 | `TYR3D_UPSCALE_DIR=<dir>` | Where the upscaled HUD panel pictures are (default `upscale/out`) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
@@ -302,6 +325,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
+| `tools/content/make_rogue.py` | Writes `assets/content/rogue.cfg`: the rogue mode's acts (levels, bosses found by their boss bars), the items its cards offer (the shops' lists, tiered by price) and its unlocks |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 

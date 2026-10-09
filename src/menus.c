@@ -30,6 +30,7 @@
 #include "opentyr.h"
 #include "palette.h"
 #include "picload.h"
+#include "rogue.h"
 #include "sprite.h"
 #include "vga256d.h"
 #include "video.h"
@@ -48,6 +49,7 @@ bool gameplaySelect(void)
 		MENU_ITEM_1_PLAYER_TIMED_BATTLE,
 		MENU_ITEM_2_PLAYER_ARCADE,
 		MENU_ITEM_NETWORK,
+		MENU_ITEM_ROGUE,  // Tyrian3D (rogue.h)
 	};
 
 	if (shopSpriteSheet.data == NULL)
@@ -55,7 +57,7 @@ bool gameplaySelect(void)
 
 	bool restart = true;
 
-	const size_t menuItemsCount = COUNTOF(gameplay_name) - 1;
+	const size_t menuItemsCount = COUNTOF(gameplay_name) - 1 + 1;
 	size_t selectedIndex = MENU_ITEM_1_PLAYER_FULL_GAME;
 
 	const int xCenter = 320 / 2;
@@ -63,7 +65,7 @@ bool gameplaySelect(void)
 	const int yMenuItems = 54;
 	const int dyMenuItems = 24;
 	const int hMenuItem = 13;
-	int wMenuItem[COUNTOF(gameplay_name) - 1] = { 0 };
+	int wMenuItem[COUNTOF(gameplay_name) - 1 + 1] = { 0 };
 
 	for (; ; )
 	{
@@ -81,7 +83,7 @@ bool gameplaySelect(void)
 		// Draw menu items.
 		for (size_t i = 0; i < menuItemsCount; ++i)
 		{
-			const char *const text = gameplay_name[i + 1];
+			const char *const text = i == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[i + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
 			const int x = xCenter - wMenuItem[i] / 2;
@@ -228,6 +230,18 @@ bool gameplaySelect(void)
 			case MENU_ITEM_NETWORK:
 			{
 				JE_playSampleNum(S_SPRING);
+				break;
+			}
+			case MENU_ITEM_ROGUE:
+			{
+				JE_playSampleNum(S_SELECT);
+
+				fade_black(10);
+
+				if (rogue_menu())
+					return true;
+
+				restart = true;
 				break;
 			}
 			default:

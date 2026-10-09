@@ -27,6 +27,7 @@
 #include "layer3d.h"
 #include "particles3d.h"
 #include "models3d.h"
+#include "rogue.h"
 #include "volume3d.h"
 #include "episodes.h"
 #include "file.h"
@@ -1197,6 +1198,14 @@ start_level:
 	if (debug_flight_restarting())
 		goto start_level_first;
 
+	// Tyrian3D: a rogue run picks the next level itself, or ends (rogue.h).
+	if (rogue_run && !play_demo)
+	{
+		if (!rogue_level_over())
+			return;
+		goto start_level_first;
+	}
+
 	if (!play_demo)
 	{
 		if ((!all_players_dead() || normalBonusLevelCurrent || bonusLevelCurrent) && !playerEndLevel)
@@ -1606,6 +1615,7 @@ start_level_first:
 
 level_loop:
 		debug_flight_tick();
+		dev_level_tick();
 
 	// Tyrian3D: the wait the 3D view moved here from JE_starShowVGA, before input is read.
 	if (wait_at_tick_start)
@@ -3191,7 +3201,9 @@ new_game:
 							temp = 22;
 						else
 							temp = 11;
-						JE_saveGame(11, "LAST LEVEL    ");
+						// Tyrian3D: not over the player's save for a rogue run or a debug flight.
+						if (!rogue_run && !debug_flight)
+							JE_saveGame(11, "LAST LEVEL    ");
 						break;
 
 					case 'i':
@@ -3215,7 +3227,8 @@ new_game:
 							itemAvailMax[i] = j;
 						}
 
-						JE_itemScreen();
+						if (!rogue_run)  // Tyrian3D: a rogue run has its own merchants
+							JE_itemScreen();
 						break;
 
 					case 'L':
@@ -3340,7 +3353,7 @@ new_game:
 						break;
 
 					case 'P':
-						if (!constantPlay)
+						if (!constantPlay && !rogue_run)
 						{
 							JE_word tempX = atoi(s + 3);
 							if (tempX > 900)
@@ -3364,7 +3377,7 @@ new_game:
 						break;
 
 					case 'U':
-						if (!constantPlay)
+						if (!constantPlay && !rogue_run)
 						{
 							memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
 
@@ -3415,7 +3428,7 @@ new_game:
 						break;
 
 					case 'V':
-						if (!constantPlay)
+						if (!constantPlay && !rogue_run)
 						{
 							/* TODO: NETWORK */
 							memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
@@ -3466,7 +3479,7 @@ new_game:
 						break;
 
 					case 'R':
-						if (!constantPlay)
+						if (!constantPlay && !rogue_run)
 						{
 							/* TODO: NETWORK */
 							memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
@@ -3540,7 +3553,7 @@ new_game:
 						break;
 
 					case 'W':
-						if (!constantPlay)
+						if (!constantPlay && !rogue_run)
 						{
 							if (!ESCPressed)
 							{
@@ -4235,6 +4248,9 @@ bool newGame(void)
 {
 	if (gameplaySelect())
 	{
+		if (rogue_run)
+			return true;  // Tyrian3D: a rogue run, set up (rogue.h)
+
 		if (timedBattleMode)
 		{
 			onePlayerAction = true;
