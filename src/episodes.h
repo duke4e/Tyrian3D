@@ -157,6 +157,9 @@ extern JE_EnemyDatType enemyDat;
 extern JE_byte initial_episode_num, episodeNum;
 extern JE_boolean episodeAvail[EPISODE_MAX];
 
+// Tyrian3D: the game's last episode: 6 when its files are there (it follows episode 5), else 5.
+unsigned int last_episode(void);
+
 extern char episode_file[13], cube_file[13];
 
 extern JE_longint episode1DataLoc;

@@ -254,6 +254,11 @@ void JE_scanForEpisodes(void)
 	}
 }
 
+unsigned int last_episode(void)
+{
+	return episodeAvail[EPISODE_MAX - 1] ? EPISODE_MAX : EPISODE_AVAILABLE;
+}
+
 unsigned int JE_findNextEpisode(void)
 {
 	unsigned int newEpisode = episodeNum;
@@ -264,8 +269,7 @@ unsigned int JE_findNextEpisode(void)
 	{
 		newEpisode++;
 		
-		// Tyrian3D: episodes past the original ones (6) are played on their own, not after 5.
-		if (newEpisode > (episodeNum > EPISODE_AVAILABLE ? EPISODE_MAX : EPISODE_AVAILABLE))
+		if (newEpisode > last_episode())  // Tyrian3D: episode 6 follows 5 when it is there
 		{
 			newEpisode = 1;
 			jumpBackToEpisode1 = true;

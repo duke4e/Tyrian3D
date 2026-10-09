@@ -414,7 +414,7 @@ void JE_saveGame(JE_byte slot, const char *name)
 		temp = episodeNum - 1;
 		if (temp < 1)
 		{
-			temp = EPISODE_AVAILABLE; /* JE: {Episodemax is 4 for completion purposes} */
+			temp = last_episode(); /* JE: {Episodemax is 4 for completion purposes} */
 		}
 		saveFiles[slot-1].episode = temp;
 	}
@@ -505,11 +505,11 @@ void JE_loadGame(JE_byte slot)
 
 	if (strcmp(levelName, "Completed") == 0)
 	{
-		if (episode == EPISODE_AVAILABLE)
+		if (episode == (int)last_episode())
 			episode = 1;
-		else if (episode < EPISODE_AVAILABLE)
+		else if (episode < (int)last_episode())
 			episode++;
-		/* Increment episode.  Episode EPISODE_AVAILABLE goes to 1. */
+		/* Increment episode.  The last episode goes to 1. */
 	}
 
 	JE_initEpisode(episode);

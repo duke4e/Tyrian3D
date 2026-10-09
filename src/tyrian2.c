@@ -1287,7 +1287,7 @@ start_level_first:
 		player[i].is_alive = true;
 
 	oldDifficultyLevel = difficultyLevel;
-	if (episodeNum == EPISODE_AVAILABLE)
+	if (episodeNum == EPISODE_AVAILABLE)  // episode 5 (Tyrian3D: not episode 6, though it is the last)
 		difficultyLevel--;
 	if (difficultyLevel < DIFFICULTY_EASY)
 		difficultyLevel = DIFFICULTY_EASY;
