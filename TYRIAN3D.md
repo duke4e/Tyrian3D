@@ -73,6 +73,9 @@ change the first two as well. In a level, Escape's options have **3D Options** w
 settings and the music (SoundFont or AdLib), each changed with Left/Right, Enter or a click and
 taking effect at once (`ingame_options_3d` in `mainint.c`).
 
+The game plays only in its playfield; the 3D view shows the world around it too, darkened, so
+what is bright is what can be shot and reached (enemies coming or leaving show dimmed there).
+
 ## Debug flight
 
 Setup → **Debug Flight...** lists every level of the episodes; Enter flies it from its start (the
@@ -172,7 +175,9 @@ at the end of episode 1. MIGRATION and GRAVITRON are seen from the side (Tyrian3
 game runs as ever, the 3D view is turned a quarter so the level scrolls from left to right (the
 controls turned with it, every model on its side so craft show in profile, the shots as they
 are), over open space with the stars in depth and rocks along the window's top and bottom edges
-(`layer3d.c` `add_side_decor`). The generated
+(`layer3d.c` `add_side_decor`); their playfield reaches 250 pixels further ahead (event 200's d3:
+enemies are made there, shots and the ship go there), so it fills the window on its side. The
+generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to

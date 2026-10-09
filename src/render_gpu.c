@@ -1174,12 +1174,12 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 #define BACKGROUND_FADE 160.0f
 
 /*
- * What the game plays in is its playfield only (264 x 184: shots, hits, enemies are there); the
- * view shows the world around it too. Around the playfield as the window shows it (its corners on
- * the player's plane, the same on every layer as the layers are aligned), the view is darkened, a
- * soft edge first, so what can be played is what is bright (objects outside it aren't drawn at
- * all: l3d_cull_outside). Black quads put first among the HUD's, under its gauges and texts; not
- * over the classic panel (clip_x, the panel's left edge).
+ * What the game plays in is its playfield only (264 x 184, and l3d_field_ahead above it: shots,
+ * hits, enemies are there); the view shows the world around it too. Around the playfield as the
+ * window shows it (its corners on the player's plane, the same on every layer as the layers are
+ * aligned), the view is darkened, a soft edge first, so what can be played is what is bright:
+ * what is outside it (enemies coming, leaving) shows dimmed. Black quads put first among the
+ * HUD's, under its gauges and texts; not over the classic panel (clip_x, the panel's left edge).
  */
 #define OUTSIDE_SHADE 0.65f   // opacity of the black outside the playfield
 #define OUTSIDE_EDGE 0.022f   // the soft edge's width, of the window's height
@@ -1221,8 +1221,9 @@ static int shade_quads(HudQuad *out, int max, float (*pts)[3], int n, float clip
 
 static void add_outside_shade(const Camera3D *camera, float reference, float clip_x, float window_w, float window_h)
 {
+	const float top = (float)-l3d_field_ahead;
 	const float game[4][2] = {
-		{ L3D_PLAYFIELD_X, 0 }, { L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, 0 },
+		{ L3D_PLAYFIELD_X, top }, { L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, top },
 		{ L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, L3D_PLAYFIELD_H }, { L3D_PLAYFIELD_X, L3D_PLAYFIELD_H },
 	};
 	float p[4][2], centre[2] = { 0, 0 };

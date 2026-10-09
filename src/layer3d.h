@@ -169,10 +169,11 @@ extern bool l3d_sideways;
 // Seen from the side, what lines the window's top and bottom edges (event 200's d2): 0 nothing,
 // 1 asteroids, 2 crags of the crust.
 extern int l3d_side_decor;
-
-// Takes out of the frame what lies outside the game's playfield (objects, glows): the game plays
-// only there, so the 3D view shows only that there (render_gpu.c darkens the rest).
-void l3d_cull_outside(void);
+// Game pixels the playfield reaches above the screen's top (Tyrian3D event 200's d3 x 10; 0 in
+// every original level): enemies are made that far up and live there, shots fly on there, the
+// ship may go there. Episode 6's side-scrolling levels, so the playfield fills the view turned on
+// its side.
+extern int l3d_field_ahead;
 extern bool l3d_capturing; // inside an in-game frame between begin and end
 
 extern L3DFrame l3d_frame;

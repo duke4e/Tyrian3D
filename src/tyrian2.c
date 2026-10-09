@@ -656,7 +656,7 @@ static void draw_coming_enemies(int enemy_offset)
 				ex -= 12;
 			else if (offset == 50)
 				ex = background3x1 ? ev->eventdat2 - (mapX - 1) * 24 - 12 : ev->eventdat2 - mapX3 * 24 - 24 * 2 + 6;
-			int ey = -28;
+			int ey = -28 - l3d_field_ahead;
 			if (offset == 50 && background3x1b)
 			{
 				ex -= 6;
@@ -830,7 +830,7 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 				goto enemy_gone;
 
 			enemy[i].ey += enemy[i].eyc;
-			if (enemy[i].ey < -112 || enemy[i].ey > 190)
+			if (enemy[i].ey < -112 - l3d_field_ahead || enemy[i].ey > 190)
 				goto enemy_gone;
 
 			goto enemy_still_exists;
@@ -1611,6 +1611,7 @@ start_level_first:
 	memset(smoothies, 0, sizeof(smoothies));
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
+	l3d_field_ahead = 0;
 
 	levelTimer = false;
 	randomExplosions = false;
@@ -2399,7 +2400,7 @@ draw_player_shot_loop_end:
 					}
 				}
 
-				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 || enemyShot[z].sy <= -14 || enemyShot[z].sx > 275 || enemyShot[z].sx <= 0)
+				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 || enemyShot[z].sy <= -14 - l3d_field_ahead || enemyShot[z].sx > 275 || enemyShot[z].sx <= 0)
 				{
 					enemyShotAvail[z] = true;
 				}
@@ -2962,7 +2963,6 @@ draw_player_shot_loop_end:
 
 	if (SDL_getenv("TYR3D_LOG_GROUND") != NULL)
 		flush_ground_log();
-	l3d_cull_outside();  // Tyrian3D: the 3D view shows only what can be played
 	l3d_frame_end();
 
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
@@ -4889,7 +4889,7 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 				enemy[b-1].ex -= 6;
 			break;
 		}
-		enemy[b-1].ey = -28;
+		enemy[b-1].ey = -28 - l3d_field_ahead;  // (Tyrian3D: the playfield's top, see l3d_field_ahead)
 		if (background3x1b && enemyOffset == 50)
 			enemy[b-1].ey += 4;
 	}
@@ -5891,6 +5891,7 @@ void JE_eventSystem(void)
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)
 		l3d_sideways = eventRec[eventLoc-1].eventdat != 0;
 		l3d_side_decor = eventRec[eventLoc-1].eventdat2;
+		l3d_field_ahead = eventRec[eventLoc-1].eventdat != 0 ? eventRec[eventLoc-1].eventdat3 * 10 : 0;
 		break;
 
 	default:

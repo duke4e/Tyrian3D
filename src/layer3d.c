@@ -19,6 +19,7 @@
 bool l3d_enabled = false;
 bool l3d_sideways = false;
 int l3d_side_decor = 0;
+int l3d_field_ahead = 0;
 bool l3d_capturing = false;
 static bool frame_ready = false;
 
@@ -234,32 +235,6 @@ void l3d_frame_end_early(void)
 	ending_early = true;
 	l3d_frame_end();
 	ending_early = false;
-}
-
-// How far past the playfield's edges an object's centre may be and still show (as half a sprite
-// shows in 2D at the edge).
-#define CULL_MARGIN 14.0f
-
-static bool in_playfield(float x, float y)
-{
-	return x >= L3D_PLAYFIELD_X - CULL_MARGIN && x <= L3D_PLAYFIELD_X + L3D_PLAYFIELD_W + CULL_MARGIN &&
-	       y >= -CULL_MARGIN && y <= L3D_PLAYFIELD_H + CULL_MARGIN;
-}
-
-void l3d_cull_outside(void)
-{
-	if (!l3d_capturing)
-		return;
-	int kept = 0;
-	for (int i = 0; i < l3d_frame.object_count; ++i)
-		if (in_playfield(l3d_frame.objects[i].x, l3d_frame.objects[i].y))
-			l3d_frame.objects[kept++] = l3d_frame.objects[i];
-	l3d_frame.object_count = kept;
-	kept = 0;
-	for (int i = 0; i < l3d_frame.glow_count; ++i)
-		if (in_playfield(l3d_frame.glows[i].x, l3d_frame.glows[i].y))
-			l3d_frame.glows[kept++] = l3d_frame.glows[i];
-	l3d_frame.glow_count = kept;
 }
 
 /*

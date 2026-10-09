@@ -225,7 +225,7 @@ bool player_shot_move_and_draw(
 		*out_shoty = shot->shotY;
 
 		if (shot->shotX < -34 || shot->shotX > 290 ||
-			shot->shotY < -15 || shot->shotY > 190)
+			shot->shotY < -15 - l3d_field_ahead || shot->shotY > 190)
 		{
 			// Tyrian3D: one that flies off the top flies on in the 3D view.
 			const JE_word frame = shot->shotGr + shot->shotAni;

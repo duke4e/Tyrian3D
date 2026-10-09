@@ -4279,7 +4279,7 @@ redo:
 		else
 		{
 			this_player->y -= levelEndWarp;
-			if (this_player->y < -200)
+			if (this_player->y < -200 - l3d_field_ahead)
 				reallyEndLevel = true;
 
 			int trail_spacing = 1;
@@ -4451,8 +4451,8 @@ redo:
 				this_player->y = 160;
 		}
 
-		if (this_player->y < 10)
-			this_player->y = 10;
+		if (this_player->y < 10 - l3d_field_ahead)
+			this_player->y = 10 - l3d_field_ahead;
 
 		// Tyrian3D: a ship the keyboard (or anything but the direct mouse) moved takes the pointer
 		// along, so the ship doesn't jump when the mouse moves again.

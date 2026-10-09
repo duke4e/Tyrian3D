@@ -162,6 +162,11 @@ def make_invaders(design):
                 shared_maps=design["maps_of"])
 
 
+# Seen from the side, the playfield reaches this far (game pixels) ahead of the screen's top, so it
+# fills the window turned on its side (event 200's d3, tens of pixels; EVENTS.md).
+SIDE_AHEAD = 250
+
+
 def level_speeds(design):
     """The layers' scroll speeds the level runs at (its own, or its look's)."""
     if design.get("speeds"):
@@ -204,7 +209,7 @@ def finish(design, layers):
         # Stars on (the game's and the 3D view's deep ones), the view from the side with its rocks.
         level["events"] = [e for e in level["events"] if not (e["t"] == 0 and e["type"] in (1, 8, 9, 64))]
         level["events"][1:1] = [compose.event(0, 9), compose.event(0, 1, d1=0),
-                                compose.event(0, 200, d1=1, d2=design["side"])]
+                                compose.event(0, 200, d1=1, d2=design["side"], d3=SIDE_AHEAD // 10)]
         level["terrain"] = None
         level["sideways"] = True
     return level
