@@ -249,7 +249,8 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	// Weave across the playfield with a slow vertical drift; always fire. Timed by frames, so runs
 	// started with TYR3D_START repeat exactly (see dev_start_game).
 	const double t = frame / 35.0;
-	const int target_x = 140 + (int)(100 * SDL_sin(t * 0.9));
+	// (Across the wide playfield's 16-288 when it is on.)
+	const int target_x = l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
 	const int target_y = 140 + (int)(25 * SDL_sin(t * 0.37));
 
 	if (x < target_x - speed)

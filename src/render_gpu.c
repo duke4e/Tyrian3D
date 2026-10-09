@@ -1094,12 +1094,13 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float up[3] = { 0, s, -c };
 	const float right[3] = { 1, 0, 0 };
 
-	// Camera-space depth and height of the bottom edge's centre.
-	const float half_width = L3D_PLAYFIELD_W / 2.0f;
+	// Camera-space depth and height of the bottom edge's centre (the playfield's: wide or the
+	// original's, l3d_field_x/w).
+	const float half_width = l3d_field_w() / 2.0f;
 	const float depth = half_width / (t * viewport_aspect);
 	const float height = -t * depth;
 
-	const float bottom[3] = { L3D_PLAYFIELD_X + half_width, reference_height, L3D_PLAYFIELD_H };
+	const float bottom[3] = { l3d_field_x() + half_width, reference_height, L3D_PLAYFIELD_H };
 	Camera3D camera;
 	for (int i = 0; i < 3; ++i)
 		camera.position[i] = bottom[i] - (height * up[i] + depth * forward[i]);
@@ -1221,11 +1222,8 @@ static int shade_quads(HudQuad *out, int max, float (*pts)[3], int n, float clip
 
 static void add_outside_shade(const Camera3D *camera, float reference, float clip_x, float window_w, float window_h)
 {
-	const float top = (float)-l3d_field_ahead;
-	const float game[4][2] = {
-		{ L3D_PLAYFIELD_X, top }, { L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, top },
-		{ L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, L3D_PLAYFIELD_H }, { L3D_PLAYFIELD_X, L3D_PLAYFIELD_H },
-	};
+	const float top = (float)-l3d_field_ahead, x0 = (float)l3d_field_x(), x1 = (float)(l3d_field_x() + l3d_field_w());
+	const float game[4][2] = { { x0, top }, { x1, top }, { x1, L3D_PLAYFIELD_H }, { x0, L3D_PLAYFIELD_H } };
 	float p[4][2], centre[2] = { 0, 0 };
 	for (int i = 0; i < 4; ++i)
 	{
@@ -1489,16 +1487,16 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 						b3d_cloud_mask(&frame->backgrounds[i], cloud_mask);
 					}
 			}
+			const int field_x0 = l3d_field_x(), field_x1 = l3d_field_x() + l3d_field_w();
 			for (int y = L3D_OVERSCAN; y < L3D_OVERSCAN + L3D_PLAYFIELD_H; ++y)
-				for (int x = L3D_PLAYFIELD_X; x < L3D_PLAYFIELD_X + L3D_PLAYFIELD_W; ++x)
+				for (int x = field_x0; x < field_x1; ++x)
 				{
 					const int i = y * L3D_WIDTH + x;
 					if (!layer->cover[i] || (empty_zero && layer->index[i] == 0) || (clouds && cloud_mask[i]))
 						continue;
 					if (feather > 0)
 					{
-						const int edge = SDL_min(SDL_min(x - L3D_PLAYFIELD_X, L3D_PLAYFIELD_X + L3D_PLAYFIELD_W - 1 - x),
-						                         y - L3D_OVERSCAN);
+						const int edge = SDL_min(SDL_min(x - field_x0, field_x1 - 1 - x), y - L3D_OVERSCAN);
 						if (edge < feather && bayer[y & 3][x & 3] * feather >= edge * 16)
 							continue;
 					}
@@ -1574,8 +1572,8 @@ static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
 	if (modern_hud())
 	{
 		// The playfield as large as the window holds it, centred; no panel.
-		const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, window_w / L3D_PLAYFIELD_W);
-		layout.playfield[2] = L3D_PLAYFIELD_W * scale;
+		const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, window_w / l3d_field_w());
+		layout.playfield[2] = l3d_field_w() * scale;
 		layout.playfield[3] = L3D_PLAYFIELD_H * scale;
 		layout.playfield[0] = (window_w - layout.playfield[2]) / 2;
 		layout.playfield[1] = (window_h - layout.playfield[3]) / 2;
@@ -1597,8 +1595,8 @@ static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
 	layout.panel[3] = window_h;
 
 	const float room = window_w - panel_w;
-	const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, room / L3D_PLAYFIELD_W);
-	layout.playfield[2] = L3D_PLAYFIELD_W * scale;
+	const float scale = SDL_min(window_h / L3D_PLAYFIELD_H, room / l3d_field_w());
+	layout.playfield[2] = l3d_field_w() * scale;
 	layout.playfield[3] = L3D_PLAYFIELD_H * scale;
 	layout.playfield[0] = (room - layout.playfield[2]) / 2;
 	layout.playfield[1] = (window_h - layout.playfield[3]) / 2;
@@ -1613,13 +1611,17 @@ static int layout_quads(const Layout3D *layout, const SDL_Rect *dst, CanvasQuad 
 		return 1;
 	}
 	const float *p = layout->panel, *f = layout->playfield;
+	// The screen's playfield part (the overlay: game x 24-287) where those columns are in the
+	// playfield shown (wider on the wide playfield).
+	const float k = f[2] / l3d_field_w();
+	const float ox = f[0] + (L3D_PLAYFIELD_X - l3d_field_x()) * k, ow = L3D_PLAYFIELD_W * k;
 	if (p[2] <= 0)
 	{
-		quads[0] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
+		quads[0] = (CanvasQuad){ ox, f[1], ow, f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
 		return 1;
 	}
 	quads[0] = (CanvasQuad){ p[0], p[1], p[2], p[3], PANEL_X, 0, SCREEN_W - PANEL_X, SCREEN_H, .panel = true };
-	quads[1] = (CanvasQuad){ f[0], f[1], f[2], f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
+	quads[1] = (CanvasQuad){ ox, f[1], ow, f[3], 0, 0, L3D_PLAYFIELD_W, L3D_PLAYFIELD_H };
 	return 2;
 }
 
@@ -2098,9 +2100,9 @@ static void playfield_text_quads(const Layout3D *layout)
 {
 	if (!fonts_enabled())
 		return;
-	const float kx = layout->playfield[2] / L3D_PLAYFIELD_W, ky = layout->playfield[3] / L3D_PLAYFIELD_H;
-	text_record_quads(frame_texts, frame_text_count, L3D_PLAYFIELD_X, layout->playfield[0], layout->playfield[1], kx, ky,
-	                  L3D_PLAYFIELD_W, L3D_PLAYFIELD_H);
+	const float kx = layout->playfield[2] / l3d_field_w(), ky = layout->playfield[3] / L3D_PLAYFIELD_H;
+	text_record_quads(frame_texts, frame_text_count, l3d_field_x(), layout->playfield[0], layout->playfield[1], kx, ky,
+	                  l3d_field_w(), L3D_PLAYFIELD_H);
 	if (layout->split && textErase > 0 && text_window_message[0] != '\0' && !menu.on)
 	{
 		const float color[4] = { 0.86f, 0.86f, 0.9f, 1.0f };
@@ -2353,9 +2355,11 @@ void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, cons
 		*screen_rect = *dst;
 		return;
 	}
-	screen_rect->x = (int)layout.playfield[0];
+	// (The 2D screen's playfield is game x l3d_view_x and on: where those columns are shown.)
+	const float k = layout.playfield[2] / l3d_field_w();
+	screen_rect->x = (int)(layout.playfield[0] + (l3d_view_x - l3d_field_x()) * k);
 	screen_rect->y = (int)layout.playfield[1];
-	screen_rect->w = (int)(layout.playfield[2] * SCREEN_W / L3D_PLAYFIELD_W + 0.5f);
+	screen_rect->w = (int)(k * SCREEN_W + 0.5f);
 	screen_rect->h = (int)(layout.playfield[3] * SCREEN_H / L3D_PLAYFIELD_H + 0.5f);
 }
 
@@ -2365,7 +2369,7 @@ float rgpu_playfield_scale(void)
 	SDL_GetWindowSize(btbh_gpu_window_sdl_window(window), &w, &h);
 	const SDL_Rect none = { 0, 0, 0, 0 };
 	const Layout3D layout = layout_3d((float)w, (float)h, &none);
-	const float scale = layout.playfield[2] / L3D_PLAYFIELD_W;
+	const float scale = layout.playfield[2] / l3d_field_w();
 	return scale > 0 ? scale : 1;
 }
 
@@ -3272,7 +3276,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 	const float size = CLOUD_TEXELS * CLOUD_SCALE;
 	if (x1 - x0 > size)
 	{
-		const float centre = L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2.0f;
+		const float centre = l3d_field_x() + l3d_field_w() / 2.0f;
 		x0 = SDL_max(x0, centre - size / 2);
 		x1 = x0 + size;
 	}
@@ -4244,7 +4248,7 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 	int w = (int)ceilf(rect[2]) - x0 + 1, h = (int)ceilf(rect[3]) - z0 + 1;
 	if (w > COMPOSED_SIZE)
 	{
-		x0 = L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2 - COMPOSED_SIZE / 2;
+		x0 = l3d_field_x() + l3d_field_w() / 2 - COMPOSED_SIZE / 2;
 		w = COMPOSED_SIZE;
 	}
 	if (h > COMPOSED_SIZE)
@@ -5385,8 +5389,8 @@ static void set_environment(BTBHGPUSceneLighting *lighting)
  */
 static void build_spotlight(const Layout3D *layout, float window_w, float window_h)
 {
-	const float scale = layout->playfield[2] / L3D_PLAYFIELD_W;
-	const float apex_x = player[0].x - 17.0f;  // playfield column and row of the cone's apex
+	const float scale = layout->playfield[2] / l3d_field_w();
+	const float apex_x = player[0].x + 7.0f - l3d_field_x();  // playfield column and row of the cone's apex
 	const float apex_y = player[0].y + 12.0f;
 	for (int j = 0; j < SPOT_H; ++j)
 	{
@@ -5646,8 +5650,8 @@ static void shadow_view_projection(const Camera3D *camera, float out[16])
 {
 	float rect[4];
 	plane_footprint_world(camera, 0.0f, -BACKGROUND_AHEAD, rect);
-	rect[0] = SDL_max(rect[0], L3D_PLAYFIELD_X - SHADOW_REACH_SIDE);
-	rect[2] = SDL_min(rect[2], L3D_PLAYFIELD_X + L3D_PLAYFIELD_W + SHADOW_REACH_SIDE);
+	rect[0] = SDL_max(rect[0], l3d_field_x() - SHADOW_REACH_SIDE);
+	rect[2] = SDL_min(rect[2], l3d_field_x() + l3d_field_w() + SHADOW_REACH_SIDE);
 	rect[1] = SDL_max(rect[1], -SHADOW_REACH_UP);
 	rect[3] = SDL_min(rect[3], L3D_PLAYFIELD_H + SHADOW_REACH_SIDE);
 	const float centre[3] = { (rect[0] + rect[2]) / 2, 0.0f, (rect[1] + rect[3]) / 2 };
@@ -5838,7 +5842,7 @@ static void add_radiance_cascades(BTBHGPUScenePost *post)
 	rc->additive = 1;  // the scene's own lighting stays; glows add their light
 	rc->occlusion_cascade_count = 1;
 	BTBHGPUSceneRadianceCascadesOcclusionCascade *field = &rc->occlusion_cascades[0];
-	field->origin_world_x = floorf((L3D_PLAYFIELD_X + L3D_PLAYFIELD_W / 2.0f - RC_CELLS * RC_CELL / 2) / RC_CELL) * RC_CELL;
+	field->origin_world_x = floorf((l3d_field_x() + l3d_field_w() / 2.0f - RC_CELLS * RC_CELL / 2) / RC_CELL) * RC_CELL;
 	field->origin_world_z = floorf((L3D_PLAYFIELD_H / 2.0f - RC_CELLS * RC_CELL / 2) / RC_CELL) * RC_CELL;
 	field->cell_size = RC_CELL;
 	field->width = RC_CELLS;
@@ -5984,9 +5988,10 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	if (menu.on)
 	{
-		menu.map[0] = layout.playfield[0];
+		// (The 2D screen's playfield shows game x l3d_view_x and on.)
+		menu.map[2] = layout.playfield[2] / l3d_field_w();
+		menu.map[0] = layout.playfield[0] + (l3d_view_x - l3d_field_x()) * menu.map[2];
 		menu.map[1] = layout.playfield[1];
-		menu.map[2] = layout.playfield[2] / L3D_PLAYFIELD_W;
 		menu.map[3] = layout.playfield[3] / L3D_PLAYFIELD_H;
 	}
 	if (new_frame || menu.on)

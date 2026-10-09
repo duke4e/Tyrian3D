@@ -1534,11 +1534,12 @@ void JE_doInGameSetup(void)
  */
 enum
 {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_MUSIC, OPT_DONE, OPT_COUNT
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_DONE,
+	OPT_COUNT
 };
 
 static const char *const option_names[OPT_COUNT] = {
-	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Music", "Done",
+	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
@@ -1549,6 +1550,7 @@ static const char *const option_help[OPT_COUNT] = {
 	"How the 3D camera looks at the playfield.",
 	"The ship moves as far as the mouse, or as in the original.",
 	"A few gauges over the playfield, or the original panel.",
+	"All the 3D view shows, or the original's screen (next level).",
 	"The music through a SoundFont, or on the AdLib chip.",
 	"Return to the options.",
 };
@@ -1564,6 +1566,7 @@ static const char *option_value(int option)
 	case OPT_CAMERA:  return settings3d_camera_name(settings3d.camera);
 	case OPT_MOUSE:   return settings3d.mouse_direct ? "Direct" : "Original";
 	case OPT_HUD:     return settings3d.hud_modern ? "Modern" : "Classic";
+	case OPT_PLAYFIELD: return settings3d.playfield_wide ? "Wide" : "Original";
 	case OPT_MUSIC:   return settings3d.music_midi ? (music_midi_available() ? "SoundFont" : "SoundFont (none)") : "AdLib";
 	default:          return NULL;
 	}
@@ -1608,6 +1611,10 @@ static void option_turn(int option, int step)
 		settings3d.hud_modern = !settings3d.hud_modern;
 		settings3d_changed(S3D_HUD);
 		break;
+	case OPT_PLAYFIELD:
+		settings3d.playfield_wide = !settings3d.playfield_wide;  // (from the next level)
+		settings3d_changed(S3D_PLAYFIELD);
+		break;
 	case OPT_MUSIC:
 		settings3d.music_midi = !settings3d.music_midi;
 		settings3d_changed(S3D_MUSIC);
@@ -1621,7 +1628,7 @@ static void option_turn(int option, int step)
 // background: the in-game options' screen with their boxes (VGAScreen2), drawn on each time.
 static void ingame_options_3d(void)
 {
-	const int yItems = 18, dyItems = 13, hItem = 11;
+	const int yItems = 16, dyItems = 12, hItem = 11;
 	const int xName = 10, wName = 80, xValue = xName + wName, wValue = 120;
 	int selected = 0;
 
@@ -3768,6 +3775,14 @@ static void controls_move(Player *this_player, int dx, int dy)
 	}
 }
 
+// The maps' offsets on the wide playfield (l3d_field_wide), held still: layer 1's 14 columns at
+// x 24c - 48 + ofs cover 0-319 for ofs 32-48 (32: to the map's right edge, as far right as the
+// original shows it), layer 2 (the sky enemies' too) the middle of the original's 7-54, layer 3's
+// 15 columns at 24c - 72 + ofs for 32-72.
+#define WIDE_OFS1 32
+#define WIDE_OFS2 34
+#define WIDE_OFS3 48
+
 void JE_playerMovement(Player *this_player,
                        JE_byte inputDevice,
                        JE_byte playerNum_,
@@ -4429,14 +4444,14 @@ redo:
 
 	if (!endLevel)
 	{
-		if (this_player->x > 256)
+		if (this_player->x > 256 + l3d_field_right())
 		{
-			this_player->x = 256;
+			this_player->x = 256 + l3d_field_right();
 			constantLastX = -constantLastX;
 		}
-		if (this_player->x < 40)
+		if (this_player->x < 40 - l3d_field_left())
 		{
-			this_player->x = 40;
+			this_player->x = 40 - l3d_field_left();
 			constantLastX = -constantLastX;
 		}
 
@@ -5119,6 +5134,13 @@ void JE_mainGamePlayerFunctions(void)
 		tempX = player[0].x;
 
 	tempW = floorf((float)(260 - (tempX - 36)) / (260 - 36) * (24 * 3) - 1);
+	if (l3d_field_wide)
+	{
+		// Tyrian3D: the wide playfield holds the maps still, each where its tiles cover the
+		// whole game x 0-319 (layer 1 to its right edge; the sky between where the original's
+		// parallax takes it; layer 3 inside its 15 columns).
+		tempW = WIDE_OFS3;
+	}
 	mapX3Ofs   = tempW;
 	mapX3Pos   = mapX3Ofs % 24;
 	mapX3bpPos = 1 - (mapX3Ofs / 24);
@@ -5127,8 +5149,14 @@ void JE_mainGamePlayerFunctions(void)
 	mapX2Pos   = mapX2Ofs % 24;
 	mapX2bpPos = 1 - (mapX2Ofs / 24);
 
+	if (l3d_field_wide)
+	{
+		mapX2Ofs   = WIDE_OFS2;
+		mapX2Pos   = mapX2Ofs % 24;
+		mapX2bpPos = 1 - (mapX2Ofs / 24);
+	}
 	oldMapXOfs = mapXOfs;
-	mapXOfs    = mapX2Ofs / 2;
+	mapXOfs    = l3d_field_wide ? WIDE_OFS1 : mapX2Ofs / 2;
 	mapXPos    = mapXOfs % 24;
 	mapXbpPos  = 1 - (mapXOfs / 24);
 

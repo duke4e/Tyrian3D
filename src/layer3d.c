@@ -20,6 +20,8 @@ bool l3d_enabled = false;
 bool l3d_sideways = false;
 int l3d_side_decor = 0;
 int l3d_field_ahead = 0;
+bool l3d_field_wide = false;
+int l3d_view_x = L3D_PLAYFIELD_X;
 bool l3d_capturing = false;
 static bool frame_ready = false;
 
@@ -289,7 +291,7 @@ static void add_side_decor(void)
 			// Mostly outside: the ship keeps 16 pixels from the playfield's edges.
 			const float scale = 1.3f + (float)((h >> 16) % 100) / 100.0f;
 			const float poke = (float)((h >> 20) % 8);  // how far towards the playfield
-			const float x = edge == 0 ? L3D_PLAYFIELD_X + poke - 16.0f : L3D_PLAYFIELD_X + L3D_PLAYFIELD_W - poke + 16.0f;
+			const float x = edge == 0 ? l3d_field_x() + poke - 16.0f : l3d_field_x() + l3d_field_w() - poke + 16.0f;
 			if (l3d_frame.object_count == L3D_MAX_OBJECTS)
 				return;
 			L3DObject *object = &l3d_frame.objects[l3d_frame.object_count++];

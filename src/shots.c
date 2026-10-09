@@ -224,7 +224,7 @@ bool player_shot_move_and_draw(
 		*out_shotx = shot->shotX;
 		*out_shoty = shot->shotY;
 
-		if (shot->shotX < -34 || shot->shotX > 290 ||
+		if (shot->shotX < -34 - l3d_field_left() || shot->shotX > 290 + l3d_field_right() ||
 			shot->shotY < -15 - l3d_field_ahead || shot->shotY > 190)
 		{
 			// Tyrian3D: one that flies off the top flies on in the 3D view.

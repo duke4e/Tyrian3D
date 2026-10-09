@@ -174,6 +174,21 @@ extern int l3d_side_decor;
 // ship may go there. Episode 6's side-scrolling levels, so the playfield fills the view turned on
 // its side.
 extern int l3d_field_ahead;
+
+// The wide playfield (settings3d.playfield_wide in the 3D view, set as a level starts): the game
+// plays in the whole width it draws (game x 0-319, the original shows 24-287) with the maps held
+// still (no horizontal parallax), so what the 3D view shows is what can be played. The original
+// game is as ever without it; the 2D view shows a 264 wide part that follows the ship
+// (l3d_view_x).
+extern bool l3d_field_wide;
+extern int l3d_view_x;  // the 2D view's left edge in game x (24 in the original)
+#define L3D_WIDE_LEFT 24   // game pixels the wide playfield adds on the left
+#define L3D_WIDE_RIGHT 32  // and on the right
+
+static inline int l3d_field_left(void) { return l3d_field_wide ? L3D_WIDE_LEFT : 0; }
+static inline int l3d_field_right(void) { return l3d_field_wide ? L3D_WIDE_RIGHT : 0; }
+static inline int l3d_field_x(void) { return L3D_PLAYFIELD_X - l3d_field_left(); }
+static inline int l3d_field_w(void) { return L3D_PLAYFIELD_W + l3d_field_left() + l3d_field_right(); }
 extern bool l3d_capturing; // inside an in-game frame between begin and end
 
 extern L3DFrame l3d_frame;

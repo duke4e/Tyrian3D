@@ -73,8 +73,14 @@ change the first two as well. In a level, Escape's options have **3D Options** w
 settings and the music (SoundFont or AdLib), each changed with Left/Right, Enter or a click and
 taking effect at once (`ingame_options_3d` in `mainint.c`).
 
-The game plays only in its playfield; the 3D view shows the world around it too, darkened, so
-what is bright is what can be shot and reached (enemies coming or leaving show dimmed there).
+**Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
+3D) plays in all the 3D view shows: the whole width the game draws (game x 0-319 instead of
+24-287, the maps held still instead of the horizontal parallax, so the maps' edge columns and
+what stands on them can be played) and 64 pixels above the screen, where enemies are made ahead of
+their time (as far up as they fly down meanwhile, so from where the original makes them on they
+fly as there; those that don't come down start at the playfield's top). The 2D view then shows
+the 264 pixels round the ship. **Original** is the game 1:1 (`l3d_field_wide`, `TYR3D_PLAYFIELD`).
+What lies outside the playfield shows darkened, dimmed enemies coming or leaving included.
 
 ## Debug flight
 
@@ -214,6 +220,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_LOG_WRECKS=1` | Print each wreck a destroyed ground model leaves |
+| `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it) when that frame shows, then each next one so many milliseconds after the one before |

@@ -14,13 +14,14 @@
 #include <string.h>
 
 Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
-                          .mouse_direct = true, .hud_modern = true };
+                          .mouse_direct = true, .hud_modern = true, .playfield_wide = true };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
 static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
-                             .mouse_direct = true, .hud_modern = true };
-static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse, overridden_hud;
+                             .mouse_direct = true, .hud_modern = true, .playfield_wide = true };
+static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse, overridden_hud,
+            overridden_playfield;
 
 static const struct
 {
@@ -59,6 +60,9 @@ void settings3d_load(const ConfigSection *section)
 		const char *hud;
 		if (config_get_string_option(section, "hud", &hud))
 			chosen.hud_modern = SDL_strcasecmp(hud, "classic") != 0;
+		const char *playfield;
+		if (config_get_string_option(section, "playfield", &playfield))
+			chosen.playfield_wide = SDL_strcasecmp(playfield, "original") != 0;
 		const char *camera;
 		if (config_get_string_option(section, "camera", &camera))
 			for (int i = 0; i < (int)COUNTOF(cameras); ++i)
@@ -86,6 +90,9 @@ void settings3d_load(const ConfigSection *section)
 	const char *hud = SDL_getenv("TYR3D_HUD");  // modern or classic
 	if ((overridden_hud = hud != NULL))
 		settings3d.hud_modern = SDL_strcasecmp(hud, "classic") != 0;
+	const char *playfield = SDL_getenv("TYR3D_PLAYFIELD");  // wide or original
+	if ((overridden_playfield = playfield != NULL))
+		settings3d.playfield_wide = SDL_strcasecmp(playfield, "original") != 0;
 }
 
 void settings3d_changed(Settings3DField field)
@@ -124,6 +131,10 @@ void settings3d_changed(Settings3DField field)
 		chosen.hud_modern = settings3d.hud_modern;
 		overridden_hud = false;
 		break;
+	case S3D_PLAYFIELD:
+		chosen.playfield_wide = settings3d.playfield_wide;
+		overridden_playfield = false;
+		break;
 	}
 }
 
@@ -137,6 +148,8 @@ void settings3d_save(ConfigSection *section)
 	config_set_string_option(section, "music", (overridden_music ? chosen.music_midi : settings3d.music_midi) ? "midi" : "opl");
 	config_set_string_option(section, "mouse", (overridden_mouse ? chosen.mouse_direct : settings3d.mouse_direct) ? "direct" : "original");
 	config_set_string_option(section, "hud", (overridden_hud ? chosen.hud_modern : settings3d.hud_modern) ? "modern" : "classic");
+	config_set_string_option(section, "playfield",
+	                         (overridden_playfield ? chosen.playfield_wide : settings3d.playfield_wide) ? "wide" : "original");
 }
 
 void settings3d_apply(void)

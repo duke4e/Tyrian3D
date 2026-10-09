@@ -25,6 +25,7 @@
 #include "background3d.h"
 #include "devtools.h"
 #include "layer3d.h"
+#include "settings3d.h"
 #include "particles3d.h"
 #include "models3d.h"
 #include "rogue.h"
@@ -96,8 +97,11 @@ void JE_starShowVGA(void)
 
 		s = VGAScreenSeg->pixels;
 
+		// Tyrian3D: on the wide playfield the 2D view shows the 264 pixels round the ship.
+		l3d_view_x = l3d_field_wide ? SDL_clamp(player[0].x + 7 - L3D_PLAYFIELD_W / 2, 0, L3D_WIDTH - L3D_PLAYFIELD_W)
+		                            : L3D_PLAYFIELD_X;
 		src = game_screen->pixels;
-		src += 24;
+		src += l3d_view_x;
 
 		// Tyrian3D: a frame for the 3D view shows at once; the game waits for its next tick at the
 		// start of the tick instead (video_wait_tick_3d), so input shows a tick sooner.
@@ -121,7 +125,7 @@ void JE_starShowVGA(void)
 		else if (starShowVGASpecialCode == 2 && processorType >= 2)
 		{
 			lighty = 172 - player[0].y;
-			lightx = 281 - player[0].x;
+			lightx = 257 + l3d_view_x - player[0].x;
 
 			for (y = 184; y; y--)
 			{
@@ -572,6 +576,130 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 		l3d_key_last_object(key, NULL, NULL);
 }
 
+// The slots an event's enemies take (-1: it makes none at the screen's top; bottom: made at the
+// screen's bottom), how many parts, and whether it is one of events 49-52 (enemy 0 with the
+// event's sprite).
+static int spawn_slots(const struct JE_EventRecType *ev, int *parts, int *bottom_y, bool *custom)
+{
+	*parts = 1;
+	*bottom_y = 0;
+	*custom = false;
+	switch (ev->eventtype)
+	{
+	case 6:  return 25;
+	case 7:  return 50;
+	case 10: return 75;
+	case 15: return 0;
+	case 12:
+		*parts = 4;
+		return ev->eventdat6 <= 1 ? 25 : ev->eventdat6 == 2 ? 0 : ev->eventdat6 == 3 ? 50 : 75;
+	case 17: *bottom_y = 190 + ev->eventdat5; return 25;
+	case 18: *bottom_y = 190 + ev->eventdat5; return 0;
+	case 23: *bottom_y = 180 + ev->eventdat5; return 50;
+	case 32: *bottom_y = 190; return 50;
+	case 56: *bottom_y = 190; return 75;
+	case 49: case 50: case 51: case 52:
+		*custom = true;
+		return (const int[]){ 25, 0, 50, 75 }[ev->eventtype - 49];
+	default:
+		return -1;
+	}
+}
+
+// How the map and the clock move on: event_step clock pixels an event step, ground_rate pixels a
+// tick the ground layers move; false when the clock stands.
+static bool clock_rates(bool *slow, int *event_step, float *ground_rate)
+{
+	*slow = map1YDelayMax > 1 && backMove < 2;
+	if (*slow)
+	{
+		*event_step = 1;
+		*ground_rate = 1.0f / map1YDelayMax;
+	}
+	else if (backMove > 0)
+		*ground_rate = *event_step = backMove;
+	else if (forceEvents)
+	{
+		*event_step = 1;
+		*ground_rate = 0;
+	}
+	else
+		return false;
+	return true;
+}
+
+// Ticks until an event at that time happens (0: this tick).
+static int ticks_until(JE_word eventtime, bool slow, int event_step)
+{
+	const int moves = ((int)eventtime - (int)curLoc + event_step - 1) / event_step;
+	return moves <= 0 ? 0 : slow ? map1YDelay + (moves - 1) * map1YDelayMax : moves;
+}
+
+/*
+ * Tyrian3D: on a playfield reaching above the screen (l3d_field_ahead: the wide playfield, the
+ * side-scrolling levels), an enemy an event makes at the screen's top is made ahead of its time,
+ * as far up as it flies down in that time, so it comes down through the playfield's top part and
+ * is where the original makes it when the original makes it (and goes on as there). Enemies that
+ * don't come down are made at their time: sky and top ones at the playfield's top, ground ones
+ * where their map puts them. prespawned: the events already done that way (passed over when the
+ * clock reaches them).
+ */
+static bool prespawned[EVENT_MAXIMUM];
+#define WIDE_AHEAD 64  // the wide playfield reaches this far above the screen (the overscan rows the 3D view gets)
+static int prespawn_rise = 0;  // made by prespawn_events: this far above where the event puts it
+
+static void prespawn_events(void)
+{
+	bool slow;
+	int event_step;
+	float ground_rate;
+	if (l3d_field_ahead <= 0 || endLevel || !clock_rates(&slow, &event_step, &ground_rate))
+		return;
+	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
+	{
+		struct JE_EventRecType *ev = &eventRec[e];
+		const int ticks = ticks_until(ev->eventtime, slow, event_step);
+		if (ticks > l3d_field_ahead + 1)
+			break;  // (at least a pixel a tick: none of the later ones is due)
+		// Not past what may change the course of events (jumps, skips) or the speeds the times
+		// were reckoned at: what comes after them is made at its own time.
+		switch (ev->eventtype)
+		{
+		case 2: case 3: case 30: case 38: case 53: case 54: case 61: case 63: case 66: case 67: case 70: case 71:
+		case 75: case 76: case 80:
+			if (ticks > 0)
+				return;
+			break;
+		default:
+			break;
+		}
+		int parts, bottom_y;
+		bool custom;
+		const int offset = spawn_slots(ev, &parts, &bottom_y, &custom);
+		if (ticks == 0 || prespawned[e] || offset < 0 || bottom_y != 0 || ev->eventdat2 == -99)
+			continue;
+		const Uint16 eDatI = custom ? 0 : (Uint16)ev->eventdat;
+		if ((eDatI == 0 && !custom) || eDatI > ENEMY_NUM)
+			continue;
+		const struct JE_SingleEnemyDat *dat = &enemyDat[eDatI];
+		const float carried = offset == 0 ? 0 : offset == 50 ? backMove3 : ground_rate;
+		const int own_dy = custom ? dat->ymove : dat->ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12);
+		const float dy = own_dy + carried;
+		const int rise = (int)lroundf(dy * ticks);
+		if (dy <= 0 || rise > l3d_field_ahead)
+			continue;
+
+		// Made now, as the event makes it, that far up.
+		const JE_word saved = eventLoc;
+		eventLoc = (JE_word)(e + 1);
+		prespawn_rise = rise;
+		JE_eventSystem();
+		prespawn_rise = 0;
+		eventLoc = saved;
+		prespawned[e] = true;
+	}
+}
+
 // enemy_offset: the slots of the layer being drawn (0 sky, 25 and 75 ground, 50 top).
 static void draw_coming_enemies(int enemy_offset)
 {
@@ -579,22 +707,10 @@ static void draw_coming_enemies(int enemy_offset)
 		return;
 	// How far the events move on a tick (on slowly scrolling maps the map moves a pixel every few
 	// ticks: the next time in map1YDelay ticks), and how far the layer carries its enemies.
-	const bool slow = map1YDelayMax > 1 && backMove < 2;
+	bool slow;
 	int event_step;
 	float ground_rate;
-	if (slow)
-	{
-		event_step = 1;
-		ground_rate = 1.0f / map1YDelayMax;
-	}
-	else if (backMove > 0)
-		ground_rate = event_step = backMove;
-	else if (forceEvents)
-	{
-		event_step = 1;
-		ground_rate = 0;
-	}
-	else
+	if (!clock_rates(&slow, &event_step, &ground_rate))
 		return;
 	const float carried = enemy_offset == 0 ? 0 : enemy_offset == 50 ? backMove3 : ground_rate;
 	const int map_x_ofs = enemy_offset == 0 ? mapX2Ofs : enemy_offset == 50 ? (background3x1 == 0 ? oldMapX3Ofs : mapXOfs) : mapXOfs;
@@ -605,36 +721,15 @@ static void draw_coming_enemies(int enemy_offset)
 		// The event happens `ticks` ticks from now: the map moves until it reaches the event, and
 		// events come at the start of a tick, before the map moves. The enemy is first drawn in that
 		// tick, a tick's movement from where it is made.
-		const int moves = ((int)ev->eventtime - (int)curLoc + event_step - 1) / event_step;
-		const float ticks = 1 + (moves == 0 ? 0 : slow ? map1YDelay + (moves - 1) * map1YDelayMax : moves);
+		const float ticks = 1 + ticks_until(ev->eventtime, slow, event_step);
 		if (ticks > 400)
 			break;
 
 		// The slots the event's enemies take, how many (a 2x2 group), and where they appear.
-		int offset = -1, parts = 1, bottom_y = 0;
-		bool custom = false;  // events 49-52: enemy 0 with the event's sprite
-		switch (ev->eventtype)
-		{
-		case 6:  offset = 25; break;
-		case 7:  offset = 50; break;
-		case 10: offset = 75; break;
-		case 15: offset = 0; break;
-		case 12:
-			parts = 4;
-			offset = ev->eventdat6 <= 1 ? 25 : ev->eventdat6 == 2 ? 0 : ev->eventdat6 == 3 ? 50 : 75;
-			break;
-		case 17: offset = 25; bottom_y = 190 + ev->eventdat5; break;
-		case 18: offset = 0;  bottom_y = 190 + ev->eventdat5; break;
-		case 23: offset = 50; bottom_y = 180 + ev->eventdat5; break;
-		case 32: offset = 50; bottom_y = 190; break;
-		case 56: offset = 75; bottom_y = 190; break;
-		case 49: case 50: case 51: case 52:
-			offset = (const int[]){ 25, 0, 50, 75 }[ev->eventtype - 49];
-			custom = true;
-			break;
-		default: break;
-		}
-		if (offset != enemy_offset || ev->eventdat2 == -200 || ev->eventdat2 == -99)
+		int parts, bottom_y;
+		bool custom;  // events 49-52: enemy 0 with the event's sprite
+		const int offset = spawn_slots(ev, &parts, &bottom_y, &custom);
+		if (offset != enemy_offset || ev->eventdat2 == -200 || ev->eventdat2 == -99 || prespawned[e])
 			continue;
 
 		for (int part = 0; part < parts; ++part)
@@ -656,7 +751,7 @@ static void draw_coming_enemies(int enemy_offset)
 				ex -= 12;
 			else if (offset == 50)
 				ex = background3x1 ? ev->eventdat2 - (mapX - 1) * 24 - 12 : ev->eventdat2 - mapX3 * 24 - 24 * 2 + 6;
-			int ey = -28 - l3d_field_ahead;
+			int ey = -28;
 			if (offset == 50 && background3x1b)
 			{
 				ex -= 6;
@@ -853,15 +948,21 @@ enemy_still_exists:
 			/* Evalue != 0 - score item at boundary */
 			if (enemy[i].scoreitem)
 			{
-				if (enemy[i].ex < -5)
+				// (Tyrian3D: on the wide playfield, inside its 0-319 where it shows, its layer's
+				// offset held still.)
+				const int left = l3d_field_wide ? 1 - tempMapXOfs : -5, right = l3d_field_wide ? 307 - tempMapXOfs : 245;
+				if (enemy[i].ex < left)
 					enemy[i].ex++;
-				if (enemy[i].ex > 245)
+				if (enemy[i].ex > right)
 					enemy[i].ex--;
 			}
 
 			enemy[i].ey += tempBackMove;
 
-			if (enemy[i].ex <= -24 || enemy[i].ex >= 296)
+			// (Tyrian3D: on the wide playfield, where it shows on 0-319, as far out as the original
+			// allows round 24-287.)
+			if (l3d_field_wide ? enemy[i].ex + tempMapXOfs <= -33 || enemy[i].ex + tempMapXOfs >= 343
+			                   : enemy[i].ex <= -24 || enemy[i].ex >= 296)
 				goto draw_enemy_end;
 
 			JE_integer tempX = enemy[i].ex;
@@ -1611,7 +1712,9 @@ start_level_first:
 	memset(smoothies, 0, sizeof(smoothies));
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
-	l3d_field_ahead = 0;
+	l3d_field_wide = settings3d.view_3d && settings3d.playfield_wide && !isNetworkGame;
+	l3d_field_ahead = l3d_field_wide ? WIDE_AHEAD : 0;
+	memset(prespawned, 0, sizeof(prespawned));
 
 	levelTimer = false;
 	randomExplosions = false;
@@ -1819,8 +1922,17 @@ level_loop:
 	VGAScreen = game_screen;
 
 	/*---------------------------EVENTS-------------------------*/
+	prespawn_events();
 	while (eventRec[eventLoc-1].eventtime <= curLoc && eventLoc <= maxEvent)
+	{
+		if (prespawned[eventLoc-1])
+		{
+			prespawned[eventLoc-1] = false;  // (done ahead of time; again if a jump brings it round)
+			eventLoc++;
+			continue;
+		}
 		JE_eventSystem();
+	}
 
 	if (isNetworkGame && reallyEndLevel)
 		goto start_level;
@@ -2400,7 +2512,7 @@ draw_player_shot_loop_end:
 					}
 				}
 
-				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 || enemyShot[z].sy <= -14 - l3d_field_ahead || enemyShot[z].sx > 275 || enemyShot[z].sx <= 0)
+				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 || enemyShot[z].sy <= -14 - l3d_field_ahead || enemyShot[z].sx > 275 + l3d_field_right() || enemyShot[z].sx <= -l3d_field_left())
 				{
 					enemyShotAvail[z] = true;
 				}
@@ -4889,9 +5001,16 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 				enemy[b-1].ex -= 6;
 			break;
 		}
-		enemy[b-1].ey = -28 - l3d_field_ahead;  // (Tyrian3D: the playfield's top, see l3d_field_ahead)
+		enemy[b-1].ey = -28;
 		if (background3x1b && enemyOffset == 50)
 			enemy[b-1].ey += 4;
+		// Tyrian3D: on a playfield reaching above the screen, made ahead of time that far up
+		// (prespawn_events), or, not coming down, sky and top ones at the playfield's top.
+		if (prespawn_rise > 0)
+			enemy[b-1].ey -= prespawn_rise;
+		else if (l3d_field_ahead > 0 && enemyOffset != 25 && enemyOffset != 75 &&
+		         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 <= 0)
+			enemy[b-1].ey -= l3d_field_ahead;
 	}
 
 	if (smallEnemyAdjust && enemy[b-1].size == 0)
@@ -5891,7 +6010,8 @@ void JE_eventSystem(void)
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)
 		l3d_sideways = eventRec[eventLoc-1].eventdat != 0;
 		l3d_side_decor = eventRec[eventLoc-1].eventdat2;
-		l3d_field_ahead = eventRec[eventLoc-1].eventdat != 0 ? eventRec[eventLoc-1].eventdat3 * 10 : 0;
+		l3d_field_ahead = eventRec[eventLoc-1].eventdat != 0 && eventRec[eventLoc-1].eventdat3 > 0
+		                  ? eventRec[eventLoc-1].eventdat3 * 10 : l3d_field_wide ? WIDE_AHEAD : 0;
 		break;
 
 	default:
