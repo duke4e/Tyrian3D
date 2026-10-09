@@ -289,7 +289,7 @@ typedef struct
 	Uint8 kind;
 	Sint8 level;  // in the act's levels (its bosses for a boss)
 	Uint8 next;   // a bit per node of the next row it leads to
-	Uint8 planet;
+	Uint8 planet;  // its sprite (PLANET_SHAPES)
 } Node;
 
 static struct
@@ -348,18 +348,24 @@ static int pick_level(int act, int kind)
 	return i;
 }
 
-// A planet sprite for a node (in PGR): a small one, a bigger one for a boss.
-static Uint8 pick_planet(bool boss)
+// A planet for a node: a sprite of the shop's map (the first frame of a turning planet); bosses
+// get the big ones.
+static Uint8 pick_planet(bool boss, int level, const Node *row, int count)
 {
-	Uint8 fitting[21];
-	int count = 0;
-	for (int i = 0; i < 21; ++i)
+	static const Uint8 planets[] = { 3, 35, 67, 83, 99, 115, 131, 150 }, big[] = { 35, 99, 115, 150 };
+	const Uint8 *from = boss ? big : planets;
+	const int n = boss ? (int)COUNTOF(big) : (int)COUNTOF(planets);
+	// The level's own (the same in every run), unless a node beside it has that one.
+	for (int k = 0; k < n; ++k)
 	{
-		const int w = get_sprite_width(PLANET_SHAPES, PGR[i] - 1);
-		if (w > 0 && (boss ? w <= 40 : w <= 28))
-			fitting[count++] = (Uint8)i;
+		const Uint8 planet = from[(level * 5 + run.act * 3 + k) % n];
+		bool taken = false;
+		for (int i = 0; i < count; ++i)
+			taken |= row[i].planet == planet;
+		if (!taken)
+			return planet;
 	}
-	return count > 0 ? fitting[rnd_below(count)] : 0;
+	return from[0];
 }
 
 // The act's map: rows of 2-3 nodes (the first row only fights), each leading to the nearest
@@ -388,7 +394,7 @@ static void make_map(void)
 				merchant |= n->kind == NODE_MERCHANT;
 			}
 			n->level = (Sint8)(n->kind == NODE_MERCHANT ? -1 : pick_level(run.act, n->kind));
-			n->planet = pick_planet(boss);
+			n->planet = pick_planet(boss, n->level, run.nodes[r], c);
 		}
 	}
 	// Each node leads to the next row's nodes near it; each node there is reached from one.
@@ -1042,18 +1048,64 @@ static bool card_screen(const char *heading, const char *subheading, int count, 
 	return picked;
 }
 
-static const char *node_kind_name(int kind)
+// A planet as the shop's map draws it, in its own palette (18), its colours mapped to the nearest
+// of the screen's (the shop's, which the items' icons need).
+static void blit_planet(SDL_Surface *s, int x, int y, unsigned int index, int scale)
 {
-	static const char *const names[] = { "", "Elite", "Merchant", "Boss" };
-	return names[kind];
+	static Uint8 remap[256];
+	static bool made = false;
+	if (!made)
+	{
+		const SDL_Color *from = palettes[17], *to = palettes[0];
+		for (int i = 0; i < 256; ++i)
+		{
+			int best = 0, best_d = 1 << 30;
+			for (int k = 1; k < 256; ++k)
+			{
+				const int dr = from[i].r - to[k].r, dg = from[i].g - to[k].g, db = from[i].b - to[k].b;
+				const int d = 3 * dr * dr + 4 * dg * dg + 2 * db * db;
+				if (d < best_d)
+					best_d = d, best = k;
+			}
+			remap[i] = (Uint8)best;
+		}
+		made = true;
+	}
+	if (!sprite_exists(PLANET_SHAPES, index))
+		return;
+	const Sprite *sp = sprite(PLANET_SHAPES, index);
+	const Uint8 *data = sp->data, *end = data + sp->size;
+	int px = 0, py = 0;
+	for (; data < end; ++data)
+	{
+		if (*data == 255)
+			px += *++data;
+		else if (*data == 254)
+			px = sp->width;
+		else if (*data == 253)
+			++px;
+		else
+		{
+			const int sx = x + px / scale, sy = y + py / scale;
+			if (px % scale == 0 && py % scale == 0 && sx >= 0 && sx < s->w && sy >= 0 && sy < s->h)
+				((Uint8 *)s->pixels)[sy * s->pitch + sx] = remap[*data];
+			++px;
+		}
+		if (px >= sp->width)
+			px -= sp->width, ++py;
+	}
 }
 
+// The map runs left to right: a row of the act is a column of nodes.
 static void node_position(int row, int col, int *x, int *y)
 {
-	const int top = 50, bottom = 136;
-	*y = run.rows > 1 ? bottom - (bottom - top) * row / (run.rows - 1) : top;
-	*x = 30 + (260 * (2 * col + 1)) / (2 * run.width[row]);
+	const int left = 66, right = 286, top = 38, height = 124;
+	*x = run.rows > 1 ? left + (right - left) * row / (run.rows - 1) : right;
+	*y = top + (height * (2 * col + 1)) / (2 * run.width[row]);
 }
+
+#define START_X 22
+#define START_Y 100
 
 static const char *node_name(int row, int col)
 {
@@ -1070,30 +1122,41 @@ static void draw_node(SDL_Surface *s, int row, int col, bool selected, bool can_
 	int x, y;
 	node_position(row, col, &x, &y);
 	const bool visited = row < run.row || (row == run.row && col == run.col);
-	const Sint8 value = selected ? 4 : can_go ? 1 : visited ? -2 : -5;
+	const bool lit = selected || can_go || visited;
+	const Sint8 value = selected ? 4 : can_go ? 1 : visited ? -1 : -4;
+	// The selection's frame first, around the planet and its labels (a line through a text would
+	// keep it from turning into the TrueType one).
+	if (selected)
+	{
+		const int ph = n->kind == NODE_MERCHANT ? 14 : get_sprite_height(PLANET_SHAPES, n->planet) /
+		               (n->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, n->planet) > 30 ? 2 : 1);
+		const int below = n->kind == NODE_MERCHANT ? 3 : n->kind == NODE_ELITE ? 18 : 11;
+		JE_rectangle(s, x - 25, y - ph / 2 - 3, x + 25, y + ph / 2 + below, 255);
+	}
 	if (n->kind == NODE_MERCHANT)
 	{
-		panel(s, x - 14, y - 7, 28, 14, (Uint8)(HUE_GOLD * 16 + (can_go || selected ? 12 : 6)));
+		panel(s, x - 14, y - 7, 28, 14, (Uint8)(HUE_GOLD * 16 + (lit ? 12 : 5)));
 		text(s, x, y - 3, "Shop", small_font, centered, HUE_GOLD, value);
 	}
 	else
 	{
-		// A planet, small enough.
-		const unsigned int planet = PGR[n->planet] - 1;
-		const int pw = get_sprite_width(PLANET_SHAPES, planet), ph = get_sprite_height(PLANET_SHAPES, planet);
-		if (pw > 0 && pw <= 40 && ph <= 40)
-			blit_sprite(s, x - pw / 2, y - ph / 2, PLANET_SHAPES, planet);
-		else
-			fill_rectangle_xy(s, x - 4, y - 4, x + 4, y + 4, (Uint8)((n->kind == NODE_BOSS ? HUE_RED : HUE_BLUE) * 16 + 8));
-		if (!can_go && !selected && !visited)
-			JE_barShade(s, x - 20, y - 20, x + 20, y + 20);
+		// Planets wider than a node's place at half size (a boss's as it is).
+		const unsigned int planet = n->planet;
+		const int scale = n->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, planet) > 30 ? 2 : 1;
+		const int pw = get_sprite_width(PLANET_SHAPES, planet) / scale, ph = get_sprite_height(PLANET_SHAPES, planet) / scale;
+		blit_planet(s, x - pw / 2, y - ph / 2, planet, scale);
+		if (!lit)
+			for (int i = 0; i < 2; ++i)
+				JE_barShade(s, x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2);
+		// The kind: the name's colour (elite orange, boss red).
+		const Uint8 hue = n->kind == NODE_BOSS ? HUE_RED : n->kind == NODE_ELITE ? HUE_GOLD : HUE_TEXT;
+		const char *label = n->kind == NODE_ELITE ? "Elite" : n->kind == NODE_BOSS ? "Boss" : NULL;
+		text(s, x, y + ph / 2 + 2, node_name(row, col), small_font, centered, hue, value);
+		if (label != NULL && n->kind == NODE_BOSS)
+			text(s, x, y - ph / 2 - 9, label, small_font, centered, hue, value);
+		else if (label != NULL)
+			text(s, x, y + ph / 2 + 9, label, small_font, centered, hue, (Sint8)(value - 2));
 	}
-	if (selected)
-		JE_rectangle(s, x - 18, y - 16, x + 18, y + 16, 255);
-	if (n->kind != NODE_MERCHANT)
-		text(s, x, y + 13, node_name(row, col), small_font, centered, HUE_TEXT, value);
-	if (n->kind == NODE_ELITE || n->kind == NODE_BOSS)
-		text(s, x, y - 21, node_kind_name(n->kind), small_font, centered, n->kind == NODE_BOSS ? HUE_RED : HUE_GOLD, value);
 }
 
 // The map: the next node picked (run.row, run.col move there). False when the run is abandoned.
@@ -1117,7 +1180,7 @@ static bool map_screen(void)
 					int x0, y0, x1, y1;
 					node_position(r, c, &x0, &y0);
 					node_position(r + 1, k, &x1, &y1);
-					line(VGAScreen2, x0, y0 - 9, x1, y1 + 10, (Uint8)(HUE_TEXT * 16 + (r < run.row ? 10 : 6)), r >= run.row);
+					line(VGAScreen2, x0 + 14, y0, x1 - 14, y1, (Uint8)(HUE_TEXT * 16 + (r < run.row ? 10 : 6)), r >= run.row);
 				}
 	if (run.row < 0)
 	{
@@ -1126,7 +1189,7 @@ static bool map_screen(void)
 		{
 			int x, y;
 			node_position(0, c, &x, &y);
-			line(VGAScreen2, 160, 146, x, y + 10, (Uint8)(HUE_TEXT * 16 + 6), true);
+			line(VGAScreen2, START_X + 14, START_Y, x - 14, y, (Uint8)(HUE_TEXT * 16 + 6), true);
 		}
 	}
 	mouseCursor = MOUSE_POINTER_NORMAL;
@@ -1146,7 +1209,7 @@ static bool map_screen(void)
 			}
 		// The ship where it is.
 		{
-			int x = 160, y = 156;
+			int x = START_X, y = START_Y;
 			if (run.row >= 0)
 				node_position(run.row, run.col, &x, &y);
 			JE_drawItem(1, player[0].items.ship, (JE_word)(x - 12), (JE_word)(y - 14));
@@ -1157,7 +1220,7 @@ static bool map_screen(void)
 		                                     "a merchant: cards for credits", "the boss: the act's end" };
 		snprintf(info, sizeof(info), "%s: %s", node_name(next_row, choices[selected]), what[n->kind]);
 		text(VGAScreen, 160, 176, info, small_font, centered, HUE_GOLD, 4);
-		text(VGAScreen, 160, 188, "Left/Right: choose    Enter: go    Esc: abandon the run", small_font, centered, HUE_TEXT, 0);
+		text(VGAScreen, 160, 188, "Up/Down: choose    Enter: go    Esc: abandon the run", small_font, centered, HUE_TEXT, 0);
 		show_screen();
 		if (first)
 		{
@@ -1181,7 +1244,7 @@ static bool map_screen(void)
 			{
 				int x, y;
 				node_position(next_row, choices[i], &x, &y);
-				if (inside(mouse_x, mouse_y, x - 20, y - 22, 40, 44))
+				if (inside(mouse_x, mouse_y, x - 22, y - 18, 44, 36))
 				{
 					if (selected != i)
 						JE_playSampleNum(S_CURSOR);
@@ -1194,10 +1257,12 @@ static bool map_screen(void)
 		{
 			switch (lastkey_scan)
 			{
+			case SDL_SCANCODE_UP:
 			case SDL_SCANCODE_LEFT:
 				selected = (selected + count - 1) % count;
 				JE_playSampleNum(S_CURSOR);
 				break;
+			case SDL_SCANCODE_DOWN:
 			case SDL_SCANCODE_RIGHT:
 				selected = (selected + 1) % count;
 				JE_playSampleNum(S_CURSOR);

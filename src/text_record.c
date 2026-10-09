@@ -12,6 +12,7 @@
 #include <string.h>
 
 #define RECORDS 256
+#define TEXT_VARIANTS 3  // older drawings kept for a place (see text_record_end)
 
 static TextRecord records[RECORDS];
 static int record_count = 0;
@@ -122,11 +123,13 @@ void text_record_end(void)
 		return;
 	}
 	open = NULL;
-	// A text drawn again in the same place (menus redraw their items, highlighted or not) replaces
-	// the old record: where it was drawn over the old text, what was there before that is its
-	// "before" (so taking it back leaves no pixel text).
+	// A text drawn again in the same place (menus redraw their items, highlighted or not): where it
+	// was drawn over the old text, what was there before that is its "before" (so taking it back
+	// leaves no pixel text). The same drawing replaces the old record; a different one (the item
+	// highlighted) is kept beside it, as the screen may show either again (a few per place).
 	TextRecord *r = &pending;
-	for (int i = 0; i < record_count; ++i)
+	int variants = 0;
+	for (int i = record_count - 1; i >= 0; --i)
 	{
 		TextRecord *old = &records[i];
 		if (old->text_x != r->text_x || old->text_y != r->text_y || old->font != r->font)
@@ -141,9 +144,13 @@ void text_record_end(void)
 				if (old->after[ok] != old->before[ok] && r->before[k] == old->after[ok])
 					r->before[k] = old->before[ok];
 			}
-		memmove(&records[i], &records[i + 1], sizeof(records[0]) * (size_t)(record_count - i - 1));
-		--record_count;
-		break;
+		const bool same = old->x == r->x && old->y == r->y && old->w == r->w && old->h == r->h &&
+		                  strcmp(old->text, r->text) == 0 && memcmp(old->after, r->after, (size_t)(r->w * r->h)) == 0;
+		if (same || ++variants > TEXT_VARIANTS)
+		{
+			memmove(&records[i], &records[i + 1], sizeof(records[0]) * (size_t)(record_count - i - 1));
+			--record_count;
+		}
 	}
 	if (record_count == RECORDS)
 	{
@@ -175,15 +182,20 @@ int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max, 
 	for (int y = 0; y < 200; ++y)
 		memcpy(untexted + y * 320, (const Uint8 *)screen->pixels + y * screen->pitch, 320);
 	// Newest first: a text taken back shows what was under it, maybe an older text, taken back next.
-	static const TextRecord *found[RECORDS];
-	int count = 0;
+	static const TextRecord *found[RECORDS], *taken[RECORDS];
+	int count = 0, taken_count = 0;
 	for (int i = record_count - 1; i >= 0; --i)
 	{
 		const TextRecord *r = &records[i];
 		if (r->w <= 0 || r->h <= 0 || r->y + r->h > 200)
 			continue;
-		if (kept_percent(r, untexted, 320) < 85)
+		// One drawing per place: an older one there is what the newer was drawn over.
+		bool place_taken = false;
+		for (int k = 0; k < taken_count && !place_taken; ++k)
+			place_taken = taken[k]->text_x == r->text_x && taken[k]->text_y == r->text_y && taken[k]->font == r->font;
+		if (place_taken || kept_percent(r, untexted, 320) < 85)
 			continue;
+		taken[taken_count++] = r;
 		const bool shown = kept_percent(r, (const Uint8 *)screen->pixels, screen->pitch) >= 60;
 
 		for (int y = 0; y < r->h; ++y)
