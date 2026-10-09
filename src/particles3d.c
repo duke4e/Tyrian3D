@@ -212,6 +212,75 @@ static void shock_ring(float x, float y, float height, float size, float life)
 	set_colors(p, 255, 200, 140, 150, 255, 110, 40, 0);
 }
 
+void p3d_field(float x, float y, float height, P3DField field, float reach, bool pulse)
+{
+	// Cold blue-white light, unlike the explosions' fire.
+	if (pulse && (field == P3D_FIELD_REPULSE || field == P3D_FIELD_ATTRACT))
+	{
+		for (int k = 0; k < 2; ++k)
+		{
+			P3DParticle *p = spawn(P3D_RING, x, y, height);
+			if (p == NULL)
+				return;
+			const float life = 20;
+			if (field == P3D_FIELD_REPULSE)
+			{
+				p->size = 8;
+				p->grow = (2 * reach - 8) / life;
+			}
+			else
+			{
+				p->size = 2 * reach;
+				p->grow = -(2 * reach - 8) / life;
+			}
+			p->age = -6.0f * k;
+			p->life = life;
+			set_colors(p, 150, 220, 255, 150, 40, 90, 255, 0);
+		}
+	}
+	const int count = pulse ? 10 : 2;
+	for (int i = 0; i < count; ++i)
+	{
+		const float angle = random_range(0, 2 * (float)M_PI);
+		float px = x, py = y, vx, vy;
+		switch (field)
+		{
+		case P3D_FIELD_REPULSE:
+			vx = cosf(angle) * random_range(2.5f, 4.0f);
+			vy = sinf(angle) * random_range(2.5f, 4.0f);
+			break;
+		case P3D_FIELD_ATTRACT:
+		{
+			// From the edge of its reach, inwards.
+			const float r = reach * random_range(0.6f, 1.0f), s = random_range(2.5f, 4.0f);
+			px += cosf(angle) * r;
+			py += sinf(angle) * r;
+			vx = -cosf(angle) * s;
+			vy = -sinf(angle) * s;
+			break;
+		}
+		default:
+		{
+			const float side = field == P3D_FIELD_RIGHT ? 1.0f : -1.0f;
+			px += random_range(-6, 6);
+			py += random_range(-reach, reach);
+			vx = side * random_range(3.0f, 5.0f);
+			vy = random_range(-0.2f, 0.2f);
+			break;
+		}
+		}
+		P3DParticle *p = spawn(P3D_GLOW, px, py, height);
+		if (p == NULL)
+			return;
+		p->vx = vx;
+		p->vy = vy;
+		p->drag = 0.97f;
+		p->size = random_range(1.4f, 2.4f);
+		p->life = field == P3D_FIELD_ATTRACT ? reach * 0.8f / 3.2f : random_range(12, 18);
+		set_colors(p, 180, 230, 255, 230, 60, 120, 255, 0);
+	}
+}
+
 // A plume of dark smoke rising after the fire.
 static void plume(float x, float y, float height, int count, float size, Uint8 grey)
 {

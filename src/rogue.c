@@ -305,9 +305,13 @@ static struct
 	int levels, bosses;
 	int cores;     // earned this run
 	Player at_start;  // as the level began, for a life
+	int xp, xp_level, level_ups;  // purple orbs: experience, its level, level-ups owed a card
+	int at_start_xp, at_start_xp_level, at_start_level_ups;
 	int kind;      // the level's node kind
 	const RogueLevel *level;
 } run;
+
+static int xp_needed(int level);
 
 static Uint32 rnd(void)
 {
@@ -510,9 +514,12 @@ static int roll_tier(int boost)
 	return roll < w[0] ? 1 : roll < w[0] + w[1] ? 2 : 3;
 }
 
-static bool same_card(const Card *a, const Card *b)
+// Cards of a pick differ in kind (not three front guns), as far as the deck allows.
+static bool same_card(const Card *a, const Card *b, bool strict)
 {
-	return a->kind == b->kind && (a->kind != CARD_ITEM || (a->item_kind == b->item_kind && a->id == b->id));
+	if (a->kind != b->kind)
+		return false;
+	return a->kind != CARD_ITEM || (a->item_kind == b->item_kind && (strict || a->id == b->id));
 }
 
 static Card deal_card(int boost, const Card *others, int other_count)
@@ -569,7 +576,7 @@ static Card deal_card(int boost, const Card *others, int other_count)
 		}
 		bool repeated = false;
 		for (int i = 0; i < other_count; ++i)
-			repeated |= same_card(&card, &others[i]);
+			repeated |= same_card(&card, &others[i], attempt < 48);
 		if (!repeated)
 			break;
 	}
@@ -930,7 +937,8 @@ static bool inside(Sint32 px, Sint32 py, int x, int y, int w, int h)
 static void status_line(SDL_Surface *s, int y)
 {
 	char line[96];
-	snprintf(line, sizeof(line), "Lives %d    Credits %lu    Cores +%d", 1 + run.lives, player[0].cash, run.cores);
+	snprintf(line, sizeof(line), "Lives %d    Credits %lu    XP level %d (%d/%d)    Cores +%d", 1 + run.lives, player[0].cash,
+	         run.xp_level, run.xp, xp_needed(run.xp_level), run.cores);
 	text(s, 160, y, line, small_font, centered, HUE_TEXT, 1);
 }
 
@@ -1330,6 +1338,9 @@ static void set_up_level(void)
 	initialDifficulty = difficultyLevel;
 	oldDifficultyLevel = difficultyLevel;
 	run.at_start = player[0];
+	run.at_start_xp = run.xp;
+	run.at_start_xp_level = run.xp_level;
+	run.at_start_level_ups = run.level_ups;
 	printf("rogue: act %d row %d: %s (episode %d section %d, difficulty %d)\n", run.act + 1, run.row + 1,
 	       run.level->name, run.level->episode, run.level->section, difficultyLevel);
 }
@@ -1406,6 +1417,39 @@ static void start_run(Uint32 seed)
 	printf("rogue: run with seed %u\n", seed);
 }
 
+// Purple orbs: experience. Each level needs two more than the one before (3, 5, 7...).
+static int xp_needed(int level)
+{
+	return 3 + 2 * level;
+}
+
+bool rogue_purple_ball(void)
+{
+	if (!rogue_run)
+		return false;
+	if (++run.xp >= xp_needed(run.xp_level))
+	{
+		run.xp -= xp_needed(run.xp_level);
+		++run.xp_level;
+		++run.level_ups;
+		char line[64];
+		snprintf(line, sizeof(line), "Level up! An extra card after the level");
+		JE_drawTextWindow(line);
+		printf("rogue: xp level %d\n", run.xp_level);
+	}
+	return true;
+}
+
+bool rogue_xp(int *xp, int *needed, int *level)
+{
+	if (!rogue_run)
+		return false;
+	*xp = run.xp;
+	*needed = xp_needed(run.xp_level);
+	*level = run.xp_level;
+	return true;
+}
+
 bool rogue_level_over(void)
 {
 	if (playerEndLevel)
@@ -1425,6 +1469,9 @@ bool rogue_level_over(void)
 		// A spare hull: the level again, as it began.
 		--run.lives;
 		player[0] = run.at_start;
+		run.xp = run.at_start_xp;
+		run.xp_level = run.at_start_xp_level;
+		run.level_ups = run.at_start_level_ups;
 		char line[64];
 		snprintf(line, sizeof(line), "Extra lives left: %d", run.lives);
 		const char *const lines[2] = { "The spare hull takes over", line };
@@ -1468,6 +1515,12 @@ bool rogue_level_over(void)
 	}
 	else
 		card_screen("Choose a Card", subheading, cards, 0, false);
+	for (; run.level_ups > 0; --run.level_ups)
+	{
+		char heading[64];
+		snprintf(heading, sizeof(heading), "Level Up: %d", run.xp_level - run.level_ups + 1);
+		card_screen(heading, "Purple orbs: an extra card", cards, 1, false);
+	}
 
 	return next_level();
 }

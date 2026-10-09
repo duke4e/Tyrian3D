@@ -65,6 +65,18 @@ bool p3d_explosion(int x, int y, int type);
 // A wisp of dark smoke rising from (x, y), e.g. from a wreck.
 void p3d_smoke(float x, float y, float height, float size);
 
+// The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
+// they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range
+// magnet's sparks streaming sideways. pulse: a ring with it (callers space them out).
+typedef enum
+{
+	P3D_FIELD_REPULSE,
+	P3D_FIELD_ATTRACT,
+	P3D_FIELD_RIGHT,
+	P3D_FIELD_LEFT,
+} P3DField;
+void p3d_field(float x, float y, float height, P3DField field, float reach, bool pulse);
+
 // Advances the particles by one game frame; drift is how far explosions move down the screen in
 // it (explodeMove).
 void p3d_update(int drift);

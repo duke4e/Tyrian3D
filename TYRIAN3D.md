@@ -128,7 +128,9 @@ sidekick, a shield or generator (better ones only), a ship, a special weapon, an
 credits; cards are common, rare or epic, rarer later in the run and after harder levels. Elite
 nodes fly a level one difficulty higher for a bounty and better cards; merchants sell cards for
 credits; the acts are Normal, Hard and Impossible. Dying without an extra life ends the run (an
-extra life flies the level again, as it began). Runs earn cores (one a level, two more a boss,
+extra life flies the level again, as it began). Purple orbs are experience in a run (in the full game they slowly power the front gun up): every
+experience level (3, 5, 7... orbs) is an extra card after the level; the HUD shows it as XP. Runs
+earn cores (one a level, two more a boss,
 three for winning), which buy unlocks between runs: the new weapons and sidekicks, special weapons,
 ships no shop sells, more credits, an extra life or a warmer gun at the start, a fourth card.
 

@@ -4931,7 +4931,8 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 
 						if (!galagaMode)
 						{
-							handle_got_purple_ball(this_player);
+							if (!rogue_purple_ball())  // Tyrian3D: experience in a rogue run
+								handle_got_purple_ball(this_player);
 						}
 						else
 						{

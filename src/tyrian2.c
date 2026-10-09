@@ -682,6 +682,18 @@ static void draw_coming_enemies(int enemy_offset)
 	}
 }
 
+// Tyrian3D: an enemy's force field as it acts (particles3d.h), a ring every so often.
+static void show_field(int enemy_index, int x, int y, P3DField field, float reach)
+{
+	if (!l3d_enabled || enemy_index < 0 || enemy_index >= 100)
+		return;
+	static Uint32 last_pulse[100];
+	const bool pulse = l3d_frame_number - last_pulse[enemy_index] >= 14;
+	if (pulse)
+		last_pulse[enemy_index] = l3d_frame_number;
+	p3d_field((float)x + 6, (float)y + 7, enemy[enemy_index].enemyground ? 4.0f : 30.0f, field, reach, pulse);
+}
+
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing
 {
 	player[0].x -= 25;
@@ -903,8 +915,10 @@ enemy_still_exists:
 							const JE_integer attraction = 4 - (abs(player[0].x - tempX) + abs(player[0].y - tempY)) / 100;
 							if (attraction > 0)
 								player[0].x_velocity += (player[0].x > tempX) ? -attraction : attraction;
+							show_field(i, tempX + tempMapXOfs, tempY, P3D_FIELD_ATTRACT, 90);  // Tyrian3D
 							break;
 						case 253: /* Left ShortRange Magnet */
+							show_field(i, tempX + tempMapXOfs, tempY, P3D_FIELD_RIGHT, 24);  // Tyrian3D
 							if (abs(player[0].x + 25 - 14 - tempX) < 24 && abs(player[0].y - tempY) < 28)
 							{
 								player[0].x_velocity += 2;
@@ -916,6 +930,7 @@ enemy_still_exists:
 							}
 							break;
 						case 254: /* Left ShortRange Magnet */
+							show_field(i, tempX + tempMapXOfs, tempY, P3D_FIELD_LEFT, 24);  // Tyrian3D
 							if (abs(player[0].x + 25 - 14 - tempX) < 24 && abs(player[0].y - tempY) < 28)
 							{
 								player[0].x_velocity -= 2;
@@ -938,6 +953,7 @@ enemy_still_exists:
 									const JE_integer repulsion = 4 - (abs(player[0].x - tempX) + abs(player[0].y - tempY)) / 20;
 									if (repulsion > 0)
 										player[0].x_velocity += (player[0].x > tempX) ? repulsion : -repulsion;
+									show_field(i, tempX + tempMapXOfs, tempY, P3D_FIELD_REPULSE, 80);  // Tyrian3D
 								}
 							}
 							break;

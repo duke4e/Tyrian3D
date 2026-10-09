@@ -44,6 +44,12 @@ bool rogue_from_environment(void);
 // TYR3D_ROGUE_AUTO in a run: nothing waits for the player (the level's end screen too).
 bool rogue_automatic(void);
 
+// A purple orb picked up: in a run it is experience (true; the game's own weapon power-up is left
+// out), each level of it a card after the level.
+bool rogue_purple_ball(void);
+// The run's experience for the HUD: false outside a run.
+bool rogue_xp(int *xp, int *needed, int *level);
+
 // At start_level in a run, when a level ended: the reward, the map, the next level. False when
 // the run is over (back to the title screen).
 bool rogue_level_over(void);

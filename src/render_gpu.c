@@ -17,6 +17,7 @@
 #include "particles3d.h"
 #include "picload.h"
 #include "paths3d.h"
+#include "rogue.h"
 #include "settings3d.h"
 #include "sprite.h"
 #include "text_record.h"
@@ -1989,9 +1990,11 @@ static void build_modern_hud(float window_w, float window_h)
 	float ship_wx = -1e9f, ship_wy = -1e9f;
 	rgpu_playfield_to_window(p->x + 7.0f, p->y + 7.0f, &ship_wx, &ship_wy);
 
-	// Bottom right: shield, armor, the generator's power.
+	// Bottom right: shield, armor, the generator's power; a rogue run's experience.
 	const bool generator = !onePlayerAction && !twoPlayerMode;
-	const int rows = generator ? 3 : 2;
+	int xp = 0, xp_needed = 1, xp_level = 0;
+	const bool experience = rogue_xp(&xp, &xp_needed, &xp_level);
+	const int rows = (generator ? 3 : 2) + (experience ? 1 : 0);
 	const float bar_w = 64 * u, label_w = 24 * u;
 	const float x1 = window_w - 6 * u, x0 = x1 - bar_w - label_w;
 	const float y0 = window_h - 5 * u - rows * row_h;
@@ -2014,6 +2017,15 @@ static void build_modern_hud(float window_w, float window_h)
 	{
 		text_quads(TEXT_TINY, "POWER", x0, y0 + 2 * row_h + 0.3f * u, label_cap, label_color, 0.4f * u);
 		hud_bar(bar_x, y0 + 2 * row_h + 1.2f * u, bar_w, 2 * u, shown[2], power_color);
+	}
+	if (experience)
+	{
+		const float y = y0 + (rows - 1) * row_h;
+		const float xp_color[4] = { 0.8f, 0.45f, 1.0f, 1 };
+		char label[16];
+		snprintf(label, sizeof(label), "XP %d", xp_level);
+		text_quads(TEXT_TINY, label, x0, y + 0.3f * u, label_cap, label_color, 0.4f * u);
+		hud_bar(bar_x, y + 1.2f * u, bar_w, 2 * u, (float)xp / SDL_max(xp_needed, 1), xp_color);
 	}
 	hud_fade(first, x0 - 3 * u, y0 - 2.5f * u, x1 + 3 * u, window_h, ship_wx, ship_wy, 18 * u);
 
