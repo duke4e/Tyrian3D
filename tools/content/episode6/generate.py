@@ -102,6 +102,12 @@ def make(design):
     name = design["name"]
     letter = design["shapes"]
     seed = design.get("seed", 1)
+    if design.get("side"):
+        # Seen from the side (event 200): open space, the game's stars through blank tiles; the
+        # rocks along the window's edges come from the 3D view.
+        blank = design["blank"]
+        return finish(design, [[[blank] * 14 for _ in range(300)], [[0] * 14 for _ in range(600)],
+                               [[0] * 15 for _ in range(600)]])
     grids = maps_of(design["map"], 0)
     model = Model(grids, max_tiles=LAYER_TILES[0])
     slug = name.lower().replace(" ", "_")
@@ -192,8 +198,16 @@ def finish(design, layers):
         look_events.insert(0, compose.event(0, 2, d1=b1, d2=b2, d3=b3))
     head = [e for e in events if e["t"] == 0 and e["type"] in (5, 13)]
     rest = [e for e in events if not (e["t"] == 0 and e["type"] in (2, 5, 8, 13))]
-    return dict(name=name, song=design["song"], shapes=letter, maps=layers, events=look_events + head + rest,
-                placements=placements, banks=banks, terrain=design.get("terrain", {}))
+    level = dict(name=name, song=design["song"], shapes=letter, maps=layers, events=look_events + head + rest,
+                 placements=placements, banks=banks, terrain=design.get("terrain", {}))
+    if design.get("side"):
+        # Stars on (the game's and the 3D view's deep ones), the view from the side with its rocks.
+        level["events"] = [e for e in level["events"] if not (e["t"] == 0 and e["type"] in (1, 8, 9, 64))]
+        level["events"][1:1] = [compose.event(0, 9), compose.event(0, 1, d1=0),
+                                compose.event(0, 200, d1=1, d2=design["side"])]
+        level["terrain"] = None
+        level["sideways"] = True
+    return level
 
 
 # --- The levels ---------------------------------------------------------------------------------
@@ -385,6 +399,14 @@ LEVELS = [
          **CORE_MATS, waves=[(3, "FLEET"), (3, "GAUNTLET")], boss=(5, "FRUIT"), ground=[(4, "CORE")], boss_time=5600,
          look=(4, "CORE"), intensity=lambda f: 0.6 + 0.4 * f, wealth=45000,
          gimmicks=dict(dark=[(900, 2300)], midboss=((4, "CORE"), 3000), ambush=[(4700, (3, "CAMANIS"))])),
+    # Seen from the side (side: the rocks along the edges, 1 asteroids, 2 crags; blank: a blank tile
+    # of the tile set, open space for the stars).
+    dict(name="MIGRATION", side=1, blank=27, shapes="x", song=6, seed=131, waves=[(2, "GRYPHON"), (1, "SOH JIN")],
+         boss=(2, "GEM WAR"), boss_time=6000, look=(2, "GRYPHON"), speeds=(1, 0, 0), wealth=26000,
+         gimmicks=dict(couriers=[(3000, "cube")], ambush=[(4200, (2, "GRYPHON"))])),
+    dict(name="GRAVITRON", side=2, blank=21, shapes=")", song=24, seed=141, waves=[(4, "BRAINIAC"), (3, "GAUNTLET")],
+         boss=(4, "DREAD-NOT"), boss_time=6000, look=(4, "LAVA EXIT"), speeds=(1, 0, 0), wealth=40000,
+         intensity=lambda f: 0.55 + 0.45 * f, gimmicks=dict(couriers=[(2500, "cube")], bursts=[(3400, 4200, 2)])),
     # Secret and bonus levels (story.py places them: VAULT behind GREY MOON's warp orb, INVADERS after
     # THE CORE).
     dict(name="VAULT", terrain=DELI_TERRAIN, shapes="z", song=18, seed=121, map=DELI, layer2=DELI, plan=vault, **DELI_MATS,

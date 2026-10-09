@@ -79,6 +79,7 @@ typedef struct
 	bool pointer;         // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
 	Uint8 open_sides;     // L3D_VOLUME: sides another part of the same enemy continues (V3D_OPEN_*)
 	bool wreck;           // what is left of a destroyed ground object: burnt and slumped
+	float scale;          // its model this many times its size (0: 1)
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -161,6 +162,13 @@ typedef struct
 } L3DFrame;
 
 extern bool l3d_enabled;  // the 3D view is active (set by the renderer)
+// The level is seen from the side (Tyrian3D event 200, episode 6's side-scrolling levels): the 3D
+// view turned a quarter so the level scrolls from left to right, the controls turned with it. The
+// game itself runs as ever (2D shows it as it is).
+extern bool l3d_sideways;
+// Seen from the side, what lines the window's top and bottom edges (event 200's d2): 0 nothing,
+// 1 asteroids, 2 crags of the crust.
+extern int l3d_side_decor;
 extern bool l3d_capturing; // inside an in-game frame between begin and end
 
 extern L3DFrame l3d_frame;

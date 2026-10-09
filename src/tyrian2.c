@@ -1609,6 +1609,8 @@ start_level_first:
 	editShip2 = false;
 
 	memset(smoothies, 0, sizeof(smoothies));
+	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
+	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
 
 	levelTimer = false;
 	randomExplosions = false;
@@ -5883,6 +5885,11 @@ void JE_eventSystem(void)
 
 	case 99:
 		randomExplosions = (eventRec[eventLoc-1].eventdat == 1);
+		break;
+
+	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)
+		l3d_sideways = eventRec[eventLoc-1].eventdat != 0;
+		l3d_side_decor = eventRec[eventLoc-1].eventdat2;
 		break;
 
 	default:

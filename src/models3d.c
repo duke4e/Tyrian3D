@@ -585,6 +585,14 @@ int m3d_frame_model(char sheet, unsigned int sprite, int model)
 	return model;
 }
 
+int m3d_find_model(const char *name)
+{
+	for (int i = 0; i < m3d_model_count; ++i)
+		if (strcmp(m3d_models[i].name, name) == 0)
+			return i;
+	return -1;
+}
+
 int m3d_sprite_rule_count(void)
 {
 	return override_count;

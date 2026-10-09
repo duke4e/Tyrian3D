@@ -3,6 +3,7 @@
  */
 #include "layer3d.h"
 
+#include "backgrnd.h"
 #include "debugmode.h"
 
 #include "models3d.h"
@@ -16,6 +17,8 @@
 #include <string.h>
 
 bool l3d_enabled = false;
+bool l3d_sideways = false;
+int l3d_side_decor = 0;
 bool l3d_capturing = false;
 static bool frame_ready = false;
 
@@ -233,11 +236,80 @@ void l3d_frame_end_early(void)
 	ending_early = false;
 }
 
+/*
+ * Seen from the side, rocks line the window's top and bottom edges (the level's left and right
+ * edges), half outside, turned on their side with everything else (render_gpu.c), moving by at
+ * the map's speed: the level's floor and ceiling. Placed by hashes of their slot along the level,
+ * so the same rocks come by whatever the frame rate.
+ */
+#define DECOR_SPACING 34.0f  // game pixels between rocks along an edge
+
+static const char *const decor_sets[][6] = {
+	{ NULL },
+	{ "asteroid_lumpy", "crag_13", "crag_31", "crag_49", "asteroid_lumpy", "crag_88" },
+	{ "crag_15", "crag_34", "crag_51", "crag_53", "crag_89", "crag_91" },
+};
+
+static Uint32 decor_hash(Uint32 x)
+{
+	x ^= x >> 16;
+	x *= 0x7feb352dU;
+	x ^= x >> 15;
+	x *= 0x846ca68bU;
+	x ^= x >> 16;
+	return x;
+}
+
+static void add_side_decor(void)
+{
+	static float scroll = 0;
+	static Uint32 scrolled = 0;
+	if (scrolled != l3d_frame_number)
+	{
+		scrolled = l3d_frame_number;
+		scroll += 3 * backMove;  // (near the view: faster than the stars behind, which go at 2)
+	}
+	if (!l3d_sideways || l3d_side_decor <= 0 || l3d_side_decor >= (int)(sizeof(decor_sets) / sizeof(decor_sets[0])))
+		return;
+	int models[6];
+	for (int i = 0; i < 6; ++i)
+		models[i] = m3d_find_model(decor_sets[l3d_side_decor][i]);
+
+	// From a little behind the playfield's bottom to far ahead of its top.
+	const int first = (int)floorf((-scroll - 120.0f) / DECOR_SPACING), last = (int)ceilf((-scroll + 1000.0f) / DECOR_SPACING);
+	for (int edge = 0; edge < 2; ++edge)
+		for (int slot = first; slot <= last; ++slot)
+		{
+			const Uint32 h = decor_hash((Uint32)slot * 2u + (Uint32)edge + 0x9e37u);
+			const int model = models[h % 6];
+			if (model < 0 || (h >> 8) % 5 == 0)
+				continue;  // (gaps now and then)
+			const float y = -(slot * DECOR_SPACING + (float)((h >> 12) % 17)) - scroll + L3D_PLAYFIELD_H;
+			// Mostly outside: the ship keeps 16 pixels from the playfield's edges.
+			const float scale = 1.3f + (float)((h >> 16) % 100) / 100.0f;
+			const float poke = (float)((h >> 20) % 8);  // how far towards the playfield
+			const float x = edge == 0 ? L3D_PLAYFIELD_X + poke - 16.0f : L3D_PLAYFIELD_X + L3D_PLAYFIELD_W - poke + 16.0f;
+			if (l3d_frame.object_count == L3D_MAX_OBJECTS)
+				return;
+			L3DObject *object = &l3d_frame.objects[l3d_frame.object_count++];
+			memset(object, 0, sizeof(*object));
+			object->model = model;
+			object->x = x;
+			object->y = y;
+			object->layer = L3D_GROUND_ENEMY;
+			object->yaw = (float)((h >> 4) % 360);
+			object->roll = edge == 0 ? 180.0f : 0.0f;  // (standing on the edge, into the window)
+			object->scale = scale;
+			object->vy = backMove;
+		}
+}
+
 void l3d_frame_end(void)
 {
 	if (!l3d_capturing)
 		return;
 
+	add_side_decor();
 	end_phase();
 	phase_kind = PHASE_NONE;
 	l3d_capturing = false;

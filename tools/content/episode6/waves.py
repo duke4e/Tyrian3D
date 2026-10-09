@@ -45,6 +45,20 @@ def by_link(e):
     return d4
 
 
+def sheets_of(enemies, number, seen=None):
+    """The sheets an enemy needs: its own, and those of the enemies it launches or leaves."""
+    seen = set() if seen is None else seen
+    if number in seen or number not in enemies:
+        return set()
+    seen.add(number)
+    e = enemies[number]
+    out = {e["shapebank"]}
+    for other in (e["elaunchtype"] % 1000 if e["elaunchfreq"] else 0, e["eenemydie"]):
+        if 0 < other:
+            out |= sheets_of(enemies, other, seen)
+    return out - {21, 26}  # (always there)
+
+
 class Source:
     """An original level: its events, enemy data episode, waves, boss, ground objects."""
 
@@ -133,10 +147,13 @@ class Source:
             evs = sorted(w["spawns"] + attached[i], key=lambda e: e["t"])
             evs = [dict(e, t=e["t"] - w["start"]) for e in evs]
             enemies = [e["d1"] for e in w["spawns"]]
+            # (Sheets: of the enemies, what they launch or leave, and what the wave's events put in.)
+            made = enemies + [e["d1"] for e in evs if e["type"] in (33, 59, 68) and e["d1"] > 0]
+            sheets = set().union(*(sheets_of(self.enemies, x) for x in made)) if made else set()
             out.append(dict(source=(self.episode, self.name), start=w["start"], events=evs, links=sorted(links),
                             enemies=enemies, count=len(enemies), length=max(e["t"] for e in evs),
                             armor=sum(min(self.enemies[x]["armor"], 100) for x in enemies if x in self.enemies),
-                            banks=sorted({self.enemies[x]["shapebank"] for x in enemies if x in self.enemies})))
+                            banks=sorted(sheets)))
         return out
 
     def map_grid(self):

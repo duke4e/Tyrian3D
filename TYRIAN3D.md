@@ -165,7 +165,11 @@ upside down (effects 6 and 9). Secrets: in most levels a courier crosses the top
 fast; shot down, it leaves a data cube (shown in the next shop after the stage's own, `]+` and
 `]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
-at the end of episode 1. The generated
+at the end of episode 1. MIGRATION and GRAVITRON are seen from the side (Tyrian3D event 200): the
+game runs as ever, the 3D view is turned a quarter so the level scrolls from left to right (the
+controls turned with it, every model on its side so craft show in profile, the shots as they
+are), over open space with the stars in depth and rocks along the window's top and bottom edges
+(`layer3d.c` `add_side_decor`). The generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
@@ -202,6 +206,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_LOG_WRECKS=1` | Print each wreck a destroyed ground model leaves |
+| `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it) when that frame shows, then each next one so many milliseconds after the one before |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |

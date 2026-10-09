@@ -97,6 +97,8 @@ int m3d_frame_model(char sheet, unsigned int sprite, int model);
 // second one); false if it has none (it shows as a volume).
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);
 int m3d_sprite_rule_count(void);
+// The model of that name in models.cfg, or -1.
+int m3d_find_model(const char *name);
 void m3d_sprite_rule(int i, char *sheet, unsigned int *first_sprite, M3DAppearance *appearance);
 
 #endif /* MODELS3D_H */

@@ -33,6 +33,10 @@ STAGES = [
     dict(level="roost", planet=2, cubes=[4], secret=[16], warning=None, shop=[
         " Ship   6 7 2", " WeapF  5 18 19 48 49", " WeapR  0 28 29 21", " Power  5 6", " Engine 1",
         " Opt1   0 12 17 21 33 35", " Opt2   0 12 22 23 34 36", " Armor  1 2 3", " Shield 9 10"]),
+    dict(level="migration", planet=2, cubes=[23], secret=[25], warning=[
+        "Warning:", "The dragons' flight is crossing the system.", "Fly with it, side by side."], shop=[
+        " Ship   6 7 2", " WeapF  5 18 19 48 49 50", " WeapR  0 28 29 21 52", " Power  5 6", " Engine 1",
+        " Opt1   0 12 17 21 33 35", " Opt2   0 12 22 23 34 36", " Armor  1 2 3", " Shield 9 10"]),
     dict(level="deep_ice", planet=14, cubes=[5], secret=[17], warning=None, shop=[
         " Ship   7 6 2", " WeapF  5 20 27 50 51", " WeapR  0 29 21 22 52", " Power  6", " Engine 1",
         " Opt1   0 12 17 25 37", " Opt2   0 12 26 27 37", " Armor  1 2 3", " Shield 10 11"]),
@@ -47,6 +51,10 @@ STAGES = [
     dict(level="crustgate", planet=6, cubes=[7, 8], secret=[20], warning=["Warning:", "Gravitron readings off every scale.",
                                                              "The crust is opening."], shop=[
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
+        " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
+    dict(level="gravitron", planet=6, cubes=[24], secret=[26], warning=[
+        "Warning:", "Gravitron shaft ahead: from here the crust's", "tunnels run sideways."], shop=[
+        " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
     dict(level="the_core", planet=6, cubes=[12], warning=["Warning:", "Gravitron core ahead.",
                                                           "The Collector is already there."], shop=[
@@ -200,6 +208,31 @@ CUBES += [
         "",
         "Whoever cut it out knew what it said. I think they were afraid of it.",
         "I think I would be too."]),
+]
+
+# Cubes of the levels seen from the side: their own (23, 24) and their couriers' (25, 26).
+CUBES += [
+    (2, "ARCHIVE DATA", "Data", [
+        "Reference: Torm Biology - Dragon Flight",
+        "",
+        "A dragon flight in open space is not supposed to be possible. They hold their",
+        "breath, close their scales and glide on the solar wind for weeks.",
+        "",
+        "Pilots are advised to fly alongside, not through. They do not turn for ships."]),
+    (1, "DATACUBE: ARUGO FIELD LOG 5", "Data", [
+        "Below the crust the books' diagrams turn on their side: the keepers built",
+        "their shafts across, not down, so the shell would not fall in if one broke.",
+        "",
+        "You will be flying sideways through a world, ~Trent~. Mind the walls."]),
+    (13, "BAKER BOB'S FLIGHT NOTES", "Alert", [
+        "Followed the dragons for a day to see where they go. They go fast.",
+        "Lost two ovens and my hat. The dragons ate the hat.",
+        "",
+        "Recipe for dragon-safe pretzels to follow, once I find a dragon that is safe."]),
+    (18, "INTERCEPTED: HAZUDRA BAND", "Collector", [
+        "The keepers' shafts are open. The human flies them faster than our drills.",
+        "",
+        "Let him. Every wall he passes is one we will not have to break."]),
 ]
 
 ENDING = [

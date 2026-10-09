@@ -3802,6 +3802,13 @@ redo:
 						int dx = 0, dy = 0;
 						bool fire = false;
 						dev_autopilot_steer(this_player->x, this_player->y, CURRENT_KEY_SPEED, &dx, &dy, &fire);
+						if (l3d_sideways && l3d_enabled)
+						{
+							// (It steers in the level's terms: undo the turn of the controls below.)
+							const int t = dx;
+							dx = -dy;
+							dy = t;
+						}
 						this_player->x += dx;
 						this_player->y += dy;
 						button[0] = button[0] || fire;
@@ -3844,6 +3851,18 @@ redo:
 							demo_keys_wait = 0;
 						}
 					}
+				}
+
+				if (l3d_sideways && l3d_enabled)
+				{
+					// Tyrian3D: seen from the side, the level scrolls to the right: right on the
+					// controls is up the level, down is right (the view turned clockwise).
+					const JE_integer dx = this_player->x - *mouseX_, dy = this_player->y - *mouseY_;
+					this_player->x = *mouseX_ + dy;
+					this_player->y = *mouseY_ - dx;
+					const JE_integer cx = mouseXC;
+					mouseXC = mouseYC;
+					mouseYC = -cx;
 				}
 
 				if (smoothies[9-1])

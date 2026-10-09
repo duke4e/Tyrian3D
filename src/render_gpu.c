@@ -1036,10 +1036,25 @@ typedef struct
 	float up[3];
 	float forward[3];
 	// A window position in NDC maps to the view ray with slopes (along right and up)
-	// (ndc - ndc_offset) / ndc_scale * tan_half.
+	// (ndc - ndc_offset) / ndc_scale * tan_half (ndc_slopes).
 	float ndc_scale[2], ndc_offset[2];
 	float tan_half[2];
+	bool sideways;  // the view turned clockwise: its up is the window's right
 } Camera3D;
+
+// The view ray's slopes (along the camera's right and up) through a window position in NDC.
+static void ndc_slopes(const Camera3D *camera, const float ndc[2], float slope[2])
+{
+	if (camera->sideways)
+	{
+		// Window x = ndc_scale[0] * view y + ndc_offset[0]; window y = -ndc_scale[1] * view x + ...
+		slope[0] = (camera->ndc_offset[1] - ndc[1]) / camera->ndc_scale[1] * camera->tan_half[0];
+		slope[1] = (ndc[0] - camera->ndc_offset[0]) / camera->ndc_scale[0] * camera->tan_half[1];
+		return;
+	}
+	for (int i = 0; i < 2; ++i)
+		slope[i] = (ndc[i] - camera->ndc_offset[i]) / camera->ndc_scale[i] * camera->tan_half[i];
+}
 
 /*
  * World space: X = game x, Y = height above the ground, Z = game y (towards the bottom of the
@@ -1051,8 +1066,10 @@ typedef struct
  * the window, letting the scene continue under the HUD and into any letterbox area.
  */
 // upside_down mirrors the view vertically within the playfield's rectangle, as the game flips the
-// playfield on upside-down levels.
-static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4], bool upside_down)
+// playfield on upside-down levels; sideways turns it clockwise into the rectangle (which is then
+// as tall as the playfield is wide), so the level scrolls from left to right.
+static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4], bool upside_down,
+                           bool sideways)
 {
 	const float theta = rgpu_camera.tilt_degrees * (float)M_PI / 180.0f;
 	const float t = tanf(rgpu_camera.fov_degrees * (float)M_PI / 360.0f);
@@ -1106,8 +1123,16 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float sx = (ndc_rect[2] - ndc_rect[0]) / 2, ox = (ndc_rect[0] + ndc_rect[2]) / 2;
 	const float sy = (ndc_rect[3] - ndc_rect[1]) / 2, oy = (ndc_rect[1] + ndc_rect[3]) / 2;
 	Mat4 post = { { 0 } };
-	post.m[0] = sx;
-	post.m[5] = upside_down ? -sy : sy;
+	if (sideways)
+	{
+		post.m[4] = sx;   // window x from the view's y
+		post.m[1] = -sy;  // window y from the view's x
+	}
+	else
+	{
+		post.m[0] = sx;
+		post.m[5] = upside_down ? -sy : sy;
+	}
 	post.m[10] = 1;
 	post.m[12] = ox;
 	post.m[13] = oy;
@@ -1123,12 +1148,14 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	camera.ndc_offset[1] = oy;
 	camera.tan_half[0] = t * viewport_aspect;
 	camera.tan_half[1] = t;
+	camera.sideways = sideways;
 	return camera;
 }
 
 // How far up the level the background maps are drawn (game pixels above the screen's top edge),
 // and the distance over which they fade out before that.
-#define BACKGROUND_AHEAD 640.0f
+// (Seen from the side, the window shows further ahead.)
+#define BACKGROUND_AHEAD (l3d_sideways ? 1100.0f : 640.0f)
 #define BACKGROUND_FADE 160.0f
 
 // The view last shown, for mapping the mouse pointer onto the player's plane.
@@ -1203,8 +1230,7 @@ static void plane_footprint_world(const Camera3D *camera, float height, float fa
 	{
 		const float ndc[2] = { (corner & 1) ? 1.0f : -1.0f, (corner & 2) ? 1.0f : -1.0f };
 		float slope[2], ray[3];
-		for (int i = 0; i < 2; ++i)
-			slope[i] = (ndc[i] - camera->ndc_offset[i]) / camera->ndc_scale[i] * camera->tan_half[i];
+		ndc_slopes(camera, ndc, slope);
 		for (int i = 0; i < 3; ++i)
 			ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
 
@@ -2114,9 +2140,8 @@ bool rgpu_window_to_playfield(float wx, float wy, float *x, float *y)
 	const Camera3D *camera = &shown_view.camera;
 	const float ndc[2] = { wx / shown_view.window_w * 2 - 1, 1 - wy / shown_view.window_h * 2 };
 	float slope[2], ray[3];
-	for (int i = 0; i < 2; ++i)
-		slope[i] = (ndc[i] - camera->ndc_offset[i]) / camera->ndc_scale[i] * camera->tan_half[i];
-	if (shown_view.upside_down)
+	ndc_slopes(camera, ndc, slope);
+	if (shown_view.upside_down && !camera->sideways)
 		slope[1] = -slope[1];
 	for (int i = 0; i < 3; ++i)
 		ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
@@ -2338,6 +2363,8 @@ static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 // mirror turns the models left for right: in a vertically mirrored view (upside-down levels) that
 // makes them look turned round rather than mirrored, so their triangles still face the camera the
 // right way round for the renderer's lighting.
+#define SIDE_ROLL 90.0f  // degrees about the scroll axis, seen from the side
+
 static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
                                int *batch_count)
 {
@@ -2365,15 +2392,19 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					continue;
 
 				const M3DModel *model = &m3d_models[model_index];
-				const float scale = model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f;
+				const float scale = (model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f) *
+				                    (object->scale > 0 ? object->scale : 1.0f);
 				const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
 				                     (object->layer == L3D_GROUND_ENEMY ? terrain_lift(object->x, object->y) : 0.0f);
 				Mat4 mirror_x = mat4_identity();
 				if (mirror)
 					mirror_x.m[0] = -1;
+				// Seen from the side (l3d_sideways), every model lies on its side, its top towards
+				// the window's top: the level's craft are seen in profile.
 				const Mat4 chain[] = {
 					mat4_translation(object_x(object), height, object_y(object)),
 					mirror_x,
+					mat4_rotation(2, l3d_sideways ? SIDE_ROLL : 0.0f),
 					mat4_rotation(1, -object->yaw),
 					mat4_rotation(2, -object->roll),
 					mat4_rotation(1, model->yaw),
@@ -4956,7 +4987,7 @@ static float srgb_to_linear(Uint8 value)
  * moves: the deeper layers creep by slower and look finer. Like the game's stars they show only
  * through what background 1 leaves empty. They only show (the Effects setting).
  */
-#define DEEP_STAR_LAYERS 3
+#define DEEP_STAR_LAYERS 4
 
 static const struct
 {
@@ -4968,6 +4999,9 @@ static const struct
 	{ 40.0f, 110, 0.8f, 0.75f },
 	{ 130.0f, 170, 1.0f, 0.6f },
 	{ 340.0f, 280, 1.3f, 0.45f },
+	// Seen from the side only: near, bright stars ahead of the playfield too (the game's own
+	// stars are only on the playfield).
+	{ 8.0f, 150, 1.1f, 0.95f },
 };
 
 static float deep_star_scroll = 0;  // game pixels the deep stars have moved down the screen
@@ -5007,7 +5041,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 
 	const int first = *instance_count;
 	const float ground = heights[frame->star_layer] - stars_below_layer();
-	for (int k = 0; k < DEEP_STAR_LAYERS; ++k)
+	for (int k = 0; k < DEEP_STAR_LAYERS - (l3d_sideways ? 0 : 1); ++k)
 	{
 		const float height = ground - deep_star_layers[k].depth * rgpu_camera.height_scale;
 		float rect[4];
@@ -5804,7 +5838,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;
-	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2 && !dark_lighting();
+	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2 && !dark_lighting() && !l3d_sideways;
 	if (spotlight && new_frame)
 		build_spotlight(&layout, logical_w, logical_h);
 
@@ -5814,16 +5848,29 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		return;
 	}
 
-	// Playfield rectangle in NDC (y up) of the whole window.
-	const float px0 = layout.playfield[0], px1 = layout.playfield[0] + layout.playfield[2];
-	const float py0 = layout.playfield[1], py1 = layout.playfield[1] + layout.playfield[3];
+	// Playfield rectangle in NDC (y up) of the whole window. Seen from the side, the view turned
+	// a quarter is fitted to the window (beside the panel) from a little way in on the left: the
+	// playfield's bottom edge there, as tall as the window, and the window's rest ahead of it (a
+	// view as wide as the window, so the far right still looks down onto the level).
+	float px0 = layout.playfield[0], px1 = layout.playfield[0] + layout.playfield[2];
+	float py0 = layout.playfield[1], py1 = layout.playfield[1] + layout.playfield[3];
+	const bool sideways = l3d_sideways && !menu.on;
+	if (sideways)
+	{
+		const float room_w = layout.panel[2] > 0 ? layout.panel[0] : logical_w;
+		px0 = room_w * 0.06f;
+		px1 = room_w;
+		py0 = 0;
+		py1 = logical_h;
+	}
 	const float ndc_rect[4] = {
 		px0 / logical_w * 2 - 1,
 		1 - py1 / logical_h * 2,
 		px1 / logical_w * 2 - 1,
 		1 - py0 / logical_h * 2,
 	};
-	const float viewport_aspect = (px1 - px0) / (py1 - py0);
+	// (The view's own aspect: seen from the side, the rectangle's height is its width.)
+	const float viewport_aspect = sideways ? (py1 - py0) / (px1 - px0) : (px1 - px0) / (py1 - py0);
 
 	// Layer heights increase in draw order, so depth agrees with the 2D drawing order.
 	float heights[L3D_MAX_LAYERS];
@@ -5836,7 +5883,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		heights[l] = height;
 	}
 
-	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down);
+	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways);
 	set_alignment(&camera, reference_height);
 	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
 
@@ -6131,7 +6178,7 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	const float ndc_rect[4] = { wx0 / logical_w * 2 - 1, 1 - wy1 / logical_h * 2, wx1 / logical_w * 2 - 1, 1 - wy0 / logical_h * 2 };
 	const float tilt = rgpu_camera.tilt_degrees;
 	rgpu_camera.tilt_degrees = 0;
-	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false);
+	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false);
 	rgpu_camera.tilt_degrees = tilt;
 	shown_view.valid = false;
 

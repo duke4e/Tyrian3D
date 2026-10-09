@@ -387,6 +387,7 @@ skipped; the originals contain a few type 0 (all zero) at time 0 and one 108.
 | 84 | timed battle timer | as 67, timed battle mode only |
 | 85 | timed battle drops | as 33, timed battle mode only |
 | 99 | random explosions | d1 == 1 |
+| 200 | (Tyrian3D) side view | d1 1: the 3D view turned a quarter (the level scrolls left to right), controls turned with it, models on their side; d2: rocks along the edges (0 none, 1 asteroids, 2 crags); 0: from above again. Episode 6's side-scrolling levels; the game logic and the 2D view are as ever |
 
 ## 8. Notes for a level generator
 

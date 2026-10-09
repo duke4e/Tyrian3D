@@ -212,7 +212,7 @@ def place_ground(grid, ground_sources, banks, start, boss_time, rnd, density=Non
     seen = Counter()        # key -> times it occurs in the originals' maps
     options = defaultdict(Counter)  # key -> (kind, episode, enemy) -> count
     for s in ground_sources:
-        objects = [o for o in s.ground_objects() if s.enemies[o[2]]["shapebank"] in banks]
+        objects = [o for o in s.ground_objects() if W.sheets_of(s.enemies, o[2]) <= banks]
         if not objects:
             continue
         for key, kind, enemy in objects:
