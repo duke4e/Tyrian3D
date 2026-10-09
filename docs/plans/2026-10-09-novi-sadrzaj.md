@@ -113,6 +113,12 @@ karte iz postojećih predmeta, trgovci, elite, bossovi, dodatni životi, coreovi
   neprijatelja su konstante na više mjesta; iza zastavice samo za novu epizodu). 2D put (F3) za te
   levele crta zakrenutu sliku. Teren/vegetacija rade bez promjena jer je mapa ista.
 
+### Ideje za kasnije
+- **3rd person mode kao tajni unlock** (korisnik, 2026-10-09): kamera iza i iznad broda umjesto
+  odozgo; otključava se tajnim uvjetom (npr. rogue pobjeda ili kod na naslovnom ekranu, kao
+  Destruct/Engage). Logika igre ostaje 2D; treba kameru koja prati brod, vidljivost dalje naprijed
+  (polje se vidi pod kutom) i HUD za taj pogled.
+
 ### Faza F – Beskonačni mode
 - Proceduralni niz segmenata po temama: segment = komad mape (iz unaprijed obrađenih dijelova, s
   terenom) + generirani valovi iz statistike; težina raste; bossovi povremeno.
