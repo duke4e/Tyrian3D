@@ -104,7 +104,16 @@ odluke; ništa od ovoga još nije u kodu.
   terenom) + generirani valovi iz statistike; težina raste; bossovi povremeno.
 - Rezultati, ljestvica; može dijeliti kartice s rogue modeom (beskonačni rogue).
 
-## 4. Odluke koje trebaju korisnika
+## 4. Odluke (korisnik, 2026-10-09)
+
+1. **Prošireni dučan ne ide u prvi prolaz** originalnih epizoda; kasnije dolazi kao **New Game+**.
+2. **Rogue:** da – permadeath, kratki runovi, mapa s grananjem, meta-napredak (otključavanja) između runova.
+3. **Epizoda 6** po preporuci: nastavak niti o Hazudrama i "tajni", 8–12 levela.
+4. **Overclock** po preporuci: kvalitativni efekti (prodor, brža paljba, jači pogodak...), ne više pod-hitaca.
+
+Faza A se dijeli: **A1 sloj sadržaja** (odmah, preduvjet za B i C) i **A2 kompajler levela** (prije faze E).
+
+## 5. Pitanja koja su bila otvorena
 
 1. **Smiju li originalne epizode dobiti prošireni dučan** (kao opcija), ili novi predmeti samo u novom
    sadržaju?
