@@ -91,12 +91,34 @@ endforeach()
 
 add_custom_target(tyrian3d_shaders DEPENDS ${TYR3D_SHADER_OUTPUTS})
 
+# --- Episode 6 ------------------------------------------------------------------------------------
+# Made from the game's data, so not in the repository: written to assets/content/episode6 when the
+# data is there (tools/content/episode6/build.py).
+
+find_package(Python3 COMPONENTS Interpreter)
+set(TYR3D_EPISODE6_DIR "${CMAKE_SOURCE_DIR}/assets/content/episode6")
+if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/tyrian2000/tyrian5.lvl")
+    file(GLOB TYR3D_EPISODE6_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tools/content/episode6/*.py")
+    add_custom_command(
+        OUTPUT "${TYR3D_EPISODE6_DIR}/tyrian6.lvl" "${TYR3D_EPISODE6_DIR}/levels6.dat" "${TYR3D_EPISODE6_DIR}/cubetxt6.dat"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/content/episode6/build.py"
+        DEPENDS ${TYR3D_EPISODE6_SOURCES} "${CMAKE_SOURCE_DIR}/tools/content/tyrformat.py"
+                "${CMAKE_SOURCE_DIR}/tools/content/tyrdata.py"
+        COMMENT "episode 6"
+        VERBATIM
+    )
+    add_custom_target(tyrian3d_episode6 DEPENDS "${TYR3D_EPISODE6_DIR}/tyrian6.lvl")
+endif()
+
 # --- Game ---------------------------------------------------------------------------------------
 
 file(GLOB TYRIAN_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.c")
 
 add_executable(tyrian3d ${TYRIAN_SOURCES})
 add_dependencies(tyrian3d tyrian3d_shaders)
+if(TARGET tyrian3d_episode6)
+    add_dependencies(tyrian3d tyrian3d_episode6)
+endif()
 target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 ZLIB::ZLIB m)
 # cgltf (compiled into btbh_gpu) reads the models' material names.
 target_include_directories(tyrian3d PRIVATE "${BTBH_DIR}/external/raylib/src/external")

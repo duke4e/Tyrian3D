@@ -290,8 +290,9 @@ void JE_loadHelpText(void)
 
 	// episode names
 	skip_pascal_string(f);
-	for (unsigned int i = 0; i < COUNTOF(episode_name); ++i)
+	for (unsigned int i = 0; i < 6; ++i)  // the header and episodes 1-5
 		read_encrypted_pascal_string(episode_name[i], sizeof(episode_name[i]), f);
+	SDL_strlcpy(episode_name[6], "Episode 6: The Grey Books", sizeof(episode_name[6]));  // Tyrian3D
 	skip_pascal_string(f);
 
 	// difficulty names

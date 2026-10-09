@@ -22,7 +22,7 @@
 #include "opentyr.h"
 
 #define GAMEPLAY_NAME_COUNT 6
-extern char episode_name[6][31];
+extern char episode_name[7][31];  // the header, then the episodes (6: Tyrian3D)
 extern char difficulty_name[7][21];
 extern char gameplay_name[GAMEPLAY_NAME_COUNT][26];
 extern char timed_battle_name[4][23];

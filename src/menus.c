@@ -35,7 +35,7 @@
 #include "vga256d.h"
 #include "video.h"
 
-char episode_name[6][31];
+char episode_name[EPISODE_MAX + 1][31];  // Tyrian3D: + episode 6
 char difficulty_name[7][21];
 char gameplay_name[GAMEPLAY_NAME_COUNT][26];
 char timed_battle_name[4][23];
@@ -265,16 +265,17 @@ bool episodeSelect(void)
 
 	bool restart = true;
 
-	const size_t menuItemsCount = EPISODE_AVAILABLE;
+	// Tyrian3D: episode 6 too, when its files are there.
+	const size_t menuItemsCount = EPISODE_AVAILABLE + (episodeAvail[EPISODE_MAX - 1] ? 1 : 0);
 	size_t selectedIndex = 0;
 
 	const int xCenter = 320 / 2;
 	const int yMenuHeader = 20;
 	const int xMenuItem = 20;
 	const int yMenuItems = 50;
-	const int dyMenuItems = 30;
+	const int dyMenuItems = menuItemsCount > EPISODE_AVAILABLE ? 25 : 30;
 	const int hMenuItem = 13;
-	int wMenuItem[EPISODE_AVAILABLE] = { 0 };
+	int wMenuItem[EPISODE_MAX] = { 0 };
 
 	for (; ; )
 	{

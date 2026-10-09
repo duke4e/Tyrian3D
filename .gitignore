@@ -45,3 +45,6 @@ __pycache__/
 
 # Exports made from the game data (TYR3D_EXPORT_MUSIC, ...)
 /export/
+
+# Tyrian3D: generated from the game data (tools/content/episode6/build.py at build time)
+/assets/content/episode6/

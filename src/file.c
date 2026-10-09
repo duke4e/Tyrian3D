@@ -19,6 +19,7 @@
 #include "file.h"
 
 #include "opentyr.h"
+#include "paths3d.h"
 #include "varz.h"
 
 #include <SDL3/SDL.h>
@@ -177,6 +178,18 @@ FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 	FILE *f = fopen(path, mode);
 
 	free(path);
+
+	// Tyrian3D: episode 6's files are content (tools/content/episode6), not the game's data.
+	static const char *const episode6[] = { "tyrian6.lvl", "levels6.dat", "cubetxt6.dat" };
+	for (size_t i = 0; f == NULL && mode[0] == 'r' && i < COUNTOF(episode6); ++i)
+	{
+		if (strcmp(file, episode6[i]) != 0)
+			continue;
+		char content[1024], content_path[1200];
+		tyr3d_resource_dir("TYR3D_CONTENT_DIR", TYR3D_CONTENT_DIR, "content", content, sizeof(content));
+		snprintf(content_path, sizeof(content_path), "%s/episode6/%s", content, file);
+		f = fopen(content_path, mode);
+	}
 
 	return f;
 }

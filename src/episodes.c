@@ -264,7 +264,8 @@ unsigned int JE_findNextEpisode(void)
 	{
 		newEpisode++;
 		
-		if (newEpisode > EPISODE_MAX)
+		// Tyrian3D: episodes past the original ones (6) are played on their own, not after 5.
+		if (newEpisode > (episodeNum > EPISODE_AVAILABLE ? EPISODE_MAX : EPISODE_AVAILABLE))
 		{
 			newEpisode = 1;
 			jumpBackToEpisode1 = true;

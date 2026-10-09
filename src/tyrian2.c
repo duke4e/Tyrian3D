@@ -4306,9 +4306,9 @@ bool newGame(void)
 		{
 			// allows player to smuggle arcade/super-arcade ships into full game
 
-			const ulong initial_cash[] = { 10000, 15000, 20000, 30000, 20000 };
+			const ulong initial_cash[] = { 10000, 15000, 20000, 30000, 20000, 30000 };  // Tyrian3D: + episode 6
 
-			assert(episodeNum >= 1 && episodeNum <= EPISODE_AVAILABLE);
+			assert(episodeNum >= 1 && episodeNum <= EPISODE_MAX);
 			player[0].cash = initial_cash[episodeNum - 1];
 		}
 	}

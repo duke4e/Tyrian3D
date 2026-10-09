@@ -142,6 +142,16 @@ The acts, their levels, the items and the unlocks are `assets/content/rogue.cfg`
 unlocks, runs) is `tyrian3d_rogue.cfg` beside `opentyrian.cfg`. A run skips the episode scripts'
 shops, story texts and pictures, and never writes the player's save slots.
 
+## Episode 6
+
+Episode 6, "The Grey Books" (plan: `docs/plans/2026-10-09-epizoda-6.md`), is written in the game's
+own formats by `tools/content/episode6/build.py` into `assets/content/episode6` (`tyrian6.lvl`,
+`levels6.dat`, `cubetxt6.dat`), at build time when the game's data is there: it is made from that
+data, so it isn't in the repository. The game finds those files in the content directory
+(`dir_fopen`), lists the episode in the episode menu and plays it like the others; it stays out of
+the original episodes' cycle (episode 5 still ends the game). For now it is one placeholder level
+(a copy of episode 5's SAVARA) with a shop and an ending; the level compiler comes next.
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -331,6 +341,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
 | `tools/content/make_rogue.py` | Writes `assets/content/rogue.cfg`: the rogue mode's acts (levels, bosses found by their boss bars), the items its cards offer (the shops' lists, tiered by price) and its unlocks |
+| `tools/content/episode6/build.py`, `tools/content/tyrformat.py` | Episode 6 in the game's formats (the encrypted script and data cubes, the level file with the episode's item data); run at build time |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 

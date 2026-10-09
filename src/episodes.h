@@ -26,7 +26,7 @@
 /* Episodes and general data */
 
 #define FIRST_LEVEL 1
-#define EPISODE_MAX 5
+#define EPISODE_MAX 6  // Tyrian3D: episode 6 (tools/content/episode6)
 #define EPISODE_AVAILABLE 5
 
 typedef struct
