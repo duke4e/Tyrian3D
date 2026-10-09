@@ -98,6 +98,10 @@ odluke; ništa od ovoga još nije u kodu.
   bossovi); svaki level se ručno dotjeruje debug letom.
 - **Novi neprijatelji** kao varijacije postojećih (oklop, oružja, ponašanje), s modelima.
 - Overclock, novi brodovi i oružja dolaze kroz njene dučane.
+- **Nova sekcija dučana: specijalna oružja** (korisnik, 2026-10-09): Flare i ostali specijalci (48 imenovanih;
+  u originalu se nikad ne prodaju, dobivaju se kombinacijama tipki po brodu, dropovima i u Super Arcadeu) mogu
+  se kupiti; kupljeni specijal se aktivira kao sad (punjenje/streljivo po svojim pravilima). Treba nova
+  kategorija u izborniku dučana (ikona, opis, cijena, prikaz u simulatoru) i u `]I` listama nove epizode.
 
 ### Faza F – Beskonačni mode
 - Proceduralni niz segmenata po temama: segment = komad mape (iz unaprijed obrađenih dijelova, s
