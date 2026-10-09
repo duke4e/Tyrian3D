@@ -4,7 +4,8 @@ Datum: **2026-10-09**. Korisnikove ideje: rogue mode s karticama, nova epizoda (
 tilesetovima i statistike neprijatelja, s nastavkom priče), novi brodovi i oružja u dučanu (iz stvari
 koje postoje a ne prodaju se), overclock oružja (razine snage iznad 11), nova oružja nadahnuta
 sidekickovima i obrnuto, beskonačni mode s proceduralnim levelima. Ovo je plan za razmišljanje i
-odluke; ništa od ovoga još nije u kodu.
+odluke. **Stanje:** A1 (sloj sadržaja) je gotov; B je počela s prvim oružjima i sidekickovima
+(`TYRIAN3D.md`, New content).
 
 ## 0. Principi
 
@@ -102,6 +103,13 @@ odluke; ništa od ovoga još nije u kodu.
   u originalu se nikad ne prodaju, dobivaju se kombinacijama tipki po brodu, dropovima i u Super Arcadeu) mogu
   se kupiti; kupljeni specijal se aktivira kao sad (punjenje/streljivo po svojim pravilima). Treba nova
   kategorija u izborniku dučana (ikona, opis, cijena, prikaz u simulatoru) i u `]I` listama nove epizode.
+- **Par sidescrolling levela kao gimmick** (korisnik, 2026-10-09). Logika igre ostaje vertikalna (isti
+  leveli, događaji, kolizije); za te levele 3D kamera se okrene za 90° (skrolanje slijeva nadesno, malo
+  niži kut da se vidi reljef sa strane), kontrole se zakrenu isto, HUD ostaje. Problem je omjer: polje
+  igre je ~264×184, zakrenuto 184 široko i 264 visoko, pa na širokom ekranu vidiš malo unaprijed. Rješenje
+  za te levele: proširiti polje igre po osi skrolanja (granice igrača, hitaca, nestajanja i pojave
+  neprijatelja su konstante na više mjesta; iza zastavice samo za novu epizodu). 2D put (F3) za te
+  levele crta zakrenutu sliku. Teren/vegetacija rade bez promjena jer je mapa ista.
 
 ### Faza F – Beskonačni mode
 - Proceduralni niz segmenata po temama: segment = komad mape (iz unaprijed obrađenih dijelova, s

@@ -7,7 +7,8 @@
  * and without showing it (the game is deterministic given its input and random seed).
  *
  * Keys while flying: - and = slower and faster (1/4x to 8x), Backspace back 5 seconds, ` pause,
- * . one tick on while paused, F12 snapshot.
+ * . one tick on while paused, F12 snapshot; the loadout: [ and ] the front weapon, 9 and 0 the rear
+ * weapon, ; and ' their power, 7 and 8 the left and right sidekick (the new items of content.h too).
  *
  *   TYR3D_DEBUG=1          with TYR3D_START: the game starts as a debug flight
  *   TYR3D_DEBUG=pick       the level list first, instead of the title screen
@@ -45,6 +46,7 @@ bool debug_flight_replaying(void);
 // The line the HUD shows while flying (empty otherwise).
 const char *debug_flight_status(void);
 const char *debug_flight_keys(void);
+const char *debug_flight_loadout(void);
 
 bool debug_flight_snapshot_wanted(void);
 void debug_flight_snapshot(const Uint8 *rgba, int width, int height, int pitch);

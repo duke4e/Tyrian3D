@@ -18,6 +18,8 @@
  */
 #include "episodes.h"
 
+#include "content.h"
+
 #include "config.h"
 #include "file.h"
 #include "lvllib.h"
@@ -223,6 +225,8 @@ void JE_loadItemDat(void)
 	}
 	
 	fclose(f);
+
+	content_apply();  // Tyrian3D: new items in the free slots (content.h)
 }
 
 void JE_initEpisode(JE_byte newEpisode)

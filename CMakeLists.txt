@@ -112,6 +112,7 @@ target_compile_definitions(tyrian3d PRIVATE
     TYR3D_TERRAIN_DIR="${CMAKE_SOURCE_DIR}/assets/terrain"
     TYR3D_FONT_DIR="${CMAKE_SOURCE_DIR}/assets/fonts"
     TYR3D_FEEDBACK_DIR="${CMAKE_SOURCE_DIR}/export/feedback"
+    TYR3D_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/content"
     TYR3D_SOUNDFONT_DIR="${CMAKE_SOURCE_DIR}/data/soundfonts"
     TYR3D_UPSCALE_DIR="${CMAKE_SOURCE_DIR}/upscale/out"
 )

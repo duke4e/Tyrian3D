@@ -28,6 +28,8 @@ cp "$BUILD"/shaders/*.metallib "$BUILD"/shaders/*.raw "$APP/Contents/Resources/s
 cp -R "$ROOT/assets/models" "$APP/Contents/Resources/models"
 cp -R "$ROOT/assets/sides" "$APP/Contents/Resources/sides"
 cp -R "$ROOT/assets/terrain" "$APP/Contents/Resources/terrain"
+cp -R "$ROOT/assets/fonts" "$APP/Contents/Resources/fonts"
+cp -R "$ROOT/assets/content" "$APP/Contents/Resources/content"
 # The SoundFont for the music as MIDI (tools/fetch_soundfont.sh), if there is one.
 if [ -f "$ROOT/data/soundfonts/GeneralUser-GS.sf2" ]; then
 	cp -R "$ROOT/data/soundfonts" "$APP/Contents/Resources/soundfonts"
@@ -41,6 +43,7 @@ cp "$ROOT/external/btbh-renderer/LICENSE" "$LICENSES/btbh-renderer-LICENSE.txt"
 cp "$ROOT/external/tinysoundfont/LICENSE" "$LICENSES/TinySoundFont-LICENSE.txt"
 cp "$ROOT/external/btbh-renderer/external/uthash/LICENSE" "$LICENSES/uthash-LICENSE.txt"
 cp "$ROOT/assets/models/kenney-space-kit/License.txt" "$LICENSES/Kenney-Space-Kit-License.txt"
+cp "$ROOT/assets/fonts/Oxanium-OFL.txt" "$LICENSES/Oxanium-OFL.txt"
 for f in "$(brew --prefix sdl3 2>/dev/null)/LICENSE.txt:SDL3-LICENSE.txt" \
          "$(brew --prefix assimp 2>/dev/null)/LICENSE:assimp-LICENSE.txt" \
          "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt"; do

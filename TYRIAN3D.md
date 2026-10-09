@@ -84,9 +84,40 @@ its time and tick, and the speed. While flying:
 | `` ` `` | Pause / resume (the camera keys work while paused) |
 | `.` | One tick on, while paused |
 | F12 | Snapshot to `export/feedback/<LEVEL>_e<episode>s<section>_t<tick>_<time>.png` |
+| `[` / `]` | Front weapon: the previous / next weapon port (the new ones too) |
+| `9` / `0` | Rear weapon: the previous / next weapon port |
+| `;` / `'` | Both weapons' power down / up (1-11) |
+| `7` / `8` | The next left / right sidekick |
+
+A loadout change also changes the level's start, so a rewind keeps it.
 
 The tick in a snapshot's name finds the moment again: `TYR3D_START=<episode>:<section> TYR3D_DEBUG=1
 TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
+
+## New content
+
+New items live in the item data's free slots, so the original ones stay as they are: weapons
+819-999, weapon ports 48-60, sidekicks 33-37, specials 49-54. `assets/content/items.cfg` lists them
+(the format is in `src/content.h`); the game reads it each time it loads the item data
+(`content_apply` at the end of `JE_loadItemDat`). `tools/content/make_items.py` writes the file by
+rules from the original data (`tools/content/tyrdata.py` reads it), so the rules change, not the file.
+
+| Port / sidekick | Made from | Its 11 levels |
+|---|---|---|
+| 48 Phoenix Cannon | the Phoenix Device's fireballs | 1-3 fireballs in a fan; a hit bursts into a small blast, then an eight-way burst, at 10-11 the Phoenix's own fireworks |
+| 49 Wobble Cannon | the Wobbley's blobs | pairs weaving side to side, 1-3 pairs, damage 1-4 |
+| 50 Micro-Missile Swarm | the Mini-Missile | 1-5 tubes, 1-3 missiles a trigger, faster |
+| 51 Zica Flamer | the Zica Flamethrower | flames passing through enemies, reaching further, burning harder |
+| 52 8-Way Burst (rear) | the 8-Way MicroBomb | bombs in 2-8 directions |
+| 53 Mine Layer (rear) | the Post-It Mine | sticky mines drifting slowly ahead, more often, in pairs from 7 |
+| 33 Laser Option | Laser power 6 | gun pod |
+| 34 Sonic Option | Sonic Wave power 5 | twin pods |
+| 35 Lightning Option | Lightning Cannon power 5 | rotary pod |
+| 36 Banana Option | Banana Blast power 5 | gun pod |
+| 37 Guided Option | Guided Bombs power 4 | orbiting satellite |
+
+No shop sells them yet (that comes with the new episode and the rogue mode); the debug flight's
+loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them.
 
 ## Environment variables
 
@@ -109,6 +140,7 @@ TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |
+| `TYR3D_CONTENT_DIR=<dir>` | Where `items.cfg` is (default `assets/content`) |
 | `TYR3D_UPSCALE_DIR=<dir>` | Where the upscaled HUD panel pictures are (default `upscale/out`) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
@@ -269,6 +301,8 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/sweep.sh` | Plays every section of the episodes with the autopilot, one run after another, and reports each run's level, whether it ran to the end and its warnings |
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
+| `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
+| `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 
 ## Roadmap

@@ -2074,13 +2074,16 @@ static void debug_status_quads(float window_w, float window_h)
 	if (status[0] == '\0')
 		return;
 	const float u = window_h / 200.0f, cap = 3.6f * u;
-	const float width = SDL_max(text_width(TEXT_TINY, status, cap), text_width(TEXT_TINY, debug_flight_keys(), cap * 0.8f));
+	const char *keys = debug_flight_keys(), *loadout = debug_flight_loadout();
+	const float width = SDL_max(text_width(TEXT_TINY, status, cap),
+	                            SDL_max(text_width(TEXT_TINY, keys, cap * 0.8f), text_width(TEXT_TINY, loadout, cap * 0.8f)));
 	const float backing[4] = { 0, 0, 0, 0.45f };
-	hud_quad((window_w - width) / 2 - 3 * u, 1.5f * u, width + 6 * u, 13 * u, backing, NULL);
+	hud_quad((window_w - width) / 2 - 3 * u, 1.5f * u, width + 6 * u, 18 * u, backing, NULL);
 	const float color[4] = { 1.0f, 0.86f, 0.45f, 1 }, dim[4] = { 0.8f, 0.82f, 0.88f, 0.85f };
 	text_quads(TEXT_TINY, status, (window_w - text_width(TEXT_TINY, status, cap)) / 2, 3 * u, cap, color, 0.3f * u);
-	const char *keys = debug_flight_keys();
 	text_quads(TEXT_TINY, keys, (window_w - text_width(TEXT_TINY, keys, cap * 0.8f)) / 2, 9 * u, cap * 0.8f, dim, 0.3f * u);
+	text_quads(TEXT_TINY, loadout, (window_w - text_width(TEXT_TINY, loadout, cap * 0.8f)) / 2, 14 * u, cap * 0.8f, dim,
+	           0.3f * u);
 }
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);

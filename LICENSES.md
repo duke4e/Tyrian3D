@@ -16,6 +16,7 @@ version 2 (`COPYING`). The parts it is built from, and the tools its assets were
 | TinySoundFont, TinyMidiLoader | Bernhard Schelling | MIT | `external/tinysoundfont/LICENSE` |
 | GeneralUser GS SoundFont | S. Christian Collins | free to use, see its license | `data/soundfonts/GeneralUser-GS-LICENSE.txt` (downloaded by `tools/fetch_soundfont.sh`) |
 | Kenney Space Kit (placeholder models) | Kenney | CC0 | `assets/models/kenney-space-kit/License.txt` |
+| Oxanium (the HUD's and menus' font) | The Oxanium Project Authors (Severin Meyer) | SIL Open Font License 1.1 | `assets/fonts/Oxanium-OFL.txt` |
 
 Made with, not included:
 

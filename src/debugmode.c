@@ -358,6 +358,70 @@ static void common_keys(void)
 		snapshot_wanted = true;
 }
 
+// The loadout keys. The level's start takes a change too, so a rewind keeps it (the input played
+// back was flown with the old loadout, so the moment may differ a little).
+static bool usable_name(const char *name)
+{
+	return name[0] != '\0' && SDL_strncasecmp(name, "None", 4) != 0 && SDL_strncasecmp(name, "Test", 4) != 0 &&
+	       SDL_strncasecmp(name, "Misc", 4) != 0;
+}
+
+static int next_port(int id, int step)
+{
+	for (int n = 0; n <= PORT_NUM; ++n)
+	{
+		id = (id + step + PORT_NUM + 1) % (PORT_NUM + 1);
+		if (id == 0 || (usable_name(weaponPort[id].name) && weaponPort[id].op[0][0] != 0))
+			return id;
+	}
+	return 0;
+}
+
+static int next_sidekick(int id)
+{
+	for (int n = 0; n <= OPTION_NUM; ++n)
+	{
+		id = (id + 1) % (OPTION_NUM + 1);
+		if (id == 0 || (usable_name(options[id].name) && options[id].wpnum != 0))
+			return id;
+	}
+	return 0;
+}
+
+static void loadout_keys(void)
+{
+	Player *p = &player[0];
+	PlayerItems *items = &p->items;
+	const PlayerItems before = *items;
+	if (pressed(SDL_SCANCODE_LEFTBRACKET))
+		items->weapon[FRONT_WEAPON].id = (JE_byte)next_port(items->weapon[FRONT_WEAPON].id, -1);
+	if (pressed(SDL_SCANCODE_RIGHTBRACKET))
+		items->weapon[FRONT_WEAPON].id = (JE_byte)next_port(items->weapon[FRONT_WEAPON].id, 1);
+	if (pressed(SDL_SCANCODE_9))
+		items->weapon[REAR_WEAPON].id = (JE_byte)next_port(items->weapon[REAR_WEAPON].id, -1);
+	if (pressed(SDL_SCANCODE_0))
+		items->weapon[REAR_WEAPON].id = (JE_byte)next_port(items->weapon[REAR_WEAPON].id, 1);
+	const int power_step = pressed(SDL_SCANCODE_APOSTROPHE) - pressed(SDL_SCANCODE_SEMICOLON);
+	for (int w = 0; w < 2; ++w)
+		items->weapon[w].power = (JE_byte)SDL_clamp(items->weapon[w].power + power_step, 1, 11);
+	if (pressed(SDL_SCANCODE_7))
+		items->sidekick[LEFT_SIDEKICK] = (JE_byte)next_sidekick(items->sidekick[LEFT_SIDEKICK]);
+	if (pressed(SDL_SCANCODE_8))
+		items->sidekick[RIGHT_SIDEKICK] = (JE_byte)next_sidekick(items->sidekick[RIGHT_SIDEKICK]);
+	if (memcmp(&before, items, sizeof(before)) == 0)
+		return;
+
+	if (items->weapon[REAR_WEAPON].id != before.weapon[REAR_WEAPON].id)
+		p->weapon_mode = 1;
+	if (memcmp(before.sidekick, items->sidekick, sizeof(before.sidekick)) != 0)
+		JE_drawOptions();  // the sidekicks' ammo, style and HUD
+	start.players[0].items = *items;
+	start.players[0].weapon_mode = p->weapon_mode;
+	printf("debug: front %d, rear %d, power %d, sidekicks %d, %d\n", items->weapon[FRONT_WEAPON].id,
+	       items->weapon[REAR_WEAPON].id, items->weapon[FRONT_WEAPON].power, items->sidekick[LEFT_SIDEKICK],
+	       items->sidekick[RIGHT_SIDEKICK]);
+}
+
 void debug_flight_tick(void)
 {
 	if (!debug_flight)
@@ -376,6 +440,7 @@ void debug_flight_tick(void)
 	}
 
 	common_keys();
+	loadout_keys();
 	if (pressed(SDL_SCANCODE_GRAVE))
 		paused = !paused;
 
@@ -385,6 +450,7 @@ void debug_flight_tick(void)
 		SDL_Delay(16);
 		service_SDL_events(false);
 		common_keys();
+		loadout_keys();
 		if (pressed(SDL_SCANCODE_GRAVE))
 			paused = false;
 		if (pressed(SDL_SCANCODE_PERIOD))
@@ -444,6 +510,34 @@ const char *debug_flight_status(void)
 const char *debug_flight_keys(void)
 {
 	return debug_flight ? "-/= speed    Backspace back 5 s    ` pause    . step    F12 snapshot" : "";
+}
+
+// An item's name without its trailing spaces and the ammunition some sidekicks name ("Ammo 5").
+static const char *short_name(const char *name)
+{
+	static char out[4][32];
+	static int next = 0;
+	char *o = out[next++ % 4];
+	SDL_strlcpy(o, name, sizeof(out[0]));
+	char *gap = strstr(o, "  ");
+	if (gap != NULL)
+		*gap = '\0';
+	for (int i = (int)strlen(o) - 1; i >= 0 && o[i] == ' '; --i)
+		o[i] = '\0';
+	return o;
+}
+
+const char *debug_flight_loadout(void)
+{
+	static char loadout[192];
+	if (!debug_flight || tick < 0)
+		return "";
+	const PlayerItems *items = &player[0].items;
+	snprintf(loadout, sizeof(loadout), "[ ] %s    9 0 %s    ; ' power %d    7 8 %s, %s",
+	         short_name(weaponPort[items->weapon[FRONT_WEAPON].id].name),
+	         short_name(weaponPort[items->weapon[REAR_WEAPON].id].name), items->weapon[FRONT_WEAPON].power,
+	         short_name(options[items->sidekick[LEFT_SIDEKICK]].name), short_name(options[items->sidekick[RIGHT_SIDEKICK]].name));
+	return loadout;
 }
 
 bool debug_flight_snapshot_wanted(void)
