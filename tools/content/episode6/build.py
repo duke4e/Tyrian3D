@@ -21,69 +21,54 @@ sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, HERE)
 import compose  # noqa: E402
 import enemydata  # noqa: E402
+import story  # noqa: E402
 import tyrformat as tf  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(ROOT, "assets", "content", "episode6")
 LEVELS_DIR = os.path.join(HERE, "levels")
 
-# The episode's levels in order (their json files in levels/).
-LEVELS = ["dig_site", "reef", "grey_moon", "roost", "deep_ice", "glacier", "crustgate"]
 ENEMY_D1 = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56, 33, 45, 59, 68}
 
-# The shop before the first level: lines of ]I (ships, front and rear guns, generators, engine,
-# left and right sidekicks, armor, shields), as the episodes write them.
-FIRST_SHOP = [
-    " Ship   3 14 16",
-    " WeapF  1 3 13 48 49",
-    " WeapR  0 9 10 52 53",
-    " Power  3 4",
-    " Engine 1",
-    " Opt1   0 6 29 33",
-    " Opt2   0 6 29 34",
-    " Armor  1 2 3",
-    " Shield 3 5 8",
-]
 
-ENDING = [
-    "The grey books are safe in Graphim Arugo's vault, and the",
-    "dig site on Savara is quiet again.",
-    "",
-    "The proximity bomb on your ship has fallen silent too. For now.",
-    "",
-    "To be continued...",
-]
-
-HINTS = [
-    ["Did you know?", "Tyrian purple, the dye, took thousands of sea snails", "for a single gram."],
-    ["Did you know?", "Purple orbs are experience in a rogue run."],
-    ["Did you know?", "Repulsors push you away; magnets pull you in."],
-]
+def stages():
+    """The story's stages whose levels are generated."""
+    return [st for st in story.STAGES if os.path.exists(os.path.join(LEVELS_DIR, f"{st['level']}.json"))]
 
 
 def script(levels):
+    """levels6.dat: for each stage a shop section (its cubes, the planet map's one destination,
+    the items), then the level's section (a warning before it), then the ending."""
     lines = []
-    # 1: the shop. ]G: the planet map's origin, one destination (planet 4, section 2).
-    lines += ["*1 SECTION - Episode 6 start", "]![ 00", "]G[ 04 1 04 002", "]I["] + FIRST_SHOP + [""]
-    section = 2
-    for i, level in enumerate(levels):
-        lines += [f"*{section} SECTION - {level['name']}", tf.level_line(section + 1, level["name"], level["song"], i + 1), ""]
-        section += 1
+    section = 1
+    origin = 4
+    for i, (stage, level) in enumerate(zip(stages(), levels)):
+        shop, level_section = section, section + 1
+        cubes = " ".join(f"{c:03d}" for c in stage["cubes"])
+        lines += [f"*{shop} SECTION - Episode 6 Stage {i + 1} - Selection",
+                  f"]![ {len(stage['cubes']):02d}", f"]?[ {len(stage['cubes']):02d} {cubes}",
+                  f"]G[ {origin:02d} 1 {stage['planet']:02d} {level_section:03d}", "]I["] + stage["shop"] + [""]
+        lines += [f"*{level_section} SECTION - Episode 6 Stage {i + 1}"]
+        if stage["warning"]:
+            lines += ["]Wy 01["] + stage["warning"] + ["#"]
+        lines += [tf.level_line(level_section + 1, level["name"], level["song"], i + 1), ""]  # then the next shop
+        origin = stage["planet"]
+        section += 2
     # The ending, then the end of the episode (]Q reads hints after it, as many as E5 has).
-    lines += [f"*{section} SECTION - Episode 6 Ending", "]M 008[", "]P 005[", "]Wn 03["] + ENDING + ["#", "]F[",
-                                                                                                     "]Q[", "#"]
+    lines += [f"*{section} SECTION - Episode 6 Ending", "]M 008[", "]P 005[", "]Wn 03["] + story.ENDING + \
+             ["#", "]F[", "]Q[", "#"]
     for k in range(9):
-        lines += HINTS[k % len(HINTS)] + ["#"]
+        lines += story.HINTS[k % len(story.HINTS)] + ["#"]
     lines += [""]
     return lines
 
 
 def cubes():
-    return ["*01 14", "HOLO NEWS - GD3 v123-07-11", "News",
-            "~Grey~ ~Books~ ~Dig~ ~Attacked~",
-            "The archaeological site of ~Graphim~ ~Arugo~ on Savara, where the grey books from",
-            "the folklore planet ~Earth~ surfaced, was attacked last night by unmarked ships.",
-            "*"]
+    """cubetxt6.dat."""
+    lines = []
+    for n, (face, title, header, text) in enumerate(story.CUBES, 1):
+        lines += [f"*{n:02d} {face:02d}", title, header] + text
+    return lines + ["*"]
 
 
 def tables(maps):
@@ -129,7 +114,7 @@ def level_entries(level, importer):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    levels = [json.load(open(os.path.join(LEVELS_DIR, f"{name}.json"))) for name in LEVELS]
+    levels = [json.load(open(os.path.join(LEVELS_DIR, f"{st['level']}.json"))) for st in stages()]
     for level in levels:
         level["events"] = compose.expand(level)
     # Episode 5's enemies the levels use as they are keep their weapons; the others' weapons may go
