@@ -69,7 +69,9 @@ Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window
 and power at the bottom right, the guns' power and the sidekicks' ammunition at the top right,
 fading while the ship is under them; the level's name as it starts) or Classic (the original
 panel beside the playfield; two players always have it). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
-change the first two as well.
+change the first two as well. In a level, Escape's options have **3D Options** with the same
+settings and the music (SoundFont or AdLib), each changed with Left/Right, Enter or a click and
+taking effect at once (`ingame_options_3d` in `mainint.c`).
 
 ## Debug flight
 

@@ -36,6 +36,7 @@
 #include "layer3d.h"
 #include "lds_play.h"
 #include "loudness.h"
+#include "music_midi.h"
 #include "models3d.h"
 #include "rogue.h"
 #include "volume3d.h"
@@ -1525,6 +1526,208 @@ void JE_doInGameSetup(void)
 	mouseSetRelative(true);
 }
 
+/*
+ * Tyrian3D: the modern settings (settings3d.h, as the setup menu's "3D" and "Music") in a level,
+ * from the in-game options ("3D Options"). Drawn in that menu's box (the 3D view behind it keeps
+ * its darkened boxes), each value turned by Left/Right, Enter or a click; Escape, a right click or
+ * "Done" go back. They take effect at once and are saved as from the setup menu.
+ */
+enum
+{
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_MUSIC, OPT_DONE, OPT_COUNT
+};
+
+static const char *const option_names[OPT_COUNT] = {
+	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Music", "Done",
+};
+
+static const char *const option_help[OPT_COUNT] = {
+	"Play in 3D or on the original screen.",
+	"Ships and enemies in 3D, or flat sprites.",
+	"Shadows of ships and enemies.",
+	"Explosion particles and glowing shots.",
+	"How the 3D camera looks at the playfield.",
+	"The ship moves as far as the mouse, or as in the original.",
+	"A few gauges over the playfield, or the original panel.",
+	"The music through a SoundFont, or on the AdLib chip.",
+	"Return to the options.",
+};
+
+static const char *option_value(int option)
+{
+	switch (option)
+	{
+	case OPT_VIEW:    return settings3d.view_3d ? "3D" : "Original 2D";
+	case OPT_OBJECTS: return settings3d.models ? "3D" : "Flat sprites";
+	case OPT_SHADOWS: return settings3d.shadows ? "On" : "Off";
+	case OPT_EFFECTS: return settings3d.effects ? "On" : "Off";
+	case OPT_CAMERA:  return settings3d_camera_name(settings3d.camera);
+	case OPT_MOUSE:   return settings3d.mouse_direct ? "Direct" : "Original";
+	case OPT_HUD:     return settings3d.hud_modern ? "Modern" : "Classic";
+	case OPT_MUSIC:   return settings3d.music_midi ? (music_midi_available() ? "SoundFont" : "SoundFont (none)") : "AdLib";
+	default:          return NULL;
+	}
+}
+
+// Turns an option to its next (or previous) value.
+static void option_turn(int option, int step)
+{
+	switch (option)
+	{
+	case OPT_VIEW:
+		settings3d.view_3d = !settings3d.view_3d;
+		settings3d_changed(S3D_VIEW);
+		settings3d_apply();
+		break;
+	case OPT_OBJECTS:
+		settings3d.models = !settings3d.models;
+		settings3d_changed(S3D_MODELS);
+		settings3d_apply();
+		break;
+	case OPT_SHADOWS:
+		settings3d.shadows = !settings3d.shadows;
+		settings3d_changed(S3D_SHADOWS);
+		break;
+	case OPT_EFFECTS:
+		settings3d.effects = !settings3d.effects;
+		settings3d_changed(S3D_EFFECTS);
+		break;
+	case OPT_CAMERA:
+	{
+		const int count = settings3d_camera_count();
+		settings3d.camera = (settings3d.camera + step + count) % count;
+		settings3d_changed(S3D_CAMERA);
+		settings3d_apply();
+		break;
+	}
+	case OPT_MOUSE:
+		settings3d.mouse_direct = !settings3d.mouse_direct;
+		settings3d_changed(S3D_MOUSE);
+		break;
+	case OPT_HUD:
+		settings3d.hud_modern = !settings3d.hud_modern;
+		settings3d_changed(S3D_HUD);
+		break;
+	case OPT_MUSIC:
+		settings3d.music_midi = !settings3d.music_midi;
+		settings3d_changed(S3D_MUSIC);
+		settings3d_apply();
+		break;
+	default:
+		break;
+	}
+}
+
+// background: the in-game options' screen with their boxes (VGAScreen2), drawn on each time.
+static void ingame_options_3d(void)
+{
+	const int yItems = 18, dyItems = 13, hItem = 11;
+	const int xName = 10, wName = 80, xValue = xName + wName, wValue = 120;
+	int selected = 0;
+
+	for (bool done = false; !done; )
+	{
+		memcpy(VGAScreen->pixels, VGAScreen2->pixels, (size_t)VGAScreen->pitch * VGAScreen->h);
+		for (int i = 0; i < OPT_COUNT; ++i)
+		{
+			const int y = yItems + dyItems * i;
+			const int brightness = -4 + (i == selected ? 2 : 0);
+			draw_font_hv_shadow(VGAScreen, xName, y, option_names[i], normal_font, left_aligned, 15, brightness, false, 2);
+			const char *value = option_value(i);
+			if (value != NULL)
+				draw_font_hv_shadow(VGAScreen, xValue, y, value, normal_font, left_aligned, 15, brightness, false, 2);
+		}
+		JE_outTextAdjust(VGAScreen, 10, 147, option_help[selected], 14, 6, TINY_FONT, true);
+
+		service_SDL_events(true);
+		JE_mouseStart();
+		JE_showVGA();
+		JE_mouseReplace();
+
+		bool mouseMoved = false;
+		do
+		{
+			SDL_Delay(16);
+			const Uint16 oldMouseX = mouse_x, oldMouseY = mouse_y;
+			push_joysticks_as_keyboard();
+			service_SDL_events(false);
+			NETWORK_KEEP_ALIVE();
+			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
+		} while (!(newkey || newmouse || mouseMoved));
+
+		int step = 0;  // turn the selected option by this, or act on "Done"
+		if ((mouseMoved || newmouse) && mouse_x >= xName && mouse_x < xValue + wValue)
+		{
+			for (int i = 0; i < OPT_COUNT; ++i)
+			{
+				const int y = yItems + dyItems * i;
+				if (mouse_y >= y && mouse_y < y + hItem)
+				{
+					if (selected != i)
+						JE_playSampleNum(S_CURSOR);
+					selected = i;
+					if (newmouse && lastmouse_but == SDL_BUTTON_LEFT && lastmouse_y >= y && lastmouse_y < y + hItem)
+						step = 1;
+					break;
+				}
+			}
+		}
+		if (newmouse && lastmouse_but == SDL_BUTTON_RIGHT)
+		{
+			JE_playSampleNum(S_SPRING);
+			done = true;
+		}
+		else if (newkey)
+		{
+			switch (lastkey_scan)
+			{
+			case SDL_SCANCODE_UP:
+				JE_playSampleNum(S_CURSOR);
+				selected = (selected + OPT_COUNT - 1) % OPT_COUNT;
+				break;
+			case SDL_SCANCODE_DOWN:
+				JE_playSampleNum(S_CURSOR);
+				selected = (selected + 1) % OPT_COUNT;
+				break;
+			case SDL_SCANCODE_LEFT:
+				if (selected != OPT_DONE)
+					step = -1;
+				break;
+			case SDL_SCANCODE_RIGHT:
+				if (selected != OPT_DONE)
+					step = 1;
+				break;
+			case SDL_SCANCODE_SPACE:
+			case SDL_SCANCODE_RETURN:
+				step = 1;
+				break;
+			case SDL_SCANCODE_ESCAPE:
+				JE_playSampleNum(S_SPRING);
+				done = true;
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (step != 0)
+		{
+			if (selected == OPT_DONE)
+			{
+				JE_playSampleNum(S_SELECT);
+				done = true;
+			}
+			else
+			{
+				JE_playSampleNum(S_CLICK);
+				option_turn(selected, step);
+			}
+		}
+	}
+	keysactive[SDL_SCANCODE_ESCAPE] = false;
+	memcpy(VGAScreen->pixels, VGAScreen2->pixels, (size_t)VGAScreen->pitch * VGAScreen->h);
+}
+
 JE_boolean JE_inGameSetup(void)
 {
 	bool result = false;
@@ -1538,22 +1741,23 @@ JE_boolean JE_inGameSetup(void)
 		MENU_ITEM_EFFECTS_VOLUME,
 		MENU_ITEM_DETAIL_LEVEL,
 		MENU_ITEM_GAME_SPEED,
+		MENU_ITEM_OPTIONS_3D,  // Tyrian3D: the modern settings (ingame_options_3d)
 		MENU_ITEM_RETURN_TO_GAME,
 		MENU_ITEM_QUIT,
 	};
 
-	const size_t helpIndexes[] = { 14, 14, 27, 28, 25, 26 };
+	const size_t helpIndexes[] = { 14, 14, 27, 28, 0, 25, 26 };
 
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer sprites
 
 	bool restart = true;
 
-	const size_t menuItemsCount = COUNTOF(inGameText);
+	const size_t menuItemsCount = COUNTOF(inGameText) + 1;
 	size_t selectedIndex = MENU_ITEM_MUSIC_VOLUME;
 
 	const int yMenuItems = 20;
-	const int dyMenuItems = 20;
+	const int dyMenuItems = 17;
 	const int xMenuItem = 10;
 	const int xMenuItemName = xMenuItem;
 	const int wMenuItemName = 110;
@@ -1589,7 +1793,8 @@ JE_boolean JE_inGameSetup(void)
 		{
 			const int y = yMenuItems + dyMenuItems * i;
 
-			const char *const name = inGameText[i];
+			const char *const name = i == MENU_ITEM_OPTIONS_3D ? "3D Options" :
+			                         inGameText[i < MENU_ITEM_OPTIONS_3D ? i : i - 1];
 
 			const bool selected = i == selectedIndex;
 
@@ -1621,7 +1826,9 @@ JE_boolean JE_inGameSetup(void)
 		}
 
 		// Draw help text.
-		JE_outTextAdjust(VGAScreen, 10, 147, mainMenuHelp[helpIndexes[selectedIndex]], 14, 6, TINY_FONT, true);
+		JE_outTextAdjust(VGAScreen, 10, 147, selectedIndex == MENU_ITEM_OPTIONS_3D
+		                 ? "The 3D view, objects, camera, HUD, mouse and music."
+		                 : mainMenuHelp[helpIndexes[selectedIndex]], 14, 6, TINY_FONT, true);
 
 		service_SDL_events(true);
 
@@ -1809,6 +2016,13 @@ JE_boolean JE_inGameSetup(void)
 				samples_disabled = !samples_disabled;
 
 				JE_playSampleNum(S_SELECT);
+				break;
+			}
+			case MENU_ITEM_OPTIONS_3D:
+			{
+				JE_playSampleNum(S_SELECT);
+
+				ingame_options_3d();
 				break;
 			}
 			case MENU_ITEM_RETURN_TO_GAME:
