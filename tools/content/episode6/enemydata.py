@@ -108,14 +108,25 @@ class Importer:
         self.weapon_content = {}  # a brought-in weapon's record (as written) -> its number
 
     def scale_values(self, factor, skip=range(390, 400)):
-        """Every enemy worth factor times its credits (values 1-9999: credits on a kill; above
-        and below are other things), but the coins and gems themselves."""
+        """Every enemy worth factor times its credits (values 2-9999: credits on a kill; 1 is a
+        data cube, above and below are other things), but the coins and gems themselves."""
         for number, at in self.enemies.items():
             if number in skip:
                 continue
             value = struct.unpack_from("<h", self.data, at + 73)[0]
-            if 0 < value < 10000:
+            if 1 < value < 10000:
                 struct.pack_into("<h", self.data, at + 73, min(9999, int(round(value * factor))))
+
+    def custom(self, episode, number, value):
+        """A copy of an enemy (brought in as enemy() does) worth value (a warp orb's 10000 + n),
+        in a slot of its own; the same copy again for the same value."""
+        key = (episode, number, "value", value)
+        if key not in self.enemy_map:
+            new = self.free_enemies.pop(0)
+            self.enemy_map[key] = new
+            self._fill(episode, number, new)
+            struct.pack_into("<h", self.data, self.enemies[new] + 73, value)
+        return self.enemy_map[key]
 
     def _source(self, episode):
         if episode not in self.sources:

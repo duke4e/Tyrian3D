@@ -176,3 +176,23 @@ class Source:
                 key = grid[r][c]
             out.append((key, e["type"], e["d1"]))
         return out
+
+
+_originals = {}
+
+
+def originals(episodes=(1, 2, 3, 4, 5)):
+    """Every original level of these episodes (once each; those the decoder reads)."""
+    out = []
+    for ep in episodes:
+        if ep not in _originals:
+            _originals[ep] = []
+            names = [s[13:22].strip() for s in levels.read_strings(os.path.join(tyrdata.DATA, f"levels{ep}.dat"))
+                     if s.startswith("]L")]
+            for name in dict.fromkeys(names):
+                try:
+                    _originals[ep].append(Source(ep, name))
+                except (IndexError, TypeError, ValueError):
+                    pass  # (names the script has twice or not as a level of its own)
+        out += _originals[ep]
+    return out

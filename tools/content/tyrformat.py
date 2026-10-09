@@ -61,4 +61,4 @@ def level_line(next_section, name, song, file_number, bonus=False):
     """A script's ]L command: the section after the level, its name (9 characters), its song and
     its two entries in the level file (file_number counts levels from 1)."""
     assert len(name) <= 9 and 0 < file_number < 100 and 0 < song < 100
-    return f"]L[ 9999 {next_section:03d} {name:<9}{song:02d} {file_number:02d}" + ("$" if bonus else "")
+    return f"]L[ 9999 {next_section:03d} {name:<9}{song:02d} {file_number:02d}" + ("$$" if bonus else "")

@@ -13,6 +13,10 @@ import waves as W
 LAYER1_ROWS = 300
 CLOCK_END = 8148          # layer 1 runs out here (EVENTS.md 3)
 ENEMY_D1 = W.SPAWNS | {33, 45, 59, 68}  # events whose d1 is an enemy
+COURIER_LINK = 40         # the secret couriers' (waves get links 1-39)
+DATA_CUBE = 512           # the item data's data cube (value 1; sheet 21, always there)
+WARP_ORB = 593            # a warp orb (sheet 20); the build gives each secret level its own
+WARP_SHEET = 20
 
 
 def event(t, type_, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0, ep=None):
@@ -45,7 +49,7 @@ class Links:
         mapping = {}
         for link in sorted(links):
             if link <= 40:
-                for new in range(1, 41):
+                for new in range(1, COURIER_LINK):
                     if self.busy.get(new, -1) < start and new not in mapping.values():
                         mapping[link] = new
                         break
@@ -85,6 +89,9 @@ def place(template, start, links, ep):
             e["d4"] = mapping.get(e["d4"], e["d4"])
         if e["type"] in ENEMY_D1:
             e["ep"] = ep
+            if e["type"] in (33, 45) and e["d1"] in (512, 513):
+                # An original's data cube: episode 6's cubes are its own (story.py).
+                e["d1"], e["ep"] = 396, 5
         out.append(e)
     return out
 
@@ -205,8 +212,7 @@ def place_ground(grid, ground_sources, banks, start, boss_time, rnd, density=Non
     seen = Counter()        # key -> times it occurs in the originals' maps
     options = defaultdict(Counter)  # key -> (kind, episode, enemy) -> count
     for s in ground_sources:
-        objects = [o for o in s.ground_objects()
-                   if s.enemies[o[2]]["shapebank"] in banks or len(banks) < 4]
+        objects = [o for o in s.ground_objects() if s.enemies[o[2]]["shapebank"] in banks]
         if not objects:
             continue
         for key, kind, enemy in objects:
@@ -241,9 +247,50 @@ def place_ground(grid, ground_sources, banks, start, boss_time, rnd, density=Non
     return events
 
 
+def courier_events(t, prize, kinds, rnd):
+    """A secret: a lone enemy crossing the top of the screen fast, leaving a data cube or a warp
+    orb to a secret level (prize "cube" or "warp:<level>") when shot down in time. kinds: sky enemies
+    (episode, number, enemy) the level's sheets show."""
+    ep, number, _ = rnd.choice(kinds)
+    left = rnd.random() < 0.5
+    out = [event(t, 15, d1=number, d2=-24 if left else 268, d4=COURIER_LINK, d5=44, ep=ep),
+           event(t, 20, d1=0, d2=0, d4=COURIER_LINK), event(t, 19, d1=3 if left else -3, d2=0, d4=COURIER_LINK)]
+    if prize == "cube":
+        out.append(event(t, 33, d1=DATA_CUBE, d4=COURIER_LINK, ep=5))
+    else:
+        out.append(dict(event(t, 33, d1=WARP_ORB, d4=COURIER_LINK, ep=5), warp=prize.split(":", 1)[1]))
+    return out
+
+
+def courier_kinds(wave_sources, banks):
+    """Sky enemies for couriers: shootable in a pass (armor 5-40), not too big, flying straight;
+    the waves' own, or else any episode 4 and 5 levels fly on the level's sheets."""
+    def suits(en):
+        return (en["shapebank"] in banks and 5 <= en["armor"] <= 40 and en["esize"] <= 1 and
+                0 < en["value"] < 10000 and not en["xaccel"] and not en["yaccel"] and not en["elaunchfreq"])
+
+    kinds = {}
+    for s in wave_sources:
+        for w in s.waves():
+            for e in w["events"]:
+                if e["type"] == 15 and suits(s.enemies[e["d1"]]):
+                    kinds[(s.episode, e["d1"])] = s.enemies[e["d1"]]
+    if not kinds:
+        for s in W.originals(episodes=(4, 5)):
+            for e in s.events:
+                if e["type"] == 15 and e["t"] < 60000 and suits(s.enemies[e["d1"]]):
+                    kinds[(s.episode, e["d1"])] = s.enemies[e["d1"]]
+    return [(ep, n, en) for (ep, n), en in sorted(kinds.items())]
+
+
 def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
     """The level's gimmicks as events (and an ambush's waves as placements)."""
     out = []
+    if g.get("couriers"):
+        kinds = courier_kinds(wave_sources, banks)
+        assert kinds, "no enemy for the couriers"
+        for t, prize in g["couriers"]:
+            out += courier_events(t, prize, kinds, rnd)
     b1, b2, b3 = speeds
     for t0, t1, factor in g.get("bursts", []):
         # Afterburners: the level rushes, every layer faster by factor (their ratios kept, so the
@@ -271,7 +318,7 @@ def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
 
 def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, density=None,
             intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False, wealth=10000, gimmicks=None,
-            speeds=(1, 2, 3)):
+            speeds=(1, 2, 3), ground_sheets=2):
     """The level's own events and its placements (see expand). grid: the new layer 1 map (rows of
     shapes). density(row) -> chance of a ground enemy on a suitable tile there. intensity(fraction
     of the level) -> how dense the waves come (0-1)."""
@@ -310,8 +357,13 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         # The map stands from at + stop until the fight is over (the clock at at + loop_to + 2).
         shift_from, shift = at + stop, loop_to + 2 - stop
         for t0, t1, *_ in gimmicks.get("bursts", []) + gimmicks.get("dark", []) + gimmicks.get("flip", []) + \
-                [(t, t + 600) for t, _ in gimmicks.get("ambush", [])]:
+                [(t, t + 600) for t, _ in gimmicks.get("ambush", [])] + \
+                [(t, t + 200) for t, _ in gimmicks.get("couriers", [])]:
             assert t1 < at - 200 or t0 > at + loop_to + 2, "a gimmick during the mid-level boss"
+
+    # A warp orb's sheet, when the level hides one.
+    if any(prize.startswith("warp") for _, prize in gimmicks.get("couriers", [])):
+        banks.add(WARP_SHEET)
 
     # Sheets an ambush's waves need.
     for _, (ep, name) in gimmicks.get("ambush", []):
@@ -320,8 +372,9 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if need and not set(need) & banks and len(banks) < 4:
             banks.add(need.most_common(1)[0][0])
 
-    # The ground enemies' sheets next (they go with the map), at most two; the waves get the rest.
-    for b in ground_banks(ground_sources, 2):
+    # The ground enemies' sheets next (they go with the map), at most two (ground_sheets); the
+    # waves get the rest.
+    for b in ground_banks(ground_sources, 2)[:ground_sheets]:
         if len(banks) < 4:
             banks.add(b)
 

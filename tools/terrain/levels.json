@@ -641,5 +641,15 @@
   "level": "THE CORE",
   "background": 2,
   "solid": true
+ },
+ "985b895aea23dda1": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1926": 0,
+   "#1c2935": 10,
+   "#162330": "~"
+  },
+  "level": "VAULT"
  }
 }

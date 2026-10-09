@@ -55,6 +55,8 @@ def main(names):
     keep = set()
     built = []
     for name in levels:
+        if levels[name].get("shared_maps"):
+            continue  # another level's maps (and terrain): INVADERS
         maps = export_maps(found[name]) if name in names else {}
         if name not in names:
             # Not made again: its maps stay as they are.

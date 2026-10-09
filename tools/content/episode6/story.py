@@ -9,36 +9,42 @@ sidekicks 33-37).
 """
 
 # Each stage: its level (levels/<slug>.json), the planet the map flies to, the cubes the shop
-# shows (indices in CUBES, from 1), a message before the level (or None), and the shop.
+# shows (indices in CUBES, from 1), a message before the level (or None), and the shop; secret:
+# the data cube a courier of its level leaves (shown in the next shop when it was picked up).
+# kind "secret": a level only a warp orb leads to (its parent's), back to the stage after its
+# parent; kind "bonus": a level after the one before it, without a shop. Their cubes (secret ones,
+# picked up in them) show in the next shop.
 STAGES = [
-    dict(level="dig_site", planet=8, cubes=[1], warning=None, shop=[
+    dict(level="dig_site", planet=8, cubes=[1], secret=[13], warning=None, shop=[
         " Ship   3 14 16", " WeapF  1 3 13 48 49", " WeapR  0 9 10 52 53", " Power  3 4", " Engine 1",
         " Opt1   0 6 29 33", " Opt2   0 6 29 34", " Armor  1 2 3", " Shield 3 5 8"]),
-    dict(level="reef", planet=8, cubes=[2, 9], warning=None, shop=[
+    dict(level="reef", planet=8, cubes=[2, 9], secret=[14], warning=None, shop=[
         " Ship   4 5 16", " WeapF  8 13 17 50", " WeapR  0 9 18 28 52", " Power  4 5", " Engine 1",
         " Opt1   0 16 13 14 35", " Opt2   0 20 13 14 36", " Armor  1 2 3", " Shield 5 6 8"]),
     dict(level="grey_moon", planet=12, cubes=[3], warning=["Warning:", "The grey moon's base answers no hails.",
                                                            "Its guns are already turning."], shop=[
         " Ship   5 6 2", " WeapF  3 27 42 51", " WeapR  0 21 22 30 53", " Power  5", " Engine 1",
         " Opt1   0 7 8 9 37", " Opt2   0 7 8 9 37", " Armor  1 2 3", " Shield 6 7 9"]),
-    dict(level="deli_ruin", planet=3, cubes=[10], warning=None, shop=[
+    dict(level="vault", kind="secret", parent="grey_moon", cubes=[], secret=[21, 22],
+         warning=["The orb pulls you off course, down a shaft", "in the grey moon, into a sealed vault."]),
+    dict(level="deli_ruin", planet=3, cubes=[10], secret=[15], warning=None, shop=[
         " Ship   5 6 16", " WeapF  3 8 27 42 51", " WeapR  0 21 22 30 53", " Power  5", " Engine 1",
         " Opt1   0 7 8 12 37", " Opt2   0 7 8 12 37", " Armor  1 2 3", " Shield 6 7 9"]),
-    dict(level="roost", planet=2, cubes=[4], warning=None, shop=[
+    dict(level="roost", planet=2, cubes=[4], secret=[16], warning=None, shop=[
         " Ship   6 7 2", " WeapF  5 18 19 48 49", " WeapR  0 28 29 21", " Power  5 6", " Engine 1",
         " Opt1   0 12 17 21 33 35", " Opt2   0 12 22 23 34 36", " Armor  1 2 3", " Shield 9 10"]),
-    dict(level="deep_ice", planet=14, cubes=[5], warning=None, shop=[
+    dict(level="deep_ice", planet=14, cubes=[5], secret=[17], warning=None, shop=[
         " Ship   7 6 2", " WeapF  5 20 27 50 51", " WeapR  0 29 21 22 52", " Power  6", " Engine 1",
         " Opt1   0 12 17 25 37", " Opt2   0 12 26 27 37", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="glacier", planet=14, cubes=[6], warning=["Warning:", "Hazudra Collector signal ahead.",
+    dict(level="glacier", planet=14, cubes=[6], secret=[18], warning=["Warning:", "Hazudra Collector signal ahead.",
                                                          "It has noticed you."], shop=[
         " Ship   7 12 2", " WeapF  5 18 19 20 27", " WeapR  0 21 28 29 53", " Power  6", " Engine 1",
         " Opt1   0 12 25 28 33 35", " Opt2   0 12 26 28 34 36", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="collector", planet=16, cubes=[11], warning=["Warning:", "The Collector's ship. It is larger",
+    dict(level="collector", planet=16, cubes=[11], secret=[19], warning=["Warning:", "The Collector's ship. It is larger",
                                                             "than any fleet you have seen."], shop=[
         " Ship   7 12 13", " WeapF  5 18 19 20 27 50", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 35", " Opt2   0 12 22 26 28 36", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="crustgate", planet=6, cubes=[7, 8], warning=["Warning:", "Gravitron readings off every scale.",
+    dict(level="crustgate", planet=6, cubes=[7, 8], secret=[20], warning=["Warning:", "Gravitron readings off every scale.",
                                                              "The crust is opening."], shop=[
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
@@ -47,6 +53,10 @@ STAGES = [
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48 51", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 33 37", " Opt2   0 12 22 26 28 34 37", " Armor  1 2 3", " Shield 11"]),
 ]
+
+STAGES.append(dict(level="invaders", kind="bonus", cubes=[], warning=[
+    "The core holds. On the way up, the wreck of", "the Collector's hangar still launches drones",
+    "in rows. One last sweep."]))
 
 # The data cubes: (face sprite, title, header, lines). ~word~ highlights a word, as in the game.
 CUBES = [
@@ -128,6 +138,68 @@ CUBES += [
         "",
         "Destroy it there, ~Trent~, before it opens the seed. Whatever is inside",
         "the keepers wanted to stay inside."]),
+]
+
+# Secret cubes: one a courier carries in most levels, two in the vault (STAGES' "secret").
+CUBES += [
+    (1, "DATACUBE: SAVARA DIG CREW NOTES", "Data", [
+        "Day 12. The books will not burn, tear or get wet. Mill tried all three.",
+        "",
+        "Day 13. ~Arugo~ says that is the point: they were made to outlast whoever",
+        "reads them. Mill says he was only checking. Nobody believes Mill.",
+        "",
+        "Day 14. Unmarked ships on the scanner. Packing the books first, Mill second."]),
+    (2, "SAVARA COAST WATCH, NIGHT LOG", "News", [
+        "Fishing boats off the ~Savara~ reef report grey hulls under the water, moving",
+        "in lines, with no lights. The reef fish have gone deep and will not come up.",
+        "",
+        "The coast watch reminds all crews: do not follow anything grey."]),
+    (14, "DELIANI PROPERTY EXCHANGE", "News", [
+        "~For~ ~lease~: the old quarter, ruins included. Quiet neighbours, mostly grey.",
+        "Basement levels already occupied; the occupants did not sign anything and",
+        "have stopped answering the door.",
+        "",
+        "Rent payable in advance. Bring your own lights."]),
+    (2, "ARCHIVE DATA", "Data", [
+        "Reference: Torm Biology - Dragon Eggs",
+        "",
+        "The dragons left their eggs behind. The eggs are warm, though nothing sits",
+        "on them, and every one of them turns slowly to face the same point in the",
+        "sky: the ~keepers'~ ~gate~."]),
+    (1, "ICE CORE SAMPLE 4412", "Data", [
+        "Depth 900 m: a layer of grey dust, the same material as the books.",
+        "Depth 1400 m: the dust is laid in lines, like writing.",
+        "Depth 2100 m: the drill head comes back warm. The ice down there hums.",
+        "",
+        "Drilling suspended. The hum has not."]),
+    (18, "HAZUDRA DUTY ROSTER", "Collector", [
+        "Shard team: three. Shell team: seven. Watching the human: one.",
+        "",
+        "Note to the one watching the human: you are not to admire his flying.",
+        "Report the facts. The facts are bad enough."]),
+    (17, "THE COLLECTOR'S CATALOGUE (EXCERPT)", "Collector", [
+        "World 31: opened. World 32: opened. World 33: opened, found empty.",
+        "World 34: opened, did not stay opened. World 35: ~Tyrian~, in progress.",
+        "",
+        "Remark on world 34: we will not speak of world 34."]),
+    (1, "FROM THE GREY BOOKS, TRANSLATED", "Data", [
+        "~To~ ~whoever~ ~comes~ ~after~:",
+        "",
+        "We did not build the shell to keep you out. We built it to keep it in.",
+        "Mend the shell. Do not open the seed. It is not empty, and it is not asleep.",
+        "",
+        "~The~ ~keepers~"]),
+    (14, "VAULT LEDGER, GREY BELT STATION", "Data", [
+        "Credits taken from the ~Savara~ dig: all. From the ~Deliani~ banks: most.",
+        "Purpose of the money: hiring pilots who ask no questions.",
+        "",
+        "Note: the pilots asked questions. The money stays here for now."]),
+    (1, "DATACUBE: ARUGO, A PAGE NOBODY SAW", "Data", [
+        "One page of the books was cut out before they reached me. Its shape is in the",
+        "binding: a circle around a circle. The ~keepers'~ mark for the seed.",
+        "",
+        "Whoever cut it out knew what it said. I think they were afraid of it.",
+        "I think I would be too."]),
 ]
 
 ENDING = [

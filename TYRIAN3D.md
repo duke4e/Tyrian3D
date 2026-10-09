@@ -161,7 +161,11 @@ that suit them, a boss at the end (`compose.py`, `waves.py`; the event rules in
 level (`gimmicks` in the designs, `compose.py`): a boss of another level in the middle (the map
 stops, its pattern loops until it is gone: events 2, 53, 54, 70), rushes (all layers faster),
 ambushes from behind with their warning, dark stretches with the ship's spotlight and the screen
-upside down (effects 6 and 9). The generated
+upside down (effects 6 and 9). Secrets: in most levels a courier crosses the top of the screen
+fast; shot down, it leaves a data cube (shown in the next shop after the stage's own, `]+` and
+`]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
+After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
+at the end of episode 1. The generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
@@ -212,7 +216,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_GLOW_LIGHTS=0` | Shots and other glows don't light their surroundings |
 | `TYR3D_LOG_LIGHTS=1` | Print the point lights of each frame |
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
-| `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses) and scroll speed changes |
+| `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses), scroll speed changes, warp orbs and data cubes picked up |
 | `TYR3D_TEST_EXPLOSION=<x>,<y>,<every>` | A large explosion at this screen point every so many frames, to look at the particles |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |

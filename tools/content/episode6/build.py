@@ -37,26 +37,71 @@ def stages():
     return [st for st in story.STAGES if os.path.exists(os.path.join(LEVELS_DIR, f"{st['level']}.json"))]
 
 
-def script(levels):
-    """levels6.dat: for each stage a shop section (its cubes, the planet map's one destination,
-    the items), then the level's section (a warning before it), then the ending."""
-    lines = []
+def layout():
+    """The script's sections: each main stage a shop and its level, a secret or bonus stage only
+    its level. Returns (sections: level slug -> its level's section, entries: stage index -> the
+    section a game enters it at, the ending's section)."""
+    sections, entries = {}, {}
     section = 1
+    for i, stage in enumerate(stages()):
+        if stage.get("kind") in ("secret", "bonus"):
+            entries[i] = sections[stage["level"]] = section
+            section += 1
+        else:
+            entries[i], sections[stage["level"]] = section, section + 1
+            section += 2
+    return sections, entries, section
+
+
+def script(levels):
+    """levels6.dat: for each main stage a shop section (its cubes, the planet map's one
+    destination, the items), then the level's section (a warning before it); a secret stage's level
+    after its parent's (only a warp orb leads there), a bonus stage's level after the one before it;
+    then the ending. A level goes on to the next stage that is not secret (a secret level to where
+    its parent goes)."""
+    sections, entries, ending = layout()
+    all_stages = stages()
+
+    def following(i):
+        for j in range(i + 1, len(all_stages)):
+            if all_stages[j].get("kind") != "secret":
+                return entries[j]
+        return ending
+
+    lines = []
     origin = 4
-    for i, (stage, level) in enumerate(zip(stages(), levels)):
-        shop, level_section = section, section + 1
-        cubes = " ".join(f"{c:03d}" for c in stage["cubes"])
-        lines += [f"*{shop} SECTION - Episode 6 Stage {i + 1} - Selection",
-                  f"]![ {len(stage['cubes']):02d}", f"]?[ {len(stage['cubes']):02d} {cubes}",
-                  f"]G[ {origin:02d} 1 {stage['planet']:02d} {level_section:03d}", "]I["] + stage["shop"] + [""]
-        lines += [f"*{level_section} SECTION - Episode 6 Stage {i + 1}"]
-        if stage["warning"]:
+    number = 0
+    previous = []  # the secret cubes a game may bring to the next shop
+    for i, (stage, level) in enumerate(zip(all_stages, levels)):
+        kind = stage.get("kind", "main")
+        section = sections[stage["level"]]
+        if kind == "main":
+            number += 1
+            # The cubes: the stage's own (given), then the secret ones picked up in the level
+            # before (counted by the game as they are picked up; shown in this order).
+            cubes = stage["cubes"] + previous
+            assert len(cubes) <= 4, f"{stage['level']}: more than 4 cubes"
+            listed = " ".join(f"{c:03d}" for c in cubes)
+            lines += [f"*{section - 1} SECTION - Episode 6 Stage {number} - Selection"]
+            if stage["cubes"]:
+                lines += [f"]+[ {len(stage['cubes']):02d}"]
+            lines += [f"]?[ {len(cubes):02d} {listed}".rstrip(),
+                      f"]G[ {origin:02d} 1 {stage['planet']:02d} {section:03d}", "]I["] + stage["shop"] + [""]
+            origin = stage["planet"]
+            previous = []
+        lines += [f"*{section} SECTION - Episode 6 {'Stage %d' % number if kind == 'main' else kind.title()}"]
+        if stage.get("warning"):
             lines += ["]Wy 01["] + stage["warning"] + ["#"]
-        lines += [tf.level_line(level_section + 1, level["name"], level["song"], i + 1), ""]  # then the next shop
-        origin = stage["planet"]
-        section += 2
+        if kind == "secret":
+            parent = next(j for j, s in enumerate(all_stages) if s["level"] == stage["parent"])
+            assert not all_stages[parent].get("secret"), "a level with a secret level hides no cube"
+            after = following(parent)
+        else:
+            after = following(i)
+        lines += [tf.level_line(after, level["name"], level["song"], i + 1, bonus=kind != "main"), ""]
+        previous += stage.get("secret") or []
     # The ending, then the end of the episode (]Q reads hints after it, as many as E5 has).
-    lines += [f"*{section} SECTION - Episode 6 Ending", "]M 008[", "]P 005[", "]Wn 03["] + story.ENDING + \
+    lines += [f"*{ending} SECTION - Episode 6 Ending", "]M 008[", "]P 005[", "]Wn 03["] + story.ENDING + \
              ["#", "]F[", "]Q[", "#"]
     for k in range(9):
         lines += story.HINTS[k % len(story.HINTS)] + ["#"]
@@ -118,6 +163,7 @@ def main():
     levels = [json.load(open(os.path.join(LEVELS_DIR, f"{st['level']}.json"))) for st in stages()]
     for level in levels:
         level["events"] = compose.expand(level)
+    sections = layout()[0]
     # Episode 5's enemies the levels use as they are keep their weapons; the others' weapons may go
     # to enemies brought in from other episodes.
     probe = enemydata.Importer()
@@ -129,6 +175,12 @@ def main():
                     if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k):
                         kept.add(e["d1"] + k)
     importer = enemydata.Importer(kept)
+    # A warp orb takes the game to its secret level's section (its value: 10000 + the section).
+    for level in levels:
+        for e in level["events"]:
+            if e.get("warp"):
+                assert e["warp"] in sections, f"{level['name']}: no secret level {e['warp']}"
+                e["d1"] = importer.custom(e.pop("ep"), e["d1"], value=10000 + sections[e.pop("warp")])
     entries = []
     for level in levels:
         entries += level_entries(level, importer)

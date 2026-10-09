@@ -5140,6 +5140,8 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 				{
 					if (!bonusLevel)
 					{
+						if (SDL_getenv("TYR3D_LOG_JUMPS") != NULL)  // Tyrian3D dev
+							printf("warp: to section %d\n", evalue - 10000);
 						play_song(30);  /*Zanac*/
 						bonusLevel = true;
 						nextLevel = evalue - 10000;
@@ -5153,6 +5155,8 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					soundQueue[7] = S_ITEM;
 					if (evalue == 1)
 					{
+						if (SDL_getenv("TYR3D_LOG_JUMPS") != NULL)  // Tyrian3D dev
+							printf("data cube picked up\n");
 						cubeMax++;
 						soundQueue[3] = V_DATA_CUBE;
 					}
