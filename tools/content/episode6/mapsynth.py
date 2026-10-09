@@ -72,7 +72,12 @@ def _solve_row(model, rnd, below_row, runs, level, universe, bias):
         if not c:
             return {}
         # No vertical runs longer than the sources have (a pillar doesn't grow into a wall).
-        return {t: w for t, w in c.items() if t != below_row[x] or runs[x] < model.run[t]}
+        c = {t: w for t, w in c.items() if t != below_row[x] or runs[x] < model.run[t]}
+        if bias is not None:
+            # What the plan forbids (weight 0) isn't a candidate: a row that can't do without it is
+            # made again with the rows below it (backtracking), which finds another way.
+            c = {t: w for t, w in c.items() if bias(t, x) > 0}
+        return c
 
     finishable = [None] * n  # the tiles at x after which the row can be finished (None: any)
     for x in range(n - 2, -1, -1):
