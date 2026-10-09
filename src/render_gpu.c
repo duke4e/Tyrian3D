@@ -141,6 +141,8 @@ typedef struct
 	BTBHGPUTexture *texture;  // NULL: plain colour
 	bool graded;              // the bottom edge in below (left and right are then its top's)
 	float below[4];
+	bool poly;                // any four corners (px, py) in black of opacities pa (no texture)
+	float px[4], py[4], pa[4];
 } HudQuad;
 
 #define MAX_HUD_QUADS 1024
@@ -861,6 +863,9 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 				corners[k].blue = q->below[2];
 				corners[k].alpha = q->below[3];
 			}
+		if (q->poly)
+			for (int k = 0; k < 4; ++k)
+				corners[k] = (BTBHGPUCanvasVertex){ q->px[k], q->py[k], 0, 0, 0, 0, 0, q->pa[k] };
 		BTBHGPUCanvasVertex *v = vertices + vertex_count;
 		v[0] = corners[0];
 		v[1] = corners[1];
@@ -1167,6 +1172,114 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 // (Seen from the side, the window shows further ahead.)
 #define BACKGROUND_AHEAD (l3d_sideways ? 1100.0f : 640.0f)
 #define BACKGROUND_FADE 160.0f
+
+/*
+ * What the game plays in is its playfield only (264 x 184: shots, hits, enemies are there); the
+ * view shows the world around it too. Around the playfield as the window shows it (its corners on
+ * the player's plane, the same on every layer as the layers are aligned), the view is darkened, a
+ * soft edge first, so what can be played is what is bright (objects outside it aren't drawn at
+ * all: l3d_cull_outside). Black quads put first among the HUD's, under its gauges and texts; not
+ * over the classic panel (clip_x, the panel's left edge).
+ */
+#define OUTSIDE_SHADE 0.65f   // opacity of the black outside the playfield
+#define OUTSIDE_EDGE 0.022f   // the soft edge's width, of the window's height
+
+static int shade_quads(HudQuad *out, int max, float (*pts)[3], int n, float clip_x)
+{
+	// Clipped to x <= clip_x (Sutherland-Hodgman, opacity along), then a fan of triangles.
+	float clipped[8][3];
+	int m = 0;
+	for (int i = 0; i < n && m < 7; ++i)
+	{
+		const float *a = pts[i], *b = pts[(i + 1) % n];
+		const bool ina = a[0] <= clip_x, inb = b[0] <= clip_x;
+		if (ina)
+			memcpy(clipped[m++], a, sizeof(clipped[0]));
+		if (ina != inb && m < 8)
+		{
+			const float t = (clip_x - a[0]) / (b[0] - a[0]);
+			for (int k = 0; k < 3; ++k)
+				clipped[m][k] = a[k] + (b[k] - a[k]) * t;
+			++m;
+		}
+	}
+	int count = 0;
+	for (int i = 1; i + 1 < m && count < max; ++i)
+	{
+		const float *v[4] = { clipped[0], clipped[i], clipped[i + 1], clipped[i + 1] };
+		HudQuad *q = &out[count++];
+		*q = (HudQuad){ .poly = true };
+		for (int k = 0; k < 4; ++k)
+		{
+			q->px[k] = v[k][0];
+			q->py[k] = v[k][1];
+			q->pa[k] = v[k][2];
+		}
+	}
+	return count;
+}
+
+static void add_outside_shade(const Camera3D *camera, float reference, float clip_x, float window_w, float window_h)
+{
+	const float game[4][2] = {
+		{ L3D_PLAYFIELD_X, 0 }, { L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, 0 },
+		{ L3D_PLAYFIELD_X + L3D_PLAYFIELD_W, L3D_PLAYFIELD_H }, { L3D_PLAYFIELD_X, L3D_PLAYFIELD_H },
+	};
+	float p[4][2], centre[2] = { 0, 0 };
+	for (int i = 0; i < 4; ++i)
+	{
+		const float *m = camera->view_projection.m;
+		const float v[4] = { game[i][0], reference, game[i][1], 1 };
+		float clip[4];
+		for (int r = 0; r < 4; ++r)
+			clip[r] = m[r] * v[0] + m[4 + r] * v[1] + m[8 + r] * v[2] + m[12 + r] * v[3];
+		if (clip[3] <= 1e-6f)
+			return;
+		p[i][0] = (clip[0] / clip[3] + 1) / 2 * window_w;
+		p[i][1] = (1 - clip[1] / clip[3]) / 2 * window_h;
+		centre[0] += p[i][0] / 4;
+		centre[1] += p[i][1] / 4;
+	}
+	// Each edge's outward normal.
+	float normal[4][2];
+	for (int i = 0; i < 4; ++i)
+	{
+		const float *a = p[i], *b = p[(i + 1) % 4];
+		float nx = b[1] - a[1], ny = a[0] - b[0];
+		const float len = SDL_max(sqrtf(nx * nx + ny * ny), 1e-3f);
+		nx /= len, ny /= len;
+		if ((a[0] - centre[0]) * nx + (a[1] - centre[1]) * ny < 0)
+			nx = -nx, ny = -ny;
+		normal[i][0] = nx;
+		normal[i][1] = ny;
+	}
+	const float soft = OUTSIDE_EDGE * window_h, far = 4.0f * (window_w + window_h), a = OUTSIDE_SHADE;
+	HudQuad made[64];
+	int count = 0;
+	for (int i = 0; i < 4; ++i)
+	{
+		const float *pa = p[i], *pb = p[(i + 1) % 4], *n = normal[i], *np = normal[(i + 3) % 4];
+		float band[4][3] = { { pa[0], pa[1], 0 }, { pb[0], pb[1], 0 },
+		                     { pb[0] + soft * n[0], pb[1] + soft * n[1], a }, { pa[0] + soft * n[0], pa[1] + soft * n[1], a } };
+		float solid[4][3] = { { band[3][0], band[3][1], a }, { band[2][0], band[2][1], a },
+		                      { pb[0] + far * n[0], pb[1] + far * n[1], a }, { pa[0] + far * n[0], pa[1] + far * n[1], a } };
+		// The corner at pa, between the edge before's extrusion and this one's.
+		float corner_soft[3][3] = { { pa[0], pa[1], 0 }, { pa[0] + soft * np[0], pa[1] + soft * np[1], a },
+		                            { pa[0] + soft * n[0], pa[1] + soft * n[1], a } };
+		float corner[4][3] = { { pa[0] + soft * np[0], pa[1] + soft * np[1], a }, { pa[0] + far * np[0], pa[1] + far * np[1], a },
+		                       { pa[0] + far * n[0], pa[1] + far * n[1], a }, { pa[0] + soft * n[0], pa[1] + soft * n[1], a } };
+		count += shade_quads(made + count, (int)COUNTOF(made) - count, band, 4, clip_x);
+		count += shade_quads(made + count, (int)COUNTOF(made) - count, solid, 4, clip_x);
+		count += shade_quads(made + count, (int)COUNTOF(made) - count, corner_soft, 3, clip_x);
+		count += shade_quads(made + count, (int)COUNTOF(made) - count, corner, 4, clip_x);
+	}
+	count = SDL_min(count, MAX_HUD_QUADS - hud_quad_count);
+	if (count <= 0)
+		return;
+	memmove(hud_quads + count, hud_quads, sizeof(hud_quads[0]) * (size_t)hud_quad_count);
+	memcpy(hud_quads, made, sizeof(made[0]) * (size_t)count);
+	hud_quad_count += count;
+}
 
 // The view last shown, for mapping the mouse pointer onto the player's plane.
 typedef struct
@@ -5934,6 +6047,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways);
 	set_alignment(&camera, reference_height);
 	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
+	add_outside_shade(&camera, reference_height, layout.panel[2] > 0 ? layout.panel[0] : logical_w, logical_w, logical_h);
 
 	int instance_count = 0;
 	int batch_count = 0;

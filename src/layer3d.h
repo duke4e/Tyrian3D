@@ -169,6 +169,10 @@ extern bool l3d_sideways;
 // Seen from the side, what lines the window's top and bottom edges (event 200's d2): 0 nothing,
 // 1 asteroids, 2 crags of the crust.
 extern int l3d_side_decor;
+
+// Takes out of the frame what lies outside the game's playfield (objects, glows): the game plays
+// only there, so the 3D view shows only that there (render_gpu.c darkens the rest).
+void l3d_cull_outside(void);
 extern bool l3d_capturing; // inside an in-game frame between begin and end
 
 extern L3DFrame l3d_frame;

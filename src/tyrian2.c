@@ -2962,6 +2962,7 @@ draw_player_shot_loop_end:
 
 	if (SDL_getenv("TYR3D_LOG_GROUND") != NULL)
 		flush_ground_log();
+	l3d_cull_outside();  // Tyrian3D: the 3D view shows only what can be played
 	l3d_frame_end();
 
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
