@@ -139,6 +139,8 @@ typedef struct
 	float u0, v0, u1, v1;
 	float left[4], right[4];  // colours at the left and right edges
 	BTBHGPUTexture *texture;  // NULL: plain colour
+	bool graded;              // the bottom edge in below (left and right are then its top's)
+	float below[4];
 } HudQuad;
 
 #define MAX_HUD_QUADS 1024
@@ -845,12 +847,20 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	for (int i = 0; i < hud_quad_count; ++i)
 	{
 		const HudQuad *q = &hud_quads[i];
-		const BTBHGPUCanvasVertex corners[4] = {
+		BTBHGPUCanvasVertex corners[4] = {
 			{ q->x,        q->y,        q->u0, q->v0, q->left[0], q->left[1], q->left[2], q->left[3] },
 			{ q->x + q->w, q->y,        q->u1, q->v0, q->right[0], q->right[1], q->right[2], q->right[3] },
 			{ q->x + q->w, q->y + q->h, q->u1, q->v1, q->right[0], q->right[1], q->right[2], q->right[3] },
 			{ q->x,        q->y + q->h, q->u0, q->v1, q->left[0], q->left[1], q->left[2], q->left[3] },
 		};
+		if (q->graded)
+			for (int k = 2; k < 4; ++k)
+			{
+				corners[k].red = q->below[0];
+				corners[k].green = q->below[1];
+				corners[k].blue = q->below[2];
+				corners[k].alpha = q->below[3];
+			}
 		BTBHGPUCanvasVertex *v = vertices + vertex_count;
 		v[0] = corners[0];
 		v[1] = corners[1];
@@ -1805,7 +1815,10 @@ static float text_width(int font, const char *s, float cap)
 }
 
 // A string with its top (of capitals) at y; a shadow beneath it if shadow > 0 (its offset).
-static void text_quads(int font, const char *s, float x, float y, float cap, const float color[4], float shadow)
+// Text shaded from top (the capitals' tops) to bottom (the baseline and below), as the game's fonts
+// are drawn.
+static void text_quads_graded(int font, const char *s, float x, float y, float cap, const float top[4],
+                              const float bottom[4], float shadow)
 {
 	if (!load_text_fonts())
 		return;
@@ -1813,8 +1826,7 @@ static void text_quads(int font, const char *s, float x, float y, float cap, con
 	BTBHGPUTexture *atlas = btbh_gpu_font_atlas(text_fonts[font]);
 	for (int pass = shadow > 0 ? 0 : 1; pass < 2; ++pass)
 	{
-		const float shade[4] = { 0, 0, 0, 0.7f * color[3] };
-		const float *c = pass == 0 ? shade : color;
+		const float shade[4] = { 0, 0, 0, 0.7f * top[3] };
 		const float d = pass == 0 ? shadow : 0;
 		float pen = x;
 		const float baseline = y + cap;
@@ -1827,13 +1839,24 @@ static void text_quads(int font, const char *s, float x, float y, float cap, con
 			{
 				HudQuad *q = &hud_quads[hud_quad_count++];
 				*q = (HudQuad){ pen + g->offset_x * scale + d, baseline + g->offset_y * scale + d, g->width * scale,
-				                g->height * scale, g->u0, g->v0, g->u1, g->v1, .texture = atlas };
-				memcpy(q->left, c, sizeof(q->left));
-				memcpy(q->right, c, sizeof(q->right));
+				                g->height * scale, g->u0, g->v0, g->u1, g->v1, .texture = atlas, .graded = true };
+				const float t0 = SDL_clamp((q->y - d - y) / cap, 0.0f, 1.0f);
+				const float t1 = SDL_clamp((q->y - d + q->h - y) / cap, 0.0f, 1.0f);
+				for (int k = 0; k < 4; ++k)
+				{
+					q->left[k] = pass == 0 ? shade[k] : top[k] + (bottom[k] - top[k]) * t0;
+					q->below[k] = pass == 0 ? shade[k] : top[k] + (bottom[k] - top[k]) * t1;
+				}
+				memcpy(q->right, q->left, sizeof(q->right));
 			}
 			pen += g->advance * scale;
 		}
 	}
+}
+
+static void text_quads(int font, const char *s, float x, float y, float cap, const float color[4], float shadow)
+{
+	text_quads_graded(font, s, x, y, cap, color, color, shadow);
 }
 
 /*
@@ -1881,28 +1904,52 @@ static void text_record_quads(const TextRecord *const *texts, int count, int x_o
 		if (r->shadow_only || text_x < 0 || r->text_y < 0 || text_x + r->text_w > clip_w + 2 ||
 		    r->text_y + r->text_h > clip_h + 2 || r->text_h <= 0)
 			continue;
-		// Its colour: the brightest of the pixels it drew.
-		float sum[3] = { 0, 0, 0 }, brightest = 0;
-		int n = 0;
-		for (int pass = 0; pass < 2; ++pass)
-			for (int k = 0; k < r->w * r->h; ++k)
+		// Its colours, as the game shades its glyphs: of the pixels it drew (not the shadow's), the
+		// colour most of them have (the glyphs' body), the brightest (their top edge) and the darkest
+		// (their lower edges). Drawn from the body lit by the highlight at the top to the body
+		// darkened at the bottom.
+		int count[256] = { 0 };
+		float brightest = 0;
+		for (int k = 0; k < r->w * r->h; ++k)
+			if (r->after[k] != r->before[k])
 			{
-				if (r->after[k] == r->before[k])
-					continue;
+				++count[r->after[k]];
 				const Uint8 *c = (const Uint8 *)&rgb_palette[r->after[k]];
-				const float lum = 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2];
-				if (pass == 0)
-					brightest = SDL_max(brightest, lum);
-				else if (lum >= brightest * 0.75f)
-				{
-					for (int j = 0; j < 3; ++j)
-						sum[j] += c[j];
-					++n;
-				}
+				brightest = SDL_max(brightest, 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]);
 			}
-		if (n == 0)
+		int total = 0, body = -1, light = -1, dark = -1;
+		float light_lum = -1, dark_lum = 1e9f;
+		for (int index = 0; index < 256; ++index)
+		{
+			const Uint8 *c = (const Uint8 *)&rgb_palette[index];
+			const float lum = 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2];
+			if (count[index] == 0 || lum < brightest * 0.35f)
+				continue;  // (the shadow)
+			total += count[index];
+			if (body < 0 || count[index] > count[body])
+				body = index;
+		}
+		if (body < 0)
 			continue;
-		const float color[4] = { sum[0] / n / 255.0f, sum[1] / n / 255.0f, sum[2] / n / 255.0f, 1.0f };
+		for (int index = 0; index < 256; ++index)
+		{
+			const Uint8 *c = (const Uint8 *)&rgb_palette[index];
+			const float lum = 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2];
+			if (count[index] * 25 < total || lum < brightest * 0.35f)
+				continue;  // (a few stray pixels)
+			if (lum > light_lum)
+				light_lum = lum, light = index;
+			if (lum < dark_lum)
+				dark_lum = lum, dark = index;
+		}
+		const Uint8 *cb = (const Uint8 *)&rgb_palette[body], *cl = (const Uint8 *)&rgb_palette[light],
+		            *cd = (const Uint8 *)&rgb_palette[dark];
+		float top[4] = { 0, 0, 0, 1 }, bottom[4] = { 0, 0, 0, 1 };
+		for (int j = 0; j < 3; ++j)
+		{
+			top[j] = (cb[j] + 0.6f * (cl[j] - cb[j])) / 255.0f;
+			bottom[j] = (cb[j] + 0.35f * (cd[j] - cb[j])) / 255.0f;
+		}
 		char text[sizeof(r->text)];
 		int t = 0;
 		for (const char *c = r->text; *c != '\0' && t < (int)sizeof(text) - 1; ++c)
@@ -1922,7 +1969,7 @@ static void text_record_quads(const TextRecord *const *texts, int count, int x_o
 		const float ours = text_width(font, text, cap);
 		const float x = r->align == 1 ? ox + (text_x + r->text_w * 0.5f) * kx - ours * 0.5f
 		              : r->align == 2 ? ox + (text_x + r->text_w) * kx - ours : ox + text_x * kx;
-		text_quads(font, text, x, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, color, cap * 0.09f);
+		text_quads_graded(font, text, x, oy + r->text_y * ky + (game_cap - cap) * 0.5f, cap, top, bottom, cap * 0.09f);
 	}
 }
 
@@ -1977,6 +2024,7 @@ static void hud_fade(int first, float x0, float y0, float x1, float y1, float sh
 	{
 		hud_quads[i].left[3] *= *shown;
 		hud_quads[i].right[3] *= *shown;
+		hud_quads[i].below[3] *= *shown;
 	}
 }
 

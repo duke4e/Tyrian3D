@@ -360,6 +360,8 @@ Plan je gotov (vidi `docs/plans/2026-10-07-tyrian3d-plan.md`, odjeljak 4). Dalje
 
 38. **Moderne opcije u igri (2026-10-09, korisnik: "moderne opcije kao dodatni menu kad unutar gameplaya pritisnemo esc").** ESC izbornik u levelu ima stavku "3D Options" (između brzine igre i povratka; razmak redova 17 umjesto 20 da stane): pogled, objekti, sjene, efekti, kamera, miš, HUD, glazba, Done. Crta se u istom okviru (3D pozadina ostaje sa svojim zatamnjenim okvirima, ploča desno se ne dira pa `backdrop_holds` vrijedi), vrijednosti Left/Right/Enter/klik, ESC/desni klik/Done natrag; odmah vrijede i spremaju se kao iz setup izbornika (`settings3d_changed`, `settings3d_apply`). Testovi koji mijenjaju postavke idu s `XDG_CONFIG_HOME` na kopiju korisnikovih datoteka (svaki izlaz igre prepisuje `opentyrian.cfg`).
 
+39. **Boje modernog fonta (2026-10-09, korisnik: "moderni font vjernije bojati, premala razlika između highlighta i ostalih").** Boja teksta više nije prosjek najsvjetlijih 25 % piksela (to je kod neoznačenih stavki uzimalo svijetli gornji rub glifa, pa su sve stavke bile slične), nego kako igra sjenča glifove: najčešća boja (tijelo), najsvjetlija i najtamnija (svaka bar 4 % piksela, sjena isključena), pa tekst ide od tijela osvijetljenog prema vrhu do tijela zatamnjenog prema dnu (`text_quads_graded`, `HudQuad.graded/below` za okomiti prijelaz). U ESC izborniku neoznačeno je narančasto (174,105,52), označeno krem (215,186,109), kao u originalu.
+
 ## 10. Memorija
 
 Postoje zapisi u `~/.claude/projects/-Users-duke4e-Documents-GitHub-Tyrian3D/memory/`:
