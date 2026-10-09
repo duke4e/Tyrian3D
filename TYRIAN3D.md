@@ -149,8 +149,19 @@ own formats by `tools/content/episode6/build.py` into `assets/content/episode6` 
 `levels6.dat`, `cubetxt6.dat`), at build time when the game's data is there: it is made from that
 data, so it isn't in the repository. The game finds those files in the content directory
 (`dir_fopen`), lists the episode in the episode menu and plays it like the others; it stays out of
-the original episodes' cycle (episode 5 still ends the game). For now it is one placeholder level
-(a copy of episode 5's SAVARA) with a shop and an ending; the level compiler comes next.
+the full game after episode 5 (`last_episode()`).
+
+Its levels are generated anew, the original levels only their inspiration
+(`tools/content/episode6/generate.py`, run with a Python that has numpy and PIL): the maps from
+the tiles of originals of the same look, by a plan of the level's design (`mapsynth.py`: each
+tile follows its neighbours as the originals have them, row by row, nothing copied), the events
+from the originals' waves placed anew along a difficulty curve, stationary ground enemies on tiles
+that suit them, a boss at the end (`compose.py`, `waves.py`; the event rules in
+`tools/content/EVENTS.md`, `tools/content/tyrevents.py` prints any level's events). The generated
+levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
+are in the repository; `build.py` expands them with the game's data at build time and brings the
+enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
+`export/episode6`.
 
 ## Environment variables
 
