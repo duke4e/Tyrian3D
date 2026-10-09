@@ -1212,6 +1212,8 @@ start_level:
 
 	difficultyLevel = oldDifficultyLevel;   /*Return difficulty to normal*/
 
+	printf("level over: %s, cash %lu\n", levelName, player[0].cash);  // Tyrian3D: for logs and sweeps
+
 	// Tyrian3D: the debug flight rewinds by restarting the level (debugmode.h).
 	if (debug_flight_restarting())
 		goto start_level_first;

@@ -43,7 +43,8 @@ def materials(letter, references, used):
     for s in used:
         img = t.get(s)
         if img is None:
-            out[s] = {n: 0.0 for n in names}
+            # A blank tile (space): all of the material named "space", if there is one.
+            out[s] = {n: (1.0 if n == "space" else 0.0) for n in names}
             continue
         rgb = pal[img.reshape(-1)]
         nearest = ((rgb[:, None, :] - ref[None, :, :]) ** 2).sum(axis=2).argmin(axis=1)

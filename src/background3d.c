@@ -791,6 +791,7 @@ void b3d_export_maps(const char *dir)
 		if (probe != NULL)
 		{
 			fclose(probe);
+			printf("background %d: map already exported to %s\n", set, path);  // (tools find a level's maps)
 			continue;
 		}
 

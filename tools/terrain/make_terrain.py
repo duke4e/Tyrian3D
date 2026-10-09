@@ -196,6 +196,23 @@ def solid_heights(rgb, opaque, s):
     return h, ~opaque
 
 
+def material_heights(rgb, labels, s):
+    """Heights by material instead of by hand (generated maps: tools/content/episode6): each class
+    gets the height of the material its mean colour is nearest ("materials": {"#rrggbb": height or
+    "~"}); classes far from all of them take their surroundings' height."""
+    refs = [(np.array([int(k[i:i + 2], 16) for i in (1, 3, 5)], np.float32) / 255, v) for k, v in s["materials"].items()]
+    out = {}
+    for c in range(s["classes"]):
+        mask = labels == c
+        if not mask.any():
+            continue
+        mean = rgb[mask].mean(0)
+        d, height = min(((float(((mean - ref) ** 2).sum()), v) for ref, v in refs), key=lambda x: x[0])
+        out[str(c)] = height if d < 0.02 else "~"
+    print("  classes by material:", out)
+    return out
+
+
 def heights(name, rgb, opaque, info, s):
     """The heights (game pixels) and where there is nothing (holes)."""
     if info["background"] > 1:
@@ -208,7 +225,10 @@ def heights(name, rgb, opaque, info, s):
     lum, labels, _ = classify(rgb, s["classes"])
     target = np.zeros(labels.shape, np.float32)
     inherit = np.zeros(labels.shape, bool)
-    for c, height in s["heights"].items():
+    class_heights = dict(s["heights"])
+    if "materials" in s:
+        class_heights = material_heights(rgb, labels, s)
+    for c, height in class_heights.items():
         if height == "~":  # the height of the nearest other surface (rims, edges)
             inherit |= labels == int(c)
         else:

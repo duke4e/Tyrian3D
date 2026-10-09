@@ -29,6 +29,7 @@ OUT = os.path.join(ROOT, "assets", "content", "episode6")
 LEVELS_DIR = os.path.join(HERE, "levels")
 
 ENEMY_D1 = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56, 33, 45, 59, 68}
+VALUE_FACTOR = 2.5
 
 
 def stages():
@@ -131,6 +132,9 @@ def main():
     entries = []
     for level in levels:
         entries += level_entries(level, importer)
+    # Episode 6 pays better: enemies worth more credits (the user, 2026-10-09: levels gave too
+    # few), on top of the coins and gems its waves leave (compose.py).
+    importer.scale_values(VALUE_FACTOR)
     entries.append(bytes(importer.data))
     tf.write_level_file(os.path.join(OUT, "tyrian6.lvl"), entries)
     tf.write_strings(os.path.join(OUT, "levels6.dat"), script(levels))

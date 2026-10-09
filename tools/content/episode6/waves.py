@@ -139,22 +139,40 @@ class Source:
                             banks=sorted({self.enemies[x]["shapebank"] for x in enemies if x in self.enemies})))
         return out
 
-    def ground_objects(self):
-        """Stationary ground enemies: enemy type -> Counter of the layer 1 shapes they stood on."""
-        moving = {by_link(e) for e in self.events if e["type"] in (19, 20, 55, 74) and by_link(e)}
+    def map_grid(self):
+        """Layer 1 as rows of shape numbers."""
         table = self.level.map_sh[0]
-        rows = [self.level.maps[0][r * 14:(r + 1) * 14] for r in range(300)]
-        out = defaultdict(Counter)
+        raw = self.level.maps[0]
+        return [[table[raw[r * 14 + c]] if raw[r * 14 + c] < 128 else 0 for c in range(14)] for r in range(300)]
+
+    def ground_objects(self):
+        """Stationary ground enemies and the tiles under them: a list of (key, kind, enemy), key
+        the shape under a 1-tile enemy (events 6, 10) or the 2x2 shapes under a 4-part one (12,
+        its first part's enemy number), kind the event type."""
+        moving = {by_link(e) for e in self.events if e["type"] in (19, 20, 55, 74) and by_link(e)}
+        grid = self.map_grid()
+        out = []
         for e in self.events:
-            if e["type"] not in (6, 10) or e["t"] >= 60000 or e["d4"] in moving or e["d2"] in (-99, -200):
+            if e["type"] not in (6, 10, 12) or e["t"] >= 60000 or e["d4"] in moving or e["d2"] in (-99, -200):
                 continue
+            if e["type"] == 12 and e["d6"] not in (0, 1):
+                continue  # 4-part enemies on other layers
             enemy = self.enemies.get(e["d1"])
             if not enemy or enemy["xmove"] or enemy["ymove"] or enemy["xaccel"] or enemy["yaccel"]:
                 continue
             col = (e["d2"] + 30) / 24
             row = 291 - (e["t"] + 8 - e["d5"]) / 28
             c, r = round(col), round(row)
-            if abs(col - c) > 0.1 or abs(row - r) > 0.1 or not (0 <= c < 14 and 0 <= r < 300):
+            if abs(col - c) > 0.1 or abs(row - r) > 0.1:
                 continue
-            out[e["d1"]][table[rows[r][c]]] += 1
+            if e["type"] == 12:
+                # Parts: +1 x+24, +2 y-28 (the row above), +3 both.
+                if not (0 <= c < 13 and 1 <= r < 300):
+                    continue
+                key = (grid[r - 1][c], grid[r - 1][c + 1], grid[r][c], grid[r][c + 1])
+            else:
+                if not (0 <= c < 14 and 0 <= r < 300):
+                    continue
+                key = grid[r][c]
+            out.append((key, e["type"], e["d1"]))
         return out

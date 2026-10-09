@@ -107,6 +107,16 @@ class Importer:
         self.free_weapons = free_low_weapons(kept_enemies)
         self.weapon_content = {}  # a brought-in weapon's record (as written) -> its number
 
+    def scale_values(self, factor, skip=range(390, 400)):
+        """Every enemy worth factor times its credits (values 1-9999: credits on a kill; above
+        and below are other things), but the coins and gems themselves."""
+        for number, at in self.enemies.items():
+            if number in skip:
+                continue
+            value = struct.unpack_from("<h", self.data, at + 73)[0]
+            if 0 < value < 10000:
+                struct.pack_into("<h", self.data, at + 73, min(9999, int(round(value * factor))))
+
     def _source(self, episode):
         if episode not in self.sources:
             data = item_data(episode)

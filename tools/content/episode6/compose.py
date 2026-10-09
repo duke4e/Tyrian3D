@@ -6,6 +6,7 @@ Events are dicts as tyrevents reads them (t, type, d1..d6, d4); an event naming 
 carries the episode it is from ("ep"), so the build can bring it into episode 6's item data.
 """
 import random
+from collections import Counter, defaultdict
 
 import waves as W
 
@@ -96,14 +97,91 @@ def expand(level):
             template = dict(source.boss(), length=CLOCK_END - p["start"])
         else:
             template = source.waves(ground=p.get("ground", False))[p["index"]]
-        placed += place(template, p["start"], links, source.episode)
+        events = place(template, p["start"], links, source.episode)
+        if p.get("drop"):
+            events = with_drops(events, p["drop"])
+        placed += events
     head = [e for e in level["events"] if e["t"] == 0]
     rest = [e for e in level["events"] if e["t"] > 0]
     return head + sorted(rest + placed, key=lambda e: e["t"])
 
 
+# Credits: the coins and gems enemies can leave (the item data's enemies 390-399: 10, 25, 50, 75,
+# 100, 250, 500, 1000, 2500 and 5000 credits; always loaded).
+COINS = {390: 10, 391: 25, 392: 50, 393: 75, 394: 100, 395: 250, 396: 500, 397: 1000, 398: 2500, 399: 5000}
+
+
+def with_drops(events, coin):
+    """A placed wave's events with each linked enemy leaving a coin (event 33 after its spawn),
+    unless the wave already gives its link a drop of its own."""
+    own = {e["d4"] for e in events if e["type"] == 33}
+    out = []
+    for e in events:
+        out.append(e)
+        if e["type"] in W.SPAWNS and e["d4"] and e["d4"] not in own:
+            out.append(event(e["t"], 33, d1=coin, d4=e["d4"], ep=5))
+    return out
+
+
+def pick_coin(rnd, value):
+    """A coin worth about value (a little either way)."""
+    target = value * rnd.uniform(0.6, 1.5)
+    return min(COINS, key=lambda c: abs(COINS[c] - target))
+
+
+def ground_banks(ground_sources, room):
+    """The sheets of the ground enemies most used, up to room of them."""
+    count = Counter()
+    for s in ground_sources:
+        for _, _, enemy in s.ground_objects():
+            count[s.enemies[enemy]["shapebank"]] += 1
+    return [b for b, _ in count.most_common(room)]
+
+
+def place_ground(grid, ground_sources, banks, start, boss_time, rnd, density=None, min_rate=0.45):
+    """Ground enemy events for a new map (see compose)."""
+    found = Counter()       # key -> enemies found on it in the originals
+    seen = Counter()        # key -> times it occurs in the originals' maps
+    options = defaultdict(Counter)  # key -> (kind, episode, enemy) -> count
+    for s in ground_sources:
+        objects = [o for o in s.ground_objects()
+                   if s.enemies[o[2]]["shapebank"] in banks or len(banks) < 4]
+        if not objects:
+            continue
+        for key, kind, enemy in objects:
+            found[key] += 1
+            options[key][(kind, s.episode, enemy)] += 1
+            banks.add(s.enemies[enemy]["shapebank"])
+        g = s.map_grid()
+        for r in range(300):
+            for c in range(14):
+                seen[g[r][c]] += 1
+                if r >= 1 and c < 13:
+                    seen[(g[r - 1][c], g[r - 1][c + 1], g[r][c], g[r][c + 1])] += 1
+    rate = {k: found[k] / max(seen[k], found[k]) for k in found}
+    events = []
+    taken = set()
+    for r in range(row_at(start + 100), row_at(boss_time - 200), -1):
+        for c in range(1, 13):
+            for key, size in (((grid[r - 1][c], grid[r - 1][c + 1], grid[r][c], grid[r][c + 1]), 2), (grid[r][c], 1)):
+                if rate.get(key, 0) < min_rate:
+                    continue
+                if density and rnd.random() > density(r):
+                    continue
+                cells = {(r - dy, c + dx) for dy in range(size) for dx in range(size)}
+                if any((rr, cc) in taken for rr, cc in cells):
+                    continue
+                if rnd.random() > rate[key]:
+                    continue
+                (kind, ep, enemy), = rnd.choices(list(options[key]), list(options[key].values()))
+                taken |= cells
+                events.append(event(ground_time(r), kind, d1=enemy, d2=24 * c - 30, ep=ep))
+                break
+    return events
+
+
 def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, density=None,
-            intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False):
+            intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False, wealth=10000):
     """The level's own events and its placements (see expand). grid: the new layer 1 map (rows of
     shapes). density(row) -> chance of a ground enemy on a suitable tile there. intensity(fraction
     of the level) -> how dense the waves come (0-1)."""
@@ -118,6 +196,11 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if e["type"] in W.SPAWNS:
             banks.add(boss_source.enemies[e["d1"]]["shapebank"])
     placements.append(dict(kind="boss", episode=boss_source.episode, name=boss_source.name, start=boss_time))
+
+    # The ground enemies' sheets next (they go with the map), at most two; the waves get the rest.
+    for b in ground_banks(ground_sources, 2):
+        if len(banks) < 4:
+            banks.add(b)
 
     # Waves the sheets allow (four sheets in all: the boss's and the waves' most common).
     templates = [(s, i, w) for s in wave_sources for i, w in enumerate(s.waves(ground=ground_waves))
@@ -146,33 +229,21 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if ground_waves:
             placement["ground"] = True
         placements.append(placement)
+        placement["_count"] = w["count"]
         spawn_span = max(e["t"] for e in w["events"] if e["type"] in W.SPAWNS)
         t += spawn_span + int(rnd.uniform(90, 260) * (1.3 - level))
 
-    # Stationary ground enemies on tiles they stood on in the originals.
-    affinity = {}
-    ground_ep = {}
-    for s in ground_sources:
-        for enemy, shapes in s.ground_objects().items():
-            if s.enemies[enemy]["shapebank"] not in banks and len(banks) >= 4:
-                continue
-            for shape, n in shapes.items():
-                affinity.setdefault(shape, []).append((enemy, n))
-            ground_ep[enemy] = s.episode
-            banks.add(s.enemies[enemy]["shapebank"])
-    last_row = row_at(boss_time - 200)
-    taken = set()
-    for r in range(row_at(start + 100), last_row, -1):
-        for c in range(2, 13):
-            options = affinity.get(grid[r][c])
-            if not options or (density and rnd.random() > density(r)):
-                continue
-            if any((rr, cc) in taken for rr in range(r - 2, r + 3) for cc in range(c - 2, c + 3)):
-                continue
-            enemies, weights = zip(*options)
-            enemy = rnd.choices(enemies, weights)[0]
-            taken.add((r, c))
-            events.append(event(ground_time(r), 6, d1=enemy, d2=24 * c - 30, ep=ground_ep[enemy]))
+    # Credits: most waves' enemies leave coins, worth what makes the level's wealth in all.
+    wave_enemies = sum(p.get("_count", 0) for p in placements)
+    for p in placements:
+        n = p.pop("_count", 0)
+        if p["kind"] == "wave" and rnd.random() < 0.65:
+            p["drop"] = pick_coin(rnd, wealth / max(1, 0.65 * wave_enemies))
+
+    # Stationary ground enemies where the map has a place for them: on tiles (or 2x2 blocks of
+    # tiles) that carry an enemy in most of the places the originals have them (turret pads,
+    # emplacements, bunkers painted into the tileset), not on any tile one once stood on.
+    events += place_ground(grid, ground_sources, banks, start, boss_time, rnd, density)
 
     # The level's settings at its start (EVENTS.md 8: one sheet event for every enemy, no random
     # enemies), and the end if the boss is never found.

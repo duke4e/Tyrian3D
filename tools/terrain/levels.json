@@ -535,66 +535,82 @@
   "background": 3,
   "solid": true
  },
- "82e42922f6f324bd": {
-  "classes": 6,
-  "heights": {
-   "5": 8,
-   "2": 14,
-   "1": "~",
-   "3": "~"
-  },
-  "level": "DIG SITE",
-  "forest": "palm"
- },
- "e410c3e4d539b4c1": {
-  "classes": 6,
-  "heights": {
-   "2": 8,
-   "3": 12,
-   "1": 14
-  },
-  "level": "REEF",
-  "forest": "palm"
- },
- "7ed56dc238cb1aa9": {
+ "ab4a71c04f24fa0a": {
   "classes": 6,
   "heights": {},
-  "level": "GREY MOON",
-  "void": "hole"
+  "forest": "palm",
+  "materials": {
+   "#0c2638": 0,
+   "#09202e": 0,
+   "#6e5028": 8,
+   "#555550": 14,
+   "#1e5019": 12
+  },
+  "level": "DIG SITE"
  },
- "caeec8d66b5b48b2": {
+ "23055b45e5a3bc37": {
   "classes": 6,
-  "heights": {
-   "1": -14,
-   "2": "~",
-   "4": "~",
-   "5": "~"
+  "heights": {},
+  "forest": "palm",
+  "materials": {
+   "#0c2638": 0,
+   "#09202e": 0,
+   "#6e5028": 8,
+   "#555550": 14,
+   "#1e5019": 12
+  },
+  "level": "REEF"
+ },
+ "af99da768a8d4b58": {
+  "classes": 6,
+  "heights": {},
+  "void": "hole",
+  "level": "GREY MOON"
+ },
+ "1488ca36be4ce111": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#004502": 0,
+   "#173a51": -14,
+   "#5a5a5a": "~",
+   "#0a140a": "~"
   },
   "level": "ROOST"
+ },
+ "702bc783600308be": {
+  "classes": 6,
+  "heights": {},
+  "rolling": 10,
+  "level": "GLACIER"
+ },
+ "a6ca654524ee4446": {
+  "classes": 6,
+  "heights": {},
+  "void": "hole",
+  "level": "COLLECTOR"
+ },
+ "de65f1651beb1fe4": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#400200": -6,
+   "#963e32": 12,
+   "#500f08": "~"
+  },
+  "level": "CRUSTGATE"
+ },
+ "f7fa8afdb1980dde": {
+  "classes": 6,
+  "heights": {},
+  "rolling": 10,
+  "level": "THE CORE"
  },
  "a15166868146cdd3": {
   "classes": 6,
   "heights": {},
-  "level": "DEEP ICE",
-  "rolling": 6
- },
- "3d907d1b88f864d2": {
-  "classes": 6,
-  "heights": {},
-  "level": "GLACIER",
-  "rolling": 10
- },
- "3799c0617e1f7083": {
-  "classes": 6,
-  "heights": {
-   "0": -6,
-   "4": 12,
-   "3": 12,
-   "1": "~",
-   "2": "~",
-   "5": "~"
-  },
-  "level": "CRUSTGATE"
+  "rolling": 6,
+  "level": "DEEP ICE"
  },
  "2beea6b6c8730140": {
   "level": "DEEP ICE",
@@ -606,31 +622,20 @@
   "background": 3,
   "solid": true
  },
+ "fd51fe9687ddb5f7": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1926": 0,
+   "#1c2935": 10,
+   "#162330": "~"
+  },
+  "level": "DELI RUIN"
+ },
  "3f660e703ba6e6ce": {
   "level": "CRUSTGATE",
   "background": 2,
   "solid": true
- },
- "fd51fe9687ddb5f7": {
-  "classes": 6,
-  "heights": {
-   "4": 14,
-   "1": "~",
-   "5": "~"
-  },
-  "level": "DELI RUIN"
- },
- "8cd4cf96b736f72f": {
-  "classes": 6,
-  "heights": {},
-  "level": "COLLECTOR",
-  "void": "hole"
- },
- "3e315a811fde9e16": {
-  "classes": 6,
-  "heights": {},
-  "level": "THE CORE",
-  "rolling": 10
  },
  "9388c04c43df14b2": {
   "level": "THE CORE",
