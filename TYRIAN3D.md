@@ -161,7 +161,8 @@ that suit them, a boss at the end (`compose.py`, `waves.py`; the event rules in
 level (`gimmicks` in the designs, `compose.py`): a boss of another level in the middle (the map
 stops, its pattern loops until it is gone: events 2, 53, 54, 70), rushes (all layers faster),
 ambushes from behind with their warning, dark stretches with the ship's spotlight and the screen
-upside down (effects 6 and 9). Secrets: in most levels a courier crosses the top of the screen
+upside down (effects 6 and 9), a siege (the map stops, waves come round until the level timer,
+67, runs out). Secrets: in most levels a courier crosses the top of the screen
 fast; shot down, it leaves a data cube (shown in the next shop after the stage's own, `]+` and
 `]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
