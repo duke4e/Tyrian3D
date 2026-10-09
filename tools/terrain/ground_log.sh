@@ -18,7 +18,7 @@ python3 "$ROOT/tools/levels.py" | while read -r section name; do
 	if [ -n "$ONLY" ] && ! printf '%s\n' $ONLY | grep -qxF "$section"; then
 		continue
 	fi
-	env TYR3D_WINDOWED=1 TYR3D_START="$section" TYR3D_AUTOPILOT=1 TYR3D_GODMODE=1 TYR3D_WINDOW_SIZE=320x180 \
+	env SDL_AUDIO_DRIVER=dummy TYR3D_WINDOWED=1 TYR3D_START="$section" TYR3D_AUTOPILOT=1 TYR3D_GODMODE=1 TYR3D_WINDOW_SIZE=320x180 \
 		TYR3D_TURBO=32 TYR3D_LOG_GROUND=1 TYR3D_EXIT_AFTER=1000000 ./tyrian3d < /dev/null > "$LOG" 2>&1 &
 	pid=$!
 	i=0

@@ -7,8 +7,11 @@ shift 3 2>/dev/null || shift $#
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$OUT"
 cd "$ROOT/build/game"
-# In a window in the corner of the screen, without taking the focus (TYR3D_WINDOWED).
-env TYR3D_WINDOWED=1 TYR3D_DEMO_IDLE_MS="${TYR3D_DEMO_IDLE_MS:-300}" TYR3D_DUMP_DIR="$OUT" TYR3D_DUMP_EVERY="$EVERY" TYR3D_EXIT_AFTER="$FRAMES" "$@" ./tyrian3d > "$OUT/log.txt" 2>&1 &
+# In a window in the corner of the screen, without taking the focus (TYR3D_WINDOWED), silent
+# (SDL's dummy audio driver; TYR3D_AUDIO=1 keeps the sound).
+AUDIO_DRIVER=dummy
+[ "${TYR3D_AUDIO:-0}" = 1 ] && AUDIO_DRIVER=""
+env ${AUDIO_DRIVER:+SDL_AUDIO_DRIVER=$AUDIO_DRIVER} TYR3D_WINDOWED=1 TYR3D_DEMO_IDLE_MS="${TYR3D_DEMO_IDLE_MS:-300}" TYR3D_DUMP_DIR="$OUT" TYR3D_DUMP_EVERY="$EVERY" TYR3D_EXIT_AFTER="$FRAMES" "$@" ./tyrian3d > "$OUT/log.txt" 2>&1 &
 PID=$!
 i=0
 while [ $i -lt 120 ] && kill -0 $PID 2>/dev/null; do sleep 1; i=$((i+1)); done

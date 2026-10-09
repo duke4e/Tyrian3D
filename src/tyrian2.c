@@ -501,7 +501,9 @@ static bool draw_enemy_model(unsigned int i)
 	if (look.glow_size != 0)
 	{
 		const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
-		if (look.glow_color != 0)
+		if (look.glow_has_rgb)
+			l3d_add_rgb_glow(x + look.glow_dx, y + look.glow_dy, size, look.glow_strength, look.glow_rgb, vx, vy);
+		else if (look.glow_color != 0)
 			l3d_add_color_glow(x + look.glow_dx, y + look.glow_dy, size, look.glow_strength, look.glow_color, vx, vy);
 		else
 		{
@@ -5498,7 +5500,17 @@ void JE_eventSystem(void)
 		break;
 
 	case 45: /* arcade-only enemy from other enemies */
-		if (!superTyrian)
+		if (rogue_run)
+		{
+			// Tyrian3D: a rogue run gets the arcade's drops as purple orbs (its experience, rogue.h);
+			// the arcade's weapons and items are the run's cards.
+			for (temp = 0; temp < 100; temp++)
+			{
+				if (enemy[temp].linknum == eventRec[eventLoc-1].eventdat4)
+					enemy[temp].enemydie = ROGUE_ORB_ENEMY;
+			}
+		}
+		else if (!superTyrian)
 		{
 			const Uint8 lives = *player[0].lives;
 

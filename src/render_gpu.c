@@ -2021,7 +2021,7 @@ static void build_modern_hud(float window_w, float window_h)
 	if (experience)
 	{
 		const float y = y0 + (rows - 1) * row_h;
-		const float xp_color[4] = { 0.8f, 0.45f, 1.0f, 1 };
+		const float xp_color[4] = { 0x66 / 255.0f, 0x02 / 255.0f, 0x3c / 255.0f, 1 };  // Tyrian purple
 		char label[16];
 		snprintf(label, sizeof(label), "XP %d", xp_level);
 		text_quads(TEXT_TINY, label, x0, y + 0.3f * u, label_cap, label_color, 0.4f * u);
@@ -2057,7 +2057,7 @@ static void build_modern_hud(float window_w, float window_h)
 	{
 		const float y = ry0 + 2 * row_h + 0.8f * u;
 		const float w = (pips_w - 2 * u) / 2;
-		const float ammo_color[4] = { 0.8f, 0.6f, 1.0f, 1 };
+		const float ammo_color[4] = { 0x66 / 255.0f, 0x02 / 255.0f, 0x3c / 255.0f, 1 };  // Tyrian purple
 		for (int i = 0; i < 2; ++i)
 			if (p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0)
 				hud_bar(px0 + i * (w + 2 * u), y, w, 2.5f * u, (float)p->sidekick[i].ammo / p->sidekick[i].ammo_max, ammo_color);
@@ -5291,7 +5291,7 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 		transform.m[14] = glow->y + glow->vy * ahead;
 		float *instance = instances + *instance_count * 24;
 		write_instance(instance, &transform, 1.0f);
-		const Uint8 *c = (const Uint8 *)&colors[glow->color];
+		const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
 		for (int i = 0; i < 3; ++i)
 			instance[16 + i] = srgb_to_linear(c[i]) * glow->strength;
 		instance[19] = 1.0f;
@@ -5369,7 +5369,7 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame 
 		out->position[1] = height;
 		out->position[2] = align.on ? align.cz + (y - align.cz) * k : y;
 		out->radius = (height + glow->size * GLOW_LIGHT_REACH) * k;
-		const Uint8 *c = (const Uint8 *)&colors[glow->color];
+		const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
 		// The sprite's colour, saturated a little (a dark red shot still throws red light).
 		const float peak = SDL_max(SDL_max(c[0], c[1]), SDL_max(c[2], 1));
 		for (int i = 0; i < 3; ++i)

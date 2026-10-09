@@ -44,6 +44,9 @@ bool rogue_from_environment(void);
 // TYR3D_ROGUE_AUTO in a run: nothing waits for the player (the level's end screen too).
 bool rogue_automatic(void);
 
+// The enemy type of the purple orb (value 30000), what the arcade's drops (event 45) leave in a run.
+#define ROGUE_ORB_ENEMY 628
+
 // A purple orb picked up: in a run it is experience (true; the game's own weapon power-up is left
 // out), each level of it a card after the level.
 bool rogue_purple_ball(void);

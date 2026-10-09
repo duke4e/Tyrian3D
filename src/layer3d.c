@@ -615,6 +615,17 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	glow->strength = strength;
 	glow->layer = (Uint8)phase_type;
 	glow->color = color;
+	glow->has_rgb = false;
+}
+
+bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy)
+{
+	if (!l3d_add_color_glow(x, y, size, strength, 255, vx, vy))
+		return false;
+	L3DGlow *glow = &l3d_frame.glows[l3d_frame.glow_count - 1];
+	glow->has_rgb = true;
+	memcpy(glow->rgb, rgb, 3);
+	return true;
 }
 
 bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy)

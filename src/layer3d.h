@@ -131,6 +131,8 @@ typedef struct
 	float vx, vy;          // how far it moved since the last frame (game pixels)
 	Uint8 layer;
 	Uint8 color;
+	bool has_rgb;          // the colour is rgb (sRGB), not a palette index
+	Uint8 rgb[3];
 } L3DGlow;
 
 #define L3D_MAX_GLOWS 256
@@ -240,6 +242,8 @@ void l3d_last_glow_velocity(float vx, float vy);
 // Records a glow of a palette colour centred on x, y moving vx, vy a frame (a spark). False when
 // the 3D view isn't capturing (or has no room), so the caller draws it as usual.
 bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy);
+// The same in a colour of no palette (sRGB).
+bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);

@@ -1409,6 +1409,15 @@ static void start_run(Uint32 seed)
 	run.lives = unlocked("hull") ? 1 : 0;
 	if (unlocked("warmup"))
 		player[0].items.weapon[FRONT_WEAPON].power = 2;
+	// Test runs: TYR3D_WEAPONS=<front>,<rear>[,<power>] as for TYR3D_START.
+	const char *weapons = SDL_getenv("TYR3D_ROGUE") != NULL ? SDL_getenv("TYR3D_WEAPONS") : NULL;
+	int front = 0, rear = 0, power = 1;
+	if (weapons != NULL && sscanf(weapons, "%d,%d,%d", &front, &rear, &power) >= 1)
+	{
+		player[0].items.weapon[FRONT_WEAPON].id = (Uint8)SDL_clamp(front, 0, PORT_NUM);
+		player[0].items.weapon[REAR_WEAPON].id = (Uint8)SDL_clamp(rear, 0, PORT_NUM);
+		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (Uint8)SDL_clamp(power, 1, 11);
+	}
 
 	rogue_run = true;
 	run.act = 0;
@@ -1417,10 +1426,11 @@ static void start_run(Uint32 seed)
 	printf("rogue: run with seed %u\n", seed);
 }
 
-// Purple orbs: experience. Each level needs two more than the one before (3, 5, 7...).
+// Purple orbs: experience. Each level needs five more than the one before (10, 15, 20...): a
+// level has some 15 to 50 of the arcade's drops.
 static int xp_needed(int level)
 {
-	return 3 + 2 * level;
+	return 10 + 5 * level;
 }
 
 bool rogue_purple_ball(void)
