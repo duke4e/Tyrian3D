@@ -66,7 +66,7 @@ def script(levels):
 def cubes():
     """cubetxt6.dat."""
     lines = []
-    for n, (face, title, header, text) in enumerate(story.CUBES, 1):
+    for n, (face, title, header, text) in enumerate(story.CUBES, 1):  # (the stages name them by number)
         lines += [f"*{n:02d} {face:02d}", title, header] + text
     return lines + ["*"]
 

@@ -610,5 +610,31 @@
   "level": "CRUSTGATE",
   "background": 2,
   "solid": true
+ },
+ "fd51fe9687ddb5f7": {
+  "classes": 6,
+  "heights": {
+   "4": 14,
+   "1": "~",
+   "5": "~"
+  },
+  "level": "DELI RUIN"
+ },
+ "8cd4cf96b736f72f": {
+  "classes": 6,
+  "heights": {},
+  "level": "COLLECTOR",
+  "void": "hole"
+ },
+ "3e315a811fde9e16": {
+  "classes": 6,
+  "heights": {},
+  "level": "THE CORE",
+  "rolling": 10
+ },
+ "9388c04c43df14b2": {
+  "level": "THE CORE",
+  "background": 2,
+  "solid": true
  }
 }

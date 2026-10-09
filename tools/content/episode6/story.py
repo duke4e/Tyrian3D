@@ -21,6 +21,9 @@ STAGES = [
                                                            "Its guns are already turning."], shop=[
         " Ship   5 6 2", " WeapF  3 27 42 51", " WeapR  0 21 22 30 53", " Power  5", " Engine 1",
         " Opt1   0 7 8 9 37", " Opt2   0 7 8 9 37", " Armor  1 2 3", " Shield 6 7 9"]),
+    dict(level="deli_ruin", planet=3, cubes=[10], warning=None, shop=[
+        " Ship   5 6 16", " WeapF  3 8 27 42 51", " WeapR  0 21 22 30 53", " Power  5", " Engine 1",
+        " Opt1   0 7 8 12 37", " Opt2   0 7 8 12 37", " Armor  1 2 3", " Shield 6 7 9"]),
     dict(level="roost", planet=2, cubes=[4], warning=None, shop=[
         " Ship   6 7 2", " WeapF  5 18 19 48 49", " WeapR  0 28 29 21", " Power  5 6", " Engine 1",
         " Opt1   0 12 17 21 33 35", " Opt2   0 12 22 23 34 36", " Armor  1 2 3", " Shield 9 10"]),
@@ -31,10 +34,18 @@ STAGES = [
                                                          "It has noticed you."], shop=[
         " Ship   7 12 2", " WeapF  5 18 19 20 27", " WeapR  0 21 28 29 53", " Power  6", " Engine 1",
         " Opt1   0 12 25 28 33 35", " Opt2   0 12 26 28 34 36", " Armor  1 2 3", " Shield 10 11"]),
+    dict(level="collector", planet=16, cubes=[11], warning=["Warning:", "The Collector's ship. It is larger",
+                                                            "than any fleet you have seen."], shop=[
+        " Ship   7 12 13", " WeapF  5 18 19 20 27 50", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
+        " Opt1   0 12 22 25 28 35", " Opt2   0 12 22 26 28 36", " Armor  1 2 3", " Shield 10 11"]),
     dict(level="crustgate", planet=6, cubes=[7, 8], warning=["Warning:", "Gravitron readings off every scale.",
                                                              "The crust is opening."], shop=[
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
+    dict(level="the_core", planet=6, cubes=[12], warning=["Warning:", "Gravitron core ahead.",
+                                                          "The Collector is already there."], shop=[
+        " Ship   7 12 13", " WeapF  5 18 20 27 42 48 51", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
+        " Opt1   0 12 22 25 28 33 37", " Opt2   0 12 22 26 28 34 37", " Armor  1 2 3", " Shield 11"]),
 ]
 
 # The data cubes: (face sprite, title, header, lines). ~word~ highlights a word, as in the game.
@@ -97,6 +108,26 @@ CUBES = [
         "were rebuilt, repainted and stolen AGAIN. If you see three flying ovens",
         "heading for ~Savara~, please do not shoot them. Unless they shoot first.",
         "They will shoot first."]),
+]
+
+CUBES += [
+    (14, "HOLO NEWS - GD3 v123-07-30", "News", [
+        "~Deliani~ ~Ruins~ ~Reopened~",
+        "",
+        "The old quarter of ~Deliani~, empty since the war with the ~Vykromod~, has been",
+        "reoccupied by unknown forces. Residents report grey ships landing at night and",
+        "crates of strange equipment carried below the city."]),
+    (18, "INCOMING MESSAGE FROM HAZUDRA : 99999 mark", "Collector", [
+        "You have done well, ~Trent~. Too well. We had hoped you would understand.",
+        "",
+        "Every world is a shell around a seed. We open them. It is what we are for.",
+        "Come to our ship if you wish. You will not leave it."]),
+    (1, "DATACUBE: ARUGO FIELD LOG 4", "Data", [
+        "The ~Collector~ has reached the core. The shell is already shaking; the",
+        "readings jump every hour.",
+        "",
+        "Destroy it there, ~Trent~, before it opens the seed. Whatever is inside",
+        "the keepers wanted to stay inside."]),
 ]
 
 ENDING = [

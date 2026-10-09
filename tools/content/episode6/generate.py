@@ -262,6 +262,23 @@ LEVELS += [
 ]
 
 
+DELI = [(1, "DELIANI"), (3, "New Deli")]
+
+LEVELS += [
+    dict(name="DELI RUIN", shapes="z", song=14, seed=91, map=DELI, layer2=DELI, layer3=DELI,
+         waves=[(1, "DELIANI"), (3, "New Deli")],
+         boss=(1, "ASSASSIN"), ground=DELI, boss_time=5800, density=lambda row: 0.3, look=(1, "DELIANI"),
+         speeds=(1, 2, 2)),
+    dict(name="COLLECTOR", shapes="w", song=29, seed=101, map=[(3, "FLEET")], layer2=[(3, "FLEET")],
+         layer3=[(3, "FLEET")], waves=[(3, "FLEET"), (5, "STATION")], ground_waves=True, boss=(3, "FLEET"),
+         boss_time=5600, look=(3, "FLEET"), intensity=lambda f: 0.55 + 0.45 * f),
+    dict(name="THE CORE", shapes=")", song=23, seed=111, map=[(4, "CORE")], layer2=[(4, "CORE")],
+         bias=zones([(0, 300, 0.3)], 111, scale=1.4), waves=[(4, "CORE"), (4, "LAVA EXIT"), (4, "SURFACE")],
+         boss=(5, "FRUIT"), ground=[(4, "CORE")], boss_time=5600, density=lambda row: 0.3, look=(4, "CORE"),
+         intensity=lambda f: 0.6 + 0.4 * f),
+]
+
+
 def main(names):
     if not names:
         print(__doc__)

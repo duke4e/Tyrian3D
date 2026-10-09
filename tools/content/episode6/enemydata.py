@@ -105,6 +105,7 @@ class Importer:
         self.weapon_map = {}  # (episode, weapon) -> number in episode 6
         self.free_enemies = list(IMPORT_ENEMIES)
         self.free_weapons = free_low_weapons(kept_enemies)
+        self.weapon_content = {}  # a brought-in weapon's record (as written) -> its number
 
     def _source(self, episode):
         if episode not in self.sources:
@@ -134,15 +135,26 @@ class Importer:
         key = (episode, number)
         if key not in self.weapon_map:
             free = [w for w in self.free_weapons if not chain or w < 150]
-            assert free, "no free weapon slot"
+            assert free, f"no free weapon slot ({len(set(self.weapon_map.values()))} brought in)"
             new = free[0]
             self.free_weapons.remove(new)
-            self.weapon_map[key] = new
+            self.weapon_map[key] = new  # first, for chains that come back to it
             record = bytearray(self._weapon_record(episode, number))
             for k in range(8):
                 a = record[ATTACK + k]
                 if 100 <= a < 250:
                     record[ATTACK + k] = 100 + self.weapon(episode, a - 100, chain=True)
+            record = bytes(record)
+            # The same weapon from another episode (or another number) shares a slot, unless
+            # something already points at this one (a chain coming back to it).
+            known = self.weapon_content.get(record)
+            others = [k for k, v in self.weapon_map.items() if v == new and k != key]
+            if known is not None and (not chain or known < 150) and not others and 100 + new not in record[ATTACK:ATTACK + 8]:
+                self.weapon_map[key] = known
+                self.free_weapons.insert(0, new)
+                self.free_weapons.sort()
+                return known
+            self.weapon_content[record] = new
             self.data[self.weapons[new]:self.weapons[new] + WEAPON_SIZE] = record
         return self.weapon_map[key]
 
