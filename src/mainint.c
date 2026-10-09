@@ -3537,6 +3537,23 @@ void player_pointer_lead(float lead[2])
 	lead[1] = y - mouse_ship->y;
 }
 
+// The ship moved by the controls (keys, a digital pad): seen from the side (the 3D view turned
+// clockwise, the level scrolling to the right), right is up the level and down is right on it.
+// What moves the ship otherwise (the autopilot, constant play) goes in the level's terms.
+static void controls_move(Player *this_player, int dx, int dy)
+{
+	if (l3d_sideways && l3d_enabled)
+	{
+		this_player->x += dy;
+		this_player->y -= dx;
+	}
+	else
+	{
+		this_player->x += dx;
+		this_player->y += dy;
+	}
+}
+
 void JE_playerMovement(Player *this_player,
                        JE_byte inputDevice,
                        JE_byte playerNum_,
@@ -3738,8 +3755,9 @@ redo:
 						}
 						else
 						{
-							this_player->x += (joystick[j].direction[3] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[1] ? CURRENT_KEY_SPEED : 0);
-							this_player->y += (joystick[j].direction[0] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[2] ? CURRENT_KEY_SPEED : 0);
+							controls_move(this_player,
+							              (joystick[j].direction[3] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[1] ? CURRENT_KEY_SPEED : 0),
+							              (joystick[j].direction[0] ? -CURRENT_KEY_SPEED : 0) + (joystick[j].direction[2] ? CURRENT_KEY_SPEED : 0));
 						}
 
 						button[0] |= joystick[j].action[0];
@@ -3782,15 +3800,11 @@ redo:
 				/* keyboard input */
 				if ((inputDevice == 0 || inputDevice == 1) && !play_demo)
 				{
-					if (keysactive[keySettings[KEY_SETTING_UP]])
-						this_player->y -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_DOWN]])
-						this_player->y += CURRENT_KEY_SPEED;
-
-					if (keysactive[keySettings[KEY_SETTING_LEFT]])
-						this_player->x -= CURRENT_KEY_SPEED;
-					if (keysactive[keySettings[KEY_SETTING_RIGHT]])
-						this_player->x += CURRENT_KEY_SPEED;
+					controls_move(this_player,
+					              (keysactive[keySettings[KEY_SETTING_LEFT]] ? -CURRENT_KEY_SPEED : 0) +
+					              (keysactive[keySettings[KEY_SETTING_RIGHT]] ? CURRENT_KEY_SPEED : 0),
+					              (keysactive[keySettings[KEY_SETTING_UP]] ? -CURRENT_KEY_SPEED : 0) +
+					              (keysactive[keySettings[KEY_SETTING_DOWN]] ? CURRENT_KEY_SPEED : 0));
 
 					button[0] = button[0] || keysactive[keySettings[KEY_SETTING_FIRE]];
 					button[3] = button[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
@@ -3802,13 +3816,6 @@ redo:
 						int dx = 0, dy = 0;
 						bool fire = false;
 						dev_autopilot_steer(this_player->x, this_player->y, CURRENT_KEY_SPEED, &dx, &dy, &fire);
-						if (l3d_sideways && l3d_enabled)
-						{
-							// (It steers in the level's terms: undo the turn of the controls below.)
-							const int t = dx;
-							dx = -dy;
-							dy = t;
-						}
 						this_player->x += dx;
 						this_player->y += dy;
 						button[0] = button[0] || fire;
@@ -3855,11 +3862,8 @@ redo:
 
 				if (l3d_sideways && l3d_enabled)
 				{
-					// Tyrian3D: seen from the side, the level scrolls to the right: right on the
-					// controls is up the level, down is right (the view turned clockwise).
-					const JE_integer dx = this_player->x - *mouseX_, dy = this_player->y - *mouseY_;
-					this_player->x = *mouseX_ + dy;
-					this_player->y = *mouseY_ - dx;
+					// Tyrian3D: seen from the side, the analog stick and the mouse turned too (see
+					// controls_move).
 					const JE_integer cx = mouseXC;
 					mouseXC = mouseYC;
 					mouseYC = -cx;

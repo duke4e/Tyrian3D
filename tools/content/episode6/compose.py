@@ -125,6 +125,7 @@ def expand(level):
 
 # --- Gimmicks (docs/plans/2026-10-09-epizoda-6.md, 7) --------------------------------------------
 
+HOLD_LOOP = 600  # clock of a siege's round of waves
 MIDBOSS_DROP = {36, 11, 4, 83, 2, 30, 53, 34, 35, 46}  # a boss block's level-ending and speed events
 MESSAGE_BEHIND, MESSAGE_BOSS, MESSAGE_AFTERBURNER, MESSAGE_DANGER, MESSAGE_BONUS = 1, 2, 7, 8, 9
 
@@ -391,6 +392,27 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         banks.add(b)
     templates = [x for x in templates if set(x[2]["banks"]) <= banks]
 
+    # A siege: the map stops and the level's waves come round and round until the level timer
+    # (67) runs out (its countdown on the screen), then the map goes on.
+    hold = []
+    if gimmicks.get("hold"):
+        at, seconds = gimmicks["hold"]
+        assert not gimmicks.get("midboss"), "a siege and a mid-level boss in one level"
+        loop_from, loop_to = at + 20, at + HOLD_LOOP
+        exit_ = loop_to + 10
+        short = [x for x in templates if x[2]["length"] <= HOLD_LOOP // 3 and x[2]["count"] >= 3]
+        for k in range(3):
+            source, index, w = rnd.choice(short)
+            placements.append(dict(kind="wave", episode=source.episode, name=source.name, index=index,
+                                   start=loop_from + k * (HOLD_LOOP // 3), _count=w["count"]))
+        # (The timer's jump runs the event before its target again: the message there, not the loop.)
+        hold = [event(at - 80, 16, d1=MESSAGE_DANGER, d2=30), event(at, 2), event(at, 53),
+                event(at, 67, d1=1, d2=exit_, d3=seconds * 35 // 100), event(loop_to, 54, d1=loop_from),
+                event(exit_ - 2, 16, d1=4, d2=30), event(exit_, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]),
+                event(exit_, 53, d1=99)]
+        windows.append((at - 200, exit_ + 150, loop_from))
+        shift_from, shift = at, exit_ - at
+
     t = start
     end = boss_time - 350
     while t < end:
@@ -433,7 +455,7 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if e["t"] >= shift_from:
             e["t"] += shift  # the map stood still for the mid-level boss
     events += [e for e in ground if not any(w0 <= e["t"] < w1 for w0, w1 in calm)]
-    events += gimmick_events(gimmicks, speeds, wave_sources, banks, rnd, placements)
+    events += gimmick_events(gimmicks, speeds, wave_sources, banks, rnd, placements) + hold
 
     # The level's settings at its start (EVENTS.md 8: one sheet event for every enemy, no random
     # enemies), and the end if the boss is never found.

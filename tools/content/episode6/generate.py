@@ -354,7 +354,8 @@ def the_core(p):
 # speeds: the layers' scroll speeds; wealth: about the credits its coins and gems are worth;
 # gimmicks (compose.py, docs/plans/2026-10-09-epizoda-6.md 7): midboss ((episode, name), clock),
 # ambush [(clock, (episode, name))], bursts [(from, to, factor)], dark and flip [(from, to)],
-# couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level).
+# couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level),
+# hold (clock, seconds): a siege, the map stopped, waves round and round until the level timer ends.
 LEVELS = [
     dict(name="DIG SITE", terrain=SAVARA_TERRAIN, shapes="y", song=33, seed=4, map=SAVARA, layer2=SAVARA[:4], plan=dig_site, **SAVARA_MATS,
          waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=SAVARA[:4], boss_time=6100,
@@ -372,7 +373,8 @@ LEVELS = [
     dict(name="DELI RUIN", terrain=DELI_TERRAIN, shapes="z", song=14, seed=91, map=DELI, layer2=DELI, layer3=DELI,
          waves=[(4, "ICE EXIT"), (4, "EYESPY")], boss=(3, "FLEET"), ground=DELI, boss_time=5800,
          look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000,
-         gimmicks=dict(dark=[(2000, 3400)], ambush=[(4300, (3, "New Deli"))], couriers=[(2900, "cube")])),
+         gimmicks=dict(dark=[(2000, 3400)], ambush=[(4300, (3, "New Deli"))], couriers=[(2900, "cube")],
+                       hold=(1100, 40))),
     dict(name="ROOST", terrain=TORM_TERRAIN, shapes="x", song=28, seed=51, map=[(2, "TORM")], bias=roost_bias,
          waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "TORM")], boss_time=6300,
          look=(2, "TORM"), wealth=24000,
