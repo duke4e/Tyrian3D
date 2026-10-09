@@ -4,9 +4,10 @@ written to tools/content/episode6/levels/<name>.json (our own data: maps of tile
 and references to the original levels' waves and bosses; build.py turns them into the game's files
 with the game's data).
 
-usage: <python with numpy and PIL> tools/content/episode6/generate.py <level>...
+usage: <python with numpy and PIL> tools/content/episode6/generate.py [--events] <level>...
 
-Only the levels named are made again (a level once played stays as it is). Pictures of the maps go
+Only the levels named are made again (a level once played stays as it is); --events keeps their
+maps (and so their terrain) and makes only the events again. Pictures of the maps go
 to export/episode6/.
 """
 import json
@@ -103,7 +104,7 @@ def make(design):
     grids = maps_of(design["map"], 0)
     model = Model(grids, max_tiles=LAYER_TILES[0])
     slug = name.lower().replace(" ", "_")
-    if design.get("keep_map"):
+    if design.get("keep_map") or EVENTS_ONLY:
         # The map as it is (a map liked as it was): only the events are made again.
         layers = json.load(open(os.path.join(OUT, f"{slug}.json")))["maps"]
         return finish(design, layers)
@@ -138,6 +139,15 @@ def make(design):
     return finish(design, layers)
 
 
+def level_speeds(design):
+    """The layers' scroll speeds the level runs at (its own, or its look's)."""
+    if design.get("speeds"):
+        return tuple(design["speeds"])
+    look = waves.Source(*design.get("look", design["boss"]))
+    start = [e for e in look.events if e["t"] == 0 and e["type"] == 2]
+    return (start[0]["d1"], start[0]["d2"], start[0]["d3"]) if start else (1, 2, 3)
+
+
 def finish(design, layers):
     """The level's events for its maps, and the level."""
     name, letter, seed = design["name"], design["shapes"], design.get("seed", 1)
@@ -150,7 +160,8 @@ def finish(design, layers):
                                                 density=design.get("density"),
                                                 intensity=design.get("intensity", lambda f: 0.4 + 0.6 * f),
                                                 ground_waves=design.get("ground_waves", False),
-                                                wealth=design.get("wealth", 10000))
+                                                wealth=design.get("wealth", 10000),
+                                                gimmicks=design.get("gimmicks"), speeds=level_speeds(design))
     # The look of a chosen original level replaces the default settings at the start.
     look = waves.Source(*design.get("look", design["boss"]))
     # (Of the effects, lava, water and the spotlight: the blurs and the upside-down screen show as
@@ -296,43 +307,62 @@ def the_core(p):
 # originals whose waves, boss and ground enemies are used (episode, name): the ground enemies go
 # with the map's own tileset, the waves come from another theme and the boss from a third (the
 # user, 2026-10-09: "malo da začinimo igru"); look: the original whose start settings it takes;
-# speeds: the layers' scroll speeds; wealth: about the credits its coins and gems are worth.
+# speeds: the layers' scroll speeds; wealth: about the credits its coins and gems are worth;
+# gimmicks (compose.py, docs/plans/2026-10-09-epizoda-6.md 7): midboss ((episode, name), clock),
+# ambush [(clock, (episode, name))], bursts [(from, to, factor)], dark and flip [(from, to)].
 LEVELS = [
     dict(name="DIG SITE", terrain=SAVARA_TERRAIN, shapes="y", song=33, seed=4, map=SAVARA, layer2=SAVARA[:4], plan=dig_site, **SAVARA_MATS,
          waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=SAVARA[:4], boss_time=6100,
-         look=(1, "SAVARA"), speeds=(1, 2, 3), wealth=12000),
+         look=(1, "SAVARA"), speeds=(1, 2, 3), wealth=12000,
+         gimmicks=dict(ambush=[(2900, (3, "CAMANIS"))], bursts=[(4300, 4900, 2)])),
     dict(name="REEF", terrain=SAVARA_TERRAIN, shapes="y", song=21, seed=31, map=SAVARA, layer2=SAVARA[:4], plan=reef, **SAVARA_MATS,
          waves=[(2, "GYGES"), (2, "GRYPHON")], boss=(3, "IXMUCANE"), ground=SAVARA[:4], boss_time=5600,
-         look=(4, "SAVARA IV"), speeds=(1, 2, 3), wealth=15000),
+         look=(4, "SAVARA IV"), speeds=(1, 2, 3), wealth=15000,
+         gimmicks=dict(midboss=((2, "GYGES"), 2600), ambush=[(4400, (2, "GRYPHON"))])),
     dict(name="GREY MOON", terrain=ASTEROID_TERRAIN, shapes="z", song=1, seed=41, map=ASTEROIDS, layer2=ASTEROIDS[:2], layer3=ASTEROIDS[:2],
          plan=grey_moon, **ASTEROID_MATS, waves=[(4, "SAVARA IV"), (5, "SAVARA")], boss=(2, "TORM"),
-         ground=ASTEROIDS, boss_time=6200, look=(1, "ASTEROID1"), wealth=18000),
+         ground=ASTEROIDS, boss_time=6200, look=(1, "ASTEROID1"), wealth=18000,
+         gimmicks=dict(bursts=[(1500, 2200, 2), (4700, 5300, 2)], midboss=((1, "ASTEROID2"), 3000))),
     dict(name="DELI RUIN", terrain=DELI_TERRAIN, shapes="z", song=14, seed=91, map=DELI, layer2=DELI, layer3=DELI,
          waves=[(4, "ICE EXIT"), (4, "EYESPY")], boss=(3, "FLEET"), ground=DELI, boss_time=5800,
-         look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000),
+         look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000,
+         gimmicks=dict(dark=[(2000, 3400)], ambush=[(4300, (3, "New Deli"))])),
     dict(name="ROOST", terrain=TORM_TERRAIN, shapes="x", song=28, seed=51, map=[(2, "TORM")], bias=roost_bias,
          waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "TORM")], boss_time=6300,
-         look=(2, "TORM"), wealth=24000),
+         look=(2, "TORM"), wealth=24000,
+         gimmicks=dict(ambush=[(2200, (4, "LAVA RUN"))], flip=[(3300, 4300)])),
     dict(name="DEEP ICE", terrain=ICE_TERRAIN, keep_map=True, shapes="w", song=14, seed=61, map=ICE, layer2=[(3, "IXMUCANE")], layer3=[(3, "IXMUCANE")],
          bias=zones([(0, 300, 0.3)], 61), waves=[(1, "DELIANI"), (3, "New Deli")], boss=(1, "ASSASSIN"),
-         ground=ICE, boss_time=4600, look=(3, "IXMUCANE"), speeds=(1, 2, 2), wealth=27000),
+         ground=ICE, boss_time=4600, look=(3, "IXMUCANE"), speeds=(1, 2, 2), wealth=27000,
+         gimmicks=dict(dark=[(900, 2100)], ambush=[(3000, (3, "New Deli"))])),
     dict(name="GLACIER", terrain=SNOW_TERRAIN, shapes="w", song=4, seed=71, map=SNOW, layer2=[(4, "ICE EXIT")], plan=glacier, **SNOW_MATS,
          waves=[(5, "STATION"), (4, "EYESPY")], boss=(2, "BOTANY A"), ground=[(4, "ICE EXIT")], boss_time=5200,
-         look=(4, "ICE EXIT"), speeds=(1, 2, 2), wealth=30000),
+         look=(4, "ICE EXIT"), speeds=(1, 2, 2), wealth=30000,
+         gimmicks=dict(midboss=((4, "ICESECRET"), 2400), bursts=[(3700, 4300, 2)])),
     dict(name="COLLECTOR", terrain=SPACE_TERRAIN, shapes="w", song=29, seed=101, map=[(3, "FLEET")], layer2=[(3, "FLEET")],
          layer3=[(3, "FLEET")], plan=collector, **SPACE_MATS, waves=[(4, "SURFACE"), (4, "LAVA EXIT")],
          boss=(4, "BRAINIAC"), boss_time=5600, look=(3, "FLEET"), intensity=lambda f: 0.55 + 0.45 * f,
-         wealth=34000),
+         wealth=34000, gimmicks=dict(bursts=[(1400, 2200, 2)], ambush=[(3200, (4, "LAVA EXIT"))])),
     dict(name="CRUSTGATE", terrain=LAVA_TERRAIN, shapes=")", song=17, seed=81, map=LAVA, layer2=LAVA, plan=crustgate, **LAVA_MATS,
          waves=[(2, "MARKERS"), (2, "MISTAKES")], boss=(4, "ICE EXIT"), ground=LAVA, boss_time=6000,
-         look=(4, "LAVA RUN"), wealth=38000),
+         look=(4, "LAVA RUN"), wealth=38000,
+         gimmicks=dict(midboss=((5, "MINERS"), 1800), flip=[(3200, 4200)], bursts=[(4700, 5200, 2)])),
     dict(name="THE CORE", terrain=CORE_TERRAIN, shapes=")", song=23, seed=111, map=[(4, "CORE")], layer2=[(4, "CORE")], plan=the_core,
          **CORE_MATS, waves=[(3, "FLEET"), (3, "GAUNTLET")], boss=(5, "FRUIT"), ground=[(4, "CORE")], boss_time=5600,
-         look=(4, "CORE"), intensity=lambda f: 0.6 + 0.4 * f, wealth=45000),
+         look=(4, "CORE"), intensity=lambda f: 0.6 + 0.4 * f, wealth=45000,
+         gimmicks=dict(dark=[(900, 2300)], midboss=((4, "CORE"), 3000), ambush=[(4700, (3, "CAMANIS"))])),
 ]
 
 
+EVENTS_ONLY = False
+
+
 def main(names):
+    global EVENTS_ONLY
+    if "--events" in names:
+        # The maps as they are (their terrain built): only the events made again.
+        EVENTS_ONLY = True
+        names = [n for n in names if n != "--events"]
     if not names:
         print(__doc__)
         print("levels:", ", ".join(d["name"] for d in LEVELS))

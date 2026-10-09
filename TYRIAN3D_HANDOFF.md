@@ -352,6 +352,8 @@ Plan je gotov (vidi `docs/plans/2026-10-07-tyrian3d-plan.md`, odjeljak 4). Dalje
 
 **Performanse (2026-10-07, Release, 1920×1080):** 3D prezentacija troši 1,1–1,2 ms CPU-a po frameu na običnim razinama, do ~3,7 ms na razinama s filterima (LAVA RUN) i spotlightom; bloom i duboko zvjezdano polje su uključeni. Vulkan backend (MoltenVK) daje isti prikaz kao Metal.
 
+35. **Epizoda 6: gimmicki originala (2026-10-09, korisnik: "ima jednoličnih levela... ubrzanje scrollanja, bossovi na pola levela, flippanje slike, flashlight...").** `compose.py` prima `gimmicks` iz dizajna levela: `midboss` (boss drugog originala na pola levela: mapa stane eventom 2 i 53 gdje je original staje ili kad je boss u vidu, njegov obrazac se vrti skokom 54, svakih 50 tickova event 70 provjerava je li pao i skače van, zatim brzine levela i 53 off; tlo nakon njega pomaknuto za trajanje borbe), `bursts` (sve brzine × faktor, upozorenje 7), `ambush` (val originala koji dolazi odozdo, upozorenje 1, njegov sheet rezerviran), `dark` (efekt 6, spotlight) i `flip` (efekt 9). `generate.py --events` drži mape (i teren) i radi samo događaje. `TYR3D_LOG_JUMPS` ispisuje skokove sata i promjene brzine. Sheetovi: bossovi i zasjede dobivaju mjesto prije tla i valova (assert ako midboss ne stane).
+
 ## 10. Memorija
 
 Postoje zapisi u `~/.claude/projects/-Users-duke4e-Documents-GitHub-Tyrian3D/memory/`:

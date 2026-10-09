@@ -148,8 +148,8 @@ Episode 6, "The Grey Books" (plan: `docs/plans/2026-10-09-epizoda-6.md`), is wri
 own formats by `tools/content/episode6/build.py` into `assets/content/episode6` (`tyrian6.lvl`,
 `levels6.dat`, `cubetxt6.dat`), at build time when the game's data is there: it is made from that
 data, so it isn't in the repository. The game finds those files in the content directory
-(`dir_fopen`), lists the episode in the episode menu and plays it like the others; it stays out of
-the full game after episode 5 (`last_episode()`).
+(`dir_fopen`), lists the episode in the episode menu and plays it like the others; a full game goes on to it after episode 5
+(`last_episode()`).
 
 Its levels are generated anew, the original levels only their inspiration
 (`tools/content/episode6/generate.py`, run with a Python that has numpy and PIL): the maps from
@@ -157,7 +157,11 @@ the tiles of originals of the same look, by a plan of the level's design (`mapsy
 tile follows its neighbours as the originals have them, row by row, nothing copied), the events
 from the originals' waves placed anew along a difficulty curve, stationary ground enemies on tiles
 that suit them, a boss at the end (`compose.py`, `waves.py`; the event rules in
-`tools/content/EVENTS.md`, `tools/content/tyrevents.py` prints any level's events). The generated
+`tools/content/EVENTS.md`, `tools/content/tyrevents.py` prints any level's events). The originals' gimmicks are mixed in per
+level (`gimmicks` in the designs, `compose.py`): a boss of another level in the middle (the map
+stops, its pattern loops until it is gone: events 2, 53, 54, 70), rushes (all layers faster),
+ambushes from behind with their warning, dark stretches with the ship's spotlight and the screen
+upside down (effects 6 and 9). The generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
@@ -208,6 +212,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_GLOW_LIGHTS=0` | Shots and other glows don't light their surroundings |
 | `TYR3D_LOG_LIGHTS=1` | Print the point lights of each frame |
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
+| `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses) and scroll speed changes |
 | `TYR3D_TEST_EXPLOSION=<x>,<y>,<every>` | A large explosion at this screen point every so many frames, to look at the particles |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |

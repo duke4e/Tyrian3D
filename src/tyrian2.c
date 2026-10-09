@@ -4920,6 +4920,10 @@ void JE_eventJump(JE_word jump)
 {
 	JE_word tempW;
 
+	// Tyrian3D dev: TYR3D_LOG_JUMPS prints the level's clock jumps (loops, timers, mid-level bosses).
+	if (SDL_getenv("TYR3D_LOG_JUMPS") != NULL)
+		printf("jump: clock %u -> %u\n", (unsigned)curLoc, jump == 65535 ? (unsigned)returnLoc : (unsigned)jump);
+
 	if (jump == 65535)
 	{
 		curLoc = returnLoc;
@@ -4972,6 +4976,9 @@ void JE_eventSystem(void)
 		break;
 
 	case 2:
+		if (SDL_getenv("TYR3D_LOG_JUMPS") != NULL)
+			printf("speeds: clock %u: %d %d %d\n", (unsigned)curLoc, eventRec[eventLoc-1].eventdat,
+			       eventRec[eventLoc-1].eventdat2, eventRec[eventLoc-1].eventdat3);
 		map1YDelay = 1;
 		map1YDelayMax = 1;
 		map2YDelay = 1;

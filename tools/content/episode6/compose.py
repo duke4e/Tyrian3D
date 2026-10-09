@@ -67,6 +67,11 @@ def place(template, start, links, ep):
     for e in template["events"]:
         e = dict(e)
         e["t"] = start + e["t"]
+        jump = e.pop("jump", None)
+        if jump == "exit":
+            e["d1"] = start + template["loop"][1] + 2
+        elif jump == "loop":
+            e["d1"] = start + template["loop"][0]
         if e["d4"] in mapping and (e["type"] in W.SPAWNS or W.by_link(e) is not None):
             e["d4"] = mapping[e["d4"]]
         if e["type"] == 39:
@@ -75,6 +80,9 @@ def place(template, start, links, ep):
         if e["type"] == 79:
             e["d1"] = mapping.get(e["d1"], e["d1"])
             e["d2"] = mapping.get(e["d2"], e["d2"])
+        if e["type"] == 70 and e["d2"]:
+            e["d2"] = mapping.get(e["d2"], e["d2"])
+            e["d4"] = mapping.get(e["d4"], e["d4"])
         if e["type"] in ENEMY_D1:
             e["ep"] = ep
         out.append(e)
@@ -95,6 +103,8 @@ def expand(level):
         source = sources[key]
         if p["kind"] == "boss":
             template = dict(source.boss(), length=CLOCK_END - p["start"])
+        elif p["kind"] == "midboss":
+            template = midboss_template(source, p)
         else:
             template = source.waves(ground=p.get("ground", False))[p["index"]]
         events = place(template, p["start"], links, source.episode)
@@ -104,6 +114,57 @@ def expand(level):
     head = [e for e in level["events"] if e["t"] == 0]
     rest = [e for e in level["events"] if e["t"] > 0]
     return head + sorted(rest + placed, key=lambda e: e["t"])
+
+
+# --- Gimmicks (docs/plans/2026-10-09-epizoda-6.md, 7) --------------------------------------------
+
+MIDBOSS_DROP = {36, 11, 4, 83, 2, 30, 53, 34, 35, 46}  # a boss block's level-ending and speed events
+MESSAGE_BEHIND, MESSAGE_BOSS, MESSAGE_AFTERBURNER, MESSAGE_DANGER, MESSAGE_BONUS = 1, 2, 7, 8, 9
+
+
+def midboss_span(source):
+    """A mid-level boss's timing (relative to its block): where the map stops (where the original
+    stops it, or once the boss is in view), and its loop: from after its last spawn and the stop to
+    the end of its pattern (at most 900 on)."""
+    boss = source.boss()
+    events = [e for e in boss["events"] if e["type"] not in MIDBOSS_DROP]
+    spawns = [e for e in events if e["type"] in W.SPAWNS]
+    last_spawn = max(e["t"] for e in spawns)
+    stops = sorted(e["t"] - boss["start"] for e in source.events
+                   if e["type"] in (2, 30) and e["d1"] == 0 and 0 <= e["t"] - boss["start"] <= 1500)
+    if stops:
+        stop = stops[0]
+    else:
+        # Ground bosses come with the map: it runs until they are well in view.
+        ground = any(e["type"] in W.GROUND_SPAWNS for e in spawns)
+        stop = last_spawn + (190 if ground else 0)
+    loop_from = max(stop, last_spawn) + 10
+    pattern = max([e["t"] for e in events] + [loop_from + 200])
+    return stop, loop_from, min(pattern, loop_from + 900)
+
+
+def midboss_template(source, p):
+    """A boss of an original level in the middle of a new one: the map stops (the clock running on,
+    53), its pattern loops (54) until its enemies are gone (70), then the map goes on at the level's
+    speeds; its level-ending events left out."""
+    boss = source.boss()
+    stop, loop_from, loop_to = p["loop"]
+    events = [dict(e) for e in boss["events"] if e["type"] not in MIDBOSS_DROP and e["t"] <= loop_to
+              and not (e["type"] == 79 and not e["d1"] and not e["d2"])]  # (its bar stays up)
+    links = sorted(boss["links"])
+    a, b = links[0], (links[1] if len(links) > 1 else 0)
+    b1, b2, b3 = p["speeds"]
+    if not any(e["type"] == 16 for e in events):
+        events.insert(0, event(0, 16, d1=MESSAGE_BOSS))
+    events += [event(stop, 2), event(stop, 53)]
+    # Out as soon as the boss is gone (looked for every 50), else round again. The jumps' targets
+    # are set by place() (it makes the times absolute).
+    events += [dict(event(t, 70, d1=-1, d2=a, d4=b), jump="exit") for t in range(loop_from + 50, loop_to + 1, 50)]
+    events += [dict(event(loop_to, 70, d1=-1, d2=a, d4=b), jump="exit"),
+               dict(event(loop_to, 54, d1=-1), jump="loop"),
+               event(loop_to + 2, 2, d1=b1, d2=b2, d3=b3), event(loop_to + 2, 53, d1=99)]
+    events.sort(key=lambda e: e["t"])
+    return dict(events=events, links=links, length=loop_to + 2, loop=(loop_from, loop_to))
 
 
 # Credits: the coins and gems enemies can leave (the item data's enemies 390-399: 10, 25, 50, 75,
@@ -180,8 +241,37 @@ def place_ground(grid, ground_sources, banks, start, boss_time, rnd, density=Non
     return events
 
 
+def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
+    """The level's gimmicks as events (and an ambush's waves as placements)."""
+    out = []
+    b1, b2, b3 = speeds
+    for t0, t1, factor in g.get("bursts", []):
+        # Afterburners: the level rushes, every layer faster by factor (their ratios kept, so the
+        # upper layers last as long; events keep to the map).
+        out += [event(t0 - 80, 16, d1=MESSAGE_AFTERBURNER, d2=30),
+                event(t0, 2, d1=b1 * factor, d2=b2 * factor, d3=b3 * factor), event(t1, 2, d1=b1, d2=b2, d3=b3)]
+    for t0, t1 in g.get("dark", []):
+        # Lights out: only a spotlight round the ship (BRAINIAC, ASSASSIN).
+        out += [event(t0, 64, d1=6, d2=1, d3=1), event(t1, 64, d1=6, d2=0)]
+    for t0, t1 in g.get("flip", []):
+        # The screen upside down (LAVA RUN, EYESPY), a warning first.
+        out += [event(t0 - 80, 16, d1=MESSAGE_DANGER, d2=30), event(t0, 64, d1=9, d2=1, d3=1), event(t1, 64, d1=9, d2=0)]
+    for t, (ep, name) in g.get("ambush", []):
+        # Enemies from behind (a wave of an original that has them come up from the bottom).
+        source = W.Source(ep, name)
+        behind = [(i, w) for i, w in enumerate(source.waves())
+                  if any(e["type"] in (18, 23, 32) for e in w["events"]) and set(w["banks"]) <= banks
+                  and w["count"] >= 2]
+        assert behind, f"{name} has no wave from behind on the sheets {sorted(banks)}"
+        index, w = rnd.choice(behind)
+        out.append(event(t - 70, 16, d1=MESSAGE_BEHIND, d2=30))
+        placements.append(dict(kind="wave", episode=ep, name=name, index=index, start=t, drop=pick_coin(rnd, 100)))
+    return out
+
+
 def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, density=None,
-            intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False, wealth=10000):
+            intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False, wealth=10000, gimmicks=None,
+            speeds=(1, 2, 3)):
     """The level's own events and its placements (see expand). grid: the new layer 1 map (rows of
     shapes). density(row) -> chance of a ground enemy on a suitable tile there. intensity(fraction
     of the level) -> how dense the waves come (0-1)."""
@@ -196,6 +286,39 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         if e["type"] in W.SPAWNS:
             banks.add(boss_source.enemies[e["d1"]]["shapebank"])
     placements.append(dict(kind="boss", episode=boss_source.episode, name=boss_source.name, start=boss_time))
+
+    # A boss in the middle of the level (its sheets before the waves'): the map stops while it is
+    # fought, so the clock runs ahead of the map by the fight's length from then on (shift).
+    gimmicks = gimmicks or {}
+    calm = list(gimmicks.get("calm", []))  # no enemies at all
+    # No waves from t0 to t1, their events over before the third (around an ambush: its own).
+    windows = [(t0, t1, t0) for t0, t1 in calm] + [(t - 100, t + 500, t + 300) for t, _ in gimmicks.get("ambush", [])]
+    shift_from, shift = CLOCK_END, 0
+    if gimmicks.get("midboss"):
+        (ep, name), at = gimmicks["midboss"]
+        mid = W.Source(ep, name)
+        stop, loop_from, loop_to = midboss_span(mid)
+        mid_banks = {mid.enemies[e["d1"]]["shapebank"] for e in mid.boss()["events"] if e["type"] in W.SPAWNS}
+        for b in sorted(mid_banks):
+            if len(banks) < 4:
+                banks.add(b)
+        placements.append(dict(kind="midboss", episode=ep, name=name, start=at, loop=[stop, loop_from, loop_to],
+                               speeds=list(speeds)))
+        assert all(b in banks for b in mid_banks), f"{name}'s sheets {mid_banks} do not fit with {banks}"
+        # (Waves' events never in its loop: they would come round again with it.)
+        windows.append((at - 200, at + loop_to + 2 + 150, at + loop_from))
+        # The map stands from at + stop until the fight is over (the clock at at + loop_to + 2).
+        shift_from, shift = at + stop, loop_to + 2 - stop
+        for t0, t1, *_ in gimmicks.get("bursts", []) + gimmicks.get("dark", []) + gimmicks.get("flip", []) + \
+                [(t, t + 600) for t, _ in gimmicks.get("ambush", [])]:
+            assert t1 < at - 200 or t0 > at + loop_to + 2, "a gimmick during the mid-level boss"
+
+    # Sheets an ambush's waves need.
+    for _, (ep, name) in gimmicks.get("ambush", []):
+        need = Counter(b for w in W.Source(ep, name).waves() if any(e["type"] in (18, 23, 32) for e in w["events"])
+                       for b in w["banks"])
+        if need and not set(need) & banks and len(banks) < 4:
+            banks.add(need.most_common(1)[0][0])
 
     # The ground enemies' sheets next (they go with the map), at most two; the waves get the rest.
     for b in ground_banks(ground_sources, 2):
@@ -218,11 +341,20 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
     t = start
     end = boss_time - 350
     while t < end:
+        inside = [w for w in windows if w[0] <= t < w[1]]
+        if inside:
+            t = inside[0][1]
+            continue
         f = (t - start) / max(1, end - start)
         level = intensity(f)
         # Bigger waves as it gets harder; a pause after each, shorter as it gets harder.
-        fitting = [x for x in templates if x[2]["count"] <= 3 + level * 10 and x[2]["length"] < end - t + 400]
+        bound = min([w[2] for w in windows if w[0] > t] + [end + 400])
+        fitting = [x for x in templates if x[2]["count"] <= 3 + level * 10 and x[2]["length"] < bound - t]
         if not fitting:
+            later = [w[1] for w in windows if w[0] > t]
+            if later:
+                t = min(later)
+                continue
             break
         source, index, w = rnd.choice(fitting)
         placement = dict(kind="wave", episode=source.episode, name=source.name, index=index, start=t)
@@ -243,7 +375,12 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
     # Stationary ground enemies where the map has a place for them: on tiles (or 2x2 blocks of
     # tiles) that carry an enemy in most of the places the originals have them (turret pads,
     # emplacements, bunkers painted into the tileset), not on any tile one once stood on.
-    events += place_ground(grid, ground_sources, banks, start, boss_time, rnd, density)
+    ground = place_ground(grid, ground_sources, banks, start, boss_time - shift, rnd, density)
+    for e in ground:
+        if e["t"] >= shift_from:
+            e["t"] += shift  # the map stood still for the mid-level boss
+    events += [e for e in ground if not any(w0 <= e["t"] < w1 for w0, w1 in calm)]
+    events += gimmick_events(gimmicks, speeds, wave_sources, banks, rnd, placements)
 
     # The level's settings at its start (EVENTS.md 8: one sheet event for every enemy, no random
     # enemies), and the end if the boss is never found.
