@@ -244,6 +244,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_EXPORT_MUSIC=<dir>` | Export every song as a MIDI file (with the General MIDI instruments the composer set for MIDI devices), and the instruments they use (`instruments.json`) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
+| `TYR3D_DEBUG_TILES=1` | Tint the map tiles by background: background 2 magenta, background 3 cyan (for checking which map a tile belongs to) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |

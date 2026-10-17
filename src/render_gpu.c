@@ -2094,6 +2094,9 @@ static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w
 	text_record_quads(screen_texts, screen_text_count, 0, ox, oy, kx, ky, clip_w, clip_h);
 }
 
+static void fade_under_ship(int first, float x0, float y0, float x1, float y1, float ship_x, float ship_y, float reach,
+                            float *shown);
+
 // The texts the game drew on the playfield in the frame shown (the overlay: score, lives...), and
 // its message, in Oxanium where the playfield is in the window.
 static void playfield_text_quads(const Layout3D *layout)
@@ -2101,8 +2104,36 @@ static void playfield_text_quads(const Layout3D *layout)
 	if (!fonts_enabled())
 		return;
 	const float kx = layout->playfield[2] / l3d_field_w(), ky = layout->playfield[3] / L3D_PLAYFIELD_H;
-	text_record_quads(frame_texts, frame_text_count, l3d_field_x(), layout->playfield[0], layout->playfield[1], kx, ky,
-	                  l3d_field_w(), L3D_PLAYFIELD_H);
+	// The ship flies under them (the cash at the bottom left): each fades when it is near.
+	float ship_x = -1e9f, ship_y = -1e9f;
+	if (!menu.on)
+		rgpu_playfield_to_window(player[0].x + 7.0f, player[0].y + 7.0f, &ship_x, &ship_y);
+	static struct { int x, y; float shown; } fades[8];  // by where the text is
+	static int next_fade = 0;
+	for (int i = 0; i < frame_text_count; ++i)
+	{
+		const TextRecord *r = frame_texts[i];
+		const int first = hud_quad_count;
+		text_record_quads(&frame_texts[i], 1, l3d_field_x(), layout->playfield[0], layout->playfield[1], kx, ky,
+		                  l3d_field_w(), L3D_PLAYFIELD_H);
+		if (first == hud_quad_count)
+			continue;
+		int f = 0;
+		while (f < (int)COUNTOF(fades) && (fades[f].x != r->text_x || fades[f].y != r->text_y || fades[f].shown <= 0))
+			++f;
+		if (f == (int)COUNTOF(fades))
+		{
+			f = next_fade;
+			next_fade = (next_fade + 1) % (int)COUNTOF(fades);
+			fades[f].x = r->text_x;
+			fades[f].y = r->text_y;
+			fades[f].shown = 1;
+		}
+		// (the text's box grown by half the ship's sprite, 24 x 28, so any part of the ship counts)
+		const float x0 = layout->playfield[0] + (r->text_x - l3d_field_x()) * kx, y0 = layout->playfield[1] + r->text_y * ky;
+		fade_under_ship(first, x0 - 12 * kx, y0 - 14 * ky, x0 + (r->text_w + 12) * kx, y0 + (r->text_h + 14) * ky, ship_x,
+		                ship_y, 8 * ky, &fades[f].shown);
+	}
 	if (layout->split && textErase > 0 && text_window_message[0] != '\0' && !menu.on)
 	{
 		const float color[4] = { 0.86f, 0.86f, 0.9f, 1.0f };
@@ -2126,14 +2157,13 @@ static void hud_bar(float x, float y, float w, float h, float fraction, const fl
 	hud_quad(x, y, w * fraction, h * 0.35f, sheen, NULL);
 }
 
-// Quads from first on fade when the ship is under them (within reach of their box).
-static void hud_fade(int first, float x0, float y0, float x1, float y1, float ship_x, float ship_y, float reach)
+// Quads from first on fade when the ship is under them (within reach of their box), eased in *shown.
+static void fade_under_ship(int first, float x0, float y0, float x1, float y1, float ship_x, float ship_y, float reach,
+                            float *shown)
 {
 	const float dx = SDL_max(SDL_max(x0 - ship_x, ship_x - x1), 0.0f);
 	const float dy = SDL_max(SDL_max(y0 - ship_y, ship_y - y1), 0.0f);
 	const float distance = sqrtf(dx * dx + dy * dy);
-	static float fade[2] = { 1, 1 };  // eased, per group (top or bottom of the window)
-	float *shown = &fade[y0 > 1 ? 0 : 1];
 	const float target = distance < reach ? 0.3f + 0.7f * distance / reach : 1.0f;
 	*shown += (target - *shown) * 0.2f;
 	for (int i = first; i < hud_quad_count; ++i)
@@ -2142,6 +2172,12 @@ static void hud_fade(int first, float x0, float y0, float x1, float y1, float sh
 		hud_quads[i].right[3] *= *shown;
 		hud_quads[i].below[3] *= *shown;
 	}
+}
+
+static void hud_fade(int first, float x0, float y0, float x1, float y1, float ship_x, float ship_y, float reach)
+{
+	static float fade[2] = { 1, 1 };  // per group (top or bottom of the window)
+	fade_under_ship(first, x0, y0, x1, y1, ship_x, ship_y, reach, &fade[y0 > 1 ? 0 : 1]);
 }
 
 static void build_modern_hud(float window_w, float window_h)
