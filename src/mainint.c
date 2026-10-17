@@ -4500,10 +4500,17 @@ redo:
 		if (ship_model && ship_ghost)
 			l3d_ghost_last_object();
 		const bool follows_mouse = mouse_ship == this_player && settings3d.mouse_direct;
+		float ship_vx = 0, ship_vy = 0;
 		if (ship_model)
-			l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4, NULL, NULL);
+			l3d_key_last_object(L3D_KEY_PLAYER + playerNum_ * 4, &ship_vx, &ship_vy);
 		if (ship_model && follows_mouse)
 			l3d_pointer_last_object();
+		// Tyrian3D: the engines' glow behind the ship, which lights the ground under it.
+		static const Uint8 engine_glow[3] = { 255, 150, 64 };
+		if (ship_model && !ship_ghost && settings3d.effects &&
+		    l3d_add_rgb_glow(this_player->x + 7, this_player->y + 19, 10.0f, 0.45f, engine_glow, ship_vx, ship_vy) &&
+		    follows_mouse)
+			l3d_pointer_last_glow();
 		bool two_part_volume = false;
 		if (two_part && ship_look.model == M3D_VOLUME)
 		{

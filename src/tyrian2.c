@@ -648,6 +648,19 @@ static bool prespawned[EVENT_MAXIMUM];
 #define WIDE_AHEAD 64  // the wide playfield reaches this far above the screen (the overscan rows the 3D view gets)
 static int prespawn_rise = 0;  // made by prespawn_events: this far above where the event puts it
 
+// The enemy sheet slot an enemy of that shape bank takes, as JE_makeEnemy picks it (-1: not
+// loaded); 4 for the coins and two-player sheets, which are always loaded.
+static int shape_bank_slot(int bank)
+{
+	if (bank == 21 || bank == 26)
+		return 4;
+	int slot = -1;
+	for (int k = 0; k < (int)COUNTOF(enemySpriteSheetIds); ++k)
+		if (bank == enemySpriteSheetIds[k] && enemySpriteSheets[k].data != NULL)
+			slot = k;
+	return slot;
+}
+
 static void prespawn_events(void)
 {
 	bool slow;
@@ -655,6 +668,10 @@ static void prespawn_events(void)
 	float ground_rate;
 	if (l3d_field_ahead <= 0 || endLevel || !clock_rates(&slow, &event_step, &ground_rate))
 		return;
+	// Sheet slots whose sheet stays put until the event being looked at (event 5 loads others).
+	bool sheet_stays[COUNTOF(enemySpriteSheetIds) + 1];
+	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds) + 1; ++k)
+		sheet_stays[k] = true;
 	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
 	{
 		struct JE_EventRecType *ev = &eventRec[e];
@@ -662,14 +679,26 @@ static void prespawn_events(void)
 		if (ticks > l3d_field_ahead + 1)
 			break;  // (at least a pixel a tick: none of the later ones is due)
 		// Not past what may change the course of events (jumps, skips) or the speeds the times
-		// were reckoned at: what comes after them is made at its own time.
+		// were reckoned at: what comes after them is made at its own time. This runs before the
+		// tick's events, so that holds for one due this tick too.
 		switch (ev->eventtype)
 		{
 		case 2: case 3: case 30: case 38: case 53: case 54: case 61: case 63: case 66: case 67: case 70: case 71:
 		case 75: case 76: case 80:
-			if (ticks > 0)
-				return;
-			break;
+			return;
+		case 5:
+		{
+			// The enemy sheets change: an enemy holds its slot's sheet, and one made before its
+			// sheet is loaded has no sprite, so later ones are made ahead of time only from
+			// sheets this keeps in their slots.
+			const int tables[COUNTOF(enemySpriteSheetIds)] = {
+				SDL_max(ev->eventdat, 0), SDL_max(ev->eventdat2, 0), SDL_max(ev->eventdat3, 0), ev->eventdat4,
+			};
+			for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
+				if (tables[k] != enemySpriteSheetIds[k])
+					sheet_stays[k] = false;
+			continue;
+		}
 		default:
 			break;
 		}
@@ -687,6 +716,18 @@ static void prespawn_events(void)
 		const float dy = own_dy + carried;
 		const int rise = (int)lroundf(dy * ticks);
 		if (dy <= 0 || rise > l3d_field_ahead)
+			continue;
+		// Only with its sheets loaded now and kept until its time (events 49-52 give the enemy
+		// the event's shape bank).
+		bool sheets_hold = true;
+		for (int part = 0; part < parts && sheets_hold; ++part)
+		{
+			const int id = custom ? 0 : (int)ev->eventdat + part;
+			const int bank = custom && ev->eventdat3 > 0 ? ev->eventdat3 : (id >= 0 && id <= ENEMY_NUM ? enemyDat[id].shapebank : -1);
+			const int slot = shape_bank_slot(bank);
+			sheets_hold = slot >= 0 && sheet_stays[slot];
+		}
+		if (!sheets_hold)
 			continue;
 
 		// Made now, as the event makes it, that far up.

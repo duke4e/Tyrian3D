@@ -557,6 +557,12 @@ void l3d_last_glow_velocity(float vx, float vy)
 	}
 }
 
+void l3d_pointer_last_glow(void)
+{
+	if (l3d_capturing && l3d_frame.glow_count > 0)
+		l3d_frame.glows[l3d_frame.glow_count - 1].pointer = true;
+}
+
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter)
 {
@@ -691,6 +697,7 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	glow->layer = (Uint8)phase_type;
 	glow->color = color;
 	glow->has_rgb = false;
+	glow->pointer = false;
 }
 
 bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy)

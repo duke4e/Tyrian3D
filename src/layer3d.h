@@ -134,6 +134,7 @@ typedef struct
 	Uint8 color;
 	bool has_rgb;          // the colour is rgb (sRGB), not a palette index
 	Uint8 rgb[3];
+	bool pointer;          // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
 } L3DGlow;
 
 #define L3D_MAX_GLOWS 256
@@ -267,6 +268,8 @@ void l3d_draw_departed_shots(void);
 void l3d_clear_departed_shots(void);
 // Sets the velocity of the glow recorded last.
 void l3d_last_glow_velocity(float vx, float vy);
+// The glow recorded last belongs to the ship the mouse moves directly (see l3d_pointer_last_object).
+void l3d_pointer_last_glow(void);
 // Records a glow of a palette colour centred on x, y moving vx, vy a frame (a spark). False when
 // the 3D view isn't capturing (or has no room), so the caller draws it as usual.
 bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy);

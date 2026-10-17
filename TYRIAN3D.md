@@ -365,6 +365,8 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | --- | --- |
 | `tools/capture_run.sh` | Runs the game in a background window, silent (`TYR3D_AUDIO=1` keeps the sound), and dumps frames (see the environment variables) |
 | `tools/sweep.sh`, `tools/levels.py` | Plays every level for a while and makes a contact sheet per level |
+| `tools/review.sh` | Visual review: plays each level briefly (or the given episodes or `episode:section`s) in a background window and keeps a few frames per level as PNGs; the big BMP dumps are deleted right away |
+| `tools/blender/render_models.py`, `tools/model_sheet.py` | Renders `.glb` models in one Blender run (`--list` of files), then contact sheets of the enemy models beside their 4x sprites (with a `TYR3D_EXTRACT` catalogue: ordered by how often they appear, by episode; needs PIL) |
 | `tools/catalog_html.py` | Browsable page of the `TYR3D_EXTRACT` catalogue |
 | `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |

@@ -4974,7 +4974,14 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		transform.m[12] = tile->x;
 		transform.m[13] = tile_height[t];
 		transform.m[14] = tile->z;
-		write_instance(instances + key_next[tile_key[t]]++ * 24, &transform, brightness);
+		float *instance = instances + key_next[tile_key[t]]++ * 24;
+		write_instance(instance, &transform, brightness);
+		// TYR3D_DEBUG_TILES: flat tiles of backgrounds 2 (magenta) and 3 (cyan) show up.
+		static int debug_tiles = -1;
+		if (debug_tiles < 0)
+			debug_tiles = SDL_getenv("TYR3D_DEBUG_TILES") != NULL;
+		if (debug_tiles && tile->cell < B3D_CELLS && tile->cell / B3D_TILES_PER_SET + 1 >= 2)
+			instance[tile->cell / B3D_TILES_PER_SET + 1 == 2 ? 17 : 16] = 0;
 	}
 
 	const float atlas_h = (float)(B3D_ATLAS_H * TILE_PAGES);
@@ -5486,9 +5493,9 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 		const L3DGlow *glow = &frame->glows[g];
 		Mat4 transform = mat4_identity();
 		transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
-		transform.m[12] = glow->x + glow->vx * ahead;
+		transform.m[12] = glow->x + (glow->pointer ? l3d_pointer_lead[0] : glow->vx * ahead);
 		transform.m[13] = l3d_layer_height(glow->layer) * rgpu_camera.height_scale + 0.5f;
-		transform.m[14] = glow->y + glow->vy * ahead;
+		transform.m[14] = glow->y + (glow->pointer ? l3d_pointer_lead[1] : glow->vy * ahead);
 		float *instance = instances + *instance_count * 24;
 		write_instance(instance, &transform, 1.0f);
 		const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
@@ -5563,7 +5570,8 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame 
 			continue;
 		const float height = l3d_layer_height(glow->layer) * rgpu_camera.height_scale * GLOW_LIGHT_LOW;
 		const float k = align_scale(height);
-		const float x = glow->x + glow->vx * ahead, y = glow->y + glow->vy * ahead;
+		const float x = glow->x + (glow->pointer ? l3d_pointer_lead[0] : glow->vx * ahead);
+		const float y = glow->y + (glow->pointer ? l3d_pointer_lead[1] : glow->vy * ahead);
 		PointLight *out = &candidates[candidate_count];
 		out->position[0] = align.on ? align.cx + (x - align.cx) * k : x;
 		out->position[1] = height;
