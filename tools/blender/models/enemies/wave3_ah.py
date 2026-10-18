@@ -3,8 +3,6 @@
 wave3_ah_rock.py and MINERS' drilling rig in wave3_ah_rig.py; the kit is wave3_ah_kit.py, the pixels
 wave3_ah_art.py.
 
-- block_question (M 55): WINDY's blue block with a question mark (enemy 848), a glossy rounded block like the
-  red, green and orange ones of blocks.py, a raised dark blue question mark on its top.
 - block_rubble (M 3): SOH JIN's red block broken (its damaged look: enemy 837 shows it below 20 armour), the
   block's rounded shape cracked into lumps with dark gaps between them.
 - block_half_rubble (M 2): what the indestructible red blocks of ASTEROID1 and WINDY (542, 849) name as their
@@ -17,6 +15,7 @@ wave3_ah_art.py.
   small tab under its right end.
 The red ground the roller's and the tank's sprites draw round them is the map's (the game draws it under them):
 the models have none (batch AV); they stand on the ground at z 0.
+(WINDY's blue question block, block_question (M 55), is built with the other blocks by polish_blocks.py.)
 
 usage: Blender -b --factory-startup -P wave3_ah.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
@@ -32,52 +31,15 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_ah_kit as kit  # noqa: E402
 from wave3_ah_kit import k, sh, w, pal  # noqa: E402
 
-QBLOCK = kit.frame("BLOCK_Q", 24, (12, 14))
 RUBBLE = kit.frame("RUBBLE", 24, (12, 14))
 HALF = kit.frame("HALF", 24, (12, 14))
 ROLLER = kit.frame("ROLLER", 48, (24, 14))
 TANK = kit.frame("TANK", 48, (24, 14))
 
-# The blocks of blocks.py: 11 x 12.6 half sizes, 9 high to the top's edge, the top bulging 1.2 more.
+# The WINDY blocks' body (polish_blocks.py): 11 x 12.6 half sizes, 9 high to the top's edge, the top bulging 1.2
+# more.
 HALF_W, HALF_D, HEIGHT, DOME = 11.0, 12.6, 9.0, 1.2
 TOP = HEIGHT + DOME
-
-
-def stroke(name, path, half_width, z0, z1, mat):
-    """A raised line along a path [(x, y)] (as blocks.py draws emblems on the blocks' tops)."""
-    left, right = [], []
-    for i, (x, y) in enumerate(path):
-        ax, ay = path[max(i - 1, 0)]
-        bx, by = path[min(i + 1, len(path) - 1)]
-        dx, dy = bx - ax, by - ay
-        length = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / length * half_width, dx / length * half_width
-        left.append((x + nx, y + ny))
-        right.append((x - nx, y - ny))
-    outline = left + right[::-1]
-    area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
-               for i in range(len(outline)))
-    if area < 0:
-        outline.reverse()
-    return k.slab(name, outline, z0, z1, mat, bevel_width=0.25, bevel_segments=2)
-
-
-def arc(cx, cy, radius, start, end, steps=16):
-    return [(cx + radius * math.cos(math.radians(start + (end - start) * i / steps)),
-             cy + radius * math.sin(math.radians(start + (end - start) * i / steps))) for i in range(steps + 1)]
-
-
-# --- M 55: the question block ----------------------------------------------------------------------------------
-
-@kit.model("block_question", mask=lambda: QBLOCK.mask())
-def block_question():
-    shell = pal("bq_shell", 0x39, metallic=0.05, roughness=0.3)
-    k.pillow("block", HALF_W, HALF_D, HEIGHT, shell, rounding=3.6, dome=DOME)
-    mark = pal("bq_mark", 0x36, metallic=0.1, roughness=0.35)
-    # The question mark: a hook over the top, a stem down from it and a dot.
-    path = arc(0.3, 3.0, 3.1, 180.0, -42.0, 18) + [(0.5, -0.4), (0.45, -2.0)]
-    k.smooth(stroke("mark", path, 0.85, TOP - 0.6, TOP + 0.55, mark), 50)
-    k.smooth(k.ellipsoid("dot", (0.45, -5.0, TOP - 0.1), (1.15, 1.15, 0.65), mark, 16, 6), 60)
 
 
 # --- M 3: the broken red block -----------------------------------------------------------------------------------
@@ -133,7 +95,7 @@ def block_rubble():
 
 @kit.model("block_half_rubble", mask=lambda: HALF.mask())
 def block_half_rubble():
-    shell = pal("block_red", 71, metallic=0.05, roughness=0.3)  # block_red's material (blocks.py)
+    shell = pal("block_red", 71, metallic=0.05, roughness=0.3)  # block_red's material (polish_blocks.py)
     blk = k.pillow("block", HALF_W, HALF_D, HEIGHT, shell, rounding=3.6, dome=DOME)
     blk.data.transform(Matrix.Translation((-12.0, 0, 0)))
     rub = rubble("rubble", RUBBLE, x_shift=12.0)

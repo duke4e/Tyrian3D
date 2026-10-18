@@ -1,12 +1,12 @@
 """Round episode 1 enemies, facing the way their sprites do (models.cfg: yaw=0):
 
-- dome_green (sheet A 17): a glossy green dome in a glowing green ring (asteroid levels' turrets).
-- dome_red (sheet A 93): a red dome in a tan ring.
 - spike_mine (sheet A 169): a grey ball with spikes.
 - band_sphere (sheet E 13): a blue sphere with a glowing orange band (HOLES).
 - bubbles (sheet E 153): a cluster of red bubbles (BUBBLES).
 - disc_turret (sheet F 39): a bronze disc with a red eye on the ground.
 - missile (sheet D 77): a grey missile with red fins, nose up the screen.
+
+(dome_green and dome_red, sheet A 17 and A 93, are built by polish_domes.py.)
 """
 import math
 import os
@@ -55,17 +55,6 @@ def ccw(outline):
 def export(name):
     here = os.path.dirname(os.path.abspath(__file__))
     k.export(os.path.join(here, "..", "..", "..", "..", "assets", "models", "enemies", name + ".glb"))
-
-
-def dome(name, dome_index, ring_index, ring_glow=None):
-    k.reset()
-    shell = k.material(name + "_shell", palette=dome_index, metallic=0.1, roughness=0.2)
-    ring = k.material(name + "_ring", palette=ring_index, metallic=0.3, roughness=0.35,
-                      emission=ring_glow, emission_strength=0.7 if ring_glow else 1.0)
-    centre = pos(11.5, 13)
-    torus("ring", (centre[0], centre[1], 1.4), 9.2, 1.3, ring)
-    k.smooth(k.ellipsoid("dome", (centre[0], centre[1], 0.6), (7.2, 7.2, 5.6), shell, 32, 16), 70)
-    export(name)
 
 
 def spike_mine():
@@ -141,8 +130,6 @@ def missile():
     export("missile")
 
 
-dome("dome_green", 39, 202, ring_glow=(40, 255, 60))
-dome("dome_red", 71, 234)
 spike_mine()
 band_sphere()
 bubbles()

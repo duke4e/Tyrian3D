@@ -2,7 +2,8 @@
 sprites do (models.cfg: yaw=0). Flames, lava and the parts of large structures stay volumetric.
 
 (crystal_blue, crystal_small, eye_ring, fan, orb_red, sphere_nozzle, lava_ball, disc_spokes, panel_gems,
-blob_red, ship_blue, cone_ship and claw_ship are built by polish_<name>.py.)
+panel_pills, blob_red, ship_blue, cone_ship and claw_ship are built by polish_<name>.py, block_x and
+block_chevron by polish_blocks.py.)
 """
 import math
 import os
@@ -39,26 +40,6 @@ def torus(name, centre, major, minor, mat, rotation=(0, 0, 0)):
     return k.smooth(obj, 60)
 
 
-def ccw(outline):
-    area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
-               for i in range(len(outline)))
-    return outline if area > 0 else outline[::-1]
-
-
-def stroke(name, path, half_width, z0, z1, mat):
-    """A raised line along a path (an emblem on a top)."""
-    left, right = [], []
-    for i, (x, y) in enumerate(path):
-        ax, ay = path[max(i - 1, 0)]
-        bx, by = path[min(i + 1, len(path) - 1)]
-        dx, dy = bx - ax, by - ay
-        length = math.hypot(dx, dy) or 1.0
-        nx, ny = -dy / length * half_width, dx / length * half_width
-        left.append((x + nx, y + ny))
-        right.append((x - nx, y - ny))
-    return k.slab(name, ccw(left + right[::-1]), z0, z1, mat)
-
-
 def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness=1.4):
     k.reset()
     body = k.material(name + "_body", palette=body_index, metallic=0.45, roughness=0.35)
@@ -67,45 +48,6 @@ def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness
     s.plate("wings", r, -thickness / 2, thickness / 2, wings, bevel=0.35)
     s.fuselage("fuselage", r, body, max_radius=max_radius)
     export(name)
-
-
-# --- Gems, blocks and plates ---------------------------------------------------------------------
-
-def block_x():
-    k.reset()
-    k.pillow("block", 11.0, 12.6, 9.0, k.material("blockx_shell", palette=87, metallic=0.05, roughness=0.3),
-             dome=1.2)
-    red = k.material("blockx_red", palette=119, metallic=0.2, roughness=0.3)
-    top = 10.2
-    stroke("x1", [(-5.0, 5.5), (5.0, -5.5)], 1.2, top - 0.5, top + 0.6, red)
-    stroke("x2", [(-5.0, -5.5), (5.0, 5.5)], 1.2, top - 0.5, top + 0.6, red)
-    export("block_x")
-
-
-def block_chevron():
-    k.reset()
-    k.pillow("block", 11.0, 12.6, 9.0, k.material("chevron_shell", palette=71, metallic=0.05, roughness=0.3),
-             dome=1.2)
-    dark = k.material("chevron_dark", palette=68, metallic=0.1, roughness=0.4)
-    top = 10.2
-    for dy in (3.5, -1.5):
-        stroke(f"chevron{dy}", [(-5.5, dy - 3.0), (0.0, dy + 1.5), (5.5, dy - 3.0)], 0.9, top - 0.5, top + 0.4, dark)
-    export("block_chevron")
-
-
-def panel_pills():
-    """Three red capsules, each lying in its own grey cradle on the ground (sheet S 191 draws them up the
-    screen, 153 across it). The grey round them in the sprites is the map's floor: no plate under them."""
-    k.reset()
-    grey = k.material("pills_plate", palette=8, metallic=0.5, roughness=0.4)
-    red = k.material("pills_red", palette=116, metallic=0.2, roughness=0.2, emission=(200, 20, 0),
-                     emission_strength=0.25)
-    for x in (-8.0, 0.0, 8.0):  # S 191's columns 1-6, 9-14, 17-22
-        k.pillow(f"cradle{x}", 3.7, 9.9, 1.8, grey, rounding=0.8, dome=0.1).location = (x, 0.0, 0.0)
-        k.smooth(k.lathe(f"pill{x}", [(-9.0, 0.4), (-8.6, 1.5), (-8.0, 2.2), (-7.2, 2.65), (-6.2, 2.8),
-                                            (6.2, 2.8), (7.2, 2.65), (8.0, 2.2), (8.6, 1.5), (9.0, 0.4)], red,
-                         segments=16, axis_x=x, axis_z=2.3, squash=0.85), 60)
-    export("panel_pills")
 
 
 # --- Round ones ----------------------------------------------------------------------------------
@@ -262,9 +204,6 @@ def ships():
     export("arrow_purple")
 
 
-block_x()
-block_chevron()
-panel_pills()
 orbs()
 blobs()
 ring_machine()
