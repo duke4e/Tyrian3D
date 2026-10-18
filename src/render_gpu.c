@@ -4286,6 +4286,14 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map
 // inside the playfield (filters and all), is drawn over them.
 #define TILE_BELOW_LAYER 0.05f
 
+// HD textures: three mip levels (down to the tiles' own size, where their cells' borders are a
+// pixel wide as in tile_atlas), blended between when filtered.
+#define HD_MIP_LEVELS 3
+static BTBHGPUTextureFilter hd_filter(void)
+{
+	return map_filter() == BTBH_GPU_TEXTURE_FILTER_LINEAR ? BTBH_GPU_TEXTURE_FILTER_TRILINEAR : map_filter();
+}
+
 // The HD atlas texture at the scale of the maps' HD tiles, and their pixels; before anything of the
 // frame uses the texture (it is made again when the scale changes).
 static void prepare_tile_atlas(void)
@@ -4295,9 +4303,19 @@ static void prepare_tile_atlas(void)
 	{
 		if (tile_atlas_hd != NULL)
 			btbh_gpu_texture_destroy(tile_atlas_hd);
-		tile_atlas_hd = scale > 1 ? create_texture_filtered(B3D_ATLAS_W * scale, B3D_ATLAS_H * TILE_PAGES * scale,
-		                                                    BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter())
-		                          : NULL;
+		tile_atlas_hd = NULL;
+		if (scale > 1)
+		{
+			const int w = B3D_ATLAS_W * scale, h = B3D_ATLAS_H * TILE_PAGES * scale;
+			Uint32 *zeroes = calloc((size_t)w * h, sizeof(Uint32));
+			BTBHGPUTextureReport report;
+			if (zeroes != NULL)
+				tile_atlas_hd = btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes, w, h, HD_MIP_LEVELS,
+					hd_filter(), BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+			free(zeroes);
+			if (tile_atlas_hd == NULL)
+				fprintf(stderr, "warning: HD tile atlas: %s\n", zeroes == NULL ? "out of memory" : report.message);
+		}
 		hd_scale = scale;
 		hd_generation = 0;
 		for (int p = 0; p < TILE_PAGES; ++p)
@@ -4606,7 +4624,7 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 			height, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
 		ring->hd = zeroes == NULL || scale <= 1 ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes,
 			width * scale, height * scale, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB,
-			&report);
+			&report);  // (no mip levels: they are made again for all of it at every row)
 		ring->water = zeroes == NULL || set != 1 ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes,
 			width, height, 0, BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_REPEAT,
 			BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
