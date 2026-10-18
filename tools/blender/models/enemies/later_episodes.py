@@ -1,5 +1,8 @@
 """The most frequent enemies of episodes 2-5 (each appears more than 100 times), facing the way their
 sprites do (models.cfg: yaw=0). Flames, lava and the parts of large structures stay volumetric.
+
+(crystal_blue, crystal_small, eye_ring, fan, orb_red, panel_gems, blob_red, ship_blue, cone_ship and
+claw_ship are built by polish_<name>.py.)
 """
 import math
 import os
@@ -105,19 +108,6 @@ def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness
 
 # --- Gems, blocks and plates ---------------------------------------------------------------------
 
-def crystals():
-    k.reset()
-    blue = k.material("crystal_blue", palette=156, metallic=0.3, roughness=0.1, emission=(40, 100, 255),
-                      emission_strength=0.35)
-    gem("crystal", pos(11.5, 13.5), 9.6, 11.6, 7.0, blue)
-    export("crystal_blue")
-    k.reset()
-    blue = k.material("crystal_blue", palette=156, metallic=0.3, roughness=0.1, emission=(40, 100, 255),
-                      emission_strength=0.35)
-    gem("crystal", pos(5.5, 6.5, small=True), 4.8, 5.6, 4.0, blue)
-    export("crystal_small")
-
-
 def block_x():
     k.reset()
     k.pillow("block", 11.0, 12.6, 9.0, k.material("blockx_shell", palette=87, metallic=0.05, roughness=0.3),
@@ -185,8 +175,7 @@ def orb(name, col, row, radius, index, lights=(), light_color=(255, 120, 20), z=
 
 
 def orbs():
-    orb("orb_red", 11.5, 14, 7.6, 114, lights=((-2.5, 2.0), (2.5, 2.0)))
-    export("orb_red")
+    # (orb_red: polish_orb_red.py)
     orb("orb_eyes", 12, 14, 10.0, 113, lights=((-3.2, 2.5), (3.2, 2.5)))
     export("orb_eyes")
     c = orb("sphere_nozzle", 12.5, 12, 8.2, 108)
@@ -221,24 +210,6 @@ def blobs():
     export("drops")
 
 
-def fan():
-    k.reset()
-    grey = k.material("fan_blades", palette=9, metallic=0.6, roughness=0.3)
-    red = k.material("fan_hub", palette=118, roughness=0.3, emission=(255, 40, 0), emission_strength=0.8)
-    c = pos(11.5, 12.5, 3.0)
-    for i in range(4):
-        a = math.radians(45 + 90 * i)
-        blade = k.ellipsoid(f"blade{i}", (c[0] + math.cos(a) * 6.8, c[1] + math.sin(a) * 6.8, c[2]),
-                            (6.2, 3.6, 1.2), grey, 20, 8)
-        blade.data.transform(__import__("mathutils").Matrix.Translation(-Vector((c[0] + math.cos(a) * 6.8,
-                                                                                    c[1] + math.sin(a) * 6.8, c[2]))))
-        blade.rotation_euler = (0, math.radians(12), a)
-        blade.location = (c[0] + math.cos(a) * 6.8, c[1] + math.sin(a) * 6.8, c[2])
-        k.smooth(blade, 60)
-    k.smooth(k.ellipsoid("hub", c, (2.8, 2.8, 2.2), red, 16, 8), 60)
-    export("fan")
-
-
 def ring_machine():
     k.reset()
     grey = k.material("ringm_grey", palette=7, metallic=0.6, roughness=0.35)
@@ -250,18 +221,6 @@ def ring_machine():
         k.smooth(k.ellipsoid(f"pod{i}", (c[0] + math.cos(r) * 8.6, c[1] + math.sin(r) * 9.4, c[2] + 1.2),
                              (2.8, 2.8, 2.4), red, 16, 8), 60)
     export("ring_machine")
-
-
-def eye_ring():
-    k.reset()
-    red = k.material("eyering_red", palette=119, roughness=0.3, emission=(255, 60, 0), emission_strength=0.9)
-    eye = k.material("eyering_eye", palette=58, metallic=0.3, roughness=0.15)
-    pupil = k.material("eyering_pupil", palette=114, roughness=0.3, emission=(200, 20, 0), emission_strength=0.6)
-    c = pos(11.5, 13.5, 2.5)
-    torus("ring", c, 9.6, 1.8, red)
-    k.smooth(k.ellipsoid("eye", (c[0], c[1], c[2] + 0.5), (5.8, 4.2, 3.0), eye, 24, 12), 60)
-    k.smooth(k.ellipsoid("pupil", (c[0], c[1], c[2] + 2.8), (1.0, 3.2, 0.9), pupil, 12, 8), 60)
-    export("eye_ring")
 
 
 def drill():
@@ -366,16 +325,13 @@ def ships():
     export("arrow_purple")
 
 
-crystals()
 block_x()
 block_chevron()
 panel_pills()
 disc_spokes()
 orbs()
 blobs()
-fan()
 ring_machine()
-eye_ring()
 drill()
 bolt()
 ships()
