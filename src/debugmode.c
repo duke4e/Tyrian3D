@@ -236,6 +236,8 @@ static struct
 	Player players[2];
 	JE_byte difficulty;
 	void *rng;
+	bool again;       // the level starting again for a rewind
+	bool field_wide;  // the playfield it began on
 } start;
 
 static bool snapshot_wanted = false;
@@ -274,6 +276,7 @@ void debug_flight_level_start(void)
 	{
 		// The level again as it began; its input played back to the rewind's moment.
 		restart = false;
+		start.again = true;
 		memcpy(player, start.players, sizeof(start.players));
 		mt_load(start.rng);
 		difficultyLevel = start.difficulty;
@@ -283,6 +286,7 @@ void debug_flight_level_start(void)
 	else
 	{
 		restart = false;
+		start.again = false;
 		start.valid = true;
 		start.section = mainLevel;
 		memcpy(start.players, player, sizeof(start.players));
@@ -303,6 +307,16 @@ void debug_flight_level_start(void)
 	}
 	tick = -1;
 	apply_speed();
+}
+
+bool debug_flight_field_wide(bool wide)
+{
+	if (!debug_flight)
+		return wide;
+	if (start.again)
+		return start.field_wide;
+	start.field_wide = wide;
+	return wide;
 }
 
 bool debug_flight_restarting(void)

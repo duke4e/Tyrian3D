@@ -35,6 +35,10 @@ bool debug_picker_from_environment(void);
 void debug_flight_level_start(void);
 // At start_level: true when the level restarts (a rewind) rather than ending.
 bool debug_flight_restarting(void);
+// The playfield's width (l3d_field_wide) for the level starting: as it began when it starts again
+// for a rewind (the input played back was played on it; a change of the setting or the view in
+// between waits for the next level).
+bool debug_flight_field_wide(bool wide);
 // Every tick of the level's loop: keys, the pause, the speed, the replay.
 void debug_flight_tick(void);
 // In JE_playerMovement once the player's input is read: records it, or replays it.

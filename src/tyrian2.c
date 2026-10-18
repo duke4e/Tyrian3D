@@ -440,7 +440,7 @@ static bool draw_enemy_model(unsigned int i)
 	if (look.model == M3D_SPRITE)
 		return false;
 
-	if (enemy[i].ey <= -26 - screen_overscan_rows || enemy[i].ey >= 200)
+	if (enemy[i].ey <= -26 - SDL_max(screen_overscan_rows, l3d_field_ahead) || enemy[i].ey >= 200)
 		return true;  // off screen
 
 	// Both 1x1 and 2x2 sprites are centred on (ex + 6, ey + 7).
@@ -646,7 +646,8 @@ static int ticks_until(JE_word eventtime, bool slow, int event_step)
  */
 static bool prespawned[EVENT_MAXIMUM];
 #define WIDE_AHEAD 64  // the wide playfield reaches this far above the screen (the overscan rows the 3D view gets)
-static int prespawn_rise = 0;  // made by prespawn_events: this far above where the event puts it
+static int prespawn_rise = 0;   // made by prespawn_events: this far above where the event puts it,
+static int prespawn_ticks = 0;  // this many ticks ahead of its time
 
 // The enemy sheet slot an enemy of that shape bank takes, as JE_makeEnemy picks it (-1: not
 // loaded); 4 for the coins and two-player sheets, which are always loaded.
@@ -661,6 +662,60 @@ static int shape_bank_slot(int bank)
 	return slot;
 }
 
+// Events the look ahead may pass: they neither change the enemies there are or how the next ones
+// are made, nor the course or speed of events (what the screen shows and plays, and the events
+// that make enemies, spawn_slots).
+static bool prespawn_passes(int type)
+{
+	switch (type)
+	{
+	case 0:  // (unknown: ignored)
+	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99:
+		return true;
+	default:
+		return false;
+	}
+}
+
+// The link of the enemies an event acting on enemies changes, when it changes only those (true):
+// enemies of other links made ahead of time past it are as they would be. (Link 0 is the enemies
+// without one, except where 0 means all.)
+static bool event_link_target(const struct JE_EventRecType *ev, int *link)
+{
+	const bool picked = ev->eventdat3 > 79 && ev->eventdat3 < 90;  // (a link the game picks then)
+	*link = ev->eventdat4;
+	switch (ev->eventtype)
+	{
+	case 19:
+		return ev->eventdat3 == 0;
+	case 24: case 33:
+		return true;
+	case 20: case 27: case 55:
+		return ev->eventdat4 != 0 && !picked;
+	case 25: case 47: case 74:
+		return ev->eventdat4 != 0;
+	case 31:
+		return ev->eventdat4 != 99;
+	case 39:
+		*link = ev->eventdat;
+		return true;
+	default:
+		return false;
+	}
+}
+
+// A boss whose death jumps (event 57) is there.
+static bool boss_jump_armed(void)
+{
+	if (superEnemy254Jump == 0)
+		return false;
+	for (int i = 0; i < 100; ++i)
+		if (enemyAvail[i] != 1 && enemy[i].linknum == 254)
+			return true;
+	return false;
+}
+
 static void prespawn_events(void)
 {
 	bool slow;
@@ -668,6 +723,12 @@ static void prespawn_events(void)
 	float ground_rate;
 	if (l3d_field_ahead <= 0 || endLevel || !clock_rates(&slow, &event_step, &ground_rate))
 		return;
+	// Not while what comes next may never come: a jump when the screen is clear (a return, the
+	// level's end) or when a boss dies.
+	if (returnActive || readyToEndLevel || boss_jump_armed())
+		return;
+	// Links whose enemies an event before the one being looked at changes (made at their time).
+	int changed_links[16], changed_count = 0;
 	// Sheet slots whose sheet stays put until the event being looked at (event 5 loads others).
 	bool sheet_stays[COUNTOF(enemySpriteSheetIds) + 1];
 	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds) + 1; ++k)
@@ -678,14 +739,11 @@ static void prespawn_events(void)
 		const int ticks = ticks_until(ev->eventtime, slow, event_step);
 		if (ticks > l3d_field_ahead + 1)
 			break;  // (at least a pixel a tick: none of the later ones is due)
-		// Not past what may change the course of events (jumps, skips) or the speeds the times
-		// were reckoned at: what comes after them is made at its own time. This runs before the
-		// tick's events, so that holds for one due this tick too.
+		// Nor past the level's timer running out (it jumps).
+		if (levelTimer && levelTimerCountdown > 0 && levelTimerCountdown <= ticks + 1)
+			return;
 		switch (ev->eventtype)
 		{
-		case 2: case 3: case 30: case 38: case 53: case 54: case 61: case 63: case 66: case 67: case 70: case 71:
-		case 75: case 76: case 80:
-			return;
 		case 5:
 		{
 			// The enemy sheets change: an enemy holds its slot's sheet, and one made before its
@@ -705,10 +763,29 @@ static void prespawn_events(void)
 		int parts, bottom_y;
 		bool custom;
 		const int offset = spawn_slots(ev, &parts, &bottom_y, &custom);
+		// Not past what may change the enemies there are, how the next are made, the course of
+		// events (jumps, skips) or the speeds the times were reckoned at: what comes after it is
+		// made at its own time. This runs before the tick's events, so that holds for one due this
+		// tick too.
+		int link;
+		if (offset < 0 && event_link_target(ev, &link))
+		{
+			if (changed_count == (int)COUNTOF(changed_links))
+				return;
+			changed_links[changed_count++] = link;
+			continue;
+		}
+		if (offset < 0 && !prespawn_passes(ev->eventtype))
+			return;
 		if (ticks == 0 || prespawned[e] || offset < 0 || bottom_y != 0 || ev->eventdat2 == -99)
 			continue;
+		bool changed = false;
+		for (int k = 0; k < changed_count; ++k)
+			changed = changed || changed_links[k] == ev->eventdat4;
+		if (changed)
+			continue;
 		const Uint16 eDatI = custom ? 0 : (Uint16)ev->eventdat;
-		if ((eDatI == 0 && !custom) || eDatI > ENEMY_NUM)
+		if ((eDatI == 0 && !custom) || eDatI + (custom ? 0 : parts - 1) > ENEMY_NUM)
 			continue;
 		const struct JE_SingleEnemyDat *dat = &enemyDat[eDatI];
 		const float carried = offset == 0 ? 0 : offset == 50 ? backMove3 : ground_rate;
@@ -716,6 +793,30 @@ static void prespawn_events(void)
 		const float dy = own_dy + carried;
 		const int rise = (int)lroundf(dy * ticks);
 		if (dy <= 0 || rise > l3d_field_ahead)
+			continue;
+		// Only enemies on a steady course, the same for all its parts: back up it (and back along
+		// it sideways) is where they come from. Those steering for the player or swinging up and
+		// down are made at their time; a boss whose death jumps too (it could die before its time).
+		bool steady = !(superEnemy254Jump > 0 && ev->eventdat4 == 254);
+		for (int part = 0; part < parts && steady; ++part)
+		{
+			const struct JE_SingleEnemyDat *d = &enemyDat[custom ? 0 : eDatI + part];
+			steady = d->xaccel == 0 && d->yaccel == 0 && d->ycaccel == 0 && d->ymove == dat->ymove;
+			// (sideways, not so far back that the game takes it for gone: JE_drawEnemy)
+			if (steady && d->xcaccel == 0 && d->xmove != 0)
+			{
+				int ex = ev->eventdat2 - (mapX - 1) * 24 + (part & 1) * 24;
+				if (offset == 25 || offset == 75 || (offset == 50 && background3x1))
+					ex -= 12;
+				else if (offset == 50)
+					ex = ev->eventdat2 - mapX3 * 24 - 24 * 2 + 6 + (part & 1) * 24;
+				if (offset == 50 && background3x1b)
+					ex -= 6;
+				const int start = ex - d->xmove * ticks;
+				steady = start > -76 && start < 336;
+			}
+		}
+		if (!steady)
 			continue;
 		// Only with its sheets loaded now and kept until its time (events 49-52 give the enemy
 		// the event's shape bank).
@@ -729,13 +830,21 @@ static void prespawn_events(void)
 		}
 		if (!sheets_hold)
 			continue;
+		// With room for all its parts (an enemy that finds none is lost).
+		int free_slots = 0;
+		for (int i = offset; i < offset + 25; ++i)
+			free_slots += enemyAvail[i] == 1;
+		if (free_slots < parts)
+			return;
 
-		// Made now, as the event makes it, that far up.
+		// Made now, as the event makes it, that far up (and back).
 		const JE_word saved = eventLoc;
 		eventLoc = (JE_word)(e + 1);
 		prespawn_rise = rise;
+		prespawn_ticks = ticks;
 		JE_eventSystem();
 		prespawn_rise = 0;
+		prespawn_ticks = 0;
 		eventLoc = saved;
 		prespawned[e] = true;
 	}
@@ -870,7 +979,7 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 				}
 			}
 
- 			if (enemy[i].ex + tempMapXOfs > -29 && enemy[i].ex + tempMapXOfs < 300)
+ 			if (enemy[i].ex + tempMapXOfs > -29 && enemy[i].ex + tempMapXOfs < 300 + l3d_field_right())
 			{
 				if (enemy[i].aniactive == 1)
 				{
@@ -1753,7 +1862,9 @@ start_level_first:
 	memset(smoothies, 0, sizeof(smoothies));
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
-	l3d_field_wide = settings3d.view_3d && settings3d.playfield_wide && !isNetworkGame;
+	// (not for the demos: they replay inputs on the original playfield)
+	l3d_field_wide = debug_flight_field_wide(settings3d.view_3d && settings3d.playfield_wide && !isNetworkGame &&
+	                                         !play_demo && !record_demo);
 	l3d_field_ahead = l3d_field_wide ? WIDE_AHEAD : 0;
 	memset(prespawned, 0, sizeof(prespawned));
 
@@ -2124,6 +2235,10 @@ level_loop:
 		if (tempW == 2)
 			soundQueue[3] = S_WEAPON_7;
 		b = JE_newEnemy(0, tempW, 0);
+		// (Tyrian3D: on a playfield reaching above the screen, one coming down from the screen's
+		// top comes from the playfield's, rather than appearing in it)
+		if (b > 0 && l3d_field_ahead > 0 && enemy[b-1].ey < 0 && enemy[b-1].eyc > 0)
+			enemy[b-1].ey -= l3d_field_ahead;
 	}
 
 	if (processorType > 1 && smoothies[3-1])
@@ -5046,11 +5161,18 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		if (background3x1b && enemyOffset == 50)
 			enemy[b-1].ey += 4;
 		// Tyrian3D: on a playfield reaching above the screen, made ahead of time that far up
-		// (prespawn_events), or, not coming down, sky and top ones at the playfield's top.
+		// (prespawn_events), and as far back along a steady sideways course; or, not coming down
+		// (not even carried, steadily) nor placed lower, sky and top ones at the playfield's top.
 		if (prespawn_rise > 0)
+		{
 			enemy[b-1].ey -= prespawn_rise;
-		else if (l3d_field_ahead > 0 && enemyOffset != 25 && enemyOffset != 75 &&
-		         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 <= 0)
+			if (enemy[b-1].excc == 0)
+				enemy[b-1].ex -= enemy[b-1].exc * prespawn_ticks;
+		}
+		else if (l3d_field_ahead > 0 && enemyOffset != 25 && enemyOffset != 75 && eventRec[eventLoc-1].eventdat5 <= 0 &&
+		         enemy[b-1].eycc == 0 && enemy[b-1].yaccel == 0 &&
+		         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 + eventRec[eventLoc-1].eventdat6 +
+		         (enemyOffset == 50 ? backMove3 : 0) <= 0)
 			enemy[b-1].ey -= l3d_field_ahead;
 	}
 

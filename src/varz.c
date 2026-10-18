@@ -942,7 +942,7 @@ void JE_setupExplosion(
 		{  96,  3 }
 	};
 
-	if (y > -16 && y < 190)
+	if (y > -16 - l3d_field_ahead && y < 190)  // (Tyrian3D: and the playfield above the screen)
 	{
 		for (int i = 0; i < MAX_EXPLOSIONS; i++)
 		{
@@ -973,7 +973,7 @@ void JE_setupExplosion(
 
 void JE_setupExplosionLarge(JE_boolean enemyGround, JE_byte exploNum, JE_integer x, JE_integer y)
 {
-	if (y >= 0)
+	if (y >= -l3d_field_ahead)
 	{
 		if (enemyGround)
 		{

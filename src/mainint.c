@@ -3742,8 +3742,9 @@ static bool pointer_ship_position(int playerNum_, float *x, float *y)
 	float px, py;
 	if (!mouse_pointer_game(&px, &py))
 		return false;
-	*x = SDL_clamp(px - 7, 40.0f, 256.0f);  // the ship's centre is 7 pixels in
-	*y = SDL_clamp(py - 7, 10.0f, (float)ship_max_y(playerNum_));
+	// (the ship's centre is 7 pixels in; the bounds as JE_playerMovement's, the wide playfield's)
+	*x = SDL_clamp(px - 7, 40.0f - l3d_field_left(), 256.0f + l3d_field_right());
+	*y = SDL_clamp(py - 7, 10.0f - l3d_field_ahead, (float)ship_max_y(playerNum_));
 	return true;
 }
 
