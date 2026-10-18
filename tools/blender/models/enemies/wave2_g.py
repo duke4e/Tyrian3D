@@ -22,8 +22,7 @@
 - pink_torpedo_front, pink_torpedo_rear (sheet 8 125, 8 127): the two halves of the pink torpedo of
   IXMUCANE and SAWBLADES lying on its side, its muzzle glowing at the front (origin).
 - horseshoe (sheet 3 126): the grey horseshoe ring with tan plates of SURFACE and CORE.
-- gem_bud (sheet V 38; also V 19 and V 57): GEM WAR's small faceted gem on a stem, in grey shades
-  that take each sprite's colour (color=sprite).
+- gem_bud: now built by polish_gem_bud.py.
 - bomb_pickup (coins sheet 89): the pick-up of a super bomb: the word BOMB in glowing orange
   letters beside a blue bomb (assets/models/items).
 - fork_ship (sheet F 87): the tan fork-shaped ship of SAVARA, swept wings, grey fins and a port
@@ -568,64 +567,6 @@ def horseshoe():
     simplify_bottom(ring)
     decimate(ring, 2400)
     k.smooth(ring, 50)
-
-
-# --- V 38: the gem bud -----------------------------------------------------------------------------
-
-@model("gem_bud", "V", 38, size=(12, 14))
-def gem_bud():
-    """A faceted gem, a diamond seen from above (a crown of facets round a table, a short pavilion
-    to its flat underside), on a stem reaching down the screen. In shades of the green ramp: the
-    game gives it each sprite's colour (V 19 blue, V 38 green, V 57 red: color=sprite)."""
-    edge = pal("gem_edge", 0x29, metallic=0.2, roughness=0.15)
-    facet = pal("gem_facet", 0x2b, metallic=0.2, roughness=0.1)
-    table = pal("gem_table", 0x2e, metallic=0.1, roughness=0.05, glow=0.25)
-    stem = pal("gem_stem", 0x27, metallic=0.2, roughness=0.4)
-    cx, cy = 0.0, -0.5
-    corners = [(cx, cy + 4.6), (cx - 5.2, cy), (cx, cy - 4.8), (cx + 5.2, cy)]  # N, W, S, E
-    girdle = []
-    for i in range(4):
-        (ax, ay), (bx, by) = corners[i], corners[(i + 1) % 4]
-        mx, my = (ax + bx) / 2, (ay + by) / 2
-        out = Vector((mx - cx, my - cy)).normalized() * 0.1
-        girdle += [(ax, ay), (mx + out.x, my + out.y)]
-    z_girdle, z_table, z_base = 1.4, 4.4, 0.0
-    verts = [Vector((x, y, z_girdle)) for x, y in girdle]
-    verts += [Vector((cx + (x - cx) * 0.38, cy + (y - cy) * 0.38, z_table)) for x, y in girdle]
-    verts += [Vector((cx + (x - cx) * 0.55, cy + (y - cy) * 0.55, z_base)) for x, y in girdle]
-    n = len(girdle)
-    faces = [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]          # the crown
-    faces.append(tuple(range(n, 2 * n)))                                            # the table
-    faces += [((i + 1) % n, i, 2 * n + i, 2 * n + (i + 1) % n) for i in range(n)]  # the pavilion
-    faces.append(tuple(reversed(range(2 * n, 3 * n))))                              # the base
-    gem = k.mesh_object("gem", verts, faces, facet)
-    k.recalc_normals(gem)
-    gem.data.materials.append(table)
-    gem.data.materials.append(edge)
-    for poly in gem.data.polygons:
-        if poly.normal.z > 0.99:
-            poly.material_index = 1
-        elif poly.normal.z < 0.2:
-            poly.material_index = 2
-    # The stem.
-    k.smooth(k.lathe("stem", [(-7.0, 0.85), (-4.6, 0.85), (-3.6, 1.1), (-3.0, 0.6)], stem, 10, axis_x=cx,
-                     axis_z=0.9), 50)
-    sh.flat_bottom(scene_objects())
-
-
-# --- J 1: the stone plant --------------------------------------------------------------------------
-
-def leaf(name, path, widths, heights, mat, z0=0.0, segments=12):
-    """A curved leaf along a path [(x, y)]: a flattened tube whose width and height vary along it,
-    resting on z0."""
-    pts = [(x, y, z0 + h) for (x, y), h in zip(path, heights)]
-    obj = tube(name, pts, list(widths), mat, segments=segments)
-    # Flatten: scale the height of the cross-sections about each point's z.
-    for v in obj.data.vertices:
-        nearest = min(range(len(pts)), key=lambda i: (pts[i][0] - v.co.x) ** 2 + (pts[i][1] - v.co.y) ** 2)
-        zc = pts[nearest][2]
-        v.co.z = zc + (v.co.z - zc) * heights[nearest] / max(widths[nearest], 1e-3)
-    return obj
 
 
 @model("stone_plant", "J", 1)

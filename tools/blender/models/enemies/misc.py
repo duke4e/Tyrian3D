@@ -1,9 +1,9 @@
 """More episode 1 enemies, facing the way their sprites do (models.cfg: yaw=0):
 
-- diamond (sheet 2 sprite 171, 1x1): a small bronze gem pointing down, which turns.
 - container (sheet 2 sprite 89): a purple ribbed container.
 - claws (sheet F 169): SAVARA's twin red claws standing on the ground.
-- ornament (sheet D 79): a golden winged medallion with a blue gem and a loop.
+
+(diamond, ornament, shield_ship and eye_turret are built by polish_<name>.py.)
 """
 import math
 import os
@@ -52,32 +52,6 @@ def export(name):
     k.export(os.path.join(here, "..", "..", "..", "..", "assets", "models", "enemies", name + ".glb"))
 
 
-def diamond():
-    """A 1x1 sprite (12 x 14): the gem's wide top at the sprite's row 2, its point at row 13."""
-    k.reset()
-    bronze = k.material("diamond_bronze", palette=22, metallic=0.75, roughness=0.25)
-    sides = 8
-    top_y, girdle_y, tip_y = 4.5, 3.0, -6.5   # the table, the widest ring, the point (y)
-    verts = [(0.0, top_y, 2.2)]
-    for i in range(sides):  # the table's ring
-        a = 2 * math.pi * i / sides
-        verts.append((2.6 * math.cos(a), top_y - 0.3 + 1.0 * math.sin(a) * 0.3, 2.2 + 1.6 * math.sin(a)))
-    for i in range(sides):  # the girdle
-        a = 2 * math.pi * (i + 0.5) / sides
-        verts.append((5.0 * math.cos(a), girdle_y, 2.2 + 3.0 * math.sin(a)))
-    verts.append((0.0, tip_y, 2.2))
-    faces = []
-    for i in range(sides):
-        j = (i + 1) % sides
-        faces.append((0, 1 + i, 1 + j))                              # the table
-        faces.append((1 + i, 1 + sides + i, 1 + j))                  # crown, down
-        faces.append((1 + j, 1 + sides + i, 1 + sides + j))           # crown, up
-        faces.append((1 + sides + i, 1 + 2 * sides, 1 + sides + j))  # the pavilion to the point
-    obj = k.mesh_object("diamond", verts, faces, bronze)
-    k.recalc_normals(obj)
-    export("diamond")
-
-
 def container():
     k.reset()
     shell = k.material("container_shell", palette=85, metallic=0.35, roughness=0.35)
@@ -109,31 +83,8 @@ def claws():
     export("claws")
 
 
-def ornament():
-    k.reset()
-    gold = k.material("ornament_gold", palette=25, metallic=0.85, roughness=0.25)
-    gem = k.material("ornament_gem", palette=153, metallic=0.2, roughness=0.1, emission=(40, 110, 255),
-                     emission_strength=0.8)
-    rows = [line for line in ORNAMENT.strip("\n").split("\n")]
-    plate = s.plate("plate", rows, 0.0, 3.0, gold, bevel=1.0)
-    k.smooth(plate, 35)
-    k.smooth(k.ellipsoid("boss", (0.0, -1.0, 2.8), (5.2, 6.0, 1.8), gold, 24, 10), 60)
-    k.smooth(k.ellipsoid("gem", (0.0, -1.5, 4.2), (2.4, 2.6, 1.6), gem, 20, 10), 60)
-    # The loop at the top.
-    bpy.ops.mesh.primitive_torus_add(major_radius=2.0, minor_radius=0.6, major_segments=24, minor_segments=8,
-                                     location=(0.0, 9.0, 1.6), rotation=(math.radians(90), 0, 0))
-    loop = bpy.context.active_object
-    loop.data.materials.append(gold)
-    k.smooth(loop, 60)
-    export("ornament")
-
-
-diamond()
 container()
 claws()
-ornament()
-
-
 # --- More of episode 1 ---------------------------------------------------------------------------
 
 ARCH = """
@@ -251,15 +202,6 @@ def arch_ship():
     plate_model("arch_ship", ARCH, 6, 3.4, 1.2, lights)
 
 
-def shield_ship():
-    def core():
-        steel = k.material("shield_steel", palette=6, metallic=0.6, roughness=0.3)
-        red = k.material("shield_red", palette=118, roughness=0.3, emission=(255, 50, 0), emission_strength=0.9)
-        k.smooth(k.ellipsoid("body", (0.0, 1.0, 3.6), (6.0, 8.5, 3.2), steel, 24, 12), 50)
-        k.smooth(k.ellipsoid("eye", (0.0, 4.5, 5.8), (2.2, 1.4, 1.0), red, 12, 6), 60)
-    plate_model("shield_ship", SHIELD_SHIP, 2, 2.6, 1.0, core)
-
-
 def purple_fighter():
     def cockpit():
         red = k.material("purple_red", palette=118, roughness=0.3, emission=(255, 40, 0), emission_strength=0.8)
@@ -285,20 +227,6 @@ def red_gem_panel():
     export("redgem_panel")
 
 
-def eye_turret():
-    k.reset()
-    steel = k.material("eyeturret_steel", palette=4, metallic=0.6, roughness=0.35)
-    red = k.material("eyeturret_red", palette=118, metallic=0.2, roughness=0.15, emission=(220, 30, 0),
-                     emission_strength=0.6)
-    grey = k.material("eyeturret_grey", palette=7, metallic=0.6, roughness=0.3)
-    k.smooth(k.ellipsoid("base", (0.5, 0.5, 1.5), (11.0, 12.6, 3.6), steel, 32, 10), 50)
-    k.smooth(k.ellipsoid("eye", (0.5, 1.5, 3.6), (7.0, 7.0, 4.2), red, 28, 12), 60)
-    k.smooth(k.ellipsoid("lid", (0.5, 4.5, 6.8), (3.4, 2.6, 1.6), grey, 16, 8), 60)
-    export("eye_turret")
-
-
 arch_ship()
-shield_ship()
 purple_fighter()
 red_gem_panel()
-eye_turret()
