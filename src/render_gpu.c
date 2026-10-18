@@ -1481,8 +1481,21 @@ static void dim_by_fade(BTBHGPUSceneGeometryBatch *b)
 	b->albedo_blue = (Uint8)(b->albedo_blue * k / 255);
 }
 
+// A background drawn as its tiles while they have HD versions (b3d_hd_scale): the tiles show it all,
+// in the playfield too, rather than the game's picture of it at its own size covering them there.
+// Not one the game's filters changed after it was drawn: the waver of lava, water and ice
+// (effect_count) and the screen's darkening (modified) are only in its picture. (The game's plain
+// blur, blur_filter, doesn't count: the tiles show those backgrounds sharp, as the terrain does
+// the ground.)
+static bool hd_tile_background(const L3DFrame *frame, const L3DBackground *background, bool composed)
+{
+	return b3d_hd_scale() > 1 && !composed && background->effect_count == 0 &&
+	       !frame->layers[background->layer].modified;
+}
+
 // Converts the layers to colour, one atlas slot each. Layers drawn over background map tiles
-// (native) keep only the playfield, where the game drew them; the tiles show everything else.
+// (native) keep only the playfield, where the game drew them; the tiles show everything else (and
+// all of it for backgrounds whose HD tiles show, hd_tile_background).
 static bool cloud_background(const L3DBackground *background, bool composed);
 static bool water_overlay(const L3DBackground *background);
 static bool relief_frame(const L3DFrame *frame, const bool *composed);
@@ -1547,7 +1560,8 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1) ||
 					     terrain_background(frame, &frame->backgrounds[i]) ||
 					     (b3d_terrain_ground && frame->backgrounds[i].blend &&
-					      !cloud_background(&frame->backgrounds[i], composed[i]))))
+					      !cloud_background(&frame->backgrounds[i], composed[i])) ||
+					     hd_tile_background(frame, &frame->backgrounds[i], composed[i])))
 					{
 						memset(cloud_mask, 1, sizeof(cloud_mask));  // none of it is drawn
 						clouds = true;

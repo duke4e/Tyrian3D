@@ -2249,7 +2249,7 @@ level_loop:
 	}
 	if (processorType > 1 && smoothies[4-1])
 	{
-		l3d_modify();
+		l3d_modify_blur();
 		blur_filter(game_screen, VGAScreen);
 		VGAScreen = game_screen;
 	}

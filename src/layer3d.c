@@ -37,6 +37,7 @@ typedef enum
 } PhaseKind;
 
 static PhaseKind phase_kind = PHASE_NONE;
+static bool phase_blur = false;  // the modify phase is the game's blur (l3d_modify_blur)
 static L3DLayerType phase_type;
 
 static Uint8 snapshot[L3D_WIDTH * L3D_ROWS];
@@ -115,6 +116,7 @@ static L3DLayer *new_layer(L3DLayerType type)
 	memset(layer->cover, 0, sizeof(layer->cover));
 	layer->min_y = L3D_ROWS;
 	layer->max_y = 0;
+	layer->modified = false;
 	return layer;
 }
 
@@ -181,6 +183,8 @@ static void end_phase(void)
 				else if (owner[i] != 0xff)
 				{
 					l3d_frame.layers[owner[i]].index[i] = row[x];
+					if (!phase_blur)
+						l3d_frame.layers[owner[i]].modified = true;
 				}
 			}
 		}
@@ -209,6 +213,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	phase_surface = VGAScreen;
 	phase_kind = PHASE_FULL;
 	phase_type = first_type;
+	phase_blur = false;
 }
 
 void l3d_phase(L3DLayerType type)
@@ -220,6 +225,7 @@ void l3d_phase(L3DLayerType type)
 	take_snapshot();
 	phase_kind = PHASE_DRAW;
 	phase_type = type;
+	phase_blur = false;
 }
 
 void l3d_modify(void)
@@ -230,6 +236,16 @@ void l3d_modify(void)
 	end_phase();
 	take_snapshot();
 	phase_kind = PHASE_MODIFY;
+	phase_blur = false;
+}
+
+void l3d_modify_blur(void)
+{
+	if (!l3d_capturing)
+		return;
+
+	l3d_modify();
+	phase_blur = true;
 }
 
 void l3d_frame_end_early(void)

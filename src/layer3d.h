@@ -55,6 +55,7 @@ typedef struct
 	Uint8 index[L3D_WIDTH * L3D_ROWS];  // palette indices
 	Uint8 cover[L3D_WIDTH * L3D_ROWS];  // non-zero where the layer has a pixel
 	int min_y, max_y;                   // layer rows that contain pixels (max_y exclusive)
+	bool modified;                      // a filter over the screen changed its pixels later (l3d_modify)
 } L3DLayer;
 
 // Object kinds besides a model index (>= 0); matches M3D_VOLUME in models3d.h.
@@ -203,6 +204,10 @@ void l3d_frame_begin(L3DLayerType first_type);
 void l3d_phase(L3DLayerType type);
 // Ends the current phase; drawing that follows modifies existing layers in place.
 void l3d_modify(void);
+// As l3d_modify, for the game's blur over the screen (blur_filter): the layers it blurs aren't
+// marked modified, so the 3D view may show their backgrounds' HD tiles unblurred (as it shows a
+// ground of terrain).
+void l3d_modify_blur(void);
 // Ends the last phase. The frame stays readable until the next l3d_frame_begin.
 void l3d_frame_end(void);
 // Ends the frame being captured from a menu shown mid-tick (on the surface its phase began on, as
