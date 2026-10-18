@@ -1,15 +1,9 @@
 """Wave 3, batch T of the enemy models: the remaining enemies of sheet V (episode 2's GEM WAR, GRYPHON, MISTAKES
 and MARKERS, episode 4's UNDERDELI and DREAD-NOT, episode 5's STATION), modelled as their sprites look
 (models.cfg: yaw=0). Objects the game draws from several sprites are built whole and cut into the sprites'
-pieces (models.cfg: origin); the level files' enemy events say how the pieces are placed.
+pieces (models.cfg: origin); the level files' enemy events say how the pieces are placed. (The blue bridge
+of GEM WAR, GRYPHON and STATION, V 89/91/93, is built by polish_arm_bridge.py.)
 
-- arm_bridge (V 91): the middle of GEM WAR's, GRYPHON's and STATION's blue structure, between its arms
-  with the red balls (V 89 and V 93, arm_ball_left and arm_ball_right of wave1_b.py; the events put
-  89, 91 and 93 side by side, 24 pixels apart, on one layer): the arms' housings end in shoulders
-  either side, a glossy blue saddle between them, a lip in front over a vent glowing red behind its
-  slats and two emitter nozzles under it whose tips glow red (the frames 129 flash a red beam from
-  them when it fires; the model keeps the vent and the tips glowing). Built in the arms' coordinates
-  so the pieces meet (origin).
 - claw_body_l, claw_hook_l (V 44, V 46) and their mirror images claw_hook_r, claw_body_r (V 85, V 87):
   the grey claw ship of GRYPHON, MISTAKES and STATION (custom enemies: the events put 44 and 46, and
   85 and 87, side by side 24 pixels apart; the left ones fly in from the screen's left, the right ones
@@ -37,115 +31,6 @@ from mathutils import Matrix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_t_kit as w  # noqa: E402
 from wave3_t_kit import pal, model, whole, smoothstep, bake  # noqa: E402
-
-
-def X(col, ox=12):
-    """A pixel column's centre."""
-    return col + 0.5 - ox
-
-
-def Y(row, oy=14):
-    """A pixel row's centre."""
-    return oy - (row + 0.5)
-
-
-# --- V 91: the middle of the blue structure ------------------------------------------------------------
-# In V 91's coordinates; the arms (wave1_b.arm_ball) stand at x = -24 and x = 24, their housings reaching
-# to x = -11.2 and 11.2, their tops 9 high at the back sloping to 5.6 at the front (housing_top).
-
-def housing_top(y):
-    """The arms' housing top (wave1_b.arm_ball's housing_top)."""
-    return 9.0 - 3.4 * smoothstep(2.5, -10.5, y)
-
-
-def bridge_whole(with_arms=False):
-    if with_arms:
-        import_arms()
-    steel = pal("arm_steel", 56, metallic=0.55, roughness=0.35)
-    light = pal("arm_light", 59, metallic=0.55, roughness=0.3)
-    dark = pal("arm_dark", 53, metallic=0.5, roughness=0.45)
-    gloss = pal("brg_gloss", 0x3b, metallic=0.6, roughness=0.22)
-    gloss_hi = pal("brg_gloss_hi", 0x3d, metallic=0.6, roughness=0.18)
-    plate = pal("brg_plate", 0x3a, metallic=0.55, roughness=0.3)
-    seam = pal("brg_seam", 0x34, metallic=0.4, roughness=0.5)
-    vent = pal("brg_vent", 0x44, metallic=0.2, roughness=0.4, glow=0.9, emission=(150, 20, 6))
-    slat = pal("brg_slat", 0x38, metallic=0.55, roughness=0.32)
-    tip = pal("brg_tip", 0x76, metallic=0.1, roughness=0.25, glow=1.6)
-    lamp = pal("brg_lamp", 0x46, metallic=0.2, roughness=0.3, glow=0.8, emission=(170, 40, 20))
-
-    # The shoulders: the housings' ends, 4 pixels into this sprite, flush with the arms' tops (a hair
-    # lower where they overlap); a seam where they meet the saddle.
-    for side in (-1, 1):
-        x_out, x_in = 14.2, 8.15
-        poly = [(-x_out, -1.1), (-x_in - 0.4, -1.1), (-x_in, -0.5), (-x_in, 6.9), (-x_in - 0.5, 7.45), (-x_out, 7.45)]
-        if side > 0:
-            poly = [(-x, y) for x, y in poly]
-        body = w.cushion(f"shoulder{side}", w.ccw(poly), steel, lambda x, y: housing_top(y) - 0.04, rounding=1.3,
-                         spacing=0.45)
-        w.paint_faces(body, lambda c, n: light if c.z > 8.55 and n.z > 0.6 else None)
-        # A red lamp on the housing's side low down (V 91's columns 0 and 23, rows 19-20).
-        w.sphere(f"lamp{side}", (side * 11.15, Y(19.5), 2.8), (0.75, 0.95, 0.85), lamp, 12, 6)
-    # The seams between the shoulders and the saddle.
-    for side in (-1, 1):
-        w.rounded_box(f"seam{side}", (side * 8.0, 3.1, 3.6), (0.9, 8.6, 7.0), seam, bevel=0.3)
-
-    # The saddle: a glossy blue hump along x between the shoulders, highest in the middle.
-    secs = []
-    for x in [-8.6] + [i * 0.6 for i in range(-14, 15)] + [8.6]:
-        f = 1.0 - (abs(x) / 8.6) ** 2
-        secs.append((x, 2.75, 3.4, 3.45, 3.25 + 0.75 * f, 3.4))
-    saddle = w.loft_x("saddle", secs, gloss, segments=36, power=2.3)
-    gloss_mid = pal("brg_gloss_mid", 0x3c, metallic=0.6, roughness=0.2)
-    back = pal("brg_back", 0x38, metallic=0.55, roughness=0.3)
-    # Shades as the sprite's: an oval glint on the crest (rows 9-11), lighter round it, the back darker.
-    w.paint_faces(saddle, lambda c, n: gloss_hi if n.z > 0.75 and (c.x / 3.6) ** 2 + ((c.y - 3.4) / 1.5) ** 2 < 1 else
-                  gloss_mid if n.z > 0.6 and (c.x / 6.6) ** 2 + ((c.y - 3.0) / 2.6) ** 2 < 1 else
-                  back if n.y > 0.55 else None)
-
-    # The ledge in front of it, across the whole width (row 14), and the lip below (rows 15-17).
-    w.loft_x("ledge", [(x, -0.75, 4.4, 0.75, 0.75, 0.75) for x in (-11.4, -10.8, 0.0, 10.8, 11.4)], plate,
-             segments=14)
-    lip = [(-8.1, -1.4), (8.1, -1.4), (8.1, -2.6), (7.2, -3.6), (6.4, -4.25), (-6.4, -4.25), (-7.2, -3.6), (-8.1, -2.6)]
-    lp = w.cushion("lip", w.ccw(lip), plate, lambda x, y: 4.0 - 0.35 * smoothstep(-2.4, -4.2, y), rounding=0.9,
-                   spacing=0.4)
-    w.paint_faces(lp, lambda c, n: light if n.z > 0.7 and c.y > -3.0 and abs(c.x) < 7.0 else None)
-    # The vent between the ledge and the lip: a red glow behind slats, posts at its ends.
-    w.rounded_box("vent", (0.0, -1.55, 3.6), (8.4, 1.3, 1.6), vent, bevel=0.3)
-    for x in (-2.5, 2.5):
-        w.rounded_box(f"slat{x:+.0f}", (x, -1.5, 3.9), (0.8, 1.4, 1.9), slat, bevel=0.25)
-    for side in (-1, 1):
-        w.rounded_box(f"post{side}", (side * 6.5, -1.6, 4.0), (1.4, 1.6, 2.6), light, bevel=0.35)
-    # The emitters under the lip, pointing down the screen, their tips glowing.
-    for side in (-1, 1):
-        x = side * 4.5
-        w.lathe_axis(f"emitter{side}", [(0.0, 0.95), (1.4, 0.95), (1.9, 0.75), (2.3, 0.7), (2.4, 0.0)], dark,
-                     (x, -3.6, 1.7), (0, -1, 0), 14)
-        w.sphere(f"emitter_tip{side}", (x, -5.85, 1.7), (0.6, 0.45, 0.6), tip, 10, 5)
-
-
-def import_arms():
-    """The arms (wave1_b.arm_ball), built by wave1_b.py's own code at x = -24 and 24 (for --whole)."""
-    import bpy
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wave1_b.py")
-    src = open(path).read().rsplit("\nmain()", 1)[0]
-    ns = {"__file__": path, "__name__": "wave1_b_preview"}
-    exec(compile(src, path, "exec"), ns)
-    for mirror, dx in ((True, 24.0), (False, -24.0)):  # the mirrored one first: arm_ball mirrors the scene
-        before = set(bpy.context.scene.objects)
-        ns["arm_ball"](mirror)
-        bake()
-        for o in [o for o in bpy.context.scene.objects if o not in before and o.type == "MESH"]:
-            o.data.transform(Matrix.Translation((dx, 0, 0)))
-
-
-@whole("arms", (72, 28))
-def arms_preview():
-    bridge_whole(with_arms=True)
-
-
-@model("arm_bridge", [91])
-def arm_bridge():
-    bridge_whole()
 
 
 # --- V 44, 46 and their mirror image V 85, 87: the grey claw ship (48 x 28, x = column - 24) -------------

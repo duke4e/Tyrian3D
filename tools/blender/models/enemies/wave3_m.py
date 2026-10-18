@@ -1,10 +1,8 @@
 """Enemies of wave 3, batch M (sheet J: TORM, BOTANY A, BONUS), the green machines; modelled as their
 sprites look (models.cfg: yaw=0). The building, the field gun and the small ground machines are in
 wave3_m_ground.py, the big green shell of ?TUNNEL? in wave3_m_shell.py.
+(The small green machine of TORM and BONUS, green_scarab (J 131), is built by polish_green_scarab.py.)
 
-- green_scarab (J 131): the small green machine of TORM and BONUS seen most: a green shell with a
-  pale canopy down its middle, rounded fenders, red lamps at its front corners and two red claws
-  at its back, a glowing slit in each, hooking in round a green tail.
 - green_tower_tl, green_tower_tr, green_tower_bl, green_tower_br (J 13, 15, 51, 53): the green tower
   of TORM, BONUS and BOTANY A, which the level events place as four sprites (13 and 15 above 51 and
   53): a wide ribbed plate on the ground, a fluted stem rising from it and leaning up the screen to
@@ -57,54 +55,6 @@ def greens(prefix):
 
 
 # --- J 131: the green scarab -----------------------------------------------------------------------
-
-@model("green_scarab", [(J, 131, True)])
-def green_scarab():
-    """A green shell with a pale canopy down its middle between rounded fenders, red lamps at its
-    front corners, and at its back two red claws with glowing slits hooking in round a green tail."""
-    g = w.grid(art.J131, 24)
-    m = greens("scarab")
-
-    def where(v, c, r):
-        if r <= 15:
-            return "b"
-        if r <= 22 and 8 <= c <= 15 and v >> 4 != 7:
-            return "t"
-        return "."
-    rows = w.regions(g, where)
-
-    def grooves(x, y, z):
-        d = 0.0
-        if -2.0 < y < 6.5:
-            d += math.exp(-((abs(x) - 5.6) / 0.45) ** 2)
-        return z - 0.7 * min(1.0, d)
-    body = w.part("body", rows, "b", m["green"], sh.pillow_profile(4.4, 2.6, crown=0.8), bottom=0.35, z_fn=grooves,
-                  spacing=0.6, epsilon=0.35)
-    w.decimate(body, 1900)
-    k.smooth(body, 50)
-    w.paint_faces(body, lambda c, n: m["deep"] if n.z < 0.2 else m["dark"] if abs(abs(c.x) - 5.6) < 0.5 and c.z < 4.4 and
-                  -2.0 < c.y < 6.5 else None)
-    tail = w.part("tail", rows, "t", m["mid"], sh.round_profile(0.8, max_height=3.2), bottom=0.3, spacing=0.5, grow=0.3)
-    w.decimate(tail, 500)
-    k.smooth(tail, 50)
-    w.paint_faces(tail, lambda c, n: m["deep"] if n.z < 0.3 else None)
-    # The canopy down the middle, its glossy crest and the two lights at its front.
-    w.sphere("canopy", (0.0, 3.3, 4.0), (2.75, 5.5, 2.8), m["cream"], 20, 10)
-    w.sphere("canopy_crest", (0.0, 1.8, 6.3), (1.3, 2.4, 0.8), m["glass"], 12, 6)
-    w.tube("canopy_rim", [(2.75 * math.cos(math.radians(t)), 3.3 + 5.4 * math.sin(math.radians(t)), 3.6)
-                          for t in range(0, 361, 20)], 0.38, m["dark"], 6)
-    for s in (-1, 1):
-        w.sphere(f"canopy_light{s}", (s * 1.0, 8.1, 4.4), (0.6, 0.6, 0.45), m["glass"], 8, 4)
-    # The fenders and the lamps at the front corners.
-    for s in (-1, 1):
-        f = w.sphere(f"fender{s}", (s * 7.4, 2.0, 2.4), (2.5, 5.0, 2.7), m["mid"], 16, 8)
-        w.paint_faces(f, lambda c, n: m["pale"] if n.z > 0.75 else None)
-        w.sphere(f"lamp{s}", (s * 5.7, 7.1, 3.5), (1.7, 1.15, 1.0), m["lamp"], 12, 6)
-    # The claws and the tail between them.
-    for s in (-1, 1):
-        w.claw(f"claw{s}", (s * 6.4, -0.8, 2.5), (s * 6.5, -7.2, 2.3), (s * 1.4, -10.2, 1.4), 2.05, m["red"], m["core"],
-               (0.35, 0.9), segments=12)
-    w.tube("tail_ridge", [(0.0, -1.0, 3.4), (0.0, -5.0, 3.0), (0.0, -8.4, 1.8)], 0.6, m["light"], 8)
 
 # --- The green pod and plate: the tower's parts, of which the skiffs are made too -------------------
 

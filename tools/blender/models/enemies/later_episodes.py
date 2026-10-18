@@ -2,24 +2,17 @@
 sprites do (models.cfg: yaw=0). Flames, lava and the parts of large structures stay volumetric.
 
 (crystal_blue, crystal_small, eye_ring, fan, orb_red, orb_eyes, sphere_nozzle, lava_ball, donut,
-disc_spokes, panel_gems, panel_pills, blob_red, ship_blue, cone_ship and claw_ship are built by
-polish_<name>.py, block_x and block_chevron by polish_blocks.py.)
+disc_spokes, panel_gems, panel_pills, ring_machine, bolt, arrow_purple, blob_red, ship_blue, cone_ship and
+claw_ship are built by polish_<name>.py, blob_big and drops by polish_blobs.py, block_x and
+block_chevron by polish_blocks.py.)
 """
-import math
 import os
 import sys
 
-import bpy
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import tyrkit as k  # noqa: E402
 import silhouette as s  # noqa: E402
-
-
-def pos(col, row, z=0.0, small=False):
-    """A sprite pixel's centre as model coordinates (2x2 sprite 24 x 28, 1x1 12 x 14)."""
-    w, h = (12, 14) if small else (24, 28)
-    return (col + 0.5 - w / 2, h / 2 - (row + 0.5), z)
 
 
 def rows(text):
@@ -31,15 +24,6 @@ def export(name):
     k.export(os.path.join(here, "..", "..", "..", "..", "assets", "models", "enemies", name + ".glb"))
 
 
-def torus(name, centre, major, minor, mat, rotation=(0, 0, 0)):
-    bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=40, minor_segments=12,
-                                     location=centre, rotation=rotation)
-    obj = bpy.context.active_object
-    obj.name = name
-    obj.data.materials.append(mat)
-    return k.smooth(obj, 60)
-
-
 def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness=1.4):
     k.reset()
     body = k.material(name + "_body", palette=body_index, metallic=0.45, roughness=0.35)
@@ -48,34 +32,6 @@ def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness
     s.plate("wings", r, -thickness / 2, thickness / 2, wings, bevel=0.35)
     s.fuselage("fuselage", r, body, max_radius=max_radius)
     export(name)
-
-
-def blobs():
-    # (blob_red: polish_blob_red.py)
-    k.reset()
-    red = k.material("blob_red", palette=115, metallic=0.15, roughness=0.2)
-    for i, (col, row, r) in enumerate([(11, 12, 10.2), (6, 8, 5.0), (15, 18, 5.0)]):
-        k.smooth(k.ellipsoid(f"blob{i}", pos(col, row, r * 0.7), (r, r, r * 0.8), red, 24, 12), 70)
-    export("blob_big")
-    k.reset()
-    red = k.material("drops_red", palette=117, metallic=0.15, roughness=0.15, emission=(200, 30, 0),
-                     emission_strength=0.3)
-    for i, (col, row, rx, ry) in enumerate([(6, 9, 4.6, 5.2), (18, 9, 4.6, 5.2), (12, 19, 4.6, 6.2)]):
-        k.smooth(k.ellipsoid(f"drop{i}", pos(col, row, 3.4), (rx, ry, 3.6), red, 24, 12), 70)
-    export("drops")
-
-
-def ring_machine():
-    k.reset()
-    grey = k.material("ringm_grey", palette=7, metallic=0.6, roughness=0.35)
-    red = k.material("ringm_red", palette=116, roughness=0.3, emission=(220, 30, 0), emission_strength=0.5)
-    c = pos(12, 13, 3.0)
-    torus("ring", c, 8.0, 2.8, grey)
-    for i, a in enumerate((90, 210, 330)):
-        r = math.radians(a)
-        k.smooth(k.ellipsoid(f"pod{i}", (c[0] + math.cos(r) * 8.6, c[1] + math.sin(r) * 9.4, c[2] + 1.2),
-                             (2.8, 2.8, 2.4), red, 16, 8), 60)
-    export("ring_machine")
 
 
 def drill():
@@ -91,18 +47,6 @@ def drill():
         k.smooth(k.lathe(f"thread{i}", [(y - 0.7, r + 0.1), (y, r + 0.7), (y + 0.7, r + 0.1)], dark, segments=24,
                          axis_z=8.0, squash=0.85), 60)
     export("drill")
-
-
-def bolt():
-    k.reset()
-    grey = k.material("bolt_grey", palette=5, metallic=0.65, roughness=0.3)
-    red = k.material("bolt_red", palette=117, roughness=0.3, emission=(220, 30, 0), emission_strength=0.6)
-    # The silhouette's half widths from the bottom (row 26) to the top (row 0).
-    profile = [(-12.5, 0.6), (-11.5, 2.0), (-10.0, 3.5), (-8.0, 4.8), (-5.0, 5.4), (-1.5, 5.0), (0.0, 3.2),
-               (3.5, 3.0), (5.5, 2.4), (7.0, 1.6), (8.0, 2.6), (10.0, 4.6), (11.5, 6.0), (13.0, 6.2), (13.6, 5.0)]
-    k.smooth(k.lathe("bolt", profile, grey, segments=24, axis_z=6.0, squash=0.85), 45)
-    k.smooth(k.lathe("band", [(-1.0, 4.4), (0.0, 5.6), (1.0, 4.4)], red, segments=24, axis_z=6.0, squash=0.85), 60)
-    export("bolt")
 
 
 BOMBER = """
@@ -136,52 +80,10 @@ BOMBER = """
 ........................
 """
 
-ARROW = """
-............#...........
-...........###..........
-..........#####.........
-.........#######........
-........#########.......
-......#############.....
-.....###############....
-....#################...
-....#################...
-....#################...
-....#################...
-....#################...
-.....###############....
-.....###############....
-.....###############....
-.....###############....
-.....###############....
-.....###############....
-......#############.....
-......#############.....
-.......###########......
-........#########.......
-.........#######........
-...........###..........
-........................
-........................
-........................
-........................
-"""
-
 def ships():
     # (ship_blue, cone_ship and claw_ship: polish_<name>.py)
     silhouette_ship("bomber", BOMBER, 7, 5, max_radius=4.2, thickness=1.8)
-    # The purple arrowhead: a thick plate with a ridge along it.
-    k.reset()
-    purple = k.material("arrow_purple", palette=89, metallic=0.35, roughness=0.3)
-    dark = k.material("arrow_dark", palette=83, metallic=0.4, roughness=0.4)
-    plate = s.plate("plate", rows(ARROW), 0.0, 2.6, purple, bevel=1.0)
-    k.smooth(plate, 35)
-    s.fuselage("ridge", rows(ARROW), dark, max_radius=2.4)
-    export("arrow_purple")
 
 
-blobs()
-ring_machine()
 drill()
-bolt()
 ships()

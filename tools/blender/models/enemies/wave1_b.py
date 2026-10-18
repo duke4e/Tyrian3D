@@ -1,9 +1,7 @@
 """Enemies of wave 1, batch B, modelled as their sprites look (models.cfg: yaw=0):
 
-- arm_ball_left, arm_ball_right (sheet V 89, V 93): a blue steel arm with a red ball, the left and the
-  right arm of a larger structure (GEM WAR, GRYPHON, STATION); one model mirrored.
-- tank_pod_left, tank_pod_right (sheet C 197, C 199): the two halves of a ship, each a green tank, a purple
-  rail and a ribbed coil gun whose glowing nozzles meet in the middle; one model mirrored.
+(tank_pod_left / tank_pod_right, C 197 / C 199, are built by polish_tank_pod.py; arm_ball_left /
+arm_ball_right, V 89 / V 93, by polish_arm_bridge.py.)
 - flame_drop (sheet 3 267): a drop of fire, its tip up the screen.
 - fire_orb (sheet A 277): a glossy glowing orange orb, red round the side; the sprite pulses darker
   (glow option).
@@ -93,16 +91,6 @@ def round_part(name, profile, mat, axis="y", at=0.0, z=0.0, squash=1.0, segments
     end = (at, last, zc) if axis == "y" else (last, at, zc)
     obj = k.loft(name, rings, mat, cap_start=cap, cap_end=cap, start_point=start, end_point=end)
     return k.smooth(obj, 50)
-
-
-def torus(name, centre, major, minor, mat, axis="z", segments=40):
-    rotation = {"z": (0, 0, 0), "x": (0, math.radians(90), 0), "y": (math.radians(90), 0, 0)}[axis]
-    bpy.ops.mesh.primitive_torus_add(major_radius=major, minor_radius=minor, major_segments=segments,
-                                     minor_segments=12, location=centre, rotation=rotation)
-    obj = bpy.context.active_object
-    obj.name = name
-    obj.data.materials.append(mat)
-    return k.smooth(obj, 60)
 
 
 def _inside(polygon, x, y):
@@ -396,53 +384,9 @@ def fire_bands(prefix, levels, strength=0.6):
             for lowest, shade in levels]
 
 
-# --- V 89 / V 93: the arm with the red ball ------------------------------------------------------
-
-def arm_ball(mirror=False):
-    steel = pal("arm_steel", 56, metallic=0.55, roughness=0.35)
-    light = pal("arm_light", 59, metallic=0.55, roughness=0.3)
-    rib = pal("arm_rib", 62, metallic=0.6, roughness=0.25)
-    dark = pal("arm_dark", 53, metallic=0.5, roughness=0.45)
-    red = pal("arm_ball", 70, metallic=0.25, roughness=0.15, glow=0.3, color=(170, 30, 15))
-
-    # The housing: a deck at the back (the sprite's light top) sloping down to the front; its right
-    # side joins the middle of the structure (V 91) and runs a little past the sprite's edge.
-    housing = edges([(8, 5), (14, 4), (22, 4), (24.8, 4.6), (24.8, 21.5), (23, 22.8), (21, 24.6), (20.5, 25),
-                     (15.5, 25), (13, 23.6), (11, 22.6), (9, 21.6), (8, 21)])
-
-    def housing_top(x, y):
-        return 9.0 - 3.4 * smoothstep(2.5, -10.5, y)
-
-    values = []
-    body = cushion("housing", housing, 0.0, housing_top, steel, rounding=1.8, values=values)
-    band_split(body, values, [(0.0, steel), (8.6, light)], smooth_angle=50)
-    # Ribs on the deck (the sprite's bright stripes at columns 9, 11 and 13).
-    for col in (9, 11, 13):
-        round_part(f"rib{col}", [(py(10.6), 0.15), (py(10.2), 0.5), (py(6.2), 0.5), (py(5.8), 0.15)], rib,
-                   axis="y", at=px(col), z=8.85, segments=12)
-    # The seam down the housing (column 15) and the ridge to the right (row 14).
-    cushion("seam", edges([(14.9, 5.8), (16.1, 5.8), (16.1, 23.2), (14.9, 23.2)]), 0.0,
-            lambda x, y: housing_top(x, y) + 0.45, light, rounding=0.45, spacing=0.5)
-    round_part("ridge", [(4.3, 0.2), (4.7, 0.55), (10.6, 0.55), (11.0, 0.2)], light, axis="x", at=py(14),
-               z=housing_top(0, py(14)) - 0.1, segments=12)
-    # The jaw under the ball, the collar round the ball, the ball.
-    cushion("jaw", edges([(1, 13), (8.8, 13), (8.8, 21), (7, 20.7), (3, 20.1), (2, 19.2), (1, 17.6)]), 0.0,
-            lambda x, y: 4.0 + 0.3 * smoothstep(-11, -5, x), steel, rounding=1.2)
-    torus("collar", (-4.0, 2.2, 5.4), 3.6, 0.9, dark, axis="x", segments=32)
-    k.smooth(k.ellipsoid("ball", (-7.0, 2.3, 5.4), (4.0, 4.1, 3.8), red, 28, 14), 70)
-    if mirror:
-        mirror_all()
-
-
-def arm_ball_left():
-    arm_ball(False)
-
-
-def arm_ball_right():
-    arm_ball(True)
-
-
-# --- C 197 / C 199: the tank pods ----------------------------------------------------------------
+# --- C 197 / C 199: the tank pod's old geometry ------------------------------------------------------
+# Not exported any more (polish_tank_pod.py builds tank_pod_left / _right): kept only as the base that
+# wave3_ao_deli.py's damaged tank halves (tank_pod_dmg_left / _right, C 45 / C 47) are wrecked from.
 
 def tank_pod(mirror=False):
     green = pal("pod_green", 40, metallic=0.35, roughness=0.3)
@@ -481,14 +425,6 @@ def tank_pod(mirror=False):
                     bevel_width=0.4), 35)
     if mirror:
         mirror_all()
-
-
-def tank_pod_left():
-    tank_pod(False)
-
-
-def tank_pod_right():
-    tank_pod(True)
 
 
 # --- 3 267: the drop of fire ---------------------------------------------------------------------
@@ -721,10 +657,6 @@ def comet_head():
 
 # name: (builder, [(sheet file, sprite)] its top view should match)
 MODELS = {
-    "arm_ball_left": (arm_ball_left, [("enemy_V", 89)]),
-    "arm_ball_right": (arm_ball_right, [("enemy_V", 93)]),
-    "tank_pod_left": (tank_pod_left, [("enemy_C", 197)]),
-    "tank_pod_right": (tank_pod_right, [("enemy_C", 199)]),
     "flame_drop": (flame_drop, [("enemy_3", 267)]),
     "fire_orb": (fire_orb, [("enemy_A", 277)]),
     "cell_sphere": (cell_sphere, [("enemy_3", 229), ("enemy_5", 89)]),

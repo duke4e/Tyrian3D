@@ -101,24 +101,6 @@ TAN_FIGHTER = """
 ........................
 """
 
-# BRAINIAC's small spiked ember (sprite 76, 1x1). Hex: shades of the fire ramp; k: black.
-EMBER = """
-.....0......
-....0a0.....
-.k00485000..
-.k955658b0..
-.0479c7540..
-08b9af86160.
-26864840243.
-01242202230.
-.1273k2540..
-.063551370..
-.00003100k..
-....040.....
-.....0......
-............
-"""
-
 # DREAD-NOT's small post with a red band (sprite 133, 1x1). Hex: grey shades; r: red; k: black.
 POST = """
 ............

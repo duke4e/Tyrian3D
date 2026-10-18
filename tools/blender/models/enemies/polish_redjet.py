@@ -848,4 +848,5 @@ def build():
             bpy.data.objects.remove(obj)
 
 
-build()
+if __name__ == "__main__":
+    build()

@@ -466,55 +466,6 @@ c####f#ggggggggggcf####c
 """)
 
 
-@model("twin_panel", "enemy_H", 284)
-def twin_panel():
-    """A blue-grey ship of GRYPHON and STATION: two housings with tall teal windows in the middle,
-    a crossbar under them, angled wings down both sides and a pointed keel below."""
-    hull = pal("twin_hull", 103, metallic=0.55, roughness=0.3)
-    light = pal("twin_light", 106, metallic=0.55, roughness=0.25)
-    dark = pal("twin_dark", 100, metallic=0.5, roughness=0.45)
-    glass = pal("twin_glass", 213, metallic=0.2, roughness=0.08, glow=0.6, emission=(60, 160, 190))
-    # The wings: the sprite's sides, sloping down outwards, with grooves.
-    for side in (-1, 1):
-        sx = lambda c: px(c) if side < 0 else px(23 - c) + 0.0
-        outline = [(sx(0) - 0.0, py(6.5)), (sx(3), py(4.5)), (sx(5.5), py(4.2)), (sx(6.5), py(5)), (sx(6.5), py(15.5)),
-                   (sx(0), py(15.6))]
-        if side > 0:
-            outline = outline[::-1]
-        wing = k.slab(f"wing{side}", outline, -0.8, 0.8, hull, bevel_width=0.35)
-        sh.apply_modifiers(wing)
-        for v in wing.data.vertices:
-            out = abs(v.co.x) - 5.5
-            v.co.z += 1.6 - 0.35 * max(0.0, out)
-        k.smooth(wing, 35)
-        for i, c in enumerate((1.5, 3.5)):
-            x = sx(c)
-            w.rounded_box(f"wing_rib{side}{i}", (x, py(10.8), 2.0 - 0.35 * max(0.0, abs(x) - 5.5)),
-                          (0.9, 8.6, 0.6), light, bevel=0.25)
-    # The middle: a block between the wings carrying the housings.
-    core = [(px(5.5), py(4.5)), (px(18.5), py(4.5)), (px(18.5), py(15.6)), (px(5.5), py(15.6))]
-    k.smooth(sh.inflate("core", [core], hull, sh.pillow_profile(2.6, 1.0), bottom=0.5, spacing=0.6), 45)
-    # The two housings with their windows.
-    for side in (-1, 1):
-        x = side * 3.6
-        w.rounded_box(f"house{side}", (x, py(5.2), 3.4), (4.6, 9.4, 3.2), light, bevel=0.8)
-        w.rounded_box(f"window{side}", (x, py(5.4), 4.85), (2.0, 7.4, 0.8), glass, bevel=0.3)
-        w.rounded_box(f"window_sill{side}", (x, py(9.9), 4.6), (3.0, 0.8, 0.8), dark, bevel=0.25)
-    # The dark gap between the housings and the cap on top of it.
-    w.rounded_box("gap", (0.0, py(4.5), 3.2), (2.0, 6.0, 2.2), dark, bevel=0.4)
-    w.rounded_box("crossbar", (0.0, py(10.6), 3.2), (15.4, 1.8, 1.8), light, bevel=0.6)
-    # The keel: a pointed shield below the crossbar with a ridge down its middle.
-    keel = [(px(6.5), py(11)), (px(17.5), py(11)), (px(17), py(15.5)), (px(13.4), py(19.6)), (0.0, py(20.4)),
-            (px(10.6), py(19.6)), (px(7), py(15.5))]
-    k.smooth(sh.inflate("keel", [keel], hull, sh.round_profile(0.45, max_height=3.0), bottom=0.5, base=0.6,
-                        spacing=0.5, sigma=1.6), 55)
-    ridge = [(0.0, py(11.5), 3.0), (0.0, py(15), 3.3), (0.0, py(18.6), 2.1)]
-    w.tube("ridge", w.catmull(ridge, 0.6), 0.55, light, 8)
-    for side in (-1, 1):
-        w.tube(f"keel_edge{side}", w.catmull([(side * 5.0, py(12.0), 2.2), (side * 4.4, py(15.4), 2.0),
-                                              (side * 1.6, py(18.6), 1.6)], 0.6), 0.4, dark, 8)
-
-
 # --- Main ----------------------------------------------------------------------------------------
 
 if __name__ == "__main__":

@@ -1,10 +1,9 @@
 """Round episode 1 enemies, facing the way their sprites do (models.cfg: yaw=0):
 
 - spike_mine (sheet A 169): a grey ball with spikes.
-- disc_turret (sheet F 39): a bronze disc with a red eye on the ground.
 
-(dome_green and dome_red, sheet A 17 and A 93, are built by polish_domes.py; band_sphere, bubbles and
-missile by polish_<name>.py.)
+(dome_green and dome_red, sheet A 17 and A 93, are built by polish_domes.py; band_sphere, bubbles,
+missile and disc_turret by polish_<name>.py.)
 """
 import math
 import os
@@ -57,22 +56,4 @@ def spike_mine():
     export("spike_mine")
 
 
-def disc_turret():
-    k.reset()
-    bronze = k.material("disc_bronze", palette=24, metallic=0.6, roughness=0.35)
-    dark = k.material("disc_dark", palette=19, metallic=0.5, roughness=0.5)
-    eye = k.material("disc_eye", palette=120, roughness=0.2, emission=(255, 60, 10), emission_strength=1.5)
-    c = pos(8.5, 9.5)
-    k.smooth(k.ellipsoid("disc", (c[0], c[1], 0.8), (7.4, 7.4, 2.6), dark, 32, 10), 60)
-    k.smooth(k.ellipsoid("dome", (c[0], c[1], 1.8), (6.0, 6.0, 4.4), bronze, 32, 14), 70)
-    k.smooth(k.ellipsoid("eye", (c[0] + 0.6, c[1] - 0.4, 5.6), (1.7, 1.7, 1.0), eye, 16, 8), 60)
-    # The pipe to the right and down, as the sprite shows it.
-    pipe = k.lathe("pipe", [(0, 1.1), (7, 1.1)], bronze, segments=12)
-    pipe.rotation_euler = (0, 0, math.radians(-120))
-    pipe.location = (c[0] + 4.5, c[1] - 1.0, 1.4)
-    k.smooth(pipe, 60)
-    export("disc_turret")
-
-
 spike_mine()
-disc_turret()

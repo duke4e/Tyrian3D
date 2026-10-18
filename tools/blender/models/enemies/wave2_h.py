@@ -6,7 +6,6 @@
   tilted towards the camera as the sprite draws it.
 - squid_ship (sheet 7 237): the grey and blue ship of CAMANIS and ICE EXIT with hanging claws and a
   glowing engine (its frames only change the flame, which the model's emissive engine stands for).
-- eyespy_eye (sheet 5 202): EYESPY's eyeball, its pupil authored up the screen (yaw=aim).
 - asteroid_turret (sheet P 13): the grey turret of ASTEROID2 with a bronze dome; its frames are eight
   headings the level picks, so the model is built pointing up the screen and aims at the player.
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
@@ -20,7 +19,7 @@
 - twin_claw_left, twin_claw_right (sheet 3 8, 3 10): the two halves of the claw ship of SURFACE, CORE
   and ICE EXIT, back to back with a glowing core between them; each half's claws hold a flame
   (origin, mirror images).
-- brain_clamp (sheet 5 166): BRAINIAC's red brain held by grey clamps.
+(brain_clamp, sheet 5 166, and eyespy_eye, 5 202, are built by polish_<name>.py.)
 
 usage: Blender -b --factory-startup -P wave2_h.py -- [--only name,name] [--preview <prefix>]
        [--check <TYR3D_EXTRACT sheets dir>] [--stats 1]
@@ -34,7 +33,6 @@ import sys
 
 import bmesh
 import bpy
-import numpy as np
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -77,38 +75,6 @@ def desert_rock_tip():
         return 0 if d < 0.55 else 1 if d < 1.3 else 2
 
     kit.solid("tip", polys, top, 0.0, [dark, mid, tan], mat, side_mat=0, spacing=0.3, smooth_angle=35, cut=cut)
-
-
-# --- 5 202: the eye ------------------------------------------------------------------------------
-
-def eyespy_eye():
-    """An eyeball (11 pixels across) looking up the screen and a little up at the camera: with
-    yaw=aim it looks at the player, as the sprite's eye looks down at him."""
-    pupil = pal("eye_pupil", 0x01, metallic=0.0, roughness=0.08)
-    iris = pal("eye_iris", 0x05, metallic=0.1, roughness=0.2)
-    iris_rim = pal("eye_iris_rim", 0x08, metallic=0.1, roughness=0.25)
-    ring = pal("eye_ring", 0x03, metallic=0.0, roughness=0.3)
-    white = pal("eye_white", 0x0b, metallic=0.05, roughness=0.18)
-    shade = pal("eye_shade", 0x09, metallic=0.05, roughness=0.3)
-    centre, radius = Vector((0.5, 0.5, 5.5)), 5.5
-    look = Vector((0.0, math.sin(math.radians(24)), math.cos(math.radians(24))))
-    bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=32, radius=1.0)
-    values = []
-    for v in bm.verts:
-        n = v.co.normalized()
-        angle = math.degrees(n.angle(look))
-        # The cornea bulges over the iris; the pupil sits a little deeper.
-        bulge = 0.05 * (1 - smoothstep(0, 34, angle)) - 0.03 * (1 - smoothstep(6, 11, angle))
-        v.co = centre + n * radius * (1 + bulge)
-        values.append(-angle)
-    mesh = bpy.data.meshes.new("eye")
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new("eye", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    kit.band_split(obj, values, [(-999, shade), (-110, white), (-35, ring), (-32, iris_rim), (-27, iris),
-                                 (-11, pupil)], smooth_angle=80)
 
 
 # --- L 115: the lava ball ------------------------------------------------------------------------
@@ -416,75 +382,6 @@ def twin_claw_left():
 def twin_claw_right():
     twin_claw()
     kit.mirror_all()
-
-
-# --- 5 166: the brain in its clamps --------------------------------------------------------------
-
-# r the brain, m the clamps' metal (palette ramp 6), as sprite 5 166 draws them.
-BRAIN = G2.art("""
-mmmm.....rrrr......mmmmm
-mmmmrrrrrrrrrrrrrrrrmmmm
-mmmmrrmmmrrrrrrrrrrrrmmm
-mmmmrrmrrrrrrrrrrrrrrmmm
-mmmmrrmrrrrrrrrrrrrrrmmm
-mmmmmmmrrrrrrrrrmmmmmm.m
-mmmrrrrrrrrrrrrrrrrrmmmm
-.mmrrrrrrrrrrrrrmmmmmmm.
-.mmrrrrrrrrrrrrrmrrrrmm.
-..mrrrrrrrmmmmmmmrrrrm..
-..mrrrrrrrmmmmrrrrrrrm..
-..mrrrrrrrmmmmrrrrrrrm..
-...rrrrrrrmmmmrrrrrrr...
-....rrrrrrmmmmrrrrrr....
-.........mmmmm..........
-""")
-
-
-def brain_clamp():
-    """A red brain, folded and glowing along its middle, held by grey clamps: brackets over its
-    upper corners joined by bars, bands down its sides and a clamp under it."""
-    flesh = [pal("brain_" + str(i), 0x70 + i, metallic=0.15, roughness=0.35) for i in (1, 2, 3, 4, 5)]
-    seam = pal("brain_seam", 0x78, metallic=0.0, roughness=0.3, glow=1.4, color=(255, 60, 20))
-    eye = pal("brain_eye", 0x7b, metallic=0.0, roughness=0.2, glow=2.5, color=(255, 170, 50))
-    metal = pal("clamp_metal", 0x68, metallic=0.65, roughness=0.3)
-    metal_light = pal("clamp_light", 0x69, metallic=0.65, roughness=0.25)
-    metal_dark = pal("clamp_dark", 0x63, metallic=0.55, roughness=0.45)
-    whole = G2.polys(BRAIN, "rm", smooth=1, epsilon=0.3)
-    brain_poly = G2.polys(sh.grow(BRAIN, "r", "m", 1), "r", smooth=2, epsilon=0.3)
-    edge = kit.distance_to(brain_poly)
-
-    def folds(x, y):
-        return math.sin(0.95 * x + 1.5 * math.sin(0.5 * y + 0.35 * x)) * math.sin(0.85 * y + 0.9 * math.sin(0.5 * x))
-
-    def brain_top(x, y, d=None):
-        d = edge(x, y) if d is None else d
-        return 0.8 + 5.2 * round_edge(d, 4.0) + 0.35 * folds(x, y) * smoothstep(0.3, 2.0, d)
-
-    body = kit.solid("brain", brain_poly, brain_top, 0.0, flesh[2], spacing=0.85)
-    kit.band_split(body, [folds(v.co.x, v.co.y) if v.co.z > 1.2 else -2 for v in body.data.vertices],
-                   [(-9, flesh[0]), (-0.45, flesh[1]), (0.1, flesh[3]), (0.7, flesh[4])],
-                   smooth_angle=60)
-    # The glowing seam along the middle and the bright eye on the left.
-    seam_path = [(G2.x(10.8), G2.y(0.8)), (G2.x(10.8), G2.y(4.0)), (G2.x(11.5), G2.y(5.6)), (G2.x(14.5), G2.y(5.8))]
-    path = kit.catmull([(x, y, brain_top(x, y) - 0.15) for x, y in seam_path], 0.5)
-    kit.tube("seam", path, [0.55] * len(path), seam, 8, squash=0.8)
-    ex, ey = G2.x(5.5), G2.y(7.6)
-    kit.ellipsoid("eye", (ex, ey, brain_top(ex, ey) - 0.2), (1.3, 1.2, 0.8), eye, 16, 8)
-    # The clamps: bevelled metal over the brain's edge.
-    clamp_rows = ["".join(ch if ch == "m" else "." for ch in row) for row in BRAIN]
-    clamps = G2.polys(clamp_rows, "m", smooth=1, epsilon=0.3, min_area=0.8)
-    for i, poly in enumerate(clamps):
-        def top(x, y, d, poly=poly):
-            base = max(brain_top(x, y) if edge(x, y) > 0 and sh._inside(np.array([(x, y)]), *sh._segments(brain_poly))[0]
-                       else 2.5, 2.5)
-            return base + 0.3 + 0.8 * round_edge(d, 0.45)
-        kit.solid(f"clamp{i}", [poly], top, 0.4, [metal, metal_light], lambda x, y, z, d: 1 if d > 0.5 else 0,
-                  side_mat=0, spacing=0.55, smooth_angle=40, band=0.7)
-    # Bolts on the corner brackets and the lower clamp.
-    for col, row in ((1.6, 2.0), (21.8, 2.5), (11.8, 11.5)):
-        x, y = G2.x(col), G2.y(row)
-        kit.ellipsoid(f"bolt{col}", (x, y, 3.9 if row < 5 else brain_top(x, y) + 1.0), (0.7, 0.7, 0.45), metal_dark,
-                      12, 6)
 
 
 # --- 7 237: the squid ship -----------------------------------------------------------------------
@@ -804,14 +701,12 @@ def bronze_yuanbao():
 E = kit.ENEMIES
 MODELS = [
     ("desert_rock_tip", desert_rock_tip, [("3", 180, False)], E),
-    ("eyespy_eye", eyespy_eye, [("5", 202, False)], E),
     ("molten_rock", molten_rock, [("L", 115, False)], E),
     ("dark_ember", dark_ember, [("L", 118, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
     ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
-    ("brain_clamp", brain_clamp, [("5", 166, True)], E),
     ("squid_ship", squid_ship, [("7", 237, True)], E),
     ("bronze_yuanbao", bronze_yuanbao, [("H", 93, True)], E),
     ("fire_flap_r_top", fire_flap_r_top, [("A", 237, True)], E),

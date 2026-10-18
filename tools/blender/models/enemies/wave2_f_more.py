@@ -10,9 +10,8 @@ into the sprites' pieces, which are drawn at their own origins (models.cfg: orig
   STATION: a blue armoured head and the spiral drill below it. (V 39 had a stand-alone drill.)
 - asteroid_tl, asteroid_tr, asteroid_bl, asteroid_br (sheet D 7, 9, 45, 47): the big lumpy asteroid
   of the asteroid levels, lying on the ground.
-- pod_turret (sheet C 191): the blue twin-hulled machine of DELI and BONUS with two pods, a grey
-  gun and a pink nozzle; its green fins glow (the animation brightens them).
-- pod_dome (sheet C 163): its relative on the ground: a blue double dome, the two pods and the grey
+- pod_dome (sheet C 163): the ground relative of DELI's flying pod machine (pod_turret, C 191, is built by
+  polish_pod_turret.py): a blue double dome, the two pods and the grey
   gun pointing down the screen with blue lights at its muzzle.
 
 usage: blender -b --factory-startup -P wave2_f_more.py -- [--only name,name] [--preview <prefix>]
@@ -492,38 +491,6 @@ def pod_materials(prefix):
             pal(prefix + "_grey", 8, metallic=0.65, roughness=0.3), pal(prefix + "_greylight", 9, metallic=0.65,
                                                                        roughness=0.25),
             pal(prefix + "_dark", 1, metallic=0.4, roughness=0.6))
-
-
-@model("pod_turret", "enemy_C", 191)
-def pod_turret():
-    """The flying pod machine: a blue hull of two lobes with glowing green fins on its sides, two pods,
-    the grey gun housing pointing up the screen and a pink nozzle on top of the hull in front of it."""
-    px, py = w.px, w.py
-    mats = pod_materials("podt")
-    blue = pal("podt_blue", 56, metallic=0.4, roughness=0.28)
-    blue_light = pal("podt_bluelight", 59, metallic=0.4, roughness=0.25)
-    green = pal("podt_green", 37, roughness=0.3, glow=0.6, emission=(40, 170, 40))
-    pink = pal("podt_pink", 91, metallic=0.3, roughness=0.25)
-    pink_light = pal("podt_pinklight", 94, metallic=0.3, roughness=0.2)
-    dark = mats[4]
-    # The hull: two lobes side by side under the pods, their outer lower quarters the glowing green fins.
-    for side in (-1, 1):
-        centre = (side * 5.8, py(19.2), 1.6)
-        k.smooth(k.ellipsoid(f"lobe{side}", centre, (6.2, 5.8, 3.4), blue, 32, 14), 60)
-        fin = k.ellipsoid(f"fin{side}", centre, (6.35, 5.95, 3.55), green, 40, 18)
-        # The fin: the shell's outer lower part, cut along a slant.
-        n = Vector((-side * 0.95, 0.32, 0.0)).normalized()
-        sh.cut_planes([fin], [((side * 8.2, py(17.5), 0.0), n), ((0.0, py(17.0), 0.0), (0, 1, 0))])
-        k.smooth(fin, 60)
-    w.rounded_box("keel", (0.0, py(15.0), 2.0), (21.0, 5.0, 3.2), blue_light, bevel=1.2)
-    pod_parts("", 1, mats)
-    # The pink nozzle in front of the gun: a tube leaning towards the camera, its dark bore at the top.
-    base, axis = Vector((0.0, py(21.5), 3.0)), Vector((0.0, 0.85, 0.55)).normalized()
-    w.lathe_axis("nozzle", [(0.0, 2.6), (6.6, 2.9), (7.2, 3.3), (8.4, 3.3), (8.8, 2.9)], pink, base, axis, 24)
-    w.lathe_axis("nozzle_bore", [(0.0, 0.01), (0.05, 2.2), (0.5, 2.2), (0.55, 0.01)], dark, base + axis * 8.6,
-                 axis, 16)
-    w.lathe_axis("nozzle_band", [(0.0, 2.75), (0.2, 3.05), (1.0, 3.05), (1.2, 2.75)], pink_light,
-                 base + axis * 3.2, axis, 24)
 
 
 @model("pod_dome", "enemy_C", 163)

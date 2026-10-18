@@ -1,10 +1,8 @@
 """Enemies of wave 3, batch R (sheet G), the creatures and ships of GRYPHON, GEM WAR, MARKERS, GYGES,
 MISTAKES and SOH JIN; modelled as their sprites look (models.cfg: yaw=0). The grey machines on TORM's
 leaves are in wave3_r.py.
+(GRYPHON's blue orb tower, orb_tower (G 201), is built by polish_orb_tower.py.)
 
-- orb_tower (G 201): GRYPHON's blue tower (custom events 51, 144 of them): a glowing pale blue orb on a
-  collar at the top of a tapering body with a square port through it, two pillars down its front, a
-  wing block out to each side and brown claws at its foot.
 - blue_chevron (G 163): GEM WAR's and MARKERS' blue chevron rising from the bottom of the screen (enemy
   809): an armoured arrowhead pointing up the screen, two shoulder plates with pale rims, two red eyes
   glowing in the crease under them, broad plates sweeping down to red-tipped wings and a notch between
@@ -63,59 +61,6 @@ def painter(g, keep, bands, origin=(12, 14), wall_drop=2.0, under=None, blur=1, 
 
 
 # --- G 201: the orb tower ---------------------------------------------------------------------------
-
-@r.model("orb_tower", [(201, True)])
-def orb_tower():
-    """A pale blue orb glowing on a collar at the top of a tapering blue body with a port through it and
-    two light pillars down its front, a wing block out to each side, brown claws at its foot."""
-    g = w.grid(art.TOWER, 24)
-    bands = ramp_bands("tower", 3, [1, 3, 5, 7, 9, 0xb, 0xd], metallic=0.15, roughness=0.35)
-    orb = pal("tower_orb", 0x3b, metallic=0.05, roughness=0.12, glow=0.6)
-    orb_hot = pal("tower_orb_hot", 0x3e, metallic=0.0, roughness=0.1, glow=1.1)
-    claw = pal("tower_claw", 0xa5, metallic=0.2, roughness=0.45)
-    claw_light = pal("tower_claw_light", 0xa9, metallic=0.2, roughness=0.4)
-    paint = painter(g, lambda v: v >> 4 == 3, bands, lift=1.0)
-
-    def body_char(v, c, row):
-        if v >> 4 != 3 or v == 0x30:
-            return "."  # the outline (the darkest blue) is left to the parts' grown edges
-        if row <= 7:
-            return "o"
-        if 13 <= row <= 18 and (c <= 5 or c >= 17):
-            return "w"
-        return "b"
-    rows = w.regions(g, body_char)
-
-    # The body: high under the orb, lower towards its foot; the port goes through it.
-    def body_z(x, y, z):
-        return z * (0.5 + 0.5 * r.smoothstep(-12.0, 5.0, y))
-    body = r.inflated("body", rows, "b", bands[3][1], sh.pillow_profile(8.6, 2.4, crown=0.8), z_fn=body_z, grow=0.95,
-                      spacing=0.6)
-    w.paint_faces(body, paint)
-    wings = r.inflated("wings", rows, "w", bands[3][1], sh.pillow_profile(4.6, 1.5, crown=0.4), grow=0.95,
-                       spacing=0.6)
-    w.paint_faces(wings, paint)
-    # The pillars down the front (columns 6-7 and 15-16).
-    for c in (6.5, 15.5):
-        x = px(c)
-        top = [(x, y, body_z(x, y, 8.6) + 0.15) for y in (py(12.5), py(16), py(19.5), py(21.5))]
-        w.tube(f"pillar{c}", w.catmull(top, 0.8), 0.8, bands[4][1], 10, squash=0.6)
-    # The collar and the orb, its top glowing brighter.
-    ox, oy = px(11), py(4.3)
-    w.hoop("collar", (ox, oy - 1.4, 6.6), [(3.2, -0.6), (4.6, -0.5), (4.8, 0.3), (3.6, 0.8)], bands[4][1], 32,
-           scale_y=0.8)
-    ball = w.sphere("orb", (ox, oy, 9.4), (5.3, 4.9, 4.6), orb, 28, 14)
-    w.sphere("orb_core", (ox - 0.6, oy + 0.5, 11.0), (3.5, 3.4, 3.6), orb_hot, 24, 12)
-    # The claws at its foot, curling out and down.
-    for s in (-1, 1):
-        cx0 = ox + s * 4.2
-        path = [(cx0, py(20.5), 3.0), (cx0 + s * 2.4, py(21.5), 2.6), (cx0 + s * 4.6, py(22.5), 1.4),
-                (cx0 + s * 5.4, py(24.0), 0.3)]
-        pts = w.catmull(path, 0.6)
-        w.tube(f"claw{s}", pts, [1.35 - 0.85 * (i / (len(pts) - 1)) ** 1.5 for i in range(len(pts))], claw, 10)
-        w.sphere(f"claw_knuckle{s}", (cx0 + s * 2.2, py(21.2), 3.2), (1.3, 1.1, 0.9), claw_light, 12, 6)
-    r.budget(4800, floor=600)
-
 
 # --- G 163: the blue chevron ---------------------------------------------------------------------------
 

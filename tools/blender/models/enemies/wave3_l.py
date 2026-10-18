@@ -3,7 +3,6 @@ look (models.cfg: yaw=0 unless noted):
 
 - tan_fighter (5 49): APPROACH's tan fighter, nose down: a V tail, broad wings over grey rails, a
   brass canopy and canards by the nose.
-- ember (5 76): BRAINIAC's small spiked ember on the ground, glowing where the sprite is bright.
 - visor_post (5 133): DREAD-NOT's small grey post with a glowing red visor, lying as drawn.
 - purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
 - flesh_stinger (5 207): BRAINIAC's fleshy stinger, a capped beak of two halves.
@@ -89,32 +88,6 @@ def tan_fighter():
                            (8.0, 20.0), (5.4, 18.8)])
     w.bevelled_slab("canards", canard, -0.4, 0.4, tan, bevel=0.3,
                     z_fn=lambda x, y, z: z + zc + 0.3 + 0.35 * w.smoothstep(2.5, 7.0, abs(x - ax)))
-
-
-# --- 5 76: the ember ----------------------------------------------------------------------------
-
-def lava_bands(prefix, levels):
-    """Materials for molten parts in the fire ramp: [(lowest shade, palette index, glow)]."""
-    return [(lowest, pal(f"{prefix}_{index:x}", index, metallic=0.0, roughness=0.55, glow=glow))
-            for lowest, index, glow in levels]
-
-
-@model("ember", 76, large=False)
-def ember():
-    """A small spiked ember on the ground (as BRAINIAC's lava star, 5 278): a lumpy crust over the
-    sprite's outline, its four short spikes included, bulging and glowing where the sprite is bright."""
-    a = w.Art(art.EMBER, (6, 7))
-    shade = w.shade_field(a, blur=0, letters={"k": 0})
-    bands = lava_bands("ember", ((0.0, 0x72, 0.3), (2.5, 0x74, 0.5), (4.0, 0x76, 0.7), (5.5, 0x77, 0.85),
-                                 (7.0, 0x79, 1.0), (9.0, 0x7b, 1.25), (11.0, 0x7d, 1.5)))
-    polys = a.polys(smooth=1, epsilon=0.35)
-
-    def bulge(x, y, z):
-        lumps = 0.25 * math.sin(2.3 * x + 1.1) * math.sin(2.1 * y + 0.4)
-        return z + (0.9 * max(0.0, shade(x, y) - 4.0) / 10.0 + lumps) * min(1.0, z / 1.2)
-    blob = w.rounded("blob", polys, bands[0][1], aspect=0.85, max_height=4.2, spacing=0.3, z_fn=bulge, angle=40)
-    w.simplify_flat(blob)
-    w.paint_bands(blob, lambda c, n: shade(c.x, c.y) + 0.8 * max(0.0, n.z) - 0.4, bands)
 
 
 # --- 5 133: DREAD-NOT's post ---------------------------------------------------------------------
