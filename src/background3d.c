@@ -759,6 +759,201 @@ void b3d_note_tileset(char letter, const Uint16 shape_numbers[3][128])
 	memcpy(tile_shapes, shape_numbers, sizeof(tile_shapes));
 }
 
+/*
+ * HD tiles (tools/tiles_hd.py, <upscale>/tiles/<tileset>.hdt): the tileset's tiles upscaled in
+ * context and kept in the levels' palette, by shape number, loaded for the tileset of the maps.
+ * TYR3D_HD_TILES=0: none.
+ */
+static struct
+{
+	char tileset;   // the tileset they are of (0: none looked for yet)
+	int scale;      // times the original's size (1: none)
+	int count;
+	Uint16 *shapes;  // ascending
+	Uint8 *pixels;   // count tiles of scale² · B3D_TILE_W · B3D_TILE_H palette indices
+} hd_tiles;
+
+static void load_hd_tiles(void)
+{
+	if (hd_tiles.tileset == tileset_letter)
+		return;
+	free(hd_tiles.shapes);
+	free(hd_tiles.pixels);
+	memset(&hd_tiles, 0, sizeof(hd_tiles));
+	hd_tiles.tileset = tileset_letter;
+	hd_tiles.scale = 1;
+	const char *off = SDL_getenv("TYR3D_HD_TILES");
+	if (tileset_letter == 0 || (off != NULL && SDL_atoi(off) == 0))
+		return;
+
+	const unsigned char letter = (unsigned char)SDL_tolower((unsigned char)tileset_letter);
+	char name[8], dir[1024], path[1200];
+	if (SDL_isalnum(letter))
+		snprintf(name, sizeof(name), "%c", letter);
+	else
+		snprintf(name, sizeof(name), "x%02x", letter);
+	snprintf(path, sizeof(path), "%s/tiles/%s.hdt", tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir,
+	         sizeof(dir)), name);
+	FILE *f = fopen(path, "rb");
+	if (f == NULL)
+		return;
+	Uint8 header[14];
+	Uint8 *packed = NULL, *data = NULL;
+	long packed_size = 0;
+	bool ok = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYHT", 4) == 0;
+	const int version = header[4] | header[5] << 8, scale = header[6] | header[7] << 8;
+	const int tw = header[8] | header[9] << 8, th = header[10] | header[11] << 8, count = header[12] | header[13] << 8;
+	ok = ok && version == 1 && scale >= 2 && scale <= 8 && tw == B3D_TILE_W && th == B3D_TILE_H && count > 0;
+	if (ok && fseek(f, 0, SEEK_END) == 0 && (packed_size = ftell(f) - (long)sizeof(header)) > 0 &&
+	    fseek(f, (long)sizeof(header), SEEK_SET) == 0)
+	{
+		packed = malloc((size_t)packed_size);
+		ok = packed != NULL && fread(packed, 1, (size_t)packed_size, f) == (size_t)packed_size;
+	}
+	else
+		ok = false;
+	fclose(f);
+	const size_t tile_bytes = (size_t)scale * scale * B3D_TILE_W * B3D_TILE_H;
+	uLongf size = (uLongf)(count * (2 + tile_bytes));
+	if (ok)
+	{
+		data = malloc(size);
+		ok = data != NULL && uncompress(data, &size, packed, (uLong)packed_size) == Z_OK &&
+		     size == (uLongf)(count * (2 + tile_bytes));
+	}
+	free(packed);
+	if (ok)
+	{
+		hd_tiles.shapes = malloc(count * sizeof(Uint16));
+		hd_tiles.pixels = malloc(count * tile_bytes);
+		ok = hd_tiles.shapes != NULL && hd_tiles.pixels != NULL;
+	}
+	if (!ok)
+	{
+		fprintf(stderr, "warning: HD tiles: can't read %s\n", path);
+		free(data);
+		free(hd_tiles.shapes);
+		free(hd_tiles.pixels);
+		hd_tiles.shapes = NULL;
+		hd_tiles.pixels = NULL;
+		return;
+	}
+	for (int k = 0; k < count; ++k)
+	{
+		const Uint8 *entry = data + k * (2 + tile_bytes);
+		hd_tiles.shapes[k] = (Uint16)(entry[0] | entry[1] << 8);
+		memcpy(hd_tiles.pixels + k * tile_bytes, entry + 2, tile_bytes);
+	}
+	free(data);
+	hd_tiles.count = count;
+	hd_tiles.scale = scale;
+	printf("tiles: %d HD tiles (%dx) from %s\n", count, scale, path);
+}
+
+int b3d_hd_scale(void)
+{
+	load_hd_tiles();
+	return hd_tiles.scale;
+}
+
+// A tile's HD pixels, or NULL if it has none.
+static const Uint8 *hd_tile(int set, int kind)
+{
+	const Uint16 shape = tile_shapes[set - 1][kind];
+	int lo = 0, hi = hd_tiles.count - 1;
+	while (lo <= hi)
+	{
+		const int mid = (lo + hi) / 2;
+		if (hd_tiles.shapes[mid] == shape)
+			return hd_tiles.pixels + (size_t)mid * hd_tiles.scale * hd_tiles.scale * B3D_TILE_W * B3D_TILE_H;
+		if (hd_tiles.shapes[mid] < shape)
+			lo = mid + 1;
+		else
+			hi = mid - 1;
+	}
+	return NULL;
+}
+
+// Scale2x of palette indices (each pixel becomes four, diagonal edges rounded, colours kept).
+static void scale2x_indices(const Uint8 *src, int w, int h, Uint8 *dst)
+{
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			const Uint8 p = src[y * w + x];
+			const Uint8 a = y > 0 ? src[(y - 1) * w + x] : p, b = x < w - 1 ? src[y * w + x + 1] : p;
+			const Uint8 c = x > 0 ? src[y * w + x - 1] : p, d = y < h - 1 ? src[(y + 1) * w + x] : p;
+			Uint8 *out = dst + (2 * y) * (2 * w) + 2 * x;
+			out[0] = c == a && c != d && a != b ? a : p;
+			out[1] = a == b && a != c && b != d ? b : p;
+			out[2 * w] = d == c && d != b && c != a ? c : p;
+			out[2 * w + 1] = b == d && b != a && d != c ? d : p;
+		}
+}
+
+// A tile without HD pixels enlarged to the HD scale: Scale2x as often as it doubles, the rest
+// (an odd scale) by repeating pixels.
+static void enlarge_tile(const Uint8 *tile, int scale, Uint8 *out)
+{
+	static Uint8 a[B3D_TILE_W * B3D_TILE_H * 64], b[B3D_TILE_W * B3D_TILE_H * 64];
+	int w = B3D_TILE_W, h = B3D_TILE_H, k = 1;
+	memcpy(a, tile, (size_t)w * h);
+	while (k * 2 <= scale && scale % (k * 2) == 0 && k * 2 <= 8)
+	{
+		scale2x_indices(a, w, h, b);
+		w *= 2;
+		h *= 2;
+		k *= 2;
+		memcpy(a, b, (size_t)w * h);
+	}
+	const int rest = scale / k;
+	for (int y = 0; y < h * rest; ++y)
+		for (int x = 0; x < w * rest; ++x)
+			out[y * w * rest + x] = a[(y / rest) * w + x / rest];
+}
+
+void b3d_build_atlas_hd(Uint8 *indices, Uint8 *opaque, Uint8 *ground)
+{
+	const int s = b3d_hd_scale(), w = B3D_ATLAS_W * s, h = B3D_ATLAS_H * s, tw = B3D_TILE_W * s, th = B3D_TILE_H * s;
+	memset(indices, 0, (size_t)w * h);
+	memset(opaque, 0, (size_t)w * h);
+	memset(ground, 0, (size_t)w * h);
+
+	int bx, by;
+	b3d_cell_origin(B3D_BLANK_CELL, &bx, &by);
+	for (int y = -s; y < th + s; ++y)
+		memset(ground + (by * s + y) * w + bx * s - s, 1, (size_t)B3D_CELL_W * s);
+
+	for (int set = 1; set <= B3D_SETS; ++set)
+	{
+		const MapSet m = map_set(set);
+		for (int k = 0; k < m.tile_count; ++k)
+		{
+			const Uint8 *tile = m.first_tile + k * m.tile_stride;
+			const Uint8 *hd = hd_tile(set, k);
+			static Uint8 enlarged[B3D_TILE_W * B3D_TILE_H * 64];
+			if (hd == NULL && s <= 8)
+			{
+				enlarge_tile(tile, s, enlarged);
+				hd = enlarged;
+			}
+			int ox, oy;
+			b3d_cell_origin((set - 1) * B3D_TILES_PER_SET + k, &ox, &oy);
+			// The tile (its HD pixels, or its own enlarged) and a border repeating its edge.
+			for (int y = -s; y < th + s; ++y)
+				for (int x = -s; x < tw + s; ++x)
+				{
+					const int cy = SDL_clamp(y, 0, th - 1), cx = SDL_clamp(x, 0, tw - 1);
+					const Uint8 index = hd != NULL ? hd[cy * tw + cx] : tile[(cy / s) * B3D_TILE_W + cx / s];
+					const int i = (oy * s + y) * w + ox * s + x;
+					indices[i] = index;
+					opaque[i] = index != 0;
+					ground[i] = set == 1;
+				}
+		}
+	}
+}
+
 #define EXPORT_PART_ROWS 72
 
 Uint64 b3d_map_hash(int set)

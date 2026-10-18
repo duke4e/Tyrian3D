@@ -246,6 +246,23 @@ static Uint8 tile_ground[B3D_ATLAS_W * B3D_ATLAS_H];
 static Uint32 tile_rgba[B3D_ATLAS_W * B3D_ATLAS_H];
 static bool tile_indices_valid = false;
 static unsigned int tile_indices_generation;  // b3d_map_generation of tile_indices
+/*
+ * HD tiles (b3d_hd_scale): a second atlas texture, hd_scale times larger and laid out the same (its
+ * cells, borders and pages scaled), so the tiles' texture coordinates hold for both. Colouring HD
+ * pages and terrain rows takes long, so while the frame's colours keep changing (fades, the flare's
+ * flicker) the tiles show at their own size, and the HD ones are coloured once the colours have held
+ * for a moment, a few a frame (hd_budget).
+ */
+static int hd_scale = 1;  // the scale tile_atlas_hd has (1: there is none)
+static BTBHGPUTexture *tile_atlas_hd = NULL;
+static Uint8 *hd_indices = NULL, *hd_opaque = NULL, *hd_ground = NULL;
+static Uint32 *hd_rgba = NULL;
+static size_t hd_capacity = 0;
+static unsigned int hd_generation = 0;  // b3d_map_generation + 1 of hd_indices
+static int hd_budget = 0;               // HD terrain rows still to colour this frame (an atlas page takes all)
+static int colors_stable = 0;           // frames the frame's colours have held
+#define HD_ROWS_PER_FRAME 2             // (a row takes a millisecond or two, a page a few)
+#define HD_STABLE_FRAMES 2
 static struct
 {
 	bool valid;
@@ -253,6 +270,7 @@ static struct
 	Uint32 colors_hash;
 	bool ground_zero;         // colour 0 of background 1 is drawn (a filter recolours it)
 	unsigned int used;        // frame it was last used in
+	bool hd;                  // tile_atlas_hd's page holds it too
 } tile_pages[TILE_PAGES];
 static unsigned int tile_frame = 0;
 
@@ -692,6 +710,9 @@ void rgpu_shutdown(void)
 	cloud_texture = NULL;
 	tile_indices_valid = false;
 	memset(tile_pages, 0, sizeof(tile_pages));
+	hd_scale = 1;
+	tile_atlas_hd = NULL;
+	hd_generation = 0;
 	quad_mesh = NULL;
 	fade_meshes[0] = fade_meshes[1] = NULL;
 
@@ -1388,7 +1409,8 @@ static void plane_footprint(const Camera3D *camera, float height, float rect[4])
 }
 
 // Palette colours for this frame, with JE_filterScreen applied as a palette-index remap.
-static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
+// The palette as the frame shows it (the level's filters), from the given palette (rgb_palette's packing).
+static void frame_colors_of(const L3DFrame *frame, const Uint32 palette[256], Uint32 colors[256])
 {
 	Uint8 remap[256];
 	for (int i = 0; i < 256; ++i)
@@ -1405,7 +1427,58 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
 	}
 
 	for (int i = 0; i < 256; ++i)
-		colors[i] = rgb_palette[remap[i]];
+		colors[i] = palette[remap[i]];
+}
+
+static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
+{
+	frame_colors_of(frame, rgb_palette, colors);
+}
+
+/*
+ * During a palette fade (palette_fading) the map's tiles, terrain and clouds keep the colours of
+ * the palette at full brightness and are dimmed by tile_fade instead: colouring them anew at every
+ * step of the fade takes long with HD tiles. The game steps every colour by a share of its
+ * distance, so the palette is (nearly) a uniform part of the full one.
+ */
+static float tile_fade = 1.0f;
+
+static bool uniform_fade(float *fade)
+{
+	if (!palette_fading)
+		return false;
+	double now = 0, full = 0;
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *a = (const Uint8 *)&rgb_palette[i], *b = (const Uint8 *)&palette_fade_full[i];
+		now += a[0] + a[1] + a[2];
+		full += b[0] + b[1] + b[2];
+	}
+	if (full <= 0)
+		return false;
+	const float f = (float)(now / full);
+	if (f > 1.02f)
+		return false;
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *a = (const Uint8 *)&rgb_palette[i], *b = (const Uint8 *)&palette_fade_full[i];
+		for (int k = 0; k < 3; ++k)
+			if (fabsf(a[k] - f * b[k]) > 12.0f)
+				return false;  // (a fade between two palettes)
+	}
+	*fade = SDL_min(f, 1.0f);
+	return true;
+}
+
+static void dim_by_fade(BTBHGPUSceneGeometryBatch *b)
+{
+	if (tile_fade >= 1.0f)
+		return;
+	// (the factor applies to linear colour; the palette's are sRGB)
+	const Uint8 k = (Uint8)lroundf(255.0f * powf(SDL_max(tile_fade, 0.0f), 2.2f));
+	b->albedo_red = (Uint8)(b->albedo_red * k / 255);
+	b->albedo_green = (Uint8)(b->albedo_green * k / 255);
+	b->albedo_blue = (Uint8)(b->albedo_blue * k / 255);
 }
 
 // Converts the layers to colour, one atlas slot each. Layers drawn over background map tiles
@@ -2409,21 +2482,30 @@ float rgpu_playfield_scale(void)
 	return scale > 0 ? scale : 1;
 }
 
+static Uint64 profile_rows_ticks = 0;  // (TYR3D_PROFILE: time making terrain rows)
+static int profile_rows = 0;
+
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
-	static Uint64 total_ticks = 0;
+	static Uint64 total_ticks = 0, most_ticks = 0;
 	static int frames = 0;
 	const Uint64 start = SDL_GetPerformanceCounter();
 
 	present_3d(hud, frame, dst);
 
-	total_ticks += SDL_GetPerformanceCounter() - start;
+	const Uint64 spent = SDL_GetPerformanceCounter() - start;
+	total_ticks += spent;
+	most_ticks = SDL_max(most_ticks, spent);
 	if (++frames == 300)
 	{
 		if (SDL_getenv("TYR3D_PROFILE") != NULL)
-			printf("3d present: %.2f ms/frame (%d layers)\n",
-			       (double)total_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames, frame->layer_count);
-		total_ticks = 0;
+			printf("3d present: %.2f ms/frame, at most %.2f (%d layers); terrain rows: %d, %.2f ms/frame\n",
+			       (double)total_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames,
+			       (double)most_ticks * 1000.0 / SDL_GetPerformanceFrequency(), frame->layer_count, profile_rows,
+			       (double)profile_rows_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames);
+		profile_rows = 0;
+		profile_rows_ticks = 0;
+		total_ticks = most_ticks = 0;
 		frames = 0;
 	}
 }
@@ -3571,6 +3653,7 @@ static void add_cloud_quad(int c, float height, float x_shift, float z_shift, fl
 	b->first_instance = (*instance_count)++;
 	b->instance_count = 1;
 	b->albedo_texture = cloud_texture;
+	dim_by_fade(b);
 	b->uv_scale_x = (float)cloud_canvases[c].w / CLOUD_TEXELS;
 	b->uv_scale_y = (float)cloud_canvases[c].h / (CLOUD_TEXELS * MAX_CLOUD_CANVASES);
 	b->uv_offset_y = (float)c / MAX_CLOUD_CANVASES;
@@ -3648,6 +3731,7 @@ static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *i
 	b->first_instance = first;
 	b->instance_count = *instance_count - first;
 	b->albedo_texture = puff_texture;
+	dim_by_fade(b);
 	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
 	b->unlit_enabled = 1;
 	b->transparency_enabled = 1;
@@ -3950,8 +4034,15 @@ static BTBHGPUCustomMesh *relief_mesh(int cell)
 #define TERRAIN_HOLE_DEPTH 21.0f
 // Samples in from a surface's edge that its walls take their colours from.
 #define TERRAIN_WALL_INSET 3
-// Map rows a terrain texture holds (terrain_ring), more than are ever drawn at once.
+// Map rows a terrain texture holds (terrain_ring), more than are ever drawn at once; fewer with HD
+// tiles (the texture is b3d_hd_scale() times larger each way).
 #define TERRAIN_RING_ROWS 80
+#define TERRAIN_RING_ROWS_HD 40
+
+static int terrain_ring_rows(void)
+{
+	return b3d_hd_scale() > 1 ? TERRAIN_RING_ROWS_HD : TERRAIN_RING_ROWS;
+}
 
 static struct
 {
@@ -4030,6 +4121,7 @@ static float terrain_height(const B3DTerrain *t, int sx, int sy, float hole_dept
 
 static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int map_row, float hole_depth)
 {
+	const int ring_rows = terrain_ring_rows();
 	const int per_x = B3D_TILE_W / t->sample, per_y = B3D_TILE_H / t->sample;  // samples a tile
 	const int columns = (t->width - 1) / per_x;
 	const int vertices_per_tile = (per_x + 1) * (per_y + 1);
@@ -4118,7 +4210,7 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 				const float px = (float)(pi * t->sample), py = (float)(pj * t->sample);
 				// In the map's texture (terrain_ring): the row's slot, the tile's place in it.
 				v->uv[0] = (c * B3D_TILE_W + px) / (float)((t->width - 1) * t->sample);
-				v->uv[1] = ((map_row % TERRAIN_RING_ROWS) * B3D_TILE_H + py) / (float)(TERRAIN_RING_ROWS * B3D_TILE_H);
+				v->uv[1] = ((map_row % ring_rows) * B3D_TILE_H + py) / (float)(ring_rows * B3D_TILE_H);
 				v->tangent[0] = 1;
 				v->tangent[3] = 1;
 				v->color[0] = v->color[1] = v->color[2] = shade;
@@ -4194,6 +4286,68 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map
 // inside the playfield (filters and all), is drawn over them.
 #define TILE_BELOW_LAYER 0.05f
 
+// The HD atlas texture at the scale of the maps' HD tiles, and their pixels; before anything of the
+// frame uses the texture (it is made again when the scale changes).
+static void prepare_tile_atlas(void)
+{
+	const int scale = b3d_hd_scale();
+	if (scale != hd_scale && window != NULL)
+	{
+		if (tile_atlas_hd != NULL)
+			btbh_gpu_texture_destroy(tile_atlas_hd);
+		tile_atlas_hd = scale > 1 ? create_texture_filtered(B3D_ATLAS_W * scale, B3D_ATLAS_H * TILE_PAGES * scale,
+		                                                    BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, map_filter())
+		                          : NULL;
+		hd_scale = scale;
+		hd_generation = 0;
+		for (int p = 0; p < TILE_PAGES; ++p)
+			tile_pages[p].hd = false;
+	}
+	if (hd_scale > 1 && hd_generation != b3d_map_generation + 1)
+	{
+		const size_t n = (size_t)B3D_ATLAS_W * B3D_ATLAS_H * hd_scale * hd_scale;
+		if (hd_capacity < n)
+		{
+			free(hd_indices);
+			free(hd_opaque);
+			free(hd_ground);
+			free(hd_rgba);
+			hd_indices = malloc(n);
+			hd_opaque = malloc(n);
+			hd_ground = malloc(n);
+			hd_rgba = malloc(n * sizeof(Uint32));
+			hd_capacity = hd_indices && hd_opaque && hd_ground && hd_rgba ? n : 0;
+		}
+		if (hd_capacity >= n)
+		{
+			b3d_build_atlas_hd(hd_indices, hd_opaque, hd_ground);
+			hd_generation = b3d_map_generation + 1;
+			for (int p = 0; p < TILE_PAGES; ++p)
+				tile_pages[p].hd = false;
+		}
+	}
+}
+
+static bool hd_ready(void)
+{
+	return hd_scale > 1 && tile_atlas_hd != NULL && hd_generation == b3d_map_generation + 1;
+}
+
+// Colours tile_atlas_hd's page as the page of tile_atlas is, if the colours have held and the
+// frame's budget allows.
+static void hd_tile_page(int page, const Uint32 colors[256], bool ground_zero)
+{
+	if (tile_pages[page].hd || !hd_ready() || colors_stable < HD_STABLE_FRAMES || hd_budget < HD_ROWS_PER_FRAME)
+		return;
+	hd_budget = 0;
+	const int w = B3D_ATLAS_W * hd_scale, h = B3D_ATLAS_H * hd_scale;
+	for (size_t i = 0; i < (size_t)w * h; ++i)
+		hd_rgba[i] = hd_opaque[i] || (ground_zero && hd_ground[i]) ? colors[hd_indices[i]] : 0;
+	bleed_into_clear(hd_rgba, w, 0, h);
+	btbh_gpu_texture_update_rgba8(tile_atlas_hd, (const uint8_t *)hd_rgba, 0, (Uint32)(page * h), (Uint32)w, (Uint32)h);
+	tile_pages[page].hd = true;
+}
+
 // Atlas page coloured with the given colours, reusing one that already is. Returns its index.
 static int tile_page(const Uint32 colors[256], bool ground_zero)
 {
@@ -4212,6 +4366,7 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 		    tile_pages[p].ground_zero == ground_zero)
 		{
 			tile_pages[p].used = tile_frame;
+			hd_tile_page(p, colors, ground_zero);
 			return p;
 		}
 		// Otherwise refill an unused page, or the least recently used one.
@@ -4253,6 +4408,8 @@ static int tile_page(const Uint32 colors[256], bool ground_zero)
 	tile_pages[page].colors_hash = hash;
 	tile_pages[page].ground_zero = ground_zero;
 	tile_pages[page].used = tile_frame;
+	tile_pages[page].hd = false;
+	hd_tile_page(page, colors, ground_zero);
 	return page;
 }
 
@@ -4395,9 +4552,13 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
  */
 typedef struct
 {
-	BTBHGPUTexture *texture, *water;
-	int width;                    // pixels
+	BTBHGPUTexture *texture, *water;  // the rows at the tiles' size
+	BTBHGPUTexture *hd;           // and with the HD tiles (b3d_hd_scale() times larger), or NULL
+	int width;                    // pixels at the tiles' size
+	int scale;                    // hd's
+	int ring_rows;                // terrain_ring_rows()
 	int rows[TERRAIN_RING_ROWS];  // the map row each slot holds, or -1
+	bool hd_rows[TERRAIN_RING_ROWS];  // hd holds the slot's row in the ring's colours
 	unsigned int generation;      // b3d_map_generation + 1 that the slots are of
 	Uint32 colors_hash;
 	bool ground_zero;
@@ -4429,30 +4590,42 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 {
 	TerrainRing *ring = &terrain_rings[set];
 	const int width = (t->width - 1) * t->sample;
-	if (ring->texture == NULL || ring->width != width)
+	const int scale = b3d_hd_scale(), ring_rows = terrain_ring_rows();
+	if (ring->texture == NULL || ring->width != width || ring->scale != scale || ring->ring_rows != ring_rows)
 	{
 		if (ring->texture != NULL)
 			btbh_gpu_texture_destroy(ring->texture);
+		if (ring->hd != NULL)
+			btbh_gpu_texture_destroy(ring->hd);
 		if (ring->water != NULL)
 			btbh_gpu_texture_destroy(ring->water);
 		BTBHGPUTextureReport report;
-		Uint32 *zeroes = calloc((size_t)width * TERRAIN_RING_ROWS * B3D_TILE_H, sizeof(Uint32));
+		const int height = ring_rows * B3D_TILE_H;
+		Uint32 *zeroes = calloc((size_t)width * scale * height * scale, sizeof(Uint32));
 		ring->texture = zeroes == NULL ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes, width,
-			TERRAIN_RING_ROWS * B3D_TILE_H, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+			height, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+		ring->hd = zeroes == NULL || scale <= 1 ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes,
+			width * scale, height * scale, 0, map_filter(), BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB,
+			&report);
 		ring->water = zeroes == NULL || set != 1 ? NULL : btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)zeroes,
-			width, TERRAIN_RING_ROWS * B3D_TILE_H, 0, BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_REPEAT,
+			width, height, 0, BTBH_GPU_TEXTURE_FILTER_NEAREST, BTBH_GPU_TEXTURE_WRAP_REPEAT,
 			BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
 		free(zeroes);
 		if (ring->texture == NULL)
 			fprintf(stderr, "warning: terrain texture: %s\n", report.message);
 		ring->width = width;
+		ring->scale = scale;
+		ring->ring_rows = ring_rows;
 		ring->generation = 0;
 	}
 	const Uint32 hash = hash_colors(colors);
 	if (ring->generation != b3d_map_generation + 1 || ring->colors_hash != hash || ring->ground_zero != ground_zero)
 	{
-		for (int i = 0; i < TERRAIN_RING_ROWS; ++i)
+		for (int i = 0; i < ring->ring_rows; ++i)
+		{
 			ring->rows[i] = -1;
+			ring->hd_rows[i] = false;
+		}
 		ring->generation = b3d_map_generation + 1;
 		ring->colors_hash = hash;
 		ring->ground_zero = ground_zero;
@@ -4462,30 +4635,31 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 
 // Under the 3D palms, the palms painted in the map give way to the ground round them: their green
 // pixels take the average colour of the other pixels just outside the palm.
-static void erase_painted_palms(Uint32 *rgba, int width, int map_row)
+static void erase_painted_palms(Uint32 *rgba, int width, int map_row, int scale)
 {
 	const B3DVegetation *veg = b3d_vegetation();
 	if (veg == NULL || map_row < 0 || map_row >= veg->rows)
 		return;
-	const int top = map_row * B3D_TILE_H;
+	const int top = map_row * B3D_TILE_H, rows = B3D_TILE_H * scale;  // (the row at that scale)
 	for (int r = SDL_max(map_row - 1, 0); r <= SDL_min(map_row + 1, veg->rows - 1); ++r)
 		for (int i = veg->row_start[r]; i < veg->row_start[r + 1]; ++i)
 		{
 			const B3DPlant *p = &veg->plants[i];
 			if (p->kind != B3D_PALM)
 				continue;
-			const float radius = p->size / 8.0f * 1.15f;
-			const int cx = p->x, cy = p->y - top;
+			const float radius = p->size / 8.0f * 1.15f * scale;
+			const int cx = p->x * scale, cy = (p->y - top) * scale;
 			// The ground round the palm.
 			float sum[3] = { 0, 0, 0 };
 			int n = 0;
-			const int ring_r = (int)radius + 3;
-			for (int y = SDL_max(cy - ring_r, 0); y <= SDL_min(cy + ring_r, B3D_TILE_H - 1); ++y)
+			const int ring_r = (int)radius + 3 * scale;
+			for (int y = SDL_max(cy - ring_r, 0); y <= SDL_min(cy + ring_r, rows - 1); ++y)
 				for (int x = SDL_max(cx - ring_r, 0); x <= SDL_min(cx + ring_r, width - 1); ++x)
 				{
 					const float d = sqrtf((float)((x - cx) * (x - cx) + (y - cy) * (y - cy)));
 					const Uint8 *c = (const Uint8 *)&rgba[y * width + x];
-					if (d < radius || d > radius + 3 || c[3] == 0 || (c[1] > c[0] && c[1] > c[2]) || c[0] + c[1] + c[2] < 150)
+					if (d < radius || d > radius + 3 * scale || c[3] == 0 || (c[1] > c[0] && c[1] > c[2]) ||
+					    c[0] + c[1] + c[2] < 150)
 						continue;
 					sum[0] += c[0];
 					sum[1] += c[1];
@@ -4494,7 +4668,7 @@ static void erase_painted_palms(Uint32 *rgba, int width, int map_row)
 				}
 			if (n == 0)
 				continue;
-			for (int y = SDL_max(cy - (int)radius, 0); y <= SDL_min(cy + (int)radius, B3D_TILE_H - 1); ++y)
+			for (int y = SDL_max(cy - (int)radius, 0); y <= SDL_min(cy + (int)radius, rows - 1); ++y)
 				for (int x = SDL_max(cx - (int)radius, 0); x <= SDL_min(cx + (int)radius, width - 1); ++x)
 				{
 					Uint8 *c = (Uint8 *)&rgba[y * width + x];
@@ -4554,11 +4728,100 @@ static void erase_painted_enemies(Uint32 *rgba, int width, const B3DTerrain *t, 
 	}
 }
 
+// map_pixel among the HD tiles (hd_indices): x, y in pixels of the HD map.
+static int map_pixel_hd(const B3DTerrain *t, int set, int x, int y, int scale)
+{
+	const int tw = B3D_TILE_W * scale, th = B3D_TILE_H * scale;
+	if (x < 0 || y < 0)
+		return -1;
+	bool flipped;
+	const int cell = b3d_map_cell(set, y / th, x / tw - t->side_columns, &flipped);
+	if (cell < 0)
+		return -1;
+	int ox, oy;
+	b3d_cell_origin(cell, &ox, &oy);
+	const int tx = x % tw;
+	const int i = (oy * scale + y % th) * (B3D_ATLAS_W * scale) + ox * scale + (flipped ? tw - 1 - tx : tx);
+	return hd_opaque[i] ? hd_indices[i] : -1;
+}
+
+// erase_painted_enemies in a row of HD tiles: each erased pixel's block from the same place of the
+// tile it is taken from (the erasures move by whole tiles).
+static void erase_painted_enemies_hd(Uint32 *rgba, int width, const B3DTerrain *t, int set, int map_row,
+                                     const Uint32 colors[256], int scale)
+{
+	const B3DErasures *erasures = b3d_erasures(set);
+	if (erasures == NULL)
+		return;
+	const int top = map_row * B3D_TILE_H, bottom = top + B3D_TILE_H;
+	for (int i = 0; i < erasures->count; ++i)
+	{
+		const B3DErasure *e = &erasures->erasures[i];
+		if (e->y >= bottom)
+			break;  // in order of y
+		if (e->y + e->h <= top)
+			continue;
+		for (int y = SDL_max(e->y, top); y < SDL_min(e->y + e->h, bottom); ++y)
+			for (int x = e->x; x < SDL_min(e->x + e->w, width / scale); ++x)
+			{
+				if (!e->mask[(y - e->y) * e->w + (x - e->x)])
+					continue;
+				for (int sy = 0; sy < scale; ++sy)
+					for (int sx = 0; sx < scale; ++sx)
+					{
+						const int index = map_pixel_hd(t, set, (x + e->dx) * scale + sx, (y + e->dy) * scale + sy, scale);
+						if (index >= 0)
+							rgba[((y - top) * scale + sy) * width + x * scale + sx] = colors[index];
+					}
+			}
+	}
+}
+
+static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256]);
+
+static void terrain_ring_row_hd(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256]);
+
+// Puts a map row into its slot of the ring (at the tiles' size), unless it is there already; and
+// with the HD tiles when the colours have held and the frame's budget allows.
 static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
 {
-	const int slot = map_row % TERRAIN_RING_ROWS;
-	if (map_row < 0 || ring->rows[slot] == map_row)
+	const int slot = map_row % ring->ring_rows;
+	if (map_row < 0)
 		return;
+	const Uint64 start = SDL_GetPerformanceCounter();
+	if (ring->rows[slot] != map_row)
+	{
+		terrain_ring_row_made(ring, t, set, map_row, colors);
+		ring->hd_rows[slot] = false;
+		++profile_rows;
+	}
+	if (ring->hd != NULL && !ring->hd_rows[slot] && hd_ready() && colors_stable >= HD_STABLE_FRAMES && hd_budget > 0)
+	{
+		terrain_ring_row_hd(ring, t, set, map_row, colors);
+		ring->hd_rows[slot] = true;
+		--hd_budget;
+	}
+	profile_rows_ticks += SDL_GetPerformanceCounter() - start;
+}
+
+// Whether a row can be drawn with the HD tiles: they hold it and the row below (its bottom edge
+// filters into it).
+static bool terrain_row_hd(const TerrainRing *ring, int map_row)
+{
+	if (ring == NULL || ring->hd == NULL)
+		return false;
+	for (int r = map_row; r <= map_row + 1; ++r)
+	{
+		const int slot = r % ring->ring_rows;
+		if (ring->rows[slot] != r || !ring->hd_rows[slot])
+			return false;
+	}
+	return true;
+}
+
+static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
+{
+	const int slot = map_row % ring->ring_rows;
 	ring->rows[slot] = map_row;
 	static Uint32 rgba[(15 + 2 * 32) * B3D_TILE_W * B3D_TILE_H], water[(15 + 2 * 32) * B3D_TILE_W * B3D_TILE_H];
 	const int columns = SDL_min(ring->width / B3D_TILE_W, (int)(COUNTOF(rgba) / (B3D_TILE_W * B3D_TILE_H)));
@@ -4590,7 +4853,7 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 			}
 	}
 	if (set == 1)
-		erase_painted_palms(rgba, ring->width, map_row);
+		erase_painted_palms(rgba, ring->width, map_row, 1);
 	erase_painted_enemies(rgba, ring->width, t, set, map_row, colors);
 	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
 	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
@@ -4598,6 +4861,52 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 	if (ring->water != NULL)
 		btbh_gpu_texture_update_rgba8(ring->water, (const uint8_t *)water, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
 		                              B3D_TILE_H);
+}
+
+// The row with the HD tiles (hd_indices), into hd's slot: as terrain_ring_row_made at the HD scale.
+static void terrain_ring_row_hd(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
+{
+	static Uint32 *hd = NULL;
+	static size_t capacity = 0;
+	const int scale = ring->scale, slot = map_row % ring->ring_rows;
+	const int w = ring->width * scale, h = B3D_TILE_H * scale, tw = B3D_TILE_W * scale;
+	if (capacity < (size_t)w * h)
+	{
+		free(hd);
+		hd = malloc((size_t)w * h * sizeof(Uint32));
+		capacity = hd != NULL ? (size_t)w * h : 0;
+		if (hd == NULL)
+			return;
+	}
+	const int columns = ring->width / B3D_TILE_W;
+	for (int c = 0; c < columns; ++c)
+	{
+		bool flipped;
+		const int cell = b3d_map_cell(set, map_row, c - t->side_columns, &flipped);
+		int ox = 0, oy = 0;
+		if (cell >= 0)
+			b3d_cell_origin(cell, &ox, &oy);
+		for (int y = 0; y < h; ++y)
+		{
+			Uint32 *out = &hd[y * w + c * tw];
+			if (cell < 0)
+			{
+				memset(out, 0, (size_t)tw * sizeof(Uint32));
+				continue;
+			}
+			const size_t row = (size_t)(oy * scale + y) * (B3D_ATLAS_W * scale) + (size_t)ox * scale;
+			for (int x = 0; x < tw; ++x)
+			{
+				const size_t i = row + (flipped ? tw - 1 - x : x);
+				out[x] = hd_opaque[i] || (ring->ground_zero && hd_ground[i]) ? colors[hd_indices[i]] : 0;
+			}
+		}
+	}
+	if (set == 1)
+		erase_painted_palms(hd, w, map_row, scale);
+	erase_painted_enemies_hd(hd, w, t, set, map_row, colors, scale);
+	bleed_into_clear(hd, w, 0, h);
+	btbh_gpu_texture_update_rgba8(ring->hd, (const uint8_t *)hd, 0, (Uint32)(slot * h), (Uint32)w, (Uint32)h);
 }
 
 /*
@@ -4859,6 +5168,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		float x, z, height, hole_depth;
 		int page;
 		float brightness;
+		bool hd;  // with the HD tiles (terrain_row_hd)
 	} TerrainRowDraw;
 	TerrainRowDraw terrain_row_draws[MAX_TERRAIN_ROW_DRAWS];
 	int terrain_row_count = 0;
@@ -4965,7 +5275,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				terrain_ring_row(ring, terrain, background->set, tiles[t].map_row + 1, page_colors);
 				terrain_row_draws[terrain_row_count++] = (TerrainRowDraw){
 					background->set, tiles[t].map_row, tiles[t].x - column * B3D_TILE_W, tiles[t].z + shift, height, hole_depth,
-					page, brightness };
+					page, brightness, terrain_row_hd(ring, tiles[t].map_row) };
 			}
 			tile_count = kept;
 		}
@@ -5040,8 +5350,10 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->custom_mesh = relief ? relief_mesh(cell) : fade == 0 ? quad_mesh : fade_meshes[fade > 0];
 		b->first_instance = key_next[key] - key_count[key];
 		b->instance_count = key_count[key];
-		b->albedo_texture = tile_atlas;
-		const float inset = tile_inset();
+		const bool hd = tile_pages[page].hd && hd_ready();
+		b->albedo_texture = hd ? tile_atlas_hd : tile_atlas;
+		dim_by_fade(b);
+		const float inset = tile_inset() / (hd ? hd_scale : 1);  // (half a pixel of the atlas texture)
 		b->uv_scale_x = (flipped ? -1.0f : 1.0f) * (B3D_TILE_W - 2 * inset) / B3D_ATLAS_W;
 		b->uv_scale_y = (B3D_TILE_H - 2 * inset) / atlas_h;
 		b->uv_offset_x = (ox + (flipped ? B3D_TILE_W - inset : inset)) / B3D_ATLAS_W;
@@ -5052,7 +5364,26 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	}
 	*instance_count = next;
 
-	// The terrain's rows.
+	// The terrain's rows. (Their textures hold terrain_ring_rows() rows: more drawn at once would
+	// take turns in the ring's slots every frame.)
+	{
+		static bool warned = false;
+		for (int set = 1; set <= B3D_SETS && !warned; ++set)
+		{
+			int lo = 1 << 30, hi = -1;
+			for (int r = 0; r < terrain_row_count; ++r)
+				if (terrain_row_draws[r].set == set)
+				{
+					lo = SDL_min(lo, terrain_row_draws[r].map_row);
+					hi = SDL_max(hi, terrain_row_draws[r].map_row + 1);  // (and the row below it)
+				}
+			if (hi >= lo && hi - lo + 1 > terrain_ring_rows())
+			{
+				fprintf(stderr, "warning: terrain: %d rows drawn at once, the ring holds %d\n", hi - lo + 1, terrain_ring_rows());
+				warned = true;
+			}
+		}
+	}
 	for (int r = 0; r < terrain_row_count && *instance_count < MAX_INSTANCES && *batch_count < MAX_BATCHES; ++r)
 	{
 		const TerrainRowDraw *row = &terrain_row_draws[r];
@@ -5068,7 +5399,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->custom_mesh = mesh;
 		b->first_instance = (*instance_count)++;
 		b->instance_count = 1;
-		b->albedo_texture = terrain_rings[row->set].texture;
+		b->albedo_texture = row->hd ? terrain_rings[row->set].hd : terrain_rings[row->set].texture;
+		dim_by_fade(b);
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
 		if (terrain_rings[row->set].water != NULL)
@@ -5171,6 +5503,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->first_instance = first;
 		b->instance_count = (uint32_t)(*instance_count - first);
 		b->albedo_texture = white_texture;
+		dim_by_fade(b);  // (the plants' colours are the full palette's)
 		b->unlit_enabled = 1;
 	}
 }
@@ -5917,6 +6250,19 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	Uint32 colors[256];
 	frame_colors(frame, colors);
+	// The colours the map's tiles are coloured with (and dimmed by tile_fade).
+	Uint32 tile_colors[256];
+	tile_fade = 1.0f;
+	if (uniform_fade(&tile_fade))
+		frame_colors_of(frame, palette_fade_full, tile_colors);
+	else
+		memcpy(tile_colors, colors, sizeof(tile_colors));
+	// The HD tiles are coloured when the colours have held (hd_tile_page, terrain_ring_row).
+	static Uint32 last_tile_colors_hash = 0;
+	const Uint32 tile_colors_hash = hash_colors(tile_colors);
+	colors_stable = tile_colors_hash == last_tile_colors_hash ? SDL_min(colors_stable + 1, 1000) : 0;
+	last_tile_colors_hash = tile_colors_hash;
+	hd_budget = HD_ROWS_PER_FRAME;
 
 	// A frame the game has just captured, or one of those shown between ticks (rgpu_present_3d_ahead),
 	// which reuse what was made of the frame.
@@ -6098,6 +6444,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	set_alignment(&camera, reference_height);
 	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
 	add_outside_shade(&camera, reference_height, layout.panel[2] > 0 ? layout.panel[0] : logical_w, logical_w, logical_h);
+	prepare_tile_atlas();
 
 	int instance_count = 0;
 	int batch_count = 0;
@@ -6139,7 +6486,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	bool composed[L3D_MAX_BACKGROUNDS];
 	b3d_composed_backgrounds(frame, composed);
 	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
-	add_background_batches(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_background_batches(frame, composed, &camera, heights, tile_colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);

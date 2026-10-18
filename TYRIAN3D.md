@@ -244,6 +244,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_EXPORT_MUSIC=<dir>` | Export every song as a MIDI file (with the General MIDI instruments the composer set for MIDI devices), and the instruments they use (`instruments.json`) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
+| `TYR3D_HD_TILES=0` | Leave out the HD tiles (`upscale/out/tiles`, `tools/tiles_hd.py`): the maps' tiles at their size |
 | `TYR3D_DEBUG_TILES=1` | Tint the map tiles by background: background 2 magenta, background 3 cyan (for checking which map a tile belongs to) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
@@ -380,6 +381,7 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/terrain/make_vegetation.py` | Vegetation for the ground maps: palms (green patches on desert maps, `"palms": true`), trees (textured green areas) and grass (smooth green areas), clear of the ground enemies, into `assets/terrain/<map>.veg` |
 | `tools/terrain/ground_log.sh` | Plays every level fast with the autopilot and collects where the ground enemies stand into `export/terrain/ground.txt` (the terrain keeps them on the ground) |
 | `tools/sweep.sh` | Plays every section of the episodes with the autopilot, one run after another, and reports each run's level, whether it ran to the end and its warnings |
+| `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `upscale/out/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x). `--requantize` writes them again from the kept medians. Tiles are per tileset and shape, so generated maps get them too |
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |

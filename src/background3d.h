@@ -58,6 +58,13 @@ void b3d_export_maps(const char *dir);
 // recolours colour 0 (b3d_tile_remap), their colour 0 is drawn as well.
 void b3d_build_atlas(Uint8 *indices, Uint8 *opaque, Uint8 *ground);
 
+// The HD tiles of the maps' tileset (tools/tiles_hd.py): how many times the original's size they
+// are, 1 if there are none.
+int b3d_hd_scale(void);
+// The atlas at b3d_hd_scale() times the size: the same layout with every cell and border scaled,
+// HD tiles where there are, the original's pixels enlarged where not.
+void b3d_build_atlas_hd(Uint8 *indices, Uint8 *opaque, Uint8 *ground);
+
 // Atlas cell position of a tile, in pixels (top-left of the tile itself, inside the padding).
 static inline void b3d_cell_origin(int cell, int *x, int *y)
 {

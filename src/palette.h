@@ -56,4 +56,10 @@ void fade_solid(SDL_Color color, int steps, unsigned int first_color, unsigned i
 void fade_black(int steps);
 void fade_white(int steps);
 
+// Tyrian3D: while fade_palette (from black) or fade_black runs over the whole palette, the palette
+// it fades to or from at full brightness (packed as rgb_palette), so the 3D view can keep what it
+// coloured with that and dim it rather than colour it anew at every step.
+extern bool palette_fading;
+extern Uint32 palette_fade_full[256];
+
 #endif /* PALETTE_H */

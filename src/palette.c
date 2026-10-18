@@ -24,6 +24,7 @@
 #include "video.h"
 
 #include <assert.h>
+#include <string.h>
 
 #define PALETTE_COUNT 24
 
@@ -32,6 +33,9 @@ int palette_count;
 
 static Palette palette;
 Uint32 rgb_palette[256];
+
+bool palette_fading = false;
+Uint32 palette_fade_full[256];
 
 Palette colors;
 
@@ -128,6 +132,13 @@ void fade_palette(Palette colors, int steps, unsigned int first_color, unsigned 
 	static int diff[256][3];
 	init_step_fade_palette(diff, colors, first_color, last_color);
 	
+	const bool whole = first_color == 0 && last_color == 255;
+	if (whole)
+	{
+		for (int i = 0; i < 256; ++i)
+			palette_fade_full[i] = pack_rgba(colors[i].r, colors[i].g, colors[i].b);
+		palette_fading = true;
+	}
 	for (; steps > 0; steps--)
 	{
 		setDelay(1);
@@ -138,6 +149,8 @@ void fade_palette(Palette colors, int steps, unsigned int first_color, unsigned 
 		
 		service_wait_delay();
 	}
+	if (whole)
+		palette_fading = false;
 }
 
 void fade_solid(SDL_Color color, int steps, unsigned int first_color, unsigned int last_color)
@@ -147,6 +160,12 @@ void fade_solid(SDL_Color color, int steps, unsigned int first_color, unsigned i
 	static int diff[256][3];
 	init_step_fade_solid(diff, color, first_color, last_color);
 	
+	const bool to_black = first_color == 0 && last_color == 255 && color.r == 0 && color.g == 0 && color.b == 0;
+	if (to_black)
+	{
+		memcpy(palette_fade_full, rgb_palette, sizeof(palette_fade_full));
+		palette_fading = true;
+	}
 	for (; steps > 0; steps--)
 	{
 		setDelay(1);
@@ -157,6 +176,8 @@ void fade_solid(SDL_Color color, int steps, unsigned int first_color, unsigned i
 		
 		service_wait_delay();
 	}
+	if (to_black)
+		palette_fading = false;
 }
 
 void fade_black(int steps)
