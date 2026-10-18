@@ -1,9 +1,9 @@
 """The most frequent enemies of episodes 2-5 (each appears more than 100 times), facing the way their
 sprites do (models.cfg: yaw=0). Flames, lava and the parts of large structures stay volumetric.
 
-(crystal_blue, crystal_small, eye_ring, fan, orb_red, sphere_nozzle, lava_ball, disc_spokes, panel_gems,
-panel_pills, blob_red, ship_blue, cone_ship and claw_ship are built by polish_<name>.py, block_x and
-block_chevron by polish_blocks.py.)
+(crystal_blue, crystal_small, eye_ring, fan, orb_red, orb_eyes, sphere_nozzle, lava_ball, donut,
+disc_spokes, panel_gems, panel_pills, blob_red, ship_blue, cone_ship and claw_ship are built by
+polish_<name>.py, block_x and block_chevron by polish_blocks.py.)
 """
 import math
 import os
@@ -48,30 +48,6 @@ def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness
     s.plate("wings", r, -thickness / 2, thickness / 2, wings, bevel=0.35)
     s.fuselage("fuselage", r, body, max_radius=max_radius)
     export(name)
-
-
-# --- Round ones ----------------------------------------------------------------------------------
-
-def orb(name, col, row, radius, index, lights=(), light_color=(255, 120, 20), z=None):
-    k.reset()
-    shell = k.material(name + "_shell", palette=index, metallic=0.25, roughness=0.25)
-    glow = k.material(name + "_light", palette=121, roughness=0.3, emission=light_color, emission_strength=1.5)
-    c = pos(col, row, radius * 0.8 if z is None else z)
-    k.smooth(k.ellipsoid("orb", c, (radius, radius, radius * 0.85), shell, 32, 16), 70)
-    for i, (dx, dy) in enumerate(lights):
-        k.smooth(k.ellipsoid(f"light{i}", (c[0] + dx, c[1] + dy, c[2] + radius * 0.6), (1.4, 1.4, 1.0), glow, 12, 6), 60)
-    return c
-
-
-def orbs():
-    # (orb_red: polish_orb_red.py)
-    orb("orb_eyes", 12, 14, 10.0, 113, lights=((-3.2, 2.5), (3.2, 2.5)))
-    export("orb_eyes")
-    # (sphere_nozzle, lava_ball: polish_sphere_nozzle.py, polish_lava_ball.py)
-    k.reset()
-    blue = k.material("donut_blue", palette=55, metallic=0.4, roughness=0.25)
-    torus("donut", pos(11.5, 12, 3.6), 7.4, 3.8, blue)
-    export("donut")
 
 
 def blobs():
@@ -204,7 +180,6 @@ def ships():
     export("arrow_purple")
 
 
-orbs()
 blobs()
 ring_machine()
 drill()
