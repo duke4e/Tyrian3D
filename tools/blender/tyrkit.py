@@ -428,8 +428,8 @@ def preview(prefix, size=(24, 28), scale=16):
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = 3.0
     sun_obj = bpy.data.objects.new("sun", sun)
-    # The game's sun: from the upper left of the screen, slightly from the bottom.
-    sun_obj.rotation_euler = Vector((0.45, 0.35, -1.0)).to_track_quat("-Z", "Y").to_euler()
+    # The game's sun (render_gpu.c sun_direction 0.6, -1, 0.6): from above and the top left of the screen.
+    sun_obj.rotation_euler = Vector((0.6, -0.6, -1.0)).to_track_quat("-Z", "Y").to_euler()
     scene.collection.objects.link(sun_obj)
 
     w, h = size

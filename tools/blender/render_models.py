@@ -50,7 +50,8 @@ def setup(size):
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = 3.0
     sun_obj = bpy.data.objects.new("sun", sun)
-    sun_obj.rotation_euler = Vector((0.45, 0.35, -1.0)).to_track_quat("-Z", "Y").to_euler()
+    # The game's sun (render_gpu.c sun_direction 0.6, -1, 0.6): from above and the top left of the screen.
+    sun_obj.rotation_euler = Vector((0.6, -0.6, -1.0)).to_track_quat("-Z", "Y").to_euler()
     scene.collection.objects.link(sun_obj)
     cam_data = bpy.data.cameras.new("cam")
     cam_data.type = "ORTHO"
