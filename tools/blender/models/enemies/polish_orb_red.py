@@ -1,7 +1,5 @@
 """The dark red orb of BUBBLES, ** ALE **, STARGATE, LAVA EXIT, ASTEROIDS and COLLECTOR (sheet E sprite
 233, 2x2: 24 x 28 pixels), polished (2026-10-18; it replaces later_episodes.py's plain dark sphere).
-
-WORK IN PROGRESS
 """
 import math
 import os

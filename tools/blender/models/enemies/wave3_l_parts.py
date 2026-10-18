@@ -2,9 +2,8 @@
 is built whole, in shared coordinates, from its pixel art (wave3_l_art.py) and cut along its sprites'
 edges into the pieces, each moved to its sprite's centre (models.cfg: origin, so that they meet again).
 The levels place the pieces as the sheet arranges them (checked in the level files' enemy events).
+(The grey and red jet, redjet_left / redjet_right / redjet_nose, is built by polish_redjet.py.)
 
-- redjet_left, redjet_right, redjet_nose: the grey and red jet of APPROACH and SAVARA IV, nose down:
-  sprites 229 (left wing) and 231 (right wing) above 268 (the nose), 48 x 56 pixels.
 - ringship_pod, ringship_ring (39, 41) and their mirror images ringship_ring_r, ringship_pod_r (43, 45):
   HARVEST's machine on a ring frame, a blue pod and a grey housing round a blue sphere.
 - longship_left, longship_mid, longship_right (115, 117, 119): the long grey ship of APPROACH and SAVARA IV.
@@ -17,171 +16,6 @@ import math
 import wave3_l_art as art
 import wave3_l_kit as w
 from wave3_l_kit import k, sh, pal
-
-
-# --- The jet (229 and 231 above 268) ------------------------------------------------------------
-
-JET = w.Art(art.JET, (24, 28))
-JET_AXIS = 0.5  # the jet's middle (pixel column 24)
-JET_PIECES = {"redjet_left": (-24, 0, 0, 28), "redjet_right": (0, 24, 0, 28), "redjet_nose": (-12, 12, -28, 0)}
-
-
-def jet_materials():
-    return {
-        "hull": pal("redjet_hull", 0x07, metallic=0.5, roughness=0.35),
-        "light": pal("redjet_light", 0x0a, metallic=0.55, roughness=0.28),
-        "dark": pal("redjet_dark", 0x03, metallic=0.4, roughness=0.5),
-        "wing": pal("redjet_wing", 0x06, metallic=0.5, roughness=0.38),
-        "red": pal("redjet_red", 0x46, metallic=0.35, roughness=0.35),
-        "red_light": pal("redjet_red_light", 0x48, metallic=0.35, roughness=0.3),
-        "glass": pal("redjet_glass", 0x02, metallic=0.3, roughness=0.08),
-    }
-
-
-def jet_sym(points):
-    """Points (x, y) of the left side and their mirror images on the right (about the jet's middle),
-    as two polygons."""
-    right = [(2 * JET_AXIS - x, y) for x, y in reversed(points)]
-    return points, right
-
-
-def build_jet():
-    """The jet, nose down the screen: a round fuselage from the tail (row 3) to the pointed nose (row
-    51) with a dark canopy in three panes near the nose, two intakes as humps at the wings' roots with
-    a red shield between them, broad wings with red flaps at their roots and red strakes along the
-    fuselage, upright fins at the wing tips (red at their fronts), the tail planes at the top with red
-    fairings under them and a tall fin with a red top edge."""
-    m = jet_materials()
-    a = JET
-    ax = JET_AXIS
-    zc = 1.2
-
-    # The fuselage: (y, half width) from the art's rows, round, the nose drooping a little.
-    widths = [(-23.7, 0.15), (-22.6, 1.0), (-21.0, 1.7), (-19.0, 2.5), (-16.5, 3.4), (-14.0, 4.3), (-12.0, 5.0),
-              (-10.0, 5.4), (-6.0, 5.6), (0.0, 5.6), (6.0, 5.5), (12.0, 5.1), (17.0, 4.7), (21.0, 4.3), (23.5, 3.8),
-              (25.0, 3.2), (25.6, 2.6)]
-    sections = []
-    for y, hw in widths:
-        droop = -0.9 * w.smoothstep(-8.0, -23.7, y)
-        sections.append((y, ax, zc + droop, hw, hw * 0.86, hw * 0.62))
-    body = w.loft_y("fuselage", sections, m["hull"], segments=28, power=2.3, start=(ax, -23.9, zc - 0.9),
-                  end=(ax, 25.7, zc))
-    # The nozzle at the tail end: a dark ring.
-    w.lathe_axis("nozzle", [(0.0, 2.9), (0.3, 3.1), (1.0, 3.0), (1.2, 2.2), (1.25, 0.01)], m["dark"],
-                 (ax, 25.2, zc), (0, 1, 0), 24)
-
-    def top_z(y):
-        hw = 5.6
-        for (y0, h0), (y1, h1) in zip(widths, widths[1:]):
-            if y0 <= y <= y1:
-                hw = h0 + (h1 - h0) * (y - y0) / (y1 - y0)
-        return zc - 0.9 * w.smoothstep(-8.0, -23.7, y) + hw * 0.86
-
-    # The canopy: dark glass in three panes (rows 33-42), its frame along the middle and across.
-    cy, cl = -9.6, 5.5
-    canopy = w.sphere("canopy", (ax, cy, top_z(cy) - 1.0), (2.9, cl, 2.3), m["glass"], 24, 12)
-    w.tube("canopy_frame", w.catmull([(ax, cy + cl * 0.98, top_z(cy + cl) - 0.1), (ax, cy, top_z(cy) + 1.25),
-                                      (ax, cy - cl * 0.98, top_z(cy - cl) - 0.1)], 0.5), 0.42, m["light"], 8)
-    for yb in (-8.3, -11.4):
-        t = (yb - cy) / cl
-        r = math.sqrt(max(0.0, 1 - t * t))
-        pts = []
-        for i in range(9):
-            u = -1 + 2 * i / 8
-            xx = ax + u * 2.9 * r
-            zz = top_z(cy) - 1.0 + 2.3 * r * math.sqrt(max(0.0, 1 - u * u)) + 0.05
-            pts.append((xx, yb, zz))
-        w.tube(f"canopy_bar{yb}", pts, 0.32, m["light"], 8)
-    # A light spine from the canopy back to the fin (the sprite's bright line).
-    w.tube("spine", w.catmull([(ax - 0.3, cy + cl - 0.5, top_z(cy + cl) - 0.25), (ax - 0.3, 0.0, top_z(0.0) - 0.05),
-                               (ax - 0.2, 10.0, top_z(10.0) - 0.1)], 0.6), 0.45, m["light"], 8)
-
-    # The wings (pixel corners of the left one), thicker at the roots, the tips a little raised.
-    left = w.poly_px(a, [(4.3, 14.2), (7.5, 16.4), (9.5, 17.4), (10.6, 16.0), (11.2, 15.0), (16.0, 15.0),
-                         (19.6, 15.0), (19.6, 33.0), (17.8, 33.0), (15.5, 31.5), (13.0, 28.8), (9.5, 26.4),
-                         (6.0, 22.6), (4.3, 21.4)])
-    def wing_z(x, y, z):
-        # Thicker at the root, the tips raised a little (dihedral).
-        d = abs(x - ax)
-        return z * (1.0 + 0.7 * (1.0 - w.smoothstep(6.0, 16.0, d))) + 0.9 * w.smoothstep(8.0, 20.0, d)
-
-    for i, poly in enumerate(jet_sym(left)):
-        w.bevelled_slab(f"wing{i}", poly, -0.7, 0.9, m["wing"], bevel=0.45, z_fn=wing_z)
-
-    # The wing-tip fins: rounded upright fins, red at the front (rows 20-27).
-    for side, x in ((-1, a.x(3)), (1, a.x(45))):
-        secs = []
-        for i in range(14):
-            t = i / 13
-            y = 15.3 - 15.8 * t
-            end = math.sqrt(max(0.0, 1.0 - (2 * abs(t - 0.5)) ** 6))
-            secs.append((y, x, 0.8, 1.45 * max(end, 0.15), (2.0 + 2.6 * (1 - t)) * max(end, 0.2), 1.6 * max(end, 0.2)))
-        fin = w.loft_y(f"tip_fin{side}", secs[::-1], m["hull"], segments=16, power=2.4, angle=50)
-        w.paint(fin, lambda c, n: 1 if c.y < 7.6 else 0, [m["hull"], m["red"]])
-
-    # The intakes: humps along the wing roots beside the fuselage (rows 8-17).
-    for side in (-1, 1):
-        xc = ax + side * 6.6
-        secs = []
-        for y, hw, top in ((20.6, 0.4, 0.4), (20.0, 2.0, 2.2), (18.5, 3.0, 3.4), (16.0, 3.3, 3.8), (13.5, 3.1, 3.6),
-                           (11.0, 2.4, 2.8), (8.5, 1.4, 1.6), (6.5, 0.3, 0.3)):
-            secs.append((y, xc, zc + 0.3, hw, top, 2.2))
-        w.loft_y(f"intake{side}", secs[::-1], m["hull"], segments=20, power=2.2)
-        # The intake's mouth at its rear end (it faces back, up the screen): a dark scoop.
-        w.sphere(f"intake_mouth{side}", (xc, 19.6, zc + 1.2), (1.7, 0.8, 1.6), m["dark"], 16, 8)
-
-    # The red shield between the intakes (rows 10-16), around the fin's root.
-    shield = w.poly_px(a, [(21.0, 10.0), (28.0, 10.0), (29.2, 12.0), (28.6, 14.2), (26.6, 15.8), (24.5, 16.6),
-                           (22.4, 15.8), (20.4, 14.2), (19.8, 12.0)])
-    sh_obj = w.simplify_flat(w.plate("shield", [shield], m["red"], 0.9, radius=0.8, base=0.0, spacing=0.45))
-    for v in sh_obj.data.vertices:
-        v.co.z += top_z(v.co.y) - 0.35 + 0.5 * w.smoothstep(16.0, 11.0, v.co.y)
-
-    # The red swooshes over the wings' roots (rows 15-29): from the wing's rear edge, curving down beside the
-    # intake and on along the fuselage as a thin strake.
-    swoosh = w.poly_px(a, [(10.0, 15.9), (11.2, 15.0), (15.2, 15.0), (16.4, 17.0), (19.8, 17.2), (19.8, 29.6),
-                           (18.4, 29.6), (17.8, 25.0), (16.6, 22.0), (14.8, 19.8), (12.6, 18.8)])
-    for i, sw in enumerate(jet_sym(swoosh)):
-        def swoosh_z(x, y, z):
-            # Rising against the fuselage, lying on the wing elsewhere.
-            return z * (1.0 + 1.4 * w.smoothstep(4.5, 1.0, abs(x - ax) - 3.0))
-        s_ = w.plate(f"swoosh{i}", [sw], m["red"], 0.8, radius=0.6, spacing=0.45, z_fn=swoosh_z)
-        for v in s_.data.vertices:
-            v.co.z += 1.15 + 0.35 * w.smoothstep(8.0, 14.0, abs(v.co.x - ax))
-        w.simplify_flat(s_)
-
-    # The tail planes (rows 1-5), their outer ends raised, with red fairings under them sweeping down to the
-    # fuselage (rows 5-9).
-    tail = w.poly_px(a, [(9.0, 2.2), (10.0, 1.0), (17.0, 1.0), (18.8, 2.4), (20.6, 3.6), (20.6, 5.4), (12.0, 5.4),
-                         (9.4, 5.4)])
-    fairing = w.poly_px(a, [(11.0, 4.6), (20.8, 4.6), (20.8, 9.0), (17.6, 9.4), (15.6, 8.2), (13.4, 6.6)])
-    for i, (tl, fr) in enumerate(zip(jet_sym(tail), jet_sym(fairing))):
-        t = w.bevelled_slab(f"tail{i}", tl, -0.6, 0.6, m["hull"], bevel=0.4,
-                            z_fn=lambda x, y, z: z + zc + 2.9 + 1.3 * w.smoothstep(4.0, 15.0, abs(x - ax)))
-        w.paint(t, lambda c, n: 1 if n.z > 0.6 and c.y > 26.0 else 0, [m["hull"], m["light"]])
-        f = w.plate(f"fairing{i}", [fr], m["red"], 1.5, radius=1.0, base=0.0, bottom=0.6, spacing=0.55)
-        for v in f.data.vertices:
-            v.co.z += zc + 1.4 + 0.9 * w.smoothstep(19.0, 23.5, v.co.y)
-
-    # The tall fin with its red top edge (rows 0-13).
-    path = []
-    for i in range(12):
-        t = i / 11
-        y = 28.0 - 13.0 * t
-        z_top = 12.0 - 6.2 * t ** 1.3
-        path.append((y, ax, zc + 2.0, z_top))
-    fin = w.fin_blade("fin", path, m["hull"], thickness=1.8, segments=12)
-    w.paint(fin, lambda c, n: 1 if n.z > 0.45 else 0, [m["hull"], m["red"]])
-
-    for obj in w.meshes():
-        k.recalc_normals(obj)
-
-
-def jet_piece(name):
-    def build():
-        build_jet()
-        return w.cut_piece(*JET_PIECES[name])
-    return build
 
 
 # --- HARVEST's ring ship (39 and 41; 43 and 45 its mirror image) ----------------------------------
@@ -558,9 +392,6 @@ def brain_piece(name):
 # --- Registry -----------------------------------------------------------------------------------
 
 PIECES = []  # (name, sprite, builder)
-for _name, _sprite in (("redjet_left", 229), ("redjet_right", 231), ("redjet_nose", 268)):
-    PIECES.append((_name, _sprite, jet_piece(_name)))
-w.whole("redjet", build_jet, (48, 56), JET.mask())
 # The ring ship: the left one's pod (39) and ring (41); the right one (43, 45) is its mirror image.
 PIECES.append(("ringship_pod", 39, ring_piece("ringship_pod", False)))
 PIECES.append(("ringship_ring", 41, ring_piece("ringship_ring", False)))

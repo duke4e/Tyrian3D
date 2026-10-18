@@ -1,7 +1,5 @@
 """The small blue ice crystal of CAMANIS, ICE EXIT, APPROACH and ICESECRET (sheet 7 sprite 152, 1x1:
 12 x 14 pixels), polished (2026-10-18; it replaces later_episodes.py's low-poly gem).
-
-WORK IN PROGRESS
 """
 import math
 import os

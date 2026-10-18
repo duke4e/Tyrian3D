@@ -802,8 +802,8 @@ def whole_mask(sheet):
 
 def materials():
     return {
-        "hull": k.material("redjet_hull", palette=7, metallic=0.4, roughness=0.34),
-        "wing": k.material("redjet_wing", palette=8, metallic=0.4, roughness=0.38),
+        "hull": k.material("redjet_hull", palette=6, metallic=0.4, roughness=0.34),
+        "wing": k.material("redjet_wing", palette=7, metallic=0.4, roughness=0.38),
         "red": k.material("redjet_red", palette=70, metallic=0.3, roughness=0.34),
         "red_light": k.material("redjet_red_light", palette=72, metallic=0.3, roughness=0.3),
         "dark_red": k.material("redjet_dark_red", palette=114, metallic=0.25, roughness=0.4),

@@ -1,15 +1,14 @@
 """The most frequent enemies of episodes 2-5 (each appears more than 100 times), facing the way their
 sprites do (models.cfg: yaw=0). Flames, lava and the parts of large structures stay volumetric.
 
-(crystal_blue, crystal_small, eye_ring, fan, orb_red, panel_gems, blob_red, ship_blue, cone_ship and
-claw_ship are built by polish_<name>.py.)
+(crystal_blue, crystal_small, eye_ring, fan, orb_red, sphere_nozzle, lava_ball, disc_spokes, panel_gems,
+blob_red, ship_blue, cone_ship and claw_ship are built by polish_<name>.py.)
 """
 import math
 import os
 import sys
 
 import bpy
-from mathutils import Vector
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import tyrkit as k  # noqa: E402
@@ -40,18 +39,6 @@ def torus(name, centre, major, minor, mat, rotation=(0, 0, 0)):
     return k.smooth(obj, 60)
 
 
-def cone(name, base, tip, radius, mat, vertices=12):
-    base, tip = Vector(base), Vector(tip)
-    axis = tip - base
-    bpy.ops.mesh.primitive_cone_add(vertices=vertices, radius1=radius, radius2=0.0, depth=axis.length,
-                                    location=(base + tip) / 2)
-    obj = bpy.context.active_object
-    obj.name = name
-    obj.rotation_euler = axis.to_track_quat("Z", "Y").to_euler()
-    obj.data.materials.append(mat)
-    return obj
-
-
 def ccw(outline):
     area = sum(outline[i][0] * outline[(i + 1) % len(outline)][1] - outline[(i + 1) % len(outline)][0] * outline[i][1]
                for i in range(len(outline)))
@@ -70,30 +57,6 @@ def stroke(name, path, half_width, z0, z1, mat):
         left.append((x + nx, y + ny))
         right.append((x - nx, y - ny))
     return k.slab(name, ccw(left + right[::-1]), z0, z1, mat)
-
-
-def gem(name, centre, half_w, half_d, height, mat, sides=8, table=0.55):
-    """A faceted gem lying on the ground: a table on top, the girdle, the pavilion to a point below."""
-    cx, cy, cz = centre
-    verts = [(cx, cy, cz + height)]
-    for i in range(sides):
-        a = 2 * math.pi * (i + 0.5) / sides
-        verts.append((cx + half_w * table * math.cos(a), cy + half_d * table * math.sin(a), cz + height))
-    for i in range(sides):
-        a = 2 * math.pi * i / sides
-        verts.append((cx + half_w * math.cos(a), cy + half_d * math.sin(a), cz + height * 0.45))
-    verts.append((cx, cy, cz - height * 0.3))
-    faces = []
-    n = sides
-    for i in range(n):
-        j = (i + 1) % n
-        faces.append((0, 1 + i, 1 + j))
-        faces.append((1 + i, 1 + n + i, 1 + n + j))
-        faces.append((1 + i, 1 + n + j, 1 + j))
-        faces.append((1 + n + i, 1 + 2 * n, 1 + n + j))
-    obj = k.mesh_object(name, verts, faces, mat)
-    k.recalc_normals(obj)
-    return obj
 
 
 def silhouette_ship(name, art, body_index, wing_index, max_radius=2.6, thickness=1.4):
@@ -145,22 +108,6 @@ def panel_pills():
     export("panel_pills")
 
 
-def disc_spokes():
-    k.reset()
-    brown = k.material("disc_brown", palette=19, metallic=0.5, roughness=0.45)
-    light = k.material("disc_light", palette=22, metallic=0.55, roughness=0.35)
-    red = k.material("disc_red", palette=117, roughness=0.25, emission=(255, 40, 0), emission_strength=0.8)
-    c = pos(11.5, 13.5)
-    k.smooth(k.ellipsoid("disc", (c[0], c[1], 1.5), (11.4, 11.4, 3.0), brown, 40, 10), 50)
-    for i in range(8):
-        a = math.radians(22.5 + 45 * i)
-        dx, dy = math.cos(a), math.sin(a)
-        stroke(f"spoke{i}", [(c[0] + dx * 3.5, c[1] + dy * 3.5), (c[0] + dx * 9.8, c[1] + dy * 9.8)], 1.0, 2.6, 4.0,
-               light)
-    k.smooth(k.ellipsoid("eye", (c[0], c[1], 3.8), (3.0, 3.0, 1.6), red, 16, 8), 60)
-    export("disc_spokes")
-
-
 # --- Round ones ----------------------------------------------------------------------------------
 
 def orb(name, col, row, radius, index, lights=(), light_color=(255, 120, 20), z=None):
@@ -178,17 +125,7 @@ def orbs():
     # (orb_red: polish_orb_red.py)
     orb("orb_eyes", 12, 14, 10.0, 113, lights=((-3.2, 2.5), (3.2, 2.5)))
     export("orb_eyes")
-    c = orb("sphere_nozzle", 12.5, 12, 8.2, 108)
-    steel = k.material("nozzle_steel", palette=106, metallic=0.6, roughness=0.3)
-    fire = k.material("nozzle_fire", palette=121, roughness=0.3, emission=(255, 110, 20), emission_strength=1.6)
-    base, tip = Vector((c[0] + 5.5, c[1] - 5.5, c[2])), Vector((c[0] + 10.5, c[1] - 9.0, c[2]))
-    cone("nozzle", tip, base, 3.2, steel)
-    k.smooth(k.ellipsoid("flame", tuple(tip + (tip - base).normalized() * 0.6), (1.8, 1.8, 1.8), fire, 12, 6), 60)
-    export("sphere_nozzle")
-    k.reset()
-    lava = k.material("lava_ball", palette=121, roughness=0.5, emission=(255, 90, 10), emission_strength=1.2)
-    k.smooth(k.ellipsoid("ball", pos(11.5, 13, 9.0), (10.8, 10.8, 9.2), lava, 32, 16), 70)
-    export("lava_ball")
+    # (sphere_nozzle, lava_ball: polish_sphere_nozzle.py, polish_lava_ball.py)
     k.reset()
     blue = k.material("donut_blue", palette=55, metallic=0.4, roughness=0.25)
     torus("donut", pos(11.5, 12, 3.6), 7.4, 3.8, blue)
@@ -328,7 +265,6 @@ def ships():
 block_x()
 block_chevron()
 panel_pills()
-disc_spokes()
 orbs()
 blobs()
 ring_machine()
