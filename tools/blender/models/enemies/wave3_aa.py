@@ -9,8 +9,8 @@ origins (origin).
   of FLEET, MISTAKES and STARGATE, the big brother of the small orbs E 195 and E 233: black glass over a
   fiery red shell that glows brighter round its lower right, a white-hot eye in its upper left with a
   smaller one beside it and two dim embers. Built whole and cut in four (origin).
-- spike_mine_tan (E 201): the tan spiked mine of MINES, ** ALE ** and ASTEROIDS: a knobbly ball with fourteen
-  spikes; its frames (201, 239, 241) tumble it, the model turns (models.cfg: spin).
+(The tan spiked mine of MINES, ** ALE ** and ASTEROIDS, E 201, is polish_spike_mine.py's chrome mine in the sprite's
+colours: models.cfg color=sprite.)
 - bubbles_hot (E 155): BUBBLES' boiling bubbles, the cluster of E 153's bubbles (the bubbles model) glowing
   red hot; its frames pulse from dark red to yellow and back, the model glows throughout.
 - dome_magma (E 203): ASTEROIDS' red glass dome on a grey pedestal, molten swirls inside it (its frames
@@ -69,40 +69,6 @@ def orb_whole():
 
 
 kit.pieced("dark_orb", orb_whole, (48, 56), kit.grid_pieces("dark_orb_", ORB, ["tl", "tr", "bl", "br"], 2, 2))
-
-
-# --- E 201: the tan spiked mine -----------------------------------------------------------------------
-
-MINE = Frame(art.MINE, 24, (12, 14))
-
-
-@kit.model("spike_mine_tan", mask=lambda: MINE.mask())
-def spike_mine_tan():
-    c = Vector((-0.5, 0.5, 7.4))
-    body = [pal(f"mine_tan{s:x}", 0xe0 + s, metallic=0.25, roughness=0.55) for s in (5, 7, 9, 0xb)]
-    spike = pal("mine_spike", 0xea, metallic=0.3, roughness=0.45)
-    tip = pal("mine_tip", 0xed, metallic=0.3, roughness=0.4)
-    ball = w.lumpy("mine_ball", tuple(c), (7.6, 7.6, 7.0), body[2], seed=11, amount=0.12, segments=40, rings=22)
-    # Rounded lumps all over it, as the upscale shows them, between the spikes (towards the edges of the
-    # cube whose faces and corners the spikes point at); the hollows between them darker.
-    tilt = Matrix.Rotation(math.radians(8), 3, "Z")
-    knobs = [Vector(v).normalized() for v in ((1, 1, 0), (1, -1, 0), (-1, 1, 0), (-1, -1, 0), (1, 0, 1), (-1, 0, 1),
-                                              (0, 1, 1), (0, -1, 1), (1, 0, -1), (-1, 0, -1), (0, 1, -1), (0, -1, -1))]
-    for i, d in enumerate(knobs):
-        d = tilt @ d
-        w.sphere(f"mine_knob{i}", tuple(c + d * 6.3), (2.4, 2.4, 2.0), body[3], 14, 7)
-    w.paint_faces(ball, lambda cen, nrm: body[1] if (cen - c).length < 7.0 else None)
-    # Fourteen spikes: along the axes and to the corners of a cube, tilted a little so that seen from
-    # above they spread like the sprite's (up, down, left, right and the diagonals).
-    dirs = [Vector(v) for v in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))]
-    dirs += [Vector((sx, sy, sz)).normalized() for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
-    for i, d in enumerate(dirs):
-        d = tilt @ d
-        length = 12.0 if abs(d.z) < 0.9 else 10.5
-        base = c + d * 5.4
-        cone_tip = c + d * length
-        kit.cone(f"mine_spike{i}", tuple(base), tuple(cone_tip), 2.8, spike, segments=12)
-        w.sphere(f"mine_spike_tip{i}", tuple(c + d * (length - 1.2)), (0.45, 0.45, 0.45), tip, 8, 4)
 
 
 # --- E 155: the boiling bubbles ---------------------------------------------------------------------

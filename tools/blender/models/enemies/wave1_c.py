@@ -11,7 +11,7 @@
 - orb_crimson (sheet K 195): a dark red glass orb with an ember glowing inside where the sprite has its
   bright spot (FLEET, STATION).
 - purple_pod (sheet 5 47): a purple pod with a red strap and a golden clasp (HARVEST, LAVA RUN).
-- spike_mine_teal (sheet A 167): a faceted teal mine with spikes all round, which turns.
+(The teal spiked mine, A 167, is polish_spike_mine.py's chrome mine in the sprite's colours: models.cfg color=sprite.)
 - savara_fin_left / savara_fin_right (sheet F 153 / 163): the outer glowing fins of SAVARA's boss
   (their lower ends continue into the boss's next sprites).
 
@@ -746,28 +746,6 @@ def purple_pod():
     k.smooth(k.ellipsoid("stud", (0.0, 0.0, radii[2] + 1.0), (0.8, 1.2, 0.5), gold, 12, 6), 60)
 
 
-def spike_mine_teal():
-    """A faceted teal mine with eight spikes round its middle and more above and below (A 167); it
-    turns (models.cfg: spin)."""
-    k.reset()
-    ball = k.material("tealmine_ball", palette=215, metallic=0.55, roughness=0.25)
-    tips = k.material("tealmine_spikes", palette=219, metallic=0.6, roughness=0.2)
-    c = Vector((-0.5, 0.5, 8.4))
-    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=8.5, location=tuple(c))
-    core = bpy.context.active_object
-    core.name = "ball"
-    core.data.materials.append(ball)
-    k.smooth(core, 15)
-    spikes = [(a, 0.0, 11.8) for a in range(0, 360, 45)]
-    spikes += [(a + 22.5, 45.0, 11.4) for a in range(0, 360, 90)]
-    spikes += [(a + 67.5, -45.0, 11.4) for a in range(0, 360, 90)]
-    spikes += [(0.0, 90.0, 11.4)]
-    for i, (az, el, length) in enumerate(spikes):
-        a, e = math.radians(az), math.radians(el)
-        d = Vector((math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), math.sin(e)))
-        cone(f"spike{i}", c + d * 7.0, c + d * length, 1.7, tips, vertices=8, tip_radius=0.35)
-
-
 # --- SAVARA's boss fins (sheet F 153 and 163) ------------------------------------------------------
 # f the fin (its lower end goes on into the boss's next sprite), x bits of the boss's hull.
 
@@ -912,7 +890,6 @@ MODELS = {
     "dome_gunship": (dome_gunship, "2", 45),
     "orb_crimson": (orb_crimson, "K", 195),
     "purple_pod": (purple_pod, "5", 47),
-    "spike_mine_teal": (spike_mine_teal, "A", 167),
     "savara_fin_left": (savara_fin_left, "F", 153),
     "savara_fin_right": (savara_fin_right, "F", 163),
 }
