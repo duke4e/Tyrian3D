@@ -1,5 +1,5 @@
 """Enemies of wave 2, batch H, modelled as their sprites look (models.cfg: yaw=0 unless noted). (GYGES' bronze
-ingot, H 93: polish_yuanbao.py.)
+ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_molten_rock.py.)
 
 - desert_rock_tip (sheet 3 180): the 1x1 tip of the big tan rock of DESERTRUN and SURFACE (the rest of
   the rock is 3 162, 164, 198, 200, 202): a sloping nub cut where the rock goes on (origin).
@@ -10,7 +10,6 @@ ingot, H 93: polish_yuanbao.py.)
   sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
   make them flap): they show the first frame, the flap standing on edge, which is how they are
   modelled (origin; the whole flap is built once and cut into the two sprites' pieces).
-- molten_rock (sheet L 115): a ball of lava, plates of crust between glowing cracks.
 - dark_ember (sheet L 118): a dark red pod with a glowing light.
 - asteroid_lumpy (sheet D 5): a grey faceted asteroid.
 - twin_claw_left, twin_claw_right (sheet 3 8, 3 10): the two halves of the claw ship of SURFACE, CORE
@@ -72,49 +71,6 @@ def desert_rock_tip():
         return 0 if d < 0.55 else 1 if d < 1.3 else 2
 
     kit.solid("tip", polys, top, 0.0, [dark, mid, tan], mat, side_mat=0, spacing=0.3, smooth_angle=35, cut=cut)
-
-
-# --- L 115: the lava ball ------------------------------------------------------------------------
-
-def molten_rock():
-    """A ball of lava (11 x 13 pixels) on the ground: plates of red crust, some darker, between
-    glowing cracks."""
-    crust = pal("lava_crust", 0x72, metallic=0.0, roughness=0.6, glow=0.2)
-    plate = pal("lava_plate", 0x75, metallic=0.0, roughness=0.45, glow=0.35)
-    warm = pal("lava_warm", 0x77, metallic=0.0, roughness=0.4, glow=0.7)
-    hot = pal("lava_hot", 0x7a, metallic=0.0, roughness=0.4, glow=1.3)
-    white = pal("lava_white", 0x7c, metallic=0.0, roughness=0.4, glow=2.0)
-    centre, radii = Vector((-0.5, -0.5, 4.4)), Vector((5.5, 6.4, 4.9))
-    rng = random.Random(115)
-    seeds, count = [], 46
-    for i in range(count):
-        zz = 1 - 2 * (i + 0.5) / count
-        rr = math.sqrt(1 - zz * zz)
-        a = i * math.pi * (3 - math.sqrt(5))
-        v = Vector((rr * math.cos(a), rr * math.sin(a), zz)) + Vector([rng.uniform(-0.25, 0.25) for _ in range(3)])
-        seeds.append(v.normalized())
-    dark = [rng.random() < 0.3 for _ in seeds]
-    bm = bmesh.new()
-    bmesh.ops.create_icosphere(bm, subdivisions=4, radius=1.0)
-    values = []
-    for v in bm.verts:
-        n = v.co.normalized()
-        d = sorted((n.angle(s), i) for i, s in enumerate(seeds))
-        gap = d[1][0] - d[0][0]  # 0 on a crack
-        heat = math.exp(-gap / 0.06)
-        if dark[d[0][1]]:
-            heat -= 0.35 * smoothstep(0.06, 0.2, gap)
-        r = 1 - 0.06 * math.exp(-gap / 0.03) + 0.03 * smoothstep(0.04, 0.2, gap)
-        v.co = centre + Vector((n.x * radii.x * r, n.y * radii.y * r, n.z * radii.z * r))
-        values.append(heat)
-    mesh = bpy.data.meshes.new("lava")
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new("lava", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    kit.band_split(obj, values, [(-9, crust), (0.0, plate), (0.18, warm), (0.4, hot), (0.78, white)],
-                   smooth_angle=70)
-    sh.flat_bottom([obj], 0.0)  # it lies on the ground
 
 
 # --- L 118: the dark ember pod -------------------------------------------------------------------
@@ -520,7 +476,6 @@ def fire_flap_l_bottom():
 E = kit.ENEMIES
 MODELS = [
     ("desert_rock_tip", desert_rock_tip, [("3", 180, False)], E),
-    ("molten_rock", molten_rock, [("L", 115, False)], E),
     ("dark_ember", dark_ember, [("L", 118, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
     ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),

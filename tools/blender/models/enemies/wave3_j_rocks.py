@@ -1,9 +1,7 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the rocks and the stone face; modelled as
-their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py.
+their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py; the two big asteroids (D 1 3 / 39 41 and
+D 7 9 / 45 47) in polish_asteroids.py.
 
-- asteroid2_tl, asteroid2_tr, asteroid2_bl, asteroid2_br (D 1, 3, 39, 41): the second big asteroid
-  on the ground (the game places the four in a block, event 12), a cluster of lumpy grey boulders
-  on a low base like the first one (D 7, 9, 45, 47, wave2_f_more.py), cut into its pieces (origin).
 - crag_* (D 13, 15, 31, 34, 49, 51, 53, 88, 89, 91): the huge asteroid of ASTEROID1 and ASTEROIDS,
   72 x 84 pixels, which the game puts together from ten sprites (six 2x2, four 1x1), built whole
   the same way and cut into the ten pieces (origin).
@@ -21,7 +19,7 @@ their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py.
 
 usage: Blender -b --factory-startup -P wave3_j_rocks.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       [--whole asteroid2|crag|stone_face --preview <prefix>]
+       [--whole crag|stone_face --preview <prefix>]
 """
 import math
 import os
@@ -40,7 +38,7 @@ P = "enemy_P"
 # --- Boulder clusters on the ground --------------------------------------------------------------
 
 def cluster(g, origin, boulders, prefix, seed=11, height_scale=1.0, size_scale=1.0):
-    """A big asteroid on the ground, as wave2_f_more.asteroid_whole: lumpy grey boulders where the
+    """A big asteroid on the ground: lumpy grey boulders where the
     sprite draws its lobes, packed on a low dark base that fills the cracks between them. boulders:
     ((column, row), (rx, ry), height, turn) in the art's pixels; each boulder's shade follows the
     sprite's mean shade round its centre."""
@@ -79,33 +77,6 @@ def clamp_to_outline(obj, poly, centre):
         limit = w._ray_polygon(poly, (cx, cy), (dx / d, dy / d))
         if limit > 0 and d > limit:
             v.co.x, v.co.y = cx + dx * limit / d, cy + dy * limit / d
-
-
-# --- D 1, 3, 39, 41: the second big asteroid -----------------------------------------------------
-
-AST2_BOULDERS = [
-    ((24.0, 11.0), (6.6, 6.2), 9.0, 15), ((18.0, 21.0), (7.6, 7.4), 11.0, -10), ((30.5, 18.0), (6.0, 6.2), 9.5, 25),
-    ((38.0, 22.5), (5.0, 6.4), 8.0, -5), ((8.5, 22.0), (5.0, 6.0), 7.5, 10), ((11.5, 33.0), (6.0, 6.0), 8.5, -20),
-    ((21.5, 34.0), (7.0, 6.5), 10.0, 5), ((32.0, 32.0), (6.0, 6.0), 9.5, 30), ((25.0, 44.0), (8.0, 5.2), 8.0, 0),
-    ((35.0, 40.5), (5.0, 5.5), 8.5, -15), ((14.5, 43.0), (5.0, 4.6), 7.0, 20), ((39.5, 30.5), (4.0, 5.0), 7.0, 0),
-]
-
-
-@whole("asteroid2", (48, 56))
-def asteroid2_whole():
-    cluster(w.grid(art.AST2, 48), (24, 28), AST2_BOULDERS, "asteroid2", seed=31, size_scale=1.05)
-
-
-def asteroid2_piece(x0, x1, y0, y1):
-    asteroid2_whole()
-    w.bake()
-    w.piece(w.meshes(), x0, x1, y0, y1)
-
-
-model("asteroid2_tl", [(D, 1, True)])(lambda: asteroid2_piece(-24, 0, 0, 28))
-model("asteroid2_tr", [(D, 3, True)])(lambda: asteroid2_piece(0, 24, 0, 28))
-model("asteroid2_bl", [(D, 39, True)])(lambda: asteroid2_piece(-24, 0, -28, 0))
-model("asteroid2_br", [(D, 41, True)])(lambda: asteroid2_piece(0, 24, -28, 0))
 
 
 # --- D 13, 15, 31, 34, 49, 51, 53, 88, 89, 91: the huge asteroid ---------------------------------

@@ -1,12 +1,11 @@
 """Batch F of the second wave, continued (wave2_f.py has the rest), facing the way the sprites do
 (models.cfg: yaw=0). Larger objects the game draws from several sprites are built whole and cut
 into the sprites' pieces, which are drawn at their own origins (models.cfg: origin) so they meet (the drilling
-machine, V 1 above V 39, is built by polish_drillrig.py, the arch, 2 49 beside 2 51, by polish_arch.py):
+machine, V 1 above V 39, is built by polish_drillrig.py, the arch, 2 49 beside 2 51, by polish_arch.py, the big asteroid, D 7 9 / 45 47, by
+polish_asteroids.py):
 
 - grabber_left, grabber_right (sheet 2 123, 2 125): the grey grabber of TYRIAN and FLEET with a
   glowing blue bar down its neck and two hooked legs, standing on the ground.
-- asteroid_tl, asteroid_tr, asteroid_bl, asteroid_br (sheet D 7, 9, 45, 47): the big lumpy asteroid
-  of the asteroid levels, lying on the ground.
 - pod_dome (sheet C 163): the ground relative of DELI's flying pod machine (pod_turret, C 191, is built by
   polish_pod_turret.py): a blue double dome, the two pods and the grey
   gun pointing down the screen with blue lights at its muzzle.
@@ -151,120 +150,6 @@ def grabber_right():
     w.piece(w.meshes(), 0, 24, -14, 14)
 
 
-# --- The big asteroid (sheet D 7, 9, 45, 47) -----------------------------------------------------
-# The sprites' shades (0-f, the grey ramp) from row 3 of the 48 x 56 object (its outline).
-
-ASTEROID_TOP_ROW = 3
-ASTEROID = w.art("""
-................................................
-................................000.............
-...............................013100...........
-..............................014543100.........
-.............................0146a7543100.......
-............................01469b996543100.....
-...........................014679b8997444310....
-..........................014679aaba95764430....
-.................0011100.014579aa898569864410...
-................014444311134589987558bb987530...
-...............014787654444466677578cb88885410..
-...............0368aa99666544556799bb986677530..
-..............0147aaa9997875456899bb98a867a7410.
-.............01479aab9998885558999b9868677b7530.
-............01479aaaba99998655899ac877777797431.
-...........01468aaaabb99999874799bc879a87787430.
-...........03689aaaaabb999986558a9b879987685410.
-..........01489aaaaabacb9999767757987898678531..
-..........03699aaaaababcb9997788866877757a7431..
-..........14799aaaaababbc9988889a8688466797431..
-..........14699aaaaabbabcb97899999747568787430..
-..........03589aaaababbcbb87acdc99954648776410..
-..........01469aaaabbbbbbaa8bcfdba99744588541...
-...........0347aaaaabbbbba97bceaaaa9964477431...
-...........01468aabbcbbbba89bcdb99ca984456431...
-............0356aabbbbb98768acc9b99aa9544541....
-............0145778898987758acc88b8aa9464431....
-.............034465875667748acb8999a965784410...
-.............014459cb98766489ba9aa99778974430...
-.............0147acbaa9967688a9c99957899865410..
-............0146acba9aaa88579baaa976a999976430..
-...........01468cb999b9aaa856899767ca9a8987431..
-...........03689dbaaaa99aaa7668968cc9999a88431..
-...........1479adcba9aaba99a64656cd88887889431..
-...........1489adca9ab999aa998659ca88788976430..
-..........01699bcbaa9aaaa99999747bb87898774310..
-.........014799acbba99ab999988875688888775410...
-........0146999acdccbbaa98777887746787876530....
-.......0146899999cbdcba987766778864556565410....
-.......0368999999998889a8767787777844444410.....
-.......146999999998888a9776677767765444410......
-.......1347888898888899854455667877444430.......
-.......03446777777788975aa877778766446310.......
-.......013444678887777858765666666544410........
-........0013444665555556666686665544430.........
-..........00134444555445666666554444310.........
-............00134444444554566544333100..........
-..............0013444445544444311100............
-................0013444443331100................
-..................00133311100...................
-....................0011........................
-""")
-
-
-# The boulders the asteroid is made of (the lobes the sprites draw): centre (column, row), radii in
-# pixels, height, shade (palette index), turn (degrees).
-BOULDERS = [
-    ((35.0, 10.0), (6.6, 5.6), 8.5, 9, 20), ((39.4, 19.5), (5.0, 7.0), 8.0, 8, -10),
-    ((19.5, 21.0), (8.8, 9.2), 11.0, 10, 15), ((32.0, 29.8), (5.6, 6.6), 10.0, 10, -20),
-    ((41.0, 33.0), (4.4, 6.6), 7.0, 8, 0), ((19.0, 39.6), (8.8, 7.6), 10.0, 9, -10),
-    ((27.6, 46.6), (8.6, 5.6), 8.0, 8, 5), ((35.4, 40.4), (5.6, 5.6), 8.5, 9, 30),
-    ((12.6, 43.0), (4.6, 5.6), 6.5, 8, 0), ((25.0, 30.5), (4.4, 4.0), 8.0, 9, 0),
-]
-
-
-def asteroid_whole():
-    """The big asteroid on the ground: a cluster of lumpy grey boulders where the sprites draw their
-    lobes, packed on a low dark base that fills the cracks between them."""
-    base = pal("asteroid_base", 6, metallic=0.05, roughness=0.8)
-    oy = 28 - ASTEROID_TOP_ROW
-    polys = sh.outlines(ASTEROID, "0123456789abcdef", (24, oy), smooth=2, epsilon=0.6, min_area=4.0)
-    k.smooth(sh.inflate("base", [sh.inset(p, 0.8) for p in polys], base, sh.round_profile(0.5, max_height=2.6),
-                        bottom=0.0, spacing=0.9, sigma=2.0), 60)
-    for i, ((c, r), (rx, ry), h, shade, turn) in enumerate(BOULDERS):
-        mat = pal(f"asteroid_rock{shade}", shade, metallic=0.05, roughness=0.75)
-        rock = w.lumpy(f"boulder{i}", (0, 0, 0), (rx * 1.08, ry * 1.08, h * 0.85), mat, seed=11 + i, amount=0.2,
-                       segments=14, rings=9)
-        rock.data.transform(Matrix.Translation((c + 0.5 - 24, 28 - (r + 0.5), -0.1 * h)) @
-                            Matrix.Rotation(math.radians(turn), 4, "Z"))
-        k.smooth(rock, 32)
-    sh.flat_bottom(w.meshes())
-
-
-def asteroid_piece(x0, x1, y0, y1):
-    asteroid_whole()
-    w.bake()
-    w.piece(w.meshes(), x0, x1, y0, y1)
-
-
-@model("asteroid_tl", "enemy_D", 7)
-def asteroid_tl():
-    asteroid_piece(-24, 0, 0, 28)
-
-
-@model("asteroid_tr", "enemy_D", 9)
-def asteroid_tr():
-    asteroid_piece(0, 24, 0, 28)
-
-
-@model("asteroid_bl", "enemy_D", 45)
-def asteroid_bl():
-    asteroid_piece(-24, 0, -28, 0)
-
-
-@model("asteroid_br", "enemy_D", 47)
-def asteroid_br():
-    asteroid_piece(0, 24, -28, 0)
-
-
 # --- The pod machines (sheet C 191 and C 163) -----------------------------------------------------
 
 def pod_parts(prefix, flip, mats):
@@ -325,8 +210,7 @@ def pod_dome():
 
 # --- Main ----------------------------------------------------------------------------------------
 
-WHOLE = {"grabber": (grabber_whole, (48, 28)),
-         "asteroid": (asteroid_whole, (48, 56))}
+WHOLE = {"grabber": (grabber_whole, (48, 28))}
 
 
 def whole(prefix, only=None):
