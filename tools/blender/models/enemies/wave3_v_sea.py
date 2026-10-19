@@ -2,12 +2,8 @@
 (models.cfg: yaw=0 unless noted). DELI's boss is in wave3_v.py; the kit is wave3_v_kit.py, the pixels
 wave3_v_art.py. Objects the levels put together from several sprites (the level files' enemy events say
 how) are built whole and cut into their pieces, drawn at their own origins (origin). (CORAL's bony fish, T 229
-beside T 231: polish_coral_fish.py.)
+beside T 231: polish_coral_fish.py; its seahorses, T 203 and 241: polish_coral_seahorse.py.)
 
-- coral_seahorse_left (T 203) and coral_seahorse_right (T 241, its mirror image): CORAL's brown seahorses
-  in profile, swimming in from the right (1221) and the left (1205): a ridged body arching from the crowned
-  head to the curled tail, a long snout, a pale eye, a frilly pale blue fin at the back of the head (its
-  second frame flickers the fin).
 - coral_starfish (T 127): the tan starfish thrown in CORAL (enemy 1223); its frames (129, 131, 245) turn it
   clockwise 18 degrees each, two cycles apiece (models.cfg: yaw=frames:40:0).
 - coral_starlet (T 89): CORAL's small starfish (enemy 1212), a little above the sprite's middle.
@@ -42,63 +38,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_v_kit as v  # noqa: E402
 from wave3_v_kit import art, k, sh, w, n, pal  # noqa: E402
-
-
-# --- T 203 (and T 241, its mirror image): the seahorses ----------------------------------------------
-
-SEAHORSE = v.Frame(art.SEAHORSE, 24, (12, 14))
-
-
-def seahorse(mirrored):
-    """A brown seahorse in profile, as the sprite draws it (203 faces left; 241, its mirror image, right):
-    a ridged body arching from the crowned head down to the curled tail, a long snout, a pale eye and a
-    frilly pale blue fin at the back of its head."""
-    f = SEAHORSE
-    paint = v.Painter("seahorse", shades={1: (0, 2, 4, 5, 6, 7, 8, 9, 0xb, 0xd)}, metallic=0.25, roughness=0.45)
-    brown = paint(0x16)
-    fin = pal("seahorse_fin", 0x3c, metallic=0.1, roughness=0.2, glow=0.35)
-    fin_light = pal("seahorse_fin_light", 0x3e, metallic=0.1, roughness=0.2, glow=0.5)
-    eye = pal("seahorse_eye", 0x3e, metallic=0.1, roughness=0.1, glow=0.4)
-    pupil = pal("seahorse_pupil", 0x10, metallic=0.2, roughness=0.1)
-    shade = f.shade(1, blur=0)
-
-    # The body: every brown pixel, round in section, its rings standing out where the sprite draws them
-    # lighter.
-    def body_z(x, y, z):
-        return z + 0.22 * (shade(x, y) - 5.5) * min(1.0, (z - 0.2) / 1.5)
-    keep = lambda i, c, r: i >> 4 == 1 or (i >> 4 == 3 and not (c >= 13))
-    body = v.relief("body", v.outlines_of(f, keep, grow=0.1, smooth=1), brown,
-                    sh.round_profile(0.8, max_height=4.6, min_height=0.6), bottom=0.75, base=0.0, z_fn=body_z,
-                    spacing=0.55)
-    v.paint_sprite(body, f, paint, wall_steps=-1, keep=lambda i: i >> 4 == 1, default=brown)
-
-    # The crown of spines on the head's top.
-    for i, (c, r, h) in enumerate(((11.5, 0.6, 1.2), (9.5, 1.0, 1.0), (13.0, 0.4, 0.9))):
-        w.tube(f"crown{i}", [(f.X(c), f.Y(r + 1.4), 3.2), (f.X(c) + 0.2, f.Y(r), 3.6 + h)], [0.55, 0.15], paint(0x19),
-               8)
-
-    # The eye on the head's side, pale with a dark pupil.
-    ex, ey = f.X(7.6), f.Y(2.6)
-    w.sphere("eye", (ex, ey, 3.6), (1.15, 1.0, 0.8), eye, 14, 7)
-    w.sphere("pupil", (ex - 0.25, ey + 0.05, 4.2), (0.5, 0.5, 0.35), pupil, 10, 5)
-
-    # The frilly fin at the back of the head: three pale blue blades fanning out behind it.
-    for i, (dy, dx) in enumerate(((2.2, 0.6), (0.0, 1.2), (-2.4, 0.8))):
-        root = (f.X(12.8), f.Y(4.0) + dy, 3.2)
-        tip = (root[0] + dx + 1.0, root[1] + dy * 0.35, 3.8)
-        pts = w.catmull([root, ((root[0] + tip[0]) / 2, (root[1] + tip[1]) / 2 + 0.15, 3.9), tip], 0.4)
-        w.tube(f"fin{i}", pts, [0.65 - 0.5 * j / (len(pts) - 1) for j in range(len(pts))],
-               fin_light if i == 1 else fin, 10, squash=0.4)
-    # The small fin on the back of the neck (columns 12-14, rows 8-11).
-    dorsal = [(f.X(11.0), f.Y(8.6)), (f.X(13.6), f.Y(8.2)), (f.X(14.4), f.Y(9.6)), (f.X(12.8), f.Y(11.4)),
-              (f.X(11.0), f.Y(11.6))]
-    v.relief("dorsal", [dorsal], paint(0x17), sh.pillow_profile(0.7, 0.5), bottom=0.5, base=1.6, spacing=0.35)
-    if mirrored:
-        v.mirror_scene(0.0)
-
-
-v.model("coral_seahorse_left", mask=lambda: SEAHORSE.mask())(lambda: seahorse(False))
-v.model("coral_seahorse_right", mask=lambda: v.Frame(art.SEAHORSE_R, 24, (12, 14)).mask())(lambda: seahorse(True))
 
 
 # --- T 127 and T 89: the starfish --------------------------------------------------------------------

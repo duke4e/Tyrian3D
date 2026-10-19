@@ -1,13 +1,8 @@
 """Enemies of wave 3, batch W (sheet P: the asteroid levels), modelled as their sprites look (models.cfg:
-yaw=0): the block house and the small blocks with doors. The works built on the block house (the
+yaw=0): the small blocks with doors (the block house: polish_block_house.py). The works built on the block house (the
 drilling rig, the bronze pump with its golden dome, the cargo pod) are in wave3_w_works.py, the tan
 launcher in wave3_w_launcher.py; the kit is wave3_w_kit.py, the pixels wave3_w_art.py.
 
-- block_house_tl, block_house_tr, block_house_bl, block_house_br (P 153, 155 above 191, 193): the grey
-  block house of ASTEROID2, ASTEROID?, ASTCITY and AST. CITY (enemies 313-316, which event 12 places as
-  the sheet arranges them): a block 40 x 43 pixels with rounded corners standing on the ground, its roof
-  laid with fifteen raised panels; three of them are hatches the frames sink (157/161 and their
-  neighbours), set a little lower in dark gaps. Built whole and cut into its pieces (origin).
 - block_door (P 279): ASTEROID?'s small block in the floor with a lid over a well in its top; the frames
   lift the lid (281, 245, 283): the model shows it a little open over a dark slit.
 - block_slot (P 53): the same block with its lid open, standing up the screen over the dark well.
@@ -26,23 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_w_kit as kit  # noqa: E402
 from wave3_w_kit import art, k, sh, w, p, pal  # noqa: E402
 
-
-# --- P 153 155 / 191 193: the block house ------------------------------------------------------------
-
-HOUSE = kit.Frame(art.BLOCKS, 48, (24, 28))
-
-
-def block_house_whole():
-    # No floor round it: the sprites' floor is the map's ground, which the game draws under it (batch AV).
-    parts, _ = kit.house("house", HOUSE, 0)
-
-
-kit.pieced("block_house", block_house_whole, (48, 56), [
-    kit.quarter("block_house_tl", HOUSE, 0, 0), kit.quarter("block_house_tr", HOUSE, 24, 0),
-    kit.quarter("block_house_bl", HOUSE, 0, 28), kit.quarter("block_house_br", HOUSE, 24, 28)])
-
-
-# --- P 279 and P 53: the small blocks with doors -------------------------------------------------------
 
 def small_block(prefix, f, angle, glow=0.0):
     """The small block of the asteroid floor (columns 4-19, rows 0-14 of its sprite) with a well in its top

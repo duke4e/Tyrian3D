@@ -2,9 +2,6 @@
 (models.cfg: yaw=0). The kit is wave3_ai_kit.py, the pixels wave3_ai_art.py; GRYPHON's boss is in
 wave3_ai_gryphon.py, the coins sheet's items in items/wave3_ai_items.py.
 
-- botany_eye_pod (0 125, enemy 819, BOTANY A and B): a steel-blue shell closed round a red eye: two domed plates
-  above it, two smaller below, a curved rib down either side ending in a little foot. Its frames (127, 131) light
-  the eye; the model's eye glows (models.cfg: glow in its red).
 - botany_stone (0 153, enemy 820, BOTANY B): a lilac stone of four rounded lobes with a knob at each point of its
   diamond; between the lobes a cross of crevices where a red core glows (its frames 155, 157 light it).
 - botany_beetle (0 229, enemy 821, BOTANY B): a blue beetle with folded wing cases, each with a ridge along it, its
@@ -44,54 +41,6 @@ def shade_by_slope(prefix, levels):
         return chosen
     return pick
 
-
-# --- 0 125: the eye pod -------------------------------------------------------------------------------------
-
-EYE_POD = kit.frame("EYE_POD", 24, (12, 14))
-EYE_POD_PAINT = kit.frame("EYE_POD", 24, (12, 14)).fill({0x30})
-AX_POD = 0.5  # its axis (pixel column 12's centre)
-
-
-@kit.model("botany_eye_pod", mask=lambda: EYE_POD.mask())
-def botany_eye_pod():
-    f = EYE_POD_PAINT
-    paint = steel("pod")
-    dark = pal("pod_dark", 0x32, metallic=0.25, roughness=0.45)
-    red = pal("pod_eye", 0x75, metallic=0.1, roughness=0.15, glow=1.2)
-    hot = pal("pod_eye_hot", 0x7b, metallic=0.0, roughness=0.1, glow=1.8)
-    ex, ey = AX_POD, 1.0
-    # The body under the plates: a low dark dome over the whole outline.
-    polys = kit.polys_where(f, lambda val, c, r: True, smooth=2, epsilon=0.3, min_area=2.0, grow=-0.3)
-    body = kit.relief("pod_body", polys, dark, sh.round_profile(aspect=0.55, max_height=3.2), bottom=0.0, base=0.0,
-                      rim=0.4, spacing=0.45)
-    kit.paint_sprite(body, f, paint, wall_steps=-2, blur=2, keep=lambda val: val >> 4 == 3)
-    shells = []
-    # The two domed plates above the eye and the two smaller ones below it, leaning away from it.
-    for side in (-1, 1):
-        for name, (dx, dy), radii, tilt in (("upper", (2.55, 3.4), (2.5, 2.3, 2.7), 14),
-                                            ("lower", (2.4, -2.6), (2.2, 1.6, 2.0), -14)):
-            centre = (ex + side * dx, ey + dy, 3.1 if name == "upper" else 2.6)
-            plate = w.sphere(f"pod_{name}{side:+d}", centre, radii, dark, 24, 12)
-            kit.turned(plate, side * tilt, "Y", centre)
-            shells.append(plate)
-        # The rib down the side: a curved bar from the top plate's shoulder to the foot.
-        x0 = ex + side * 6.9
-        rib = kit.limb(f"pod_rib{side:+d}", [(x0 - side * 0.6, 4.6, 2.0), (x0, 2.6, 2.9), (x0 + side * 0.15, -0.6, 3.0),
-                                            (x0 - side * 0.3, -3.2, 2.5), (x0 - side * 1.6, -4.6, 1.4)],
-                       [1.0, 1.35, 1.4, 1.2, 0.7], dark, segments=14, squash=1.0)
-        shells.append(rib)
-    plates = shade_by_slope("pod_plate", [(-2, 0x33), (0.0, 0x36), (0.35, 0x38), (0.6, 0x3a), (0.82, 0x3c),
-                                          (0.95, 0x3d)])
-    for obj in shells:
-        kit.paint_faces(obj, plates)
-    # The eye: a socket ring round a red lens with a hot core.
-    kit.torus("pod_socket", (ex, ey, 2.7), 2.1, 0.55, dark, 24, 8, scale_y=1.25)
-    kit.lens("pod_eye", (ex, ey, 3.15), (0, 0, 1), (1.75, 2.15, 0.9), red, sink=0.1, segments=20)
-    kit.lens("pod_eye_core", (ex, ey + 0.2, 3.9), (0, 0, 1), (0.7, 0.9, 0.35), hot, sink=0.0, segments=12)
-    kit.flatten_under(w.meshes())
-
-
-# --- 0 153: the stone ---------------------------------------------------------------------------------------
 
 STONE = kit.frame("STONE", 24, (12, 14))
 SC = (0.5, 0.5)  # its centre
