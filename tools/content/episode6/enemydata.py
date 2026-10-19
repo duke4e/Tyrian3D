@@ -194,8 +194,10 @@ class Importer:
             return False
         if not all(self._same_weapon(episode, t) for t in record[1:4] if 0 < t < 252):
             return False
-        others = [struct.unpack_from("<H", record, at)[0] for at in (71, 75)]
-        return all(self._same_enemy(episode, o, seen) for o in others if 0 < o <= tyrdata.ENEMY_NUM)
+        launched, dying = (struct.unpack_from("<H", record, at)[0] for at in (71, 75))
+        if number <= 1000:
+            launched %= 1000  # (the thousands are its launch special: _fill)
+        return all(self._same_enemy(episode, o, seen) for o in (launched, dying) if 0 < o <= tyrdata.ENEMY_NUM)
 
     def enemy_block(self, episode, first, count=4):
         """count consecutive enemies (a 4-part enemy's, event 12) as consecutive numbers of
@@ -222,6 +224,12 @@ class Importer:
                 record[1 + k] = self.weapon(episode, tur)
         for at in (71, 75):  # elaunchtype, eenemydie
             other = struct.unpack_from("<H", record, at)[0]
+            if at == 71 and number <= 1000:
+                # An enemy of the first bank launches elaunchtype % 1000, the thousands its launch
+                # special (JE_makeEnemy; 1: only in line with the player, the launched one on its
+                # link). Brought in, it is of the second bank (IMPORT_ENEMIES), which launches the
+                # whole number: the enemy it launches, without the special.
+                other %= 1000
             if 0 < other <= tyrdata.ENEMY_NUM:
                 struct.pack_into("<H", record, at, self.enemy(episode, other))
         self.data[self.enemies[new]:self.enemies[new] + ENEMY_SIZE] = record
