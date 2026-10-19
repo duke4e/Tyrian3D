@@ -11,7 +11,6 @@
 - purple_shield (sheet 2 127): the purple armoured pod with blue windows (TYRIAN, HOLES).
 - pebble (sheet D 133, 1x1): the small blue-grey rock of the asteroid levels.
 
-More of the batch (pieces of larger objects, the pod machines) are in wave2_f_more.py.
 
 usage: blender -b --factory-startup -P wave2_f.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]

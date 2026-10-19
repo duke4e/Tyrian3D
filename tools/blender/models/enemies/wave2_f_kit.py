@@ -1,4 +1,4 @@
-"""Helpers for the batch F models of wave 2 (wave2_f.py, wave2_f_more.py): parts traced from pixel
+"""Helpers for the batch F models of wave 2 (wave2_f.py): parts traced from pixel
 art and given volume (wave1_d_shapes), turned parts along any axis, tubes, palette materials,
 painting by position, and a registry that builds, checks, exports and previews the models.
 

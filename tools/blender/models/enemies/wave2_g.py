@@ -24,8 +24,7 @@
 - gem_bud: now built by polish_gem_bud.py.
 - bomb_pickup (coins sheet 89): the pick-up of a super bomb: the word BOMB in glowing orange
   letters beside a blue bomb (assets/models/items).
-- fork_ship (sheet F 87): the tan fork-shaped ship of SAVARA, swept wings, grey fins and a port
-  with a light in its belly.
+- fork_ship: now built by polish_fork_ship.py (F 87 is F 3's pixels in other ramps).
 
 Parts are mostly inflated from the outlines of regions of the sprites' pixels (wave2_g_art.py holds
 the pixels' palette indices), with the helpers of wave1_d_shapes.py; flat undersides are simplified
@@ -493,55 +492,6 @@ def hatch_ship():
     for x in (-7.5, 7.5):
         k.smooth(k.ellipsoid(f"lamp{x}", (x, 10.9, 3.35), (1.05, 1.0, 0.6), lamp, 12, 6), 60)
     k.smooth(k.ellipsoid("canopy", (0.0, -7.9, 4.1), (1.9, 3.3, 1.6), blue, 20, 12), 60)
-
-
-# --- F 87: the fork ship ---------------------------------------------------------------------------
-
-@model("fork_ship", "F", 87)
-def fork_ship():
-    """A tan ship shaped like a fork: a prong in the middle (a ridge along the hull), a grey fin at
-    each side of it, swept wings reaching up at both sides, the hull narrowing to a point at the
-    bottom with a port in its belly where a light glows; small blue-grey lights by the ridge."""
-    g = grid(art.F87, 24)
-
-    def where(v, c, r):
-        if r <= 9 and 9 <= c <= 17 and v == 0x01:
-            return "."  # the outlines between the prongs: the fork stays open
-        if v >> 4 in (0, 6) and v & 15 >= 6:
-            if r <= 6 and (9 <= c <= 11 or 15 <= c <= 17):
-                return "f"
-        return "#"
-    rows = regions(g, where)
-    tan = pal("fork_tan", 0x19, metallic=0.45, roughness=0.4)
-    light = pal("fork_light", 0x1c, metallic=0.5, roughness=0.3)
-    grey = pal("fork_grey", 0x0a, metallic=0.6, roughness=0.3)
-    dark = pal("fork_dark", 0x11, metallic=0.3, roughness=0.6)
-    glow = pal("fork_glow", 0x1e, metallic=0.0, roughness=0.2, glow=0.9, color=(255, 240, 200))
-    stud = pal("fork_stud", 0x6c, metallic=0.6, roughness=0.2, glow=0.2)
-    hull = part("hull", rows, "#", tan, sh.round_profile(0.8, max_height=3.6), smooth=1, epsilon=0.45,
-                spacing=0.4, rim=0.25, grow=0.35)
-    simplify_bottom(hull)
-    decimate(hull, 1800)
-    k.smooth(hull, 55)
-    fins = part("fins", rows, "f", grey, sh.round_profile(1.0, max_height=1.8), smooth=1, epsilon=0.3, spacing=0.3,
-                grow=0.45, base=0.0, min_area=0.5)
-    k.smooth(fins, 50)
-    # The ridge along the middle, from the prong's tip down the hull.
-    cx = 1.5
-    ridge = [(cx, y) for y in np.linspace(12.4, -3.0, 14)]
-    tube("ridge", [(x, y, sh.surface_z(hull, x, y, 1.0) + 0.1) for x, y in ridge],
-         [0.55, 0.65, 0.75, 0.85, 0.95, 1.0, 1.05, 1.05, 1.05, 1.0, 0.95, 0.85, 0.7, 0.5], light, segments=10)
-    # Grey edges along the wings' inner sides.
-    for side, path in ((-1, [(-5.3, 6.6), (-4.2, 4.6), (-3.0, 2.8)]), (1, [(6.3, 7.0), (5.3, 4.8), (4.3, 2.8)])):
-        tube(f"wing_edge{side}", [(x, y, sh.surface_z(hull, x, y, 1.0) - 0.3) for x, y in path], 0.55, grey,
-             segments=8)
-    # The port and its light, the small lights by the ridge.
-    z = sh.surface_z(hull, cx, -4.5, 3.0)
-    k.smooth(k.ellipsoid("port", (cx, -4.6, z - 0.5), (1.8, 2.1, 0.8), dark, 16, 8), 60)
-    k.smooth(k.ellipsoid("port_light", (cx, -4.7, z - 0.25), (1.1, 1.2, 0.75), glow, 12, 6), 60)
-    for x, y in ((0.5, 2.2), (0.5, 1.4), (2.5, 1.4)):
-        k.smooth(k.ellipsoid(f"stud{x}{y}", (x, y, sh.surface_z(hull, x, y, 3.0) - 0.1), (0.45, 0.45, 0.35), stud,
-                             8, 4), 60)
 
 
 # --- 8 125 / 8 127: the pink torpedo ---------------------------------------------------------------
