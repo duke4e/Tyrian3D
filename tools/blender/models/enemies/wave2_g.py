@@ -6,9 +6,7 @@
   sprite's top right corner (the column's upper part is sprite 207): a piece (origin).
 - deli_tower_tl (sheet U 1): the top left corner of DELI's tower, which the game puts together from
   six sprites (U 1, 3, 5 above 39, 41, 43): the tops of a post and two red pipes: a piece (origin).
-- boom_ship_right, boom_ship_left (sheet 2 269, 2 271, mirror images): the grey ship of TYRIAN,
-  HOLES and ASSASSIN flying sideways, a pointed hull with a red sensor in a tan collar, held in a
-  frame of two rails.
+- boom_ship_right, boom_ship_left: now built by polish_boom_ship.py.
 - warp_orb (sheet P 85): the swirling fire orb that leads to a secret level; its frames brighten it
   (glow option).
 - stone_plant: now built by polish_stone_plant.py.
@@ -183,13 +181,6 @@ def tube(name, points, radius, mat, segments=12, squash=1.0):
     return k.smooth(obj, 60)
 
 
-def mirror_objects(objects, axis_x=0.0):
-    for obj in objects:
-        obj.data.transform(Matrix.Translation((axis_x, 0, 0)) @ Matrix.Scale(-1, 4, (1, 0, 0)) @
-                           Matrix.Translation((-axis_x, 0, 0)))
-        obj.data.flip_normals()
-
-
 def scene_objects():
     return [o for o in bpy.context.scene.objects if o.type == "MESH"]
 
@@ -321,61 +312,6 @@ def ore_hauler():
         decimate(obj, 850)
         k.smooth(obj, 50)
     k.smooth(decimate(light, 400), 50)
-
-
-# --- 2 269 / 2 271: the boom ship -----------------------------------------------------------------
-
-def boom_ship(mirror):
-    """A grey hull pointed to the right (sprite 269; 271 is its mirror image), a dark face plate at
-    its rear with two red lights, wrapped in a tan collar, held in a frame: a light grey post behind
-    the hull and two rails above and below it, joined to the post by tan elbows. Symmetric about
-    the hull's axis (y = 0.5)."""
-    grey = pal("boom_grey", 0x08, metallic=0.6, roughness=0.3)
-    light = pal("boom_light", 0x0b, metallic=0.6, roughness=0.25)
-    dark = pal("boom_dark", 0x03, metallic=0.4, roughness=0.5)
-    tan = pal("boom_tan", 0x1a, metallic=0.55, roughness=0.3)
-    brown = pal("boom_brown", 0xa6, metallic=0.4, roughness=0.45)
-    red = pal("boom_red", 0x77, metallic=0.1, roughness=0.25, glow=0.9)
-    cy = 0.5
-    # The hull.
-    hull_profile = [(-7.6, 0.01), (-7.5, 1.7), (-7.2, 3.3), (-6.4, 4.9), (-5.0, 6.0), (-3.0, 6.8), (0.0, 7.1),
-                    (2.5, 6.9), (4.5, 6.1), (6.5, 4.9), (8.5, 3.5), (10.3, 2.2), (11.6, 1.0), (12.1, 0.01)]
-    hull = lathe_x("hull", k.profile(hull_profile, 0.7), grey, 28, y=cy, z=0.0, squash=0.64)
-    k.smooth(hull, 60)
-    paint_faces(hull, lambda c, n: dark if c.x < -1.2 and abs(c.y - cy) < 4.2 and n.z > 0.05 else None)
-    # A tan canopy strip along the top and the seam round the face plate.
-    k.smooth(k.ellipsoid("canopy", (2.4, cy, 3.9), (2.6, 1.0, 0.7), tan, 16, 8), 60)
-    # The red lights on the face plate.
-    for x in (-5.5, -3.5):
-        k.smooth(k.ellipsoid(f"light{x}", (x, cy, sh.surface_z(hull, x, cy, 3.0) - 0.4), (0.7, 1.6, 0.7), red, 12, 8),
-                 60)
-    # The tan collar round the rear of the hull.
-    collar = []
-    for a in np.linspace(-115, 115, 17):
-        t = math.radians(a)
-        collar.append((-3.6 - 3.6 * math.cos(t), cy + 4.9 * math.sin(t), 0.6 + 1.6 * math.cos(t)))
-    tube("collar", collar, 1.05, tan, segments=10, squash=0.9)
-    for side in (-1, 1):
-        k.smooth(k.ellipsoid(f"collar_end{side}", (-2.6, cy + side * 5.0, 0.4), (1.3, 1.6, 1.0), brown, 12, 6), 60)
-    # The frame: the post behind the hull, the elbows and the rails.
-    tube("post", [(-10.0, cy + y, 0.0) for y in np.linspace(-6.0, 6.0, 7)], 2.0, light, segments=12, squash=0.8)
-    for side in (-1, 1):
-        elbow = [(-10.2, cy + side * 5.0, 0.0), (-10.6, cy + side * 6.8, 0.2), (-9.3, cy + side * 8.4, 0.4),
-                 (-7.4, cy + side * 9.7, 0.5), (-5.6, cy + side * 10.0, 0.5)]
-        tube(f"elbow{side}", elbow, 1.45, tan, segments=10)
-        rail = [(x, cy + side * 10.0, 0.5) for x in np.linspace(-6.5, 3.6, 6)]
-        tube(f"rail{side}", rail, 1.4, grey, segments=10, squash=0.75)
-        k.smooth(lathe_x(f"band{side}", [(-6.4, 1.4), (-6.2, 1.6), (-5.0, 1.6), (-4.8, 1.4)], tan, 12,
-                         y=cy + side * 10.0, z=0.5, squash=0.8), 50)
-    objects = scene_objects()
-    if mirror:
-        mirror_objects(objects)
-    for obj in objects:
-        k.recalc_normals(obj)
-
-
-model("boom_ship_right", "2", 269)(lambda: boom_ship(False))
-model("boom_ship_left", "2", 271)(lambda: boom_ship(True))
 
 
 # --- P 85: the warp orb ---------------------------------------------------------------------------

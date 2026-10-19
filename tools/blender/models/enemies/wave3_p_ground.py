@@ -1,4 +1,4 @@
-"""Wave 3, batch P of the enemy models, continued (wave3_p.py has the machines): sheet 2's ground sprites drawn
+"""Wave 3, batch P of the enemy models, continued (the rods: polish_rod.py): sheet 2's ground sprites drawn
 on rock and dirt, modelled as their sprites look (models.cfg: yaw=0), the rock and dirt as round boulders
 and cobbles where the sprites draw them (wave3_p_kit.boulders).
 

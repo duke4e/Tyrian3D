@@ -1,5 +1,4 @@
-"""Helpers for the batch Z models of wave 3 (sheet L: MINERS, SQUADRON, TIME WAR, STATION; wave3_z.py, MINERS's ore
-tug with its tow ring, hook and the red ore boulder; wave3_z_small.py, the small creatures and ships of SQUADRON,
+"""Helpers for the batch Z models of wave 3 (sheet L: MINERS, SQUADRON, TIME WAR, STATION; wave3_z_small.py, the small creatures and ships of SQUADRON,
 TIME WAR and MINERS; wave3_z_rock.py, MINERS's red rock: the spire, the mounds and the tan dome creature in its
 pool; wave3_z_train.py, MINERS's crawler train; wave3_z_station.py, the station of STATION and TIME WAR and TIME
 WAR's grey capsule). The sprites' pixels are in wave3_z_art.py; the parts come from the earlier batches' kits
