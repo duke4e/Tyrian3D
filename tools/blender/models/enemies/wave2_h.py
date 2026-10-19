@@ -3,8 +3,6 @@ ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_mo
 
 - desert_rock_tip (sheet 3 180): the 1x1 tip of the big tan rock of DESERTRUN and SURFACE (the rest of
   the rock is 3 162, 164, 198, 200, 202): a sloping nub cut where the rock goes on (origin).
-- asteroid_turret (sheet P 13): the grey turret of ASTEROID2 with a bronze dome; its frames are eight
-  headings the level picks, so the model is built pointing up the screen and aims at the player.
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
   fire_flap_l_bottom (A 7, 45): the glowing fire flaps of APPROACH, MISTAKES and SOH JIN, each two
   sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
@@ -180,81 +178,6 @@ def asteroid_lumpy():
     for m in shades:
         obj.data.materials.append(m)
     k.smooth(obj, 5)
-
-
-# --- P 13: the turret ----------------------------------------------------------------------------
-
-# Sprite P 15 (the turret pointing up): b the body, p the prongs either side of the barrel, d the
-# dome, g the barrel, t its brass muzzle, r the red light at the back; k outline pixels.
-TURRET = G2.art("""
-........................
-........................
-..........kkk...........
-..........ktk...........
-..........ktk...........
-..........kgk...........
-........kkkgkkk.........
-.......kppkgkppk........
-.......kppkgkppk........
-.......kppkgkppk........
-.......kppkgkppk........
-......kbbdddddbbk.......
-.....kbbbdddddbbbk......
-.....kbbbdddddbbbk......
-.....kbbbdddddbbbk......
-.....kbbbkkkkkbbbk......
-.....kbbbbbbbbbbbk......
-.....kbbbbbrrbbbbk......
-......kkkkkkkkkkk.......
-.......kkk...kkk........
-""")
-
-
-def asteroid_turret():
-    """The turret pointing up the screen (sprite P 15), its dome on the origin so that it turns
-    about it (yaw=aim): a grey horseshoe base on the ground, armoured flanks, two prongs either
-    side of the barrel, a bronze dome, a red light at the back."""
-    grey = pal("tur_grey", 0x06, metallic=0.55, roughness=0.4)
-    light = pal("tur_light", 0x08, metallic=0.55, roughness=0.35)
-    dark = pal("tur_dark", 0x03, metallic=0.4, roughness=0.6)
-    bronze = pal("tur_bronze", 0x16, metallic=0.75, roughness=0.3)
-    brass = pal("tur_brass", 0x19, metallic=0.75, roughness=0.25)
-    red = pal("tur_red", 0x74, metallic=0.0, roughness=0.3, glow=2.0, color=(255, 40, 20))
-    rows = sh.grow(TURRET, "b", "k")  # the outline pixels belong to the parts they surround
-    x0, y0 = 0.5, -1.5  # moves the sprite's dome centre (-0.5, 1.5) onto the origin
-    # The base: everything but the barrel, low, its edge rounded.
-    base_rows = ["".join("b" if ch in "bpdrk" else "." for ch in row) for row in rows]
-    base_rows = ["".join("." if (r < 6) else ch for ch in row) for r, row in enumerate(base_rows)]
-    base = G2.polys(base_rows, "b", smooth=1, epsilon=0.3)
-    kit.solid("base", base, lambda x, y, d: 0.6 + 1.6 * round_edge(d, 1.0), 0.0, dark, spacing=0.55, band=1.1,
-              coarse=3)
-    # The flanks (columns 5-8 and 14-17, rows 11-17) and the back between them.
-    flank = [(G2.x(5.2), G2.y(10.9)), (G2.x(9), G2.y(10.9)), (G2.x(9), G2.y(18)), (G2.x(6), G2.y(18)),
-             (G2.x(5.2), G2.y(17.2))]
-    for side, outline in (("l", flank), ("r", [(-1.0 - x, y) for x, y in reversed(flank)])):
-        kit.solid(f"flank_{side}", [outline], lambda x, y, d: 2.0 + 2.6 * round_edge(d, 1.3) - 0.12 * abs(x + 0.5),
-                  0.5, light if side == "l" else grey, spacing=0.5, band=1.4)
-    back = [(G2.x(8.5), G2.y(14.6)), (G2.x(14.5), G2.y(14.6)), (G2.x(14.5), G2.y(18)), (G2.x(8.5), G2.y(18))]
-    kit.solid("back", [back], lambda x, y, d: 2.0 + 1.1 * round_edge(d, 0.8), 0.5, grey, spacing=0.4, band=0.9)
-    # The prongs either side of the barrel, sloping down to their tips.
-    for side, col in (("l", 8.5), ("r", 13.5)):
-        x = G2.x(col + 0.5) if side == "l" else G2.x(col + 0.5)
-        kit.lathe(f"prong_{side}", [(G2.y(11.5), 1.2), (G2.y(10), 1.15), (G2.y(7.6), 1.0), (G2.y(7.0), 0.7),
-                                    (G2.y(6.7), 0.1)], light if side == "l" else grey, axis="y", at=(x, 2.4),
-                  squash=1.1)
-    # The dome, its dark collar, the barrel with its brass muzzle.
-    kit.lathe("collar", [(1.0, 0.1), (1.0, 2.75), (3.3, 2.75), (3.3, 0.1)], dark, axis="z", at=(-0.5, 1.6), angle=30)
-    kit.ellipsoid("dome", (-0.5, 1.6, 3.4), (2.55, 2.45, 2.6), bronze, 24, 12)
-    barrel_z = 4.4
-    kit.lathe("barrel", [(1.5, 0.75), (G2.y(5), 0.6), (G2.y(5.1), 0.62)], light, axis="y", at=(-0.5, barrel_z),
-              segments=14)
-    kit.lathe("muzzle", [(G2.y(5.2), 0.66), (G2.y(5.0), 0.72), (G2.y(2.4), 0.72), (G2.y(2.2), 0.45),
-                         (G2.y(2.15), 0.1)], brass, axis="y", at=(-0.5, barrel_z), segments=14)
-    kit.lathe("mantlet", [(2.6, 0.2), (2.9, 1.05), (4.1, 1.05), (4.4, 0.2)], grey, axis="y", at=(-0.5, barrel_z),
-              segments=16)
-    # The red light at the back.
-    kit.ellipsoid("light", (G2.x(12), G2.y(17.3), 3.05), (0.95, 0.6, 0.45), red, 14, 7)
-    kit.transform_all(Matrix.Translation((x0, y0, 0)))
 
 
 # --- 3 8 / 3 10: the twin claw ship ---------------------------------------------------------------
@@ -478,7 +401,6 @@ MODELS = [
     ("desert_rock_tip", desert_rock_tip, [("3", 180, False)], E),
     ("dark_ember", dark_ember, [("L", 118, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
-    ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
     ("fire_flap_r_top", fire_flap_r_top, [("A", 237, True)], E),

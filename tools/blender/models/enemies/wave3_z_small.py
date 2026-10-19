@@ -5,8 +5,6 @@ flyers, modelled as their sprites look (models.cfg: yaw=0). The kit is wave3_z_k
   (beside the lava ball L 115, molten_rock, and the dark ember L 118, dark_ember): a glowing core, hotter
   towards its upper left, four spikes out to the sprite's edges and four short ones between them.
 - squad_eyeball (L 117): the white eyeball of the same rows, its blue iris looking down the screen and up.
-- squad_bolt (L 134): SQUADRON's small grey bolt lying on the ground along the screen, a round head at the top,
-  a red band round its body.
 - red_mouth_lander (L 229): MINERS's grey lander (in the sky; one stands in SQUADRON): an armoured shell with
   a slatted face over a red mouth, a red glowing jet under it and two legs reaching down the screen.
 - yellow_pod_fighter (L 267): MINERS's grey fighter, nose down the screen: a slim fuselage with a gun in
@@ -31,7 +29,6 @@ from wave3_z_kit import k, sh, w, pal, smoothstep  # noqa: E402
 
 SPIKY = kit.frame("SPIKY", 12, (6, 7))
 EYE = kit.frame("EYE", 12, (6, 7))
-PIN = kit.frame("PIN", 12, (6, 7))
 MECH = kit.frame("MECH", 24, (12, 14))
 SHIP = kit.frame("SHIP", 24, (12, 14))
 
@@ -118,31 +115,6 @@ def squad_eyeball():
     bpy.context.scene.collection.objects.link(obj)
     hk.band_split(obj, values, [(-999, shade), (-150, white), (-31, ring), (-27, iris), (-9, pupil)], smooth_angle=80)
     sh.flat_bottom([obj], 0.0)
-
-
-# --- L 134: the bolt -------------------------------------------------------------------------------
-
-@kit.model("squad_bolt", mask=lambda: PIN.mask(), size=(12, 14))
-def squad_bolt():
-    f = PIN
-    grey = pal("bolt_grey", 0x09, metallic=0.7, roughness=0.25)
-    grey_dark = pal("bolt_grey_dark", 0x05, metallic=0.6, roughness=0.35)
-    grey_lit = pal("bolt_grey_lit", 0x0c, metallic=0.7, roughness=0.2)
-    red = pal("bolt_red", 0x74, metallic=0.4, roughness=0.3)
-    x = f.X(5.5)
-    axis_z = 3.0
-    top = f.top(0)
-    # Along -y from the sprite's top: the head (rows 0-2), the neck (3-4), the collar (5-6), the body
-    # (7-10) with the red band (row 8), the tail (11-12).
-    profile = [(0.0, 1.6), (0.15, 2.6), (0.6, 3.0), (2.6, 3.0), (3.0, 2.3), (3.7, 1.4), (4.9, 1.05), (5.2, 1.6),
-               (5.5, 2.05), (6.6, 2.05), (7.0, 2.6), (7.4, 3.0), (11.0, 3.0), (11.6, 2.4), (12.4, 1.4), (12.95, 0.4),
-               (13.0, 0.01)]
-    body = w.lathe_axis("bolt", profile, grey, (x, top, axis_z), (0, -1, 0), 24, smooth_angle=40)
-    kit.paint_faces(body, lambda c, nrm: grey_lit if nrm.z > 0.75 and nrm.x < 0.2 else grey_dark if nrm.z < 0.0
-                    else None)
-    w.lathe_axis("band", [(8.0, 3.0), (8.1, 3.25), (8.9, 3.25), (9.0, 3.0)], red, (x, top, axis_z), (0, -1, 0), 24)
-    w.lathe_axis("head_cap", [(0.0, 0.01), (0.05, 1.7), (0.2, 1.9)], grey_dark, (x, top, axis_z), (0, -1, 0), 20)
-    sh.flat_bottom(w.meshes(), 0.0)
 
 
 # --- L 229: the lander -----------------------------------------------------------------------------

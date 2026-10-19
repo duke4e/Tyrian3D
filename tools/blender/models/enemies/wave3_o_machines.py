@@ -13,8 +13,6 @@ red lamp on two long legs, and a slotted block with legs or clawed fins under it
 - k_pod (K 276): the round grey pod: two helmets back to back round a belt with a glowing slot.
 - k_turret (K 281): the red core ball on its sleeves, its glowing neck pointing up the screen like a
   barrel, on a slotted grey block (the frames launch its shots; the ball glows).
-- k_clawblock (K 283): the slotted grey block on two grey claws with glowing red strips down their
-  inner sides, the claws hooking inwards at their feet.
 - k_lampgun (K 278): the crossbar with its lamp (lit) on two short legs pointing up the screen, on a
   block with tan windows and a salmon grille (the gun that drops K 171's red bombs).
 
@@ -219,30 +217,6 @@ def slot_block(g, origin, m, style="slot", prefix="block"):
     return parts
 
 
-def claws(g, origin, m):
-    """In K 283's coordinates: the two grey claws under the block (rows 14-27), hooking inwards at their
-    feet, with glowing red strips down their inner sides (columns 7-9 and 13-15)."""
-    red = pal("kmach_strip", 0x77, metallic=0.2, roughness=0.3, glow=0.9)
-    red_dim = pal("kmach_strip_dim", 0x71, metallic=0.4, roughness=0.4)
-    parts = []
-    for side in ("l", "r"):
-        keep = (lambda c, r: r >= 14 and c <= 8) if side == "l" else (lambda c, r: r >= 14 and c >= 15)
-        rows = grey_rows(g, keep)
-        claw = o.part(f"claw_{side}", rows, "#", m["steel"], sh.pillow_profile(4.4, 1.6, crown=0.4), origin=origin,
-                      base=-0.4, bottom=0.4, smooth=2, epsilon=0.4, spacing=0.4, rim=0.1)
-        parts.append(claw)
-        # The red strips: a dark red panel set lower against the claw's inner side, two glowing bars on it.
-        strip_rows = o.char_rows(g, lambda v, c, r: "r" if 14 <= r <= 24 and (6 <= c <= 10 if side == "l" else
-                                                                              13 <= c <= 17) else ".")
-        parts.append(o.part(f"strip_{side}", strip_rows, "r", red_dim, sh.pillow_profile(2.2, 0.8), origin=origin,
-                            base=-0.4, bottom=0.3, smooth=1, epsilon=0.3, spacing=0.4, rim=0.1))
-        for i, c in enumerate((7, 9) if side == "l" else (13, 15)):
-            x = c + 0.5 - origin[0]
-            parts.append(o.tube(f"strip_bar_{side}{i}", [(x, -0.6, 1.9), (x, -10.4, 1.9)], 0.5, red, 10,
-                                squash=0.8))
-    return parts
-
-
 # --- K 153 above K 191: the pincer's core machine ---------------------------------------------------
 
 @o.whole("pincer_core", (24, 56))
@@ -311,17 +285,6 @@ def k_turret():
     base = slot_block(g, SPRITE, m, prefix="base")
     o.mirror_y(base)
     o.move(base, dz=-0.8)
-    o.budget()
-
-
-# --- K 283: the clawed block -------------------------------------------------------------------------
-
-@o.model("k_clawblock", [(283, True)])
-def k_clawblock():
-    g = o.grid(art.K283, 24)
-    m = mats()
-    slot_block(g, SPRITE, m)
-    claws(g, SPRITE, m)
     o.budget()
 
 

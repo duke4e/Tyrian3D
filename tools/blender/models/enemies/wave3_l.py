@@ -1,7 +1,6 @@
 """Wave 3, batch L of the enemy models: the remaining enemies of sheet 5 (episode 4), authored as their sprites
 look (models.cfg: yaw=0 unless noted):
 
-- visor_post (5 133): DREAD-NOT's small grey post with a glowing red visor, lying as drawn.
 - purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
 - flesh_stinger (5 207): BRAINIAC's fleshy stinger, a capped beak of two halves.
 - green_eye (5 79): EYESPY's green eyeball, authored looking up the screen (models.cfg: yaw=aim).
@@ -33,26 +32,6 @@ import wave3_l_art as art  # noqa: E402
 import wave3_l_kit as w  # noqa: E402
 import wave3_l_parts as parts  # noqa: E402
 from wave3_l_kit import k, sh, pal, model  # noqa: E402
-
-
-# --- 5 133: DREAD-NOT's post ---------------------------------------------------------------------
-
-@model("visor_post", 133, large=False)
-def visor_post():
-    """A small grey post lying along the screen's y, as drawn (it travels up the screen): a round head
-    (rows 1-8) with a glowing red visor round it (row 5), a narrow neck and a flared base (rows 10-13)."""
-    grey = pal("post_grey", 0x05, metallic=0.6, roughness=0.28)
-    dark = pal("post_dark", 0x02, metallic=0.4, roughness=0.5)
-    red = pal("post_visor", 0x75, metallic=0.1, roughness=0.2, glow=1.4)
-    zc, squash = 2.4, 0.85
-    # (y, radius) from the base (row 13) to the head's top (row 1).
-    prof = [(-6.9, 0.02), (-6.85, 2.6), (-6.5, 3.0), (-5.0, 3.0), (-4.0, 2.4), (-3.2, 1.3), (-2.4, 1.0), (-1.7, 1.3),
-            (-1.0, 2.1), (0.0, 2.8), (2.5, 3.0), (4.0, 2.7), (5.2, 1.9), (5.9, 1.0), (6.1, 0.02)]
-    w.lathe_axis("body", [(y + 6.9, r) for y, r in prof], grey, (0.0, -6.9, zc), (0, 1, 0), 24, squash=squash)
-    w.lathe_axis("visor", [(0.0, 2.9), (0.15, 3.25), (1.15, 3.25), (1.3, 2.9)], red, (0.0, 0.85, zc), (0, 1, 0), 24,
-                 squash=squash)
-    w.lathe_axis("base_ring", [(0.0, 2.85), (0.1, 3.15), (0.6, 3.15), (0.7, 2.85)], dark, (0.0, -4.9, zc), (0, 1, 0),
-                 24, squash=squash)
 
 
 # --- 5 3: HARVEST's purple machine -----------------------------------------------------------------
