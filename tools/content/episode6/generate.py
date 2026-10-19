@@ -407,12 +407,14 @@ LEVELS = [
          look=(4, "CORE"), intensity=lambda f: 0.6 + 0.4 * f, wealth=45000,
          gimmicks=dict(dark=[(900, 2300)], midboss=((4, "CORE"), 3000), ambush=[(4700, (3, "CAMANIS"))])),
     # Seen from the side (side: the rocks along the edges, 1 asteroids, 2 crags; blank: a blank tile
-    # of the tile set, open space for the stars).
+    # of the tile set, open space for the stars). Their upper layers' maps are empty, but layer 3 still
+    # carries the top layer's enemies: its speed is the one their waves' originals give it (GRYPHON's 3,
+    # BRAINIAC's 1); at 0 most of them would stand above the screen and never come.
     dict(name="MIGRATION", side=1, blank=27, shapes="x", song=6, seed=131, waves=[(2, "GRYPHON"), (1, "SOH JIN")],
-         boss=(2, "GEM WAR"), boss_time=6000, look=(2, "GRYPHON"), speeds=(1, 0, 0), wealth=26000,
+         boss=(2, "GEM WAR"), boss_time=6000, look=(2, "GRYPHON"), speeds=(1, 0, 3), wealth=26000,
          gimmicks=dict(couriers=[(3000, "cube")], ambush=[(4200, (2, "GRYPHON"))])),
     dict(name="GRAVITRON", side=2, blank=21, shapes=")", song=24, seed=141, waves=[(4, "BRAINIAC"), (3, "GAUNTLET")],
-         boss=(4, "DREAD-NOT"), boss_time=6000, look=(4, "LAVA EXIT"), speeds=(1, 0, 0), wealth=40000,
+         boss=(4, "DREAD-NOT"), boss_time=6000, look=(4, "LAVA EXIT"), speeds=(1, 0, 1), wealth=40000,
          intensity=lambda f: 0.55 + 0.45 * f, gimmicks=dict(couriers=[(2500, "cube")], bursts=[(3400, 4200, 2)])),
     # Secret and bonus levels (story.py places them: VAULT behind GREY MOON's warp orb, INVADERS after
     # THE CORE).
