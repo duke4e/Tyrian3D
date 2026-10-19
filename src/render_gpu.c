@@ -1503,6 +1503,14 @@ static bool terrain_background(const L3DFrame *frame, const L3DBackground *backg
 static float solid_top(int set);
 static const B3DTerrain *frame_terrains[B3D_SETS + 1];
 static float terrain_lift(float x, float y);
+static float object_lifts[L3D_MAX_OBJECTS];  // the frame's objects' terrain_lift (compute_object_lifts)
+
+// The ground is terrain over the game's stars with no holes for them to show through (its map has
+// no black space: MINERS): they don't show at all.
+static bool stars_covered(void)
+{
+	return frame_terrains[1] != NULL && frame_terrains[1]->holes && frame_terrains[1]->hole_count == 0;
+}
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
@@ -2700,7 +2708,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				const float scale = (model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f) *
 				                    (object->scale > 0 ? object->scale : 1.0f);
 				const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
-				                     (object->layer == L3D_GROUND_ENEMY ? terrain_lift(object->x, object->y) : 0.0f);
+				                     object_lifts[o];
 				Mat4 mirror_x = mat4_identity();
 				if (mirror)
 					mirror_x.m[0] = -1;
@@ -3176,7 +3184,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 				continue;
 
 			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
-			                     (object->layer == L3D_GROUND_ENEMY ? terrain_lift(object->x, object->y) : 0.0f);
+			                     object_lifts[p];
 			const Mat4 chain[] = {
 				mat4_translation(object_x(object), height, object_y(object)),
 				mat4_rotation(1, -object->yaw),
@@ -4136,6 +4144,66 @@ static float terrain_lift(float x, float y)
 	}
 	const float ax = fx - sx, ay = fy - sy;
 	return (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
+}
+
+static bool lifted_piece(const L3DObject *object)
+{
+	return object->layer == L3D_GROUND_ENEMY && object->model >= 0 && object->model < m3d_model_count &&
+	       m3d_models[object->model].keep_origin;
+}
+
+static int lift_group_root(int *group, int o)
+{
+	while (group[o] != o)
+		o = group[o] = group[group[o]];
+	return o;
+}
+
+// The frame's objects' terrain_lift. The pieces of one object (ground enemies whose models are drawn
+// at their own origins, side by side on the sprites' grid, moving alike: MINERS's ore tug and its
+// load, eight enemies) stand at one height, the terrain's under their middle, so that they don't
+// come apart where the ground under them changes height.
+static void compute_object_lifts(const L3DFrame *frame)
+{
+	static int group[L3D_MAX_OBJECTS], pieces[L3D_MAX_OBJECTS], count[L3D_MAX_OBJECTS];
+	static float sum_x[L3D_MAX_OBJECTS], sum_y[L3D_MAX_OBJECTS];
+	int piece_count = 0;
+	for (int o = 0; o < frame->object_count; ++o)
+	{
+		group[o] = o;
+		sum_x[o] = sum_y[o] = 0.0f;
+		count[o] = 0;
+		object_lifts[o] = 0.0f;
+		if (lift_ground != NULL && lifted_piece(&frame->objects[o]))
+			pieces[piece_count++] = o;
+	}
+	if (lift_ground == NULL)
+		return;
+	// Neighbours on the 24 x 28 grid (a few pixels' slack: events shift some pieces) moving alike.
+	for (int i = 0; i < piece_count; ++i)
+		for (int j = i + 1; j < piece_count; ++j)
+		{
+			const L3DObject *a = &frame->objects[pieces[i]], *b = &frame->objects[pieces[j]];
+			if (fabsf(a->x - b->x) <= 28.0f && fabsf(a->y - b->y) <= 32.0f && fabsf(a->vx - b->vx) < 0.01f &&
+			    fabsf(a->vy - b->vy) < 0.01f)
+				group[lift_group_root(group, pieces[j])] = lift_group_root(group, pieces[i]);
+		}
+	for (int i = 0; i < piece_count; ++i)
+	{
+		const int root = lift_group_root(group, pieces[i]);
+		sum_x[root] += frame->objects[pieces[i]].x;
+		sum_y[root] += frame->objects[pieces[i]].y;
+		++count[root];
+	}
+	for (int o = 0; o < frame->object_count; ++o)
+	{
+		const L3DObject *object = &frame->objects[o];
+		if (object->layer != L3D_GROUND_ENEMY)
+			continue;
+		const int root = lift_group_root(group, o);
+		object_lifts[o] = count[root] > 1 ? terrain_lift(sum_x[root] / count[root], sum_y[root] / count[root])
+		                                  : terrain_lift(object->x, object->y);
+	}
 }
 
 static bool terrain_hole(const B3DTerrain *t, int sx, int sy)
@@ -5249,6 +5317,30 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
 		plane_footprint(camera, height, rect);
+		// Ground of terrain below its plane (sunken ground, chasms) shows further up the level at the
+		// window's top edge. Its rows are drawn aligned at the plane's height (aligned(): x, y and z
+		// scaled about the plane), so its lowest ground is that much lower in the world.
+		const B3DTerrain *ground = background->set == 1 && terrain_background(frame, background) ? frame_terrains[1] : NULL;
+		const float deepest = ground == NULL ? 0.0f
+		                                     : SDL_max(ground->hole_count > 0 ? TERRAIN_HOLE_DEPTH : 0.0f, (float)-ground->lowest);
+		if (deepest > 0)
+		{
+			const float k = align_scale(height);
+			float low[4];
+			plane_footprint_world(camera, height - deepest * k, align.cz + (-BACKGROUND_AHEAD - align.cz) * k, low);
+			if (low[0] <= low[2])
+			{
+				low[0] = align.cx + (low[0] - align.cx) / k;
+				low[2] = align.cx + (low[2] - align.cx) / k;
+				low[1] = align.cz + (low[1] - align.cz) / k;
+				low[3] = align.cz + (low[3] - align.cz) / k;
+				if (rect[0] > rect[2])
+					memcpy(rect, low, sizeof(low));
+				else
+					for (int c = 0; c < 4; ++c)
+						rect[c] = c < 2 ? SDL_min(rect[c], low[c]) : SDL_max(rect[c], low[c]);
+			}
+		}
 		if (rect[0] > rect[2])
 			continue;
 		rect[1] -= shift;  // what has scrolled into view
@@ -5265,8 +5357,9 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		for (int c = 0; c < 256; ++c)
 			page_colors[c] = colors[remap[c]];
 		// The game clears the screen to colour 0 under background 1; a filter that recolours it
-		// shows there too (lava, ice).
-		const bool ground_zero = background->set == 1 && remap[0] != 0;
+		// shows there too (lava, ice), and so does a ground of terrain over stars with no holes for
+		// them (no black space, only dark specks: MINERS's lava).
+		const bool ground_zero = background->set == 1 && (remap[0] != 0 || stars_covered());
 		const int page = tile_page(page_colors, ground_zero);
 
 		const int first = tile_count;
@@ -5563,10 +5656,14 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 // The starfield sits below background 1, whose colour 0 lets it through as in the game.
 #define STARS_BELOW_LAYER 0.3f
 
-// The game's stars: below the ground, or below its chasms where its terrain has holes.
+// The game's stars: below the ground; where it is terrain, below its chasms (where it has holes)
+// and its lowest ground.
 static float stars_below_layer(void)
 {
-	return STARS_BELOW_LAYER + (frame_terrains[1] != NULL && frame_terrains[1]->holes ? TERRAIN_HOLE_DEPTH + 4.0f : 0.0f);
+	const B3DTerrain *t = frame_terrains[1];
+	if (t == NULL)
+		return STARS_BELOW_LAYER;
+	return STARS_BELOW_LAYER + SDL_max(t->holes ? TERRAIN_HOLE_DEPTH : 0.0f, (float)-t->lowest) + 4.0f;
 }
 
 static float srgb_to_linear(Uint8 value)
@@ -5620,7 +5717,7 @@ static float hash_unit(Uint32 x)
 static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
                                 const Uint32 colors[256], int *instance_count, int *batch_count)
 {
-	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES)
+	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 
 	// As fast as the game's slowest stars (2 + starfield_speed pixels a frame).
@@ -5685,7 +5782,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
                            const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
-	if (frame->star_count == 0 || *batch_count >= MAX_BATCHES)
+	if (frame->star_count == 0 || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 	for (int i = 0; i < frame->background_count; ++i)
 		if (composed[i] && frame->backgrounds[i].layer == frame->star_layer)
@@ -6324,10 +6421,10 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	cloud_frame = frame;
 	{
 		// The backgrounds as terrain where their maps have one. The ground: in its colours (a filter
-		// as its colours, without its waver), over stars only with holes for them to show through;
-		// the backgrounds over it are then their tiles, not composed with it (the blended background 2
-		// in the colours the blend gives it). Backgrounds 2 and 3 over a flat ground: as for the relief,
-		// not composed nor filtered.
+		// as its colours, without its waver), over stars only where they show through its holes alone
+		// (version 2); the backgrounds over it are then their tiles, not composed with it (the blended
+		// background 2 in the colours the blend gives it). Backgrounds 2 and 3 over a flat ground: as
+		// for the relief, not composed nor filtered.
 		frame_terrains[1] = m3d_enabled ? b3d_terrain(1) : NULL;
 		if (frame_terrains[1] != NULL && frame->star_count > 0 && !frame_terrains[1]->holes)
 			frame_terrains[1] = NULL;
@@ -6336,6 +6433,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		for (int i = 0; i < frame->background_count && frame_terrains[1] != NULL; ++i)
 			if (frame->backgrounds[i].set == 1)
 				lift_ground = &frame->backgrounds[i];
+		compute_object_lifts(frame);
 		b3d_solids = m3d_enabled;
 		bool composed_now[L3D_MAX_BACKGROUNDS];
 		b3d_composed_backgrounds(frame, composed_now);

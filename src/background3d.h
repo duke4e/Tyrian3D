@@ -179,7 +179,9 @@ typedef struct
 	int width, height;   // samples
 	int sample;          // game pixels between samples
 	int side_columns;    // tile columns beside the map that the samples cover on each side
-	bool holes;          // some samples are B3D_TERRAIN_HOLE
+	bool holes;          // samples may be B3D_TERRAIN_HOLE (version 2: the stars show only through them)
+	int hole_count;      // samples that are B3D_TERRAIN_HOLE
+	int lowest;          // the lowest height of a sample with ground there (0 or below)
 	const Sint8 *heights;
 } B3DTerrain;
 

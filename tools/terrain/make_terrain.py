@@ -28,7 +28,10 @@ levels.json, by map: "classes" (how many), "heights" ({class: height or "~"}), a
 (the height of gentle hills and hollows over the whole map, for a map of one surface), "void"
 (the height of black space, e.g. -40, or "hole": nothing there, the platforms' walls going down
 into the dark, and the stars far below where the level has them; "rim" and "rim_depth" round the
-platforms' edges off).
+platforms' edges off), "tiles" ({tile shape: height or "~"}: tiles the classes misread, such as
+MINERS's heaps and ridges of hex rock on the plateau (0), sorted with its sunken hex rock, or its
+craters: their surfaces other than the plain ground round them take the tile's height, found by
+their pixels, so in the generated side columns too).
 
 Backgrounds 2 and 3 (their maps' entries with "solid": true) become solids: their plane on top,
 rounded off over "bevel" pixels at the edges, walls down to the ground where they are clear or
@@ -196,6 +199,26 @@ def solid_heights(rgb, opaque, s):
     return h, ~opaque
 
 
+def tile_masks(rgb, info, tiles):
+    """Where the map has the given tiles ({shape: height}), as {height: mask}: by the pixels of each
+    shape's first place in the level's own columns, so the generated side columns' copies count too."""
+    masks = {}
+    tw, th = info["tile"]
+    shapes = info["shapes"]
+    rows, cols = len(shapes), rgb.shape[1] // tw
+    cells = rgb[:rows * th, :cols * tw].reshape(rows, th, cols, tw, 3).transpose(0, 2, 1, 3, 4).reshape(rows, cols, -1)
+    for shape, height in tiles.items():
+        found = [(r, c) for r, row in enumerate(shapes) for c, s in enumerate(row) if s == int(shape)]
+        if not found:
+            continue
+        r, c = found[0]
+        same = (cells == cells[r, info.get("side_columns", 0) + c]).all(-1)
+        mask = masks.setdefault(height, np.zeros(rgb.shape[:2], bool))
+        for i, j in zip(*np.nonzero(same)):
+            mask[i * th:(i + 1) * th, j * tw:(j + 1) * tw] = True
+    return masks
+
+
 def material_heights(rgb, labels, s):
     """Heights by material instead of by hand (generated maps: tools/content/episode6): each class
     gets the height of the material its mean colour is nearest ("materials": {"#rrggbb": height or
@@ -233,6 +256,13 @@ def heights(name, rgb, opaque, info, s):
             inherit |= labels == int(c)
         else:
             target[labels == int(c)] = float(height)
+    for height, where in tile_masks(rgb, info, s.get("tiles", {})).items():
+        where &= (target != 0) | inherit  # the tile's own surfaces, not the plain ground round them
+        if height == "~":
+            inherit |= where
+        else:
+            target[where] = float(height)
+            inherit &= ~where
     hole = np.zeros(labels.shape, bool)
     if "void" in s:
         space = void_mask(rgb)
@@ -297,7 +327,11 @@ def cmd_build(name):
     data = np.clip(np.round(grid), -TERRAIN_MAX, TERRAIN_MAX).astype(np.int8)
     data[holes] = HOLE
     os.makedirs(OUT, exist_ok=True)
-    version = 2 if holes.any() else 1
+    # Version 2: the stars (on the levels with them) show only through the holes, so the game shows
+    # the terrain over them; also a ground with relief and no black space for them to show on (MINERS;
+    # a flat one leaves the game its relief by tiles there).
+    covers = info["background"] == 1 and np.abs(grid).max() > 3 and not void_mask(rgb).any()
+    version = 2 if holes.any() or covers else 1
     header = struct.pack("<4sIIIII", b"TYTR", version, data.shape[1], data.shape[0], SAMPLE, info["side_columns"])
     with open(os.path.join(OUT, f"{name}.ter"), "wb") as f:
         f.write(header + zlib.compress(data.tobytes(), 9))

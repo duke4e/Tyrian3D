@@ -1452,8 +1452,9 @@ const B3DTerrain *b3d_terrain(int set)
 	FILE *f = fopen(path, "rb");
 	if (f == NULL)
 		return NULL;
-	// "TYTR", the version (2: with holes), samples across and down, game pixels between samples,
-	// generated columns covered on each side; then the heights, zlib-compressed.
+	// "TYTR", the version (2: the stars show only through its holes: it has some, or the ground has no
+	// black space for them), samples across and down, game pixels between samples, generated columns
+	// covered on each side; then the heights, zlib-compressed.
 	Uint8 header[24];
 	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYTR", 4) == 0;
 	fseek(f, 0, SEEK_END);
@@ -1487,6 +1488,12 @@ const B3DTerrain *b3d_terrain(int set)
 	}
 	free(packed);
 	t->heights = state->data;
+	t->hole_count = t->lowest = 0;
+	for (uLongf i = 0; i < size; ++i)
+		if (t->holes && state->data[i] == B3D_TERRAIN_HOLE)
+			++t->hole_count;
+		else
+			t->lowest = SDL_min(t->lowest, (int)state->data[i]);
 	state->present = true;
 	printf("terrain: background %d: %s (%d x %d samples%s)\n", set, path, t->width, t->height, t->holes ? ", holes" : "");
 	return t;
