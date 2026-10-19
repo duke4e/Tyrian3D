@@ -216,6 +216,10 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 // Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
 #define ENEMY_MOTION_KEY(slot) (L3D_KEY_ENEMY + (Uint32)(slot))
 
+// The forecast (draw_coming_enemies' key) an event's enemy takes the place of, by slot, till it is
+// first drawn: it fades in on from there (l3d_key_continue). Only the 3D view's.
+static Uint32 enemy_forecast[100];
+
 static int bit_count(Uint32 bits)
 {
 	int n = 0;
@@ -409,6 +413,23 @@ static void draw_wrecks(void)
 	}
 }
 
+// Tyrian3D: how far the enemy in slot i, just drawn, is shown as it fades in (l3d_key_shown): one
+// the game makes in sight fades in rather than popping up; one taking the place of its forecast
+// fades in on from where that got to (shown fully if it came into sight).
+static float enemy_shown(unsigned int i)
+{
+	if (enemy_forecast[i] != 0)
+	{
+		l3d_key_continue(ENEMY_MOTION_KEY(i), enemy_forecast[i]);
+		enemy_forecast[i] = 0;
+	}
+	const float shown = l3d_key_shown(ENEMY_MOTION_KEY(i));
+	if (shown * (L3D_APPEAR_FRAMES + 1) < 1.5f && SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
+		printf("appear: slot %u enemy %u sprite %u at %d,%d (3D frame %u)\n", i, enemy[i].enemytype, enemy[i].egr[0],
+		       enemy[i].ex + tempMapXOfs, enemy[i].ey, l3d_frame_number);
+	return shown;
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -459,6 +480,8 @@ static bool draw_enemy_model(unsigned int i)
 			l3d_open_last_object(enemy_open_sides(i));
 		l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
 		l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, NULL, NULL);
+		if (added)
+			l3d_appear_last_object(enemy_shown(i));
 		return added;
 	}
 
@@ -502,6 +525,11 @@ static bool draw_enemy_model(unsigned int i)
 	l3d_key_last_object(ENEMY_MOTION_KEY(i), NULL, NULL);
 	// An enemy that has just appeared moves on as the game will move it.
 	l3d_new_object_velocity(enemy[i].exc, enemy[i].eyc + enemy[i].fixedmovey + tempBackMove, &vx, &vy);
+	// One made in sight fades in, its glow with it.
+	const float shown = enemy_shown(i);
+	if (added)
+		l3d_appear_last_object(shown);
+	look.glow_strength *= shown;
 	if (look.glow_size != 0)
 	{
 		const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
@@ -573,7 +601,10 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 	else
 		return;
 	if (added)
+	{
 		l3d_key_last_object(key, NULL, NULL);
+		l3d_appear_last_object(l3d_key_shown(key));  // (one first shown in sight fades in)
+	}
 }
 
 // The slots an event's enemies take (-1: it makes none at the screen's top; bottom: made at the
@@ -716,6 +747,29 @@ static bool boss_jump_armed(void)
 	return false;
 }
 
+// An event at x -99 makes its enemies where their data starts them (JE_makeEnemy: start x and y with
+// a random spread). Those starting at the screen's top (their lowest start no lower than
+// OWN_START_TOP) are made ahead of time too, as far up as needed to come down through all of the
+// playfield's top part: the extra rise past the screen's top their lowest start needs (*extra), or
+// false when they start lower down.
+#define OWN_START_TOP 8
+static bool own_start_rise(const struct JE_EventRecType *ev, int parts, bool custom, int *extra)
+{
+	*extra = 0;
+	for (int part = 0; part < parts; ++part)
+	{
+		const int id = custom ? 0 : ev->eventdat + part;
+		if (id < 0 || id > ENEMY_NUM)
+			return false;
+		const struct JE_SingleEnemyDat *d = &enemyDat[id];
+		const int lowest = d->starty + (d->startyc != 0 ? d->startyc : 1) + SDL_max(ev->eventdat5, 0);
+		if (lowest > OWN_START_TOP)
+			return false;
+		*extra = SDL_max(*extra, lowest + (d->esize == 1 ? 28 : 14));
+	}
+	return true;
+}
+
 static void prespawn_events(void)
 {
 	bool slow;
@@ -733,17 +787,81 @@ static void prespawn_events(void)
 	bool sheet_stays[COUNTOF(enemySpriteSheetIds) + 1];
 	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds) + 1; ++k)
 		sheet_stays[k] = true;
+	// The look ahead's clock: it follows unconditional jumps (event 54 and its returns) and the
+	// maps' speed changes (event 2: the clock's rate, and the top and ground layers' enemies carried
+	// at their new rates from then on). After a jump it makes ahead of time only events the clock
+	// has passed this time round (the others' first time is still to come).
+	bool rebased = false;        // (the clock restarted: at base_loc base_ticks ticks from now, event_step a tick)
+	int base_ticks = 0;
+	int base_loc = curLoc;
+	int jumps = 0, pending_last = -1;  // (events from eventLoc - 1 to pending_last are still due before the jump)
+	int return_loc = returnLoc;
+	float rate_top = backMove3, rate_ground = ground_rate, carried_top = 0, carried_ground = 0;
+	float slowest_top = rate_top, slowest_ground = rate_ground;  // (the slowest rates from now on)
+	int change_ticks = 0;
 	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
 	{
 		struct JE_EventRecType *ev = &eventRec[e];
-		const int ticks = ticks_until(ev->eventtime, slow, event_step);
-		if (ticks > l3d_field_ahead + 1)
+		int ticks;
+		if (!rebased)
+			ticks = ticks_until(ev->eventtime, slow, event_step);
+		else
+		{
+			const int moves = ((int)ev->eventtime - base_loc + event_step - 1) / event_step;
+			ticks = base_ticks + SDL_max(moves, 0);
+		}
+		// The clock at the start of that tick (events come before the clock moves on).
+		const int clock = (rebased ? base_loc : (int)curLoc) + (ticks - base_ticks) * event_step;
+		if (ticks > l3d_field_ahead + 1 + OWN_START_TOP + 28)
 			break;  // (at least a pixel a tick: none of the later ones is due)
 		// Nor past the level's timer running out (it jumps).
 		if (levelTimer && levelTimerCountdown > 0 && levelTimerCountdown <= ticks + 1)
 			return;
 		switch (ev->eventtype)
 		{
+		case 2:
+		{
+			// The maps' speeds: the clock goes on at its new rate (not when it stands; the slow
+			// clock's phase isn't followed).
+			const int step = ev->eventdat > 0 ? ev->eventdat : forceEvents ? 1 : 0;
+			if (slow || step <= 0)
+				return;
+			carried_top += rate_top * (ticks - change_ticks);
+			carried_ground += rate_ground * (ticks - change_ticks);
+			change_ticks = ticks;
+			rate_top = ev->eventdat3;
+			rate_ground = ev->eventdat;
+			slowest_top = SDL_min(slowest_top, rate_top);
+			slowest_ground = SDL_min(slowest_ground, rate_ground);
+			if (step != event_step)
+			{
+				base_loc = clock;
+				base_ticks = ticks;
+				event_step = step;
+				rebased = true;
+			}
+			continue;
+		}
+		case 54:
+		{
+			// A jump (or a return, 65535): the clock goes on from there.
+			if (slow || ++jumps > 4)
+				return;
+			if (pending_last < 0)
+				pending_last = e;
+			const JE_word jump = (JE_word)ev->eventdat;  // (as JE_eventJump takes it)
+			const int target = jump == 65535 ? return_loc : jump;
+			if (jump != 65535)
+				return_loc = clock + 1;  // (JE_eventJump: where the clock is then, plus one)
+			base_ticks = ticks;
+			base_loc = target;
+			rebased = true;
+			int i = 0;
+			while (i < maxEvent && (int)eventRec[i].eventtime < target)
+				++i;
+			e = i - 1;  // (the loop's ++e)
+			continue;
+		}
 		case 5:
 		{
 			// The enemy sheets change: an enemy holds its slot's sheet, and one made before its
@@ -777,7 +895,13 @@ static void prespawn_events(void)
 		}
 		if (offset < 0 && !prespawn_passes(ev->eventtype))
 			return;
-		if (ticks == 0 || prespawned[e] || offset < 0 || bottom_y != 0 || ev->eventdat2 == -99)
+		if (ticks == 0 || prespawned[e] || offset < 0 || bottom_y != 0)
+			continue;
+		if (jumps > 0 && e >= eventLoc - 1 && e <= pending_last)
+			continue;  // (its first time is still to come)
+		const bool own_start = ev->eventdat2 == -99;  // (at its data's start position)
+		int extra = 0;
+		if (own_start && !own_start_rise(ev, parts, custom, &extra))
 			continue;
 		bool changed = false;
 		for (int k = 0; k < changed_count; ++k)
@@ -788,11 +912,14 @@ static void prespawn_events(void)
 		if ((eDatI == 0 && !custom) || eDatI + (custom ? 0 : parts - 1) > ENEMY_NUM)
 			continue;
 		const struct JE_SingleEnemyDat *dat = &enemyDat[eDatI];
-		const float carried = offset == 0 ? 0 : offset == 50 ? backMove3 : ground_rate;
+		// Carried by its layer at the rates the maps move at until then.
+		const float carried = offset == 0 ? 0 : offset == 50 ? carried_top + rate_top * (ticks - change_ticks)
+		                                                   : carried_ground + rate_ground * (ticks - change_ticks);
+		const float slowest = offset == 0 ? 0 : offset == 50 ? slowest_top : slowest_ground;
 		const int own_dy = custom ? dat->ymove : dat->ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12);
-		const float dy = own_dy + carried;
-		const int rise = (int)lroundf(dy * ticks);
-		if (dy <= 0 || rise > l3d_field_ahead)
+		const int rise = (int)lroundf(own_dy * ticks + carried);
+		// (coming down all the way: not standing in sight while its layer stands)
+		if (own_dy + slowest <= 0 || rise <= 0 || rise > l3d_field_ahead + extra)
 			continue;
 		// Only enemies on a steady course, the same for all its parts: back up it (and back along
 		// it sideways) is where they come from. Those steering for the player or swinging up and
@@ -803,7 +930,13 @@ static void prespawn_events(void)
 			const struct JE_SingleEnemyDat *d = &enemyDat[custom ? 0 : eDatI + part];
 			steady = d->xaccel == 0 && d->yaccel == 0 && d->ycaccel == 0 && d->ymove == dat->ymove;
 			// (sideways, not so far back that the game takes it for gone: JE_drawEnemy)
-			if (steady && d->xcaccel == 0 && d->xmove != 0)
+			if (steady && d->xcaccel == 0 && d->xmove != 0 && own_start)
+			{
+				const int spread = d->startxc != 0 ? d->startxc : 1;
+				const int left = d->startx - spread + 1 - d->xmove * ticks, right = d->startx + spread - d->xmove * ticks;
+				steady = left > -76 && right < 336;
+			}
+			else if (steady && d->xcaccel == 0 && d->xmove != 0)
 			{
 				int ex = ev->eventdat2 - (mapX - 1) * 24 + (part & 1) * 24;
 				if (offset == 25 || offset == 75 || (offset == 50 && background3x1))
@@ -5174,6 +5307,28 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 + eventRec[eventLoc-1].eventdat6 +
 		         (enemyOffset == 50 ? backMove3 : 0) <= 0)
 			enemy[b-1].ey -= l3d_field_ahead;
+		// Ground ones driving up the screen faster than the ground scrolls (never seen in the
+		// original) out of sight too.
+		else if (l3d_field_ahead > 0 && (enemyOffset == 25 || enemyOffset == 75) && eventRec[eventLoc-1].eventdat5 <= 0 &&
+		         enemy[b-1].eycc == 0 && enemy[b-1].yaccel == 0 &&
+		         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 + eventRec[eventLoc-1].eventdat6 + backMove < 0)
+			enemy[b-1].ey -= l3d_field_ahead;
+	}
+	else if (prespawn_rise > 0)
+	{
+		// Tyrian3D: at its data's start position above the screen, made ahead of time that far up
+		// (prespawn_events: own_start_rise), and as far back along a steady sideways course.
+		enemy[b-1].ey -= prespawn_rise;
+		if (enemy[b-1].excc == 0)
+			enemy[b-1].ex -= enemy[b-1].exc * prespawn_ticks;
+	}
+	else if (l3d_field_ahead > 0 && enemyOffset != 25 && enemyOffset != 75 && eventRec[eventLoc-1].eventdat5 <= 0 &&
+	         enemy[b-1].ey + (enemy[b-1].size == 1 ? 28 : 14) <= 0 && enemy[b-1].eycc == 0 && enemy[b-1].yaccel == 0 &&
+	         enemy[b-1].eyc + eventRec[eventLoc-1].eventdat3 + eventRec[eventLoc-1].eventdat6 +
+	         (enemyOffset == 50 ? backMove3 : 0) <= 0)
+	{
+		// Tyrian3D: above the screen and not coming down: above the playfield's top too.
+		enemy[b-1].ey -= l3d_field_ahead;
 	}
 
 	if (smallEnemyAdjust && enemy[b-1].size == 0)
@@ -5187,6 +5342,12 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemy[b-1].linknum = eventRec[eventLoc-1].eventdat4;
 	enemy[b-1].fixedmovey = eventRec[eventLoc-1].eventdat6;
 
+	// Tyrian3D: the forecast it takes the place of, if the 3D view showed it coming (enemy_shown).
+	{
+		const Uint32 key = COMING_KEY + (Uint32)((eventLoc - 1) * 4 + enemyTypeOfs) * 4 + (tempW & 3);
+		enemy_forecast[b-1] = l3d_key_seen(key) ? key : 0;
+	}
+
 	// Tyrian3D dev: whether the 3D view showed the enemy coming (draw_coming_enemies).
 	if (SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
 	{
@@ -5194,10 +5355,10 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		const Uint32 key = COMING_KEY + (Uint32)(e * 4 + enemyTypeOfs) * 4 + (tempW & 3);
 		float px = 0, py = 0;
 		const bool seen = l3d_key_seen(key) && l3d_key_position(key, &px, &py);
-		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
+		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d swing %d,%d steer %d,%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
 		       e, eventRec[e].eventtype, enemyOffset, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
-		       enemy[b-1].fixedmovey, seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax,
-		       l3d_frame_number);
+		       enemy[b-1].fixedmovey, enemy[b-1].excc, enemy[b-1].eycc, enemy[b-1].xaccel, enemy[b-1].yaccel,
+		       seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax, l3d_frame_number);
 	}
 }
 

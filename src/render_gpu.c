@@ -2663,6 +2663,12 @@ static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 // right way round for the renderer's lighting.
 #define SIDE_ROLL 90.0f  // degrees about the scroll axis, seen from the side
 
+// How opaque an object fading in is at its step (L3DObject.appear).
+static float appear_alpha(Uint8 step)
+{
+	return (float)step / (L3D_APPEAR_STEPS + 1);
+}
+
 static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
                                int *batch_count)
 {
@@ -2670,7 +2676,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 
 	for (int model_index = 0; model_index < m3d_model_count; ++model_index)
 	{
-		// Objects of the model in each state (sprite filter, ghost) share batches.
+		// Objects of the model in each state (sprite filter, ghost, fading in) share batches.
 		bool done[L3D_MAX_OBJECTS] = { false };
 		for (int f = 0; f < frame->object_count; ++f)
 		{
@@ -2683,7 +2689,8 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 			for (int o = f; o < frame->object_count; ++o)
 			{
 				const L3DObject *object = &frame->objects[o];
-				if (done[o] || object->model != model_index || object->filter != state->filter || object->ghost != state->ghost)
+				if (done[o] || object->model != model_index || object->filter != state->filter || object->ghost != state->ghost ||
+				    object->appear != state->appear)
 					continue;
 				done[o] = true;
 				if (loaded == NULL || *instance_count >= MAX_INSTANCES)
@@ -2779,6 +2786,12 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				{
 					b->transparency_enabled = 1;
 					b->albedo_alpha = (Uint8)(b->albedo_alpha / 2);
+				}
+				if (state->appear != 0)
+				{
+					b->transparency_enabled = 1;
+					b->albedo_alpha = (Uint8)(b->albedo_alpha * appear_alpha(state->appear));
+					b->emission_energy *= appear_alpha(state->appear);
 				}
 			}
 		}
@@ -3155,7 +3168,8 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			const L3DObject *object = &frame->objects[p];
 			if (done[p] || object->model != L3D_VOLUME || object->sheet != first->sheet ||
 			    object->sprite != first->sprite || object->large != first->large || object->style != first->style ||
-			    object->filter != first->filter || object->ghost != first->ghost || object->open_sides != first->open_sides)
+			    object->filter != first->filter || object->ghost != first->ghost || object->open_sides != first->open_sides ||
+			    object->appear != first->appear)
 				continue;
 			done[p] = true;
 			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
@@ -3194,6 +3208,12 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			b->transparency_enabled = 1;
 			b->albedo_alpha = 128;
 			b->alpha_cutoff = 0.2f;
+		}
+		if (first->appear != 0)
+		{
+			b->transparency_enabled = 1;
+			b->albedo_alpha = (Uint8)(b->albedo_alpha * appear_alpha(first->appear));
+			b->alpha_cutoff = 0.05f;
 		}
 	}
 }

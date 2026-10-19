@@ -76,6 +76,7 @@ typedef struct
 	float roll;           // degrees, positive banks right
 	Uint8 filter;         // the sprite filter (blit_sprite2_filter: index = filter | shade), 0 for none
 	bool ghost;           // half transparent (the player's ship while invulnerable)
+	Uint8 appear;         // fading in, 1 to L3D_APPEAR_STEPS (more opaque each step); 0: shown fully
 	float vx, vy;         // how far it moved since the last frame (game pixels), see l3d_key_last_object
 	bool pointer;         // moves with the mouse between ticks (l3d_pointer_lead), not by vx, vy
 	Uint8 open_sides;     // L3D_VOLUME: sides another part of the same enemy continues (V3D_OPEN_*)
@@ -226,6 +227,9 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 void l3d_ghost_last_object(void);
 // The last object added is a wreck (L3DObject.wreck).
 void l3d_wreck_last_object(void);
+// The object recorded last is fading in, shown that far (0 to 1: from see-through to fully there).
+#define L3D_APPEAR_STEPS 4
+void l3d_appear_last_object(float shown);
 
 // Gives the object recorded last a key that stays the same from frame to frame (an enemy's slot):
 // it then gets the velocity it moved with since the last frame, so the 3D view can move it on in
@@ -234,6 +238,14 @@ void l3d_wreck_last_object(void);
 void l3d_key_last_object(Uint32 key, float *vx, float *vy);
 // Whether an object had the key in the last frame (or has it in this one).
 bool l3d_key_seen(Uint32 key);
+// How far the object keyed so is shown, 0 to 1: one first seen inside the playfield rather than
+// coming into it (an enemy the game makes in sight) fades in over L3D_APPEAR_FRAMES frames
+// (l3d_appear_last_object); others are shown fully.
+#define L3D_APPEAR_FRAMES 10
+float l3d_key_shown(Uint32 key);
+// The object keyed `key`, seen first this frame, fades in on from where the one keyed `from` (seen
+// last frame) got to: an enemy taking the place of its forecast.
+void l3d_key_continue(Uint32 key, Uint32 from);
 // Where the object with the key was last recorded (centre, game pixels); false if never.
 bool l3d_key_position(Uint32 key, float *x, float *y);
 // For the object keyed last when its key is new (an enemy that has just appeared, which has no

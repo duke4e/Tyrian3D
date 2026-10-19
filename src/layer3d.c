@@ -379,6 +379,13 @@ void l3d_ghost_last_object(void)
 		l3d_frame.objects[l3d_frame.object_count - 1].ghost = true;
 }
 
+void l3d_appear_last_object(float shown)
+{
+	if (l3d_capturing && l3d_frame.object_count > 0 && shown < 1.0f)
+		l3d_frame.objects[l3d_frame.object_count - 1].appear =
+			(Uint8)SDL_clamp((int)(shown * (L3D_APPEAR_STEPS + 1)) + 1, 1, L3D_APPEAR_STEPS);
+}
+
 // Where keyed objects were in the frames they were last seen in (open addressing by key).
 #define MOTION_SLOTS 2048
 #define MOTION_MAX_STEP 24.0f  // game pixels a frame; more is a jump
@@ -388,7 +395,18 @@ static struct
 	Uint32 key;    // 0 = free
 	Uint32 frame;  // l3d_frame_number when seen
 	float x, y;
+	Uint32 first;  // l3d_frame_number since when it has been seen every frame
+	bool popped;   // first seen inside the playfield, not coming into it (l3d_key_shown)
 } motion[MOTION_SLOTS];
+
+// Whether a point (game screen coordinates) is where the 3D view shows the playfield: across it, and
+// down from the top of its part above the screen (l3d_field_ahead).
+static bool in_sight(float x, float y)
+{
+	const float left = l3d_field_wide ? 0.0f : (float)L3D_PLAYFIELD_X;
+	const float right = l3d_field_wide ? (float)L3D_WIDTH : (float)(L3D_PLAYFIELD_X + L3D_PLAYFIELD_W);
+	return x > left - 6 && x < right + 6 && y > -l3d_field_ahead - 10 && y < L3D_PLAYFIELD_H + 10;
+}
 
 static bool last_key_new = false;
 
@@ -406,6 +424,11 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 			if (motion[slot].key == key || motion[slot].key == 0 || stale)
 			{
 				last_key_new = !(motion[slot].key == key && motion[slot].frame + 1 == l3d_frame_number);
+				if (last_key_new)
+				{
+					motion[slot].first = l3d_frame_number;
+					motion[slot].popped = in_sight(object->x, object->y);
+				}
 				if (motion[slot].key == key && motion[slot].frame + 1 == l3d_frame_number)
 				{
 					dx = object->x - motion[slot].x;
@@ -474,6 +497,33 @@ bool l3d_key_position(Uint32 key, float *x, float *y)
 			return true;
 		}
 	return false;
+}
+
+static int key_slot(Uint32 key)
+{
+	Uint32 slot = (key * 2654435761u) % MOTION_SLOTS;
+	for (int probe = 0; probe < 16; ++probe, slot = (slot + 1) % MOTION_SLOTS)
+		if (motion[slot].key == key)
+			return (int)slot;
+	return -1;
+}
+
+float l3d_key_shown(Uint32 key)
+{
+	const int slot = key_slot(key);
+	if (slot < 0 || !motion[slot].popped || l3d_frame_number - motion[slot].first >= L3D_APPEAR_FRAMES)
+		return 1.0f;
+	return (float)(l3d_frame_number - motion[slot].first + 1) / (L3D_APPEAR_FRAMES + 1);
+}
+
+void l3d_key_continue(Uint32 key, Uint32 from)
+{
+	const int slot = key_slot(key), from_slot = key_slot(from);
+	if (slot < 0 || from_slot < 0 || motion[slot].first != l3d_frame_number || motion[slot].frame != l3d_frame_number ||
+	    motion[from_slot].frame + 1 < l3d_frame_number)
+		return;
+	motion[slot].first = motion[from_slot].first;
+	motion[slot].popped = motion[from_slot].popped;
 }
 
 bool l3d_key_seen(Uint32 key)
