@@ -1,5 +1,5 @@
-"""Batch O of wave 3 (sheet K, FLEET and LAVA RUN), the fire and the sign; modelled as their sprites look
-(models.cfg: yaw=0). The grey machines of sheet K are in wave3_o_machines.py.
+"""Batch O of wave 3 (sheet K, FLEET and LAVA RUN), the fire; modelled as its sprites look
+(models.cfg: yaw=0). (The WARNING sign: polish_warning.py.) The grey machines of sheet K are in wave3_o_machines.py.
 
 - fire_tail_l, fire_tail_c, fire_tail_r, fire_mid_l, fire_mid_c, fire_mid_r, fire_head_l, fire_head_c,
   fire_head_r (K 13, 15, 17, 51, 53, 55, 89, 91, 93): the wall of fire that sweeps down FLEET and LAVA
@@ -9,15 +9,11 @@
   whose middle repeats every 24 pixels, and cut into the nine pieces (origin), each as high as its
   sprite: the middle pieces join each other, the head and the tail without a seam (where the rows
   overlap, the pieces' surfaces coincide).
-- warning_left, warning_right (K 121, 123): the green WARNING sign that comes before the fire, its
-  arrow pointing up the screen where the fire comes from: glowing green letters on a dark plate,
-  built whole and cut in two (origin). The white dot the right sprite carries (K 124 packed into its
-  corner) is left out.
 - spark_dot (K 124), spark_glint (K 125): CAMANIS' two tiny white sparks (1x1): a glowing bead and a
   four-pointed glint.
 
 usage: Blender -b --factory-startup -P wave3_o.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole fire|warning --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole fire --preview <prefix>]
 """
 import math
 import os
@@ -27,7 +23,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_o_kit as o  # noqa: E402
-from wave3_o_kit import art, k, sh, pal  # noqa: E402
+from wave3_o_kit import art, k, pal  # noqa: E402
 
 
 # --- K 13 ... 93: the wall of fire -----------------------------------------------------------------
@@ -186,46 +182,6 @@ for _row in FIRE_ROWS:
     for _i, _column in enumerate(FIRE_COLUMNS):
         o.model(f"fire_{_row[0]}_{_column[0]}", [(_row[1][_i], True)])(
             lambda row=_row, column=_column: fire_piece(row, column))
-
-
-# --- K 121, 123: the WARNING sign ------------------------------------------------------------------
-
-WARN_PIECES = [("warning_left", 121, -12.0, (-24.0, 0.0)), ("warning_right", 123, 12.0, (0.0, 24.0))]
-
-
-@o.whole("warning", (48, 28))
-def warning_whole():
-    """The sign: a dark plate the shape of the sprite's dark outline, the letters, the underline and the
-    arrow standing on it as rounded glowing green strokes, shaded down the letters as the sprite
-    shades them (lighter at the top and the bottom, the underline brightest left of its middle)."""
-    g = o.grid(art.WARN, 48)
-    origin = (24, 14)
-    rows = o.char_rows(g, lambda v, c, r: "G" if v >> 4 == 12 else "K" if v >> 4 == 2 else ".")
-    plate_mat = pal("warn_plate", 0x21, metallic=0.25, roughness=0.55)
-    plate_edge = pal("warn_plate_edge", 0x23, metallic=0.25, roughness=0.5)
-    plate = o.part("plate", rows, "GK", plate_mat, sh.pillow_profile(0.9, 0.45), origin=origin, bottom=0.45,
-                   smooth=1, epsilon=0.3, spacing=0.55, rim=0.1)
-    o.decimate(plate, 1600)
-    o.paint_faces(plate, lambda c, n: plate_edge if 0.2 < n.z < 0.9 else None)
-    strokes = o.part("letters", rows, "G", None, sh.round_profile(3.0, max_height=1.45, min_height=1.15),
-                     origin=origin, base=0.75, bottom=0.0, smooth=0, epsilon=0.12, spacing=0.3, rim=0.05,
-                     sigma=0.6)
-    o.decimate(strokes, 6000)
-    shade = o.shades(g, origin, keep=lambda v: v >> 4 == 12, blur=0)
-    levels = [(0.0, 3), (4.5, 5), (6.5, 7), (7.8, 8), (8.6, 9), (10.0, 11)]
-    bands = [(lowest, pal(f"warn_green{s}", 0xc0 | s, metallic=0.1, roughness=0.3, glow=0.35 + s / 18.0))
-             for lowest, s in levels]
-    o.paint_bands(strokes, lambda c, n: shade(c.x, c.y) - (3.0 if n.z < 0.5 else 0.0), bands)
-    return [plate, strokes]
-
-
-def warning_piece(cx, box):
-    objects = warning_whole()
-    o.cut(objects, (box[0], box[1], -14.0, 14.0), (cx, 0.0))
-
-
-for _name, _sprite, _cx, _box in WARN_PIECES:
-    o.model(_name, [(_sprite, True)])(lambda cx=_cx, box=_box: warning_piece(cx, box))
 
 
 # --- K 124, 125: CAMANIS' sparks (1x1) -------------------------------------------------------------

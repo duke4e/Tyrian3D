@@ -1,7 +1,6 @@
-"""Enemies of wave 1, batch C, facing the way their sprites do (models.cfg: yaw=0 unless noted):
+"""Enemies of wave 1, batch C, facing the way their sprites do (models.cfg: yaw=0 unless noted; the claw gate
+is polish_claw_gate.py):
 
-- claw_gate_left / claw_gate_right (sheet 5 85 / 87): the two halves of the armoured claw gate of
-  APPROACH and BRAINIAC, standing on the ground; a red arc joins them at the bottom.
 - deli_arm_left / deli_arm_right (sheet T 39 / 49): the gun arms hanging from DELI's boss, ribbed red
   arms ending in pods with a glowing eye.
 - orb_crimson (sheet K 195): a dark red glass orb with an ember glowing inside where the sprite has its
@@ -59,11 +58,6 @@ def part(rows, chars):
 def outline(rows, chars=None, epsilon=0.6):
     """The outline of the pixels of a part (letters in chars; all covered pixels if None)."""
     return s.outline(part(rows, chars) if chars else rows, 24, epsilon)
-
-
-def smoothstep(t):
-    t = max(0.0, min(1.0, t))
-    return t * t * (3 - 2 * t)
 
 
 def round_edge(d, low, high, width):
@@ -268,134 +262,6 @@ def mirror_scene(offset=0.0):
         if obj.type == "MESH":
             obj.data.transform(flip)
             obj.data.flip_normals()
-
-
-# --- Claw gate (sheet 5 85 and 87) ----------------------------------------------------------------
-# h helmet (the outer armour with the eyes), p pauldron (the inner block's head), b the shoulder
-# between them, l the outer leg, c its red claw, s the inner leg, f the red arc joining the halves.
-
-GATE_LEFT = art("""
-........................
-........hhhhh....pppppp.
-.....hhhhhhhh...pppppppp
-....hhhhhhhhhbbbpppppppp
-...hhhhhhhhhhbbbpppppppp
-...hhhhhhhhhhbbbpppppppp
-...hhhhhhhhhhbbbppppppp.
-..hhhhhhhhhhhbbbbbbbbbb.
-..hhhhhhhhhhhbbbbbbbbb..
-..hhhhhhhhhhhbbbbbbbbb..
-..hhhhhhhhhhhbbbbbbbbb..
-..hhhhhhhhhhhbbbbbbbbb..
-....lllllllll.bbbbssss..
-....lllllllllll...ssss..
-....llllllllll....ssss..
-....llllllllll.....sss..
-....lllllllllll....sss..
-....lllllllllll....sss..
-....lllllllllll...ssss..
-....lllllllllll..sssss..
-.....cccccllll...ssss...
-.....cccccllll...sssff..
-.....cccccc.......ffffff
-.....cccccc........fffff
-.......ccccc........ffff
-........cccc.........fff
-""")
-
-GATE_RIGHT = art("""
-........................
-..pppppp....hhhhh.......
-ppppppppp...hhhhhhhh....
-pppppppppbbbhhhhhhhhh...
-ppppppppbbbbhhhhhhhhhh..
-ppppppppbbbbhhhhhhhhhh..
-..ppppppbbbbhhhhhhhhhh..
-..bbbbbb.bbbhhhhhh.hhhh.
-...bbbbbbbbbhhhhhhhhhhh.
-...bbbbbbbbbhhhhhhhhhhh.
-...bbbbbbbbbhhhhhhhhhhh.
-...bbbbbbbbbhhhhhhhhhhh.
-...sssssbbb.lllllllll...
-...ssss...lllllllllll...
-...ssss....llllllllll...
-...sss.....llllllllll...
-...sss....lllllllllll...
-...sss....lllllllllll...
-...ssss...lllllllllll...
-...sssss..lllllllllll...
-....ssss...llllccccc....
-...ffsss...llllccccc....
-fffffff.......cccccc....
-ffffff........cccccc....
-fffff........ccccc......
-ffff.........cccc.......
-""")
-
-
-def claw_gate(rows, side):
-    """side 1: the left half (5 85), -1: the right half (5 87), which is drawn as the left's mirror
-    one pixel to the right (column c there is column 24 - c here)."""
-    k.reset()
-    steel = k.material("gate_steel", palette=6, metallic=0.6, roughness=0.38)
-    light = k.material("gate_light", palette=8, metallic=0.6, roughness=0.32)
-    bright = k.material("gate_bright", palette=10, metallic=0.65, roughness=0.28)
-    dark = k.material("gate_dark", palette=3, metallic=0.5, roughness=0.5)
-    red = k.material("gate_red", palette=70, metallic=0.35, roughness=0.3)
-    glow = k.material("gate_glow", palette=72, roughness=0.2, emission=(255, 60, 30), emission_strength=1.2)
-    eye = k.material("gate_eye", palette=72, roughness=0.2, emission=(255, 40, 20), emission_strength=2.5)
-
-    def col(c):  # a column of the left half as this half's x
-        return px(c) if side > 0 else px(24 - c)
-
-    seam = (lambda a, b: a[0] > 11.99 and b[0] > 11.99) if side > 0 else (lambda a, b: a[0] < -11.99 and b[0] < -11.99)
-
-    def helmet(x, y, d):
-        # A high back (rows 1-6), a face sloping down to the eyes (row 8) and a lower lip (rows 9-11).
-        crown = 9.8 - 3.0 * smoothstep((py(6.0) - y) / (py(6.0) - py(9.4)))
-        return round_edge(d, 3.0, crown, 2.2)
-
-    # The armour, the shoulder and the legs.
-    relief("helmet", outline(rows, "h"), helmet, light)
-    relief("pauldron", outline(rows, "p"), lambda x, y, d: round_edge(d, 3.5, 11.0, 2.4), light)
-    relief("shoulder", outline(rows, "b"), lambda x, y, d: round_edge(d, 2.5, 6.6, 1.6), steel)
-    groove = col(9)
-    relief("leg", outline(rows, "l"),
-           lambda x, y, d: round_edge(d, 2.0, 6.2, 1.8) - 1.6 * math.exp(-((x - groove) / 0.55) ** 2), steel,
-           spacing=0.45, lines=[[(groove + dx, 14.0), (groove + dx, -14.0)] for dx in (-0.9, -0.45, 0.0, 0.45, 0.9)])
-    relief("shaft", outline(rows, "s"), lambda x, y, d: round_edge(d, 1.8, 5.2, 1.2), steel)
-    # The claw, a hook thinning to its point (row 25).
-    relief("claw", outline(rows, "c"),
-           lambda x, y, d: round_edge(d, 0.6, 4.2 - 2.6 * smoothstep((py(19.5) - y) / 5.5), 1.8), red)
-    relief("foot", outline(rows, "f"), lambda x, y, d: round_edge(d, 0.8, 3.2, 1.6), red, cut=seam)
-    # The crest along the helmet, the ridge along the pauldron (the sprites' bright lines).
-    crest = col(9) if side > 0 else col(9.5)
-    k.smooth(k.lathe("crest", [(py(6.8), 0.1), (py(6.4), 0.6), (py(2.5), 0.75), (py(1.6), 0.2)], bright,
-                     segments=12, axis_x=crest, axis_z=9.6, squash=0.9), 60)
-    k.smooth(k.lathe("ridge", [(py(6.5), 0.1), (py(6), 0.8), (py(2.2), 0.9), (py(1.4), 0.2)], bright,
-                     segments=12, axis_x=col(18.5), axis_z=10.8, squash=0.8), 60)
-    # The two red eyes in the sloping face, a bright lip under them.
-    for c in (7, 10):
-        k.smooth(k.ellipsoid(f"eye{c}", (col(c), py(8.0), 8.0), (0.95, 0.8, 0.7), eye, 12, 6), 60)
-    tube("lip", catmull([(col(4.4), py(10.2), 6.2), (col(8.5), py(10.4), 6.7), (col(12.6), py(10.2), 6.2)]),
-         0.6, bright, squash=0.8)
-    # The glowing red stripe on the inner leg.
-    stripe = [(col(18), py(7.6)), (col(21), py(7.6)), (col(21), py(11.5)), (col(20.6), py(13.6)),
-              (col(18.6), py(13.6)), (col(18), py(11.5))]
-    if side < 0:
-        stripe = stripe[::-1]
-    relief("stripe", stripe, lambda x, y, d: round_edge(d, 5.6, 7.4, 1.0), glow, spacing=0.45, band=1.0)
-    # Bolts on the pauldron and the shoulder.
-    for c, r, z in ((20.5, 4.5, 10.6), (15, 9, 6.4)):
-        k.smooth(k.ellipsoid(f"bolt{c}", (col(c), py(r), z), (0.6, 0.6, 0.4), dark, 10, 5), 60)
-
-
-def claw_gate_left():
-    claw_gate(GATE_LEFT, 1)
-
-
-def claw_gate_right():
-    claw_gate(GATE_RIGHT, -1)
 
 
 # --- DELI's gun arms (sheet T 39 and 49) ----------------------------------------------------------
@@ -675,8 +541,6 @@ def savara_fin_right():
 
 # name: (builder, sheet, sprite used for the silhouette check)
 MODELS = {
-    "claw_gate_left": (claw_gate_left, "5", 85),
-    "claw_gate_right": (claw_gate_right, "5", 87),
     "deli_arm_left": (deli_arm_left, "T", 39),
     "deli_arm_right": (deli_arm_right, "T", 49),
     "orb_crimson": (orb_crimson, "K", 195),
