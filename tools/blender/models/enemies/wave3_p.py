@@ -1,14 +1,9 @@
 """Wave 3, batch P of the enemy models: the remaining enemies of sheet 2 (episode 1: TYRIAN, HOLES, TYRIAN X,
 and SAVARA, ASSASSIN, BONUS, GYGES, EYESPY), modelled as their sprites look (models.cfg: yaw=0). Objects the
 game draws from several sprites are built whole and cut into the sprites' pieces (models.cfg: origin);
-the level files' enemy events say how the pieces are placed.
+the level files' enemy events say how the pieces are placed. (The walker, 2 85 beside 2 87, is built by
+polish_walker.py.)
 
-- walker_left, walker_right (2 85, 2 87): the grey and blue machine of TYRIAN, HOLES, BONUS, ASSASSIN
-  and SAVARA, left and right halves: a grey hull with a steel-blue window and a glowing vent at its
-  back, orange lamps on its shoulders, bent blue fins, two long steel-blue legs reaching down the
-  screen and two dark struts, a neck ending in a grey ball with a red eye (origin). The levels often
-  put the grabber (2 123, 125: wave2_f_more.py) 16 pixels below it on the same layer (the events give
-  85/87 y - 16), as the machine's lower half; the ball then sits on the grabber's neck.
 - rod_butt, rod_segment, rod_tip (2 1, 2 3, 2 5) and their mirror images rod_tip_l, rod_segment_l,
   rod_butt_r (2 7, 2 9, 2 11): the long grey rods of TYRIAN that push in from the screen's sides,
   red collars and bands round them and a polished tip: the events lay a butt, a row of segments (the
@@ -23,7 +18,7 @@ golden pyramid, the red works) are in wave3_p_ground.py; the shared helpers in w
 pixel art in wave3_p_art.py.
 
 usage: Blender -b --factory-startup -P wave3_p.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole walker,rod --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole rod --preview <prefix>]
 """
 import math
 import os
@@ -33,189 +28,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_p_kit as w  # noqa: E402
-from wave3_p_kit import art, k, sh, pal, model, whole, grid, regions, ramp, shade  # noqa: E402
-
-
-# --- 2 85, 2 87: the walker (48 x 28, its axis at x = -1) -------------------------------------------
-
-AX = -1.0
-
-
-def X(col):
-    return col + 0.5 - 24
-
-
-def Y(row):
-    return 14 - (row + 0.5)
-
-
-def walker_labels(g):
-    """The walker's pixels by part: L legs, E orange lamps, B blue fins, W window, O the vent at the
-    back, N the neck, P the ball, R its red eye, S the struts, H the hull."""
-    def label(v, c, r):
-        rp = ramp(v)
-        if rp == 7 and r == 0:
-            return "O"
-        if rp == 7 and r <= 6 and (c <= 14 or c >= 31):
-            return "E"
-        if rp == 9 and not (19 <= c <= 26):
-            return "B"
-        if 19 <= c <= 26 and 2 <= r <= 7 and rp in (3, 8, 9):
-            return "W"
-        if r >= 18 and 18 <= c <= 27:
-            return "R" if rp == 7 else "P"
-        if (c <= 10 or c >= 35) and r >= 3:
-            return "L"
-        if 9 <= r <= 17 and (11 <= c <= 15 or 30 <= c <= 34):
-            return "S"
-        if 10 <= r <= 17 and 16 <= c <= 29:
-            return "N"
-        return "H"
-    return regions(g, label)
-
-
-def walker_whole():
-    g = grid(art.SHIP, 48)
-    rows = walker_labels(g)
-    o = (24, 14)
-    grey = pal("wlk_grey", 0x07, metallic=0.6, roughness=0.32)
-    mid = pal("wlk_mid", 0x09, metallic=0.6, roughness=0.3)
-    light = pal("wlk_light", 0x0b, metallic=0.6, roughness=0.26)
-    dark = pal("wlk_dark", 0x03, metallic=0.5, roughness=0.45)
-    leg = pal("wlk_leg", 0x37, metallic=0.55, roughness=0.3)
-    leg_light = pal("wlk_leg_light", 0x3b, metallic=0.55, roughness=0.26)
-    leg_dark = pal("wlk_leg_dark", 0x63, metallic=0.5, roughness=0.4)
-    steel = pal("wlk_steel", 0x3a, metallic=0.5, roughness=0.3)
-    glass = pal("wlk_glass", 0x3a, metallic=0.35, roughness=0.06)
-    glass_hi = pal("wlk_glass_hi", 0x88, metallic=0.2, roughness=0.05)
-    blue = pal("wlk_blue", 0x9b, metallic=0.35, roughness=0.22, glow=0.7)
-    blue_hi = pal("wlk_blue_hi", 0x9d, metallic=0.3, roughness=0.2, glow=1.2)
-    orange = pal("wlk_lamp", 0x79, metallic=0.1, roughness=0.3, glow=1.4)
-    orange_hot = pal("wlk_lamp_hot", 0x7c, metallic=0.0, roughness=0.2, glow=2.4)
-    red = pal("wlk_red", 0x76, metallic=0.1, roughness=0.25, glow=1.2)
-    red_hot = pal("wlk_red_hot", 0x7b, metallic=0.0, roughness=0.15, glow=2.2)
-
-    # The hull: the middle block, its back (row 0) against the sprite's top, the shoulders either side,
-    # higher in the middle.
-    hull = [(X(14) - 0.5, Y(0) + 0.5), (X(31) + 0.5, Y(0) + 0.5), (X(34) + 0.5, Y(1) + 0.5), (X(35) + 0.5, Y(3)),
-            (X(35) + 0.3, Y(7) - 0.3), (X(30) + 0.5, Y(9) - 0.3), (X(15) - 0.5, Y(9) - 0.3), (X(10) - 0.3, Y(7) - 0.3),
-            (X(10) - 0.5, Y(3)), (X(11) - 0.5, Y(1) + 0.5)]
-    hull = list(reversed(hull)) if sum(hull[i][0] * hull[(i + 1) % len(hull)][1] - hull[(i + 1) % len(hull)][0] *
-                                       hull[i][1] for i in range(len(hull))) < 0 else hull
-    body = sh.inflate("hull", [hull], grey, sh.pillow_profile(5.6, 1.6, crown=0.6), bottom=0.0, base=1.2, rim=0.2,
-                      spacing=0.9, z_fn=lambda x, y, z: 1.2 + (z - 1.2) * (0.7 + 0.3 * sh.smoothstep(10.5, 6.0,
-                                                                                                    abs(x - AX))))
-    k.smooth(w.simplify_bottom(body), 45)
-    w.paint_faces(body, lambda c, n: light if n.z > 0.45 and n.x < -0.4 else mid if n.z > 0.45 and n.y > 0.4 else
-                  dark if n.y < -0.6 or n.x > 0.75 else None)
-
-    def hull_z(x, y):
-        return sh.surface_z(body, x, y, 6.0)
-    top_z = hull_z(AX, Y(4.5))
-    # Raised plates either side of the window, lit on the left.
-    for side, (c0, c1) in ((-1, (14, 18)), (1, (27, 31))):
-        cx = (X(c0) + X(c1)) / 2
-        plate = w.block(f"plate{side}", (cx, Y(4.5)), 2.6, 3.3, 1.0, mid, rounding=0.45, power=4.0, segments=16,
-                        z0=hull_z(cx, Y(4.5)) - 0.4)
-        w.paint_faces(plate, lambda c, n: light if n.x < -0.4 else None)
-    # The window: steel-blue glass in a dark frame, a pale glint along its upper left.
-    w.rounded_box("window_frame", (AX, Y(4.5), top_z), (7.6, 7.4, 1.4), dark, bevel=0.5)
-    w.rounded_box("window", (AX, Y(4.5), top_z + 0.45), (6.0, 6.0, 1.4), glass, bevel=0.55)
-    w.tube("window_glint", [(X(20) + 0.3, Y(6.5), top_z + 1.2), (X(20) + 0.3, Y(3), top_z + 1.2),
-                            (X(23), Y(2.4), top_z + 1.2)], 0.4, glass_hi, 6)
-    # The vent at the back: a glowing orange slot in the hull's end.
-    w.rounded_box("vent_housing", (AX, Y(1.0), 4.2), (9.6, 2.4, 4.6), dark, bevel=0.5)
-    w.rounded_box("vent", (AX, Y(0.4), 4.2), (7.6, 1.4, 3.0), orange, bevel=0.4)
-    w.rounded_box("vent_hot", (AX, Y(0.2), 4.4), (4.0, 0.8, 1.6), orange_hot, bevel=0.3)
-
-    # The neck under the hull, narrowing down the screen, and the rod to the ball.
-    neck = [(X(16) - 0.4, Y(9)), (X(29) + 0.4, Y(9)), (X(29) + 0.2, Y(12)), (X(27) + 0.5, Y(13) - 0.2),
-            (X(26) + 0.5, Y(14.5)), (X(19) - 0.5, Y(14.5)), (X(18) - 0.5, Y(13) - 0.2), (X(16) - 0.2, Y(12))]
-    nb = sh.inflate("neck", [neck], dark, sh.round_profile(0.55, max_height=3.2), bottom=0.0, base=1.6, rim=0.2,
-                    spacing=0.8)
-    k.smooth(w.simplify_bottom(nb), 50)
-    # A light spine down the neck's middle, from under the window to the rod.
-    w.tube("spine", w.catmull([(AX, Y(8.5), 5.4), (AX, Y(11.0), 5.1), (AX, Y(13.5), 4.4), (AX, Y(14.8), 3.9)], 0.5),
-           1.25, grey, 10, squash=0.7)
-    w.tube("spine_hi", [(AX - 0.45, Y(9.0), 6.2), (AX - 0.45, Y(13.0), 5.2)], 0.35, light, 6)
-    for side, col in ((-1, 18), (1, 27)):  # steel-blue ribs down the neck's sides
-        w.tube(f"neck_rib{side}", [(X(col), Y(9.5), 4.0), (X(col), Y(13), 3.4)], 0.55, steel, 8)
-    for side, col in ((-1, 20), (1, 25)):  # the red slits
-        w.rounded_box(f"neck_slit{side}", (X(col), Y(11.5), 4.35), (0.9, 2.0, 0.6), red, bevel=0.25)
-    w.tube("neck_rod", [(AX, Y(14), 3.2), (AX, Y(16.5), 3.0), (AX, Y(18.2), 3.2)], 1.25, grey, 10)
-    w.tube("neck_rod_hi", [(AX - 0.4, Y(14.5), 4.1), (AX - 0.4, Y(17.8), 4.0)], 0.35, light, 6)
-    # The ball and its red eye.
-    bc = (AX, Y(21.5), 3.4)
-    w.sphere("ball", bc, (3.9, 3.9, 3.1), mid, 20, 10)
-    w.hoop("ball_rim", (AX, Y(21.0), 5.6), [(2.1, -0.4), (2.9, -0.2), (2.9, 0.25), (2.2, 0.35)], dark, 24)
-    w.sphere("eye", (AX, Y(21.0), 5.7), (2.1, 2.0, 1.0), red, 14, 7)
-    w.sphere("eye_hot", (AX - 0.5, Y(20.5), 6.3), (0.8, 0.7, 0.4), red_hot, 10, 5)
-
-    # The orange lamps on the shoulders, glowing towards the back.
-    for side, col in ((-1, 12), (1, 33)):
-        x = X(col)
-        w.lathe_axis(f"lamp{side}", [(0.0, 1.5), (0.6, 1.9), (4.0, 1.9), (4.6, 1.4), (5.0, 0.6)], orange,
-                     (x, Y(6.5), 6.4), (0, 1, 0), 12)
-        w.sphere(f"lamp_hot{side}", (x, Y(2.6), 7.3), (1.0, 1.4, 0.7), orange_hot, 12, 6)
-        collar = w.hoop(f"lamp_collar{side}", (0, 0, 0), [(1.8, -0.5), (2.3, -0.4), (2.3, 0.4), (1.8, 0.5)], dark, 16)
-        collar.data.transform(Matrix.Translation((x, Y(5.6), 6.4)) @ Matrix.Rotation(math.radians(90), 4, "X"))
-
-    # The blue fins: bent bars from the hull's sides out over the shoulders and down into the struts.
-    for side in (-1, 1):
-        def mx(col):
-            return X(col) if side < 0 else 2 * AX - X(col)
-        path = w.catmull([(mx(16.5), Y(5.5), 7.0), (mx(13.0), Y(6.0), 7.2), (mx(11.2), Y(8.0), 6.6),
-                          (mx(13.0), Y(9.6), 6.0), (mx(13.5), Y(12.0), 4.9), (mx(13.5), Y(14.5), 4.2)], 0.5)
-        w.tube(f"fin{side}", path, 1.35, blue, 8, squash=0.6)
-        w.tube(f"fin_hi{side}", w.catmull([(mx(16.0), Y(5.2), 7.75), (mx(13.2), Y(5.6), 7.9), (mx(11.6), Y(7.4), 7.4)],
-                                          0.5), 0.42, blue_hi, 6)
-
-    # The struts: grey frames round the fins' lower ends, a red light on their outer side.
-    for side in (-1, 1):
-        cx = X(13.0) if side < 0 else 2 * AX - X(13.0)
-        frame = w.block(f"strut{side}", (cx, Y(13.0)), 2.6, 4.6, 3.6, dark, rounding=0.8, power=3.0, segments=16)
-        w.paint_faces(frame, lambda c, n: grey if n.z > 0.5 and n.x < -0.3 else None)
-        w.sphere(f"strut_light{side}", (cx + side * -2.2, Y(11.5), 2.9), (0.75, 0.8, 0.7), orange, 10, 6)
-
-    # The legs: long steel-blue bars from under the shoulders' knuckles down to the sprite's bottom,
-    # sloping down to their feet, a dark groove along each.
-    sections = [(3.0, 8.6, 1.4, 4.6, 1.2), (5.0, 8.0, 2.2, 4.0, 1.6), (8.0, 7.2, 2.8, 3.0, 1.9), (12.0, 6.9, 3.0, 2.2, 1.9),
-                (17.0, 6.9, 3.0, 1.8, 1.8), (21.0, 7.0, 2.6, 1.6, 1.6), (24.0, 7.3, 2.0, 1.4, 1.3),
-                (25.6, 7.6, 1.0, 1.2, 0.8)]
-    for side in (-1, 1):
-        def lx(col):
-            return X(col) if side < 0 else -3.0 - X(col)
-        rings = [k.ring(Y(r), hw, 1.0, 20, z=zc, x=lx(c), top=top, bottom=max(0.05, zc - 0.5), power=2.6)
-                 for r, c, hw, zc, top in sections]
-        last = sections[-1]
-        lb = k.loft(f"leg{side}", rings, leg, start_point=(lx(sections[0][1]), Y(2.4), 4.6),
-                    end_point=(lx(last[1]), Y(26.2), 1.1))
-        k.smooth(lb, 50)
-        w.paint_faces(lb, lambda c, n: leg_light if n.z > 0.35 and n.x < -0.45 else
-                      leg_dark if n.z > 0.35 and n.x > 0.55 else None)
-        groove = [(lx(c) + 0.5, Y(r), zc + top - 0.12) for r, c, hw, zc, top in sections[1:-1]]
-        w.tube(f"leg_groove{side}", w.catmull(groove, 0.6), 0.4, leg_dark, 6, squash=0.6)
-        # A steel-blue knuckle where each leg leaves its shoulder.
-        w.sphere(f"knee{side}", (X(8.0) if side < 0 else X(37.0), Y(6.0), 6.3), (1.7, 1.9, 1.3), steel, 14, 8)
-
-
-@whole("walker", (48, 28))
-def walker_preview():
-    walker_whole()
-
-
-@model("walker_left", [85])
-def walker_left():
-    walker_whole()
-    w.bake()
-    w.piece(w.meshes(), -24, 0, -14, 14)
-
-
-@model("walker_right", [87])
-def walker_right():
-    walker_whole()
-    w.bake()
-    w.piece(w.meshes(), 0, 24, -14, 14)
+from wave3_p_kit import art, k, sh, pal, model, whole, grid, ramp, shade  # noqa: E402
 
 
 # --- 2 1, 3, 5 and their mirror images 2 7, 9, 11: the rods (72 x 28 whole) ----------------------------

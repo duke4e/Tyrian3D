@@ -3,10 +3,9 @@ is built whole, in shared coordinates, from its pixel art (wave3_l_art.py) and c
 edges into the pieces, each moved to its sprite's centre (models.cfg: origin, so that they meet again).
 The levels place the pieces as the sheet arranges them (checked in the level files' enemy events).
 (The grey and red jet, redjet_left / redjet_right / redjet_nose, is built by polish_redjet.py; the long grey ship,
-longship_left / longship_mid / longship_right, by polish_longship.py.)
+longship_left / longship_mid / longship_right, by polish_longship.py; HARVEST's ring ship, 5 39 41 / 43 45, by
+polish_ringship.py.)
 
-- ringship_pod, ringship_ring (39, 41) and their mirror images ringship_ring_r, ringship_pod_r (43, 45):
-  HARVEST's machine on a ring frame, a blue pod and a grey housing round a blue sphere.
 - drip_top, drip_bottom (53 above 91): NOSE DRIP's twisted drip of fire.
 - fire_bowl_left, fire_bowl_right (156, 158): NOSE DRIP's bowl of flames.
 - brain_* (196, 198, 200 / 233, 235, 237, 239 / 272, 274, 276): BRAINIAC's brain, 96 x 84 pixels.
@@ -16,124 +15,6 @@ import math
 import wave3_l_art as art
 import wave3_l_kit as w
 from wave3_l_kit import k, sh, pal
-
-
-# --- HARVEST's ring ship (39 and 41; 43 and 45 its mirror image) ----------------------------------
-
-RING = w.Art(art.RINGSHIP, (24, 14))
-RING_PIECES = {"ringship_pod": (-24, 0, -14, 14), "ringship_ring": (0, 24, -14, 14)}
-
-
-def ring_materials():
-    return {
-        "blue": pal("ringship_blue", 0x37, metallic=0.4, roughness=0.3),
-        "blue_light": pal("ringship_blue_light", 0x3a, metallic=0.4, roughness=0.25),
-        "blue_dark": pal("ringship_blue_dark", 0x33, metallic=0.4, roughness=0.4),
-        "grey": pal("ringship_grey", 0x06, metallic=0.55, roughness=0.35),
-        "light": pal("ringship_light", 0x0a, metallic=0.6, roughness=0.25),
-        "dark": pal("ringship_dark", 0x02, metallic=0.4, roughness=0.5),
-        "window": pal("ringship_window", 0x3b, metallic=0.2, roughness=0.15, glow=0.7),
-        "sphere": pal("ringship_sphere", 0x36, metallic=0.3, roughness=0.12),
-    }
-
-
-def build_ringship():
-    """HARVEST's machine standing on the ground, lying along the screen's x (the left one; the right
-    one is its mirror image): a blue bullet pod pointing left with a grey rail along its top, a grey
-    collar and two small blue fins behind it, a grey shaft with a glowing light blue window leading to
-    a grey housing round a ring, in which a blue sphere sits (the ring open beside it), a blue block
-    at the right end and blue claws at the housing's corners."""
-    m = ring_materials()
-    a = RING
-    yc = 0.5  # the machine's middle (row 13)
-    zc = 4.3  # the pod's axis
-
-    def pod_r(x):
-        pts = [(-22.3, 0.0), (-22.0, 1.8), (-21.5, 2.7), (-20.5, 3.7), (-19.5, 4.6), (-18.5, 5.4), (-17.0, 6.2),
-               (-15.0, 6.9), (-13.0, 7.25), (-11.4, 7.3)]
-        for (x0, r0), (x1, r1) in zip(pts, pts[1:]):
-            if x0 <= x <= x1:
-                return r0 + (r1 - r0) * (x - x0) / (x1 - x0)
-        return 7.3
-    squash = 0.62
-    prof = [(t, pod_r(-22.3 + t)) for t in (0.0, 0.3, 0.8, 1.8, 2.8, 3.8, 5.3, 7.3, 9.3, 10.9)]
-    prof[0] = (0.0, 0.02)
-    prof.append((11.1, 6.6))
-    prof.append((11.2, 0.02))
-    w.lathe_axis("pod", prof, m["blue"], (-22.3, yc, zc), (1, 0, 0), 32, squash=squash)
-    # Panel lines round the pod (dark rings) and the grey rail along its top.
-    for i, x in enumerate((-18.6, -15.0)):
-        r = pod_r(x) + 0.05
-        w.lathe_axis(f"pod_seam{i}", [(0.0, r - 0.3), (0.12, r + 0.12), (0.5, r + 0.12), (0.62, r - 0.3)],
-                     m["blue_dark"], (x - 0.3, yc, zc), (1, 0, 0), 32, squash=squash)
-    rail = [(x, yc, zc + pod_r(x) * squash - 0.05) for x in (-21.4, -20.6, -19.5, -17.5, -15.0, -12.5, -11.2)]
-    w.tube("pod_rail", w.catmull(rail, 0.5), 0.75, m["light"], 10)
-    # The collar behind the pod.
-    w.lathe_axis("collar", [(0.0, 6.6), (0.2, 7.55), (1.5, 7.55), (1.7, 6.6)], m["light"], (-12.2, yc, zc), (1, 0, 0),
-                 32, squash=squash)
-    # Small blue fins behind the collar, up and down the screen.
-    fin = w.poly_px(a, [(13.4, 7.6), (16.6, 7.4), (19.4, 8.5), (20.2, 10.0), (13.4, 10.3)])
-    for i, poly in enumerate((fin, [(x, 2 * yc - y) for x, y in reversed(fin)])):
-        w.bevelled_slab(f"fin{i}", poly, zc - 0.45, zc + 0.45, m["blue"], bevel=0.3)
-    # The shaft and its light blue window with a grey rib over it.
-    w.lathe_axis("shaft", [(0.0, 3.4), (11.0, 3.4)], m["grey"], (-11.0, yc, zc - 1.0), (1, 0, 0), 20, squash=0.75)
-    w.rounded_box("window", (-4.7, yc, zc + 1.45), (7.4, 3.2, 1.0), m["window"], bevel=0.35)
-    w.tube("window_rib", [(-8.6, yc, zc + 2.0), (-0.8, yc, zc + 2.0)], 0.45, m["light"], 8)
-
-    # The housing: everything right of column 22, open where the sprite is (beside the sphere).
-    rows = a.select(lambda c, r, ch: c >= 22)
-    polys = a.polys(rows=rows, smooth=2, epsilon=0.4, min_area=0.5)
-    ring_c, ring_r = (5.6, yc), (5.7, 6.6)
-
-    def housing_z(x, y, z):
-        # Sloping down into the ring's opening.
-        q = math.hypot((x - ring_c[0]) / ring_r[0], (y - ring_c[1]) / ring_r[1])
-        return z - 1.2 * w.smoothstep(1.15, 0.9, q) * min(1.0, z / 2.0)
-    housing = w.plate("housing", polys, m["grey"], 3.6, radius=1.4, spacing=0.5, z_fn=housing_z)
-    w.planar(w.simplify_flat(housing), 2.0)
-    # The bright ring round the opening.
-    ring = []
-    for i in range(40):
-        t = 2 * math.pi * i / 40
-        x, y = ring_c[0] + ring_r[0] * math.cos(t), ring_c[1] + ring_r[1] * math.sin(t)
-        ring.append((x, y, sh.surface_z(housing, x, y, 3.0) + 0.1))
-    ring_obj = k.loft("ring", w.frame_rings(ring + ring[:1], 0.8, 10, squash=0.9), m["light"], cap_start=False,
-                      cap_end=False)
-    k.smooth(ring_obj, 60)
-    # The sphere in the ring, at its left.
-    w.sphere("sphere", (3.0, 0.7, 3.6), (4.3, 4.3, 3.7), m["sphere"], 28, 14)
-    # The blue block at the right end (columns 37-43), raised over the housing.
-    block = w.poly_px(a, [(37.0, 6.4), (41.0, 6.6), (43.6, 8.6), (44.0, 12.0), (44.0, 15.0), (43.6, 18.4),
-                          (41.0, 20.4), (37.0, 20.6)])
-    w.planar(w.simplify_flat(w.plate("block", [block], m["blue"], 5.2, radius=1.6, spacing=0.45)), 2.0)
-    w.rounded_box("block_light", (a.x(38.5), yc, 5.1), (1.6, 9.0, 0.6), m["blue_light"], bevel=0.25)
-    # The claws at the housing's corners: blue prongs leaning out.
-    claws = [
-        [(20.4, 3.6), (26.6, 3.4), (26.6, 5.6), (21.0, 5.8)],
-        [(33.6, 3.4), (37.0, 3.6), (40.4, 5.6), (43.0, 7.2), (42.6, 8.4), (38.4, 7.0), (35.0, 5.6)],
-    ]
-    for i, claw in enumerate(claws):
-        poly = w.poly_px(a, claw)
-        for j, pl in enumerate((poly, [(x, 2 * yc - y) for x, y in reversed(poly)])):
-            w.bevelled_slab(f"claw{i}{j}", pl, 0.0, 3.0, m["blue"], bevel=0.45,
-                            z_fn=lambda x, y, z: z + 1.0 * w.smoothstep(0.0, 3.0, z) * w.smoothstep(4.0, 12.0,
-                                                                                                abs(y - yc)))
-    w.bake()
-    sh.flat_bottom(w.meshes())
-    for obj in w.meshes():
-        k.recalc_normals(obj)
-
-
-def ring_piece(name, mirror):
-    def build():
-        build_ringship()
-        if mirror:
-            w.mirror_objects(w.meshes())
-        x0, x1, y0, y1 = RING_PIECES[name]
-        if mirror:
-            x0, x1 = -x1, -x0
-        return w.cut_piece(x0, x1, y0, y1)
-    return build
 
 
 # --- NOSE DRIP's twisted drip (53 above 91) ----------------------------------------------------------
@@ -311,12 +192,6 @@ def brain_piece(name):
 # --- Registry -----------------------------------------------------------------------------------
 
 PIECES = []  # (name, sprite, builder)
-# The ring ship: the left one's pod (39) and ring (41); the right one (43, 45) is its mirror image.
-PIECES.append(("ringship_pod", 39, ring_piece("ringship_pod", False)))
-PIECES.append(("ringship_ring", 41, ring_piece("ringship_ring", False)))
-PIECES.append(("ringship_ring_r", 43, ring_piece("ringship_ring", True)))
-PIECES.append(("ringship_pod_r", 45, ring_piece("ringship_pod", True)))
-w.whole("ringship", build_ringship, (48, 28), RING.mask())
 for _name, _sprite in (("drip_top", 53), ("drip_bottom", 91)):
     PIECES.append((_name, _sprite, drip_piece(_name)))
 w.whole("drip", build_drip, (24, 56), DRIP.mask())
