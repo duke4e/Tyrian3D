@@ -1,8 +1,8 @@
 """Batch AO of wave 3, sheet C (DELI, New Deli, BONUS, STATION): the damaged looks of DELI's tower, the gun on its
-mast, its long cannons (wave3_x_tower.py, wave3_x_cannon.py) and the green twin-tank ship (wave1_b.py), built by
-those scripts' own builders (imported as they are, their output unchanged) and damaged as the damaged sprites show
-(the enemy data's dgr), cut into the same pieces so that each swaps in place (models.cfg: origin, yaw=0, as the
-intact pieces). The kit is wave3_ao_kit.py, the pixels wave3_ao_art.py.
+mast and its long cannons (wave3_x_tower.py, wave3_x_cannon.py), built by those scripts' own builders (imported as
+they are, their output unchanged) and damaged as the damaged sprites show (the enemy data's dgr), cut into the same
+pieces so that each swaps in place (models.cfg: origin, yaw=0, as the intact pieces). The kit is wave3_ao_kit.py,
+the pixels wave3_ao_art.py. (The green twin-tank ship's damaged halves, C 45 47: polish_tank_pod_dmg.py.)
 
 - red_tower_dmg_head, red_tower_dmg_vents, red_tower_dmg_shaft, red_tower_dmg_base (C 91, 129, 93, 131: of 77,
   115, 17, 55, enemies 240, 239, 238, 237): the tower with its head blown off: the dome and the red skirt gone,
@@ -13,9 +13,6 @@ intact pieces). The kit is wave3_ao_kit.py, the pixels wave3_ao_art.py.
 - deli_cannon_dmg_breech, _mount, _barrel, _muzzle (C 231, 233, 235, 237: of 269, 271, 273, 275, enemies
   228-231) and deli_cannon_l_dmg_muzzle, _barrel, _mount, _breech (C 276, 277, 279, 281: of 238, 239, 241, 243,
   enemies 232-235): the long cannons cracked and holed, red embers in the cracks, the muzzle's glow out.
-- tank_pod_dmg_left, tank_pod_dmg_right (C 45, 47: of 197, 199, enemies 226, 227 and 1057, 1058): the green
-  twin-tank ship scorched black, red cracks across its tanks, its rail and coils burnt, the glowing nozzles
-  between the halves blown out.
 
 usage: Blender -b --factory-startup -P wave3_ao_deli.py -- [--only names] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole <name> --preview <prefix>]
@@ -32,7 +29,6 @@ from wave3_ao_kit import k, sh, w  # noqa: E402
 
 tower = kit.quiet_import("wave3_x_tower")
 cannon = kit.quiet_import("wave3_x_cannon")
-pods = kit.quiet_import("wave1_b")
 x = tower.x  # wave3_x_kit
 kit.forget()
 
@@ -210,32 +206,6 @@ for _name, _sprite, _large, _mirror, _box, _centre in cannon.PIECES:
     _dname, _dsprite = DMG_NAMES[_name]
     x.model(_dname, [(_dsprite, _large)], (24, 28) if _large else (12, 14))(
         lambda m=_mirror, b=_box, c=_centre: cannon_damaged_piece(m, b, c))
-
-
-# --- C 45 47: the green twin-tank ship, burnt -----------------------------------------------------------------------
-
-def tank_damaged(mirror):
-    pods.tank_pod(mirror)
-    w.bake()
-    p = deli_painter("aotank")
-    origin = (36, 14) if mirror else (12, 14)
-    fi = kit.Frame(kit.art.TANK, 48, origin)
-    fd = kit.Frame(kit.art.TANK_DMG, 48, origin)
-    # The burnt patches (black, the darkest green) and the cracks pushed in.
-    burnt = kit.field(fi, fd, lambda dv, iv: dv != iv and dv is not None and iv is not None and
-                      (kit.is_dark(dv) or dv in (0x21, 0x90) or kit.is_hot(dv)), blur=1)
-    for obj in kit.meshes():
-        kit.sink(obj, burnt, 0.7, mode="normal", seed=5.0 + mirror)
-    kit.wreck(kit.meshes(), fi, fd, p, (fi.left(0 if not mirror else 24), fi.right(23 if not mirror else 47),
-                                        fi.bottom(27), fi.top(0)), keep_floor=None, delete=False)
-    # The nozzles between the halves are out.
-    for obj in kit.find("nozzle"):
-        kit.paint_faces(obj, lambda c, nrm: p(0x72) if nrm.z > 0.5 else p(0x02))
-    kit.n.budget(4800)
-
-
-w.model("tank_pod_dmg_left", [("enemy_C", 45, True)])(lambda: tank_damaged(False))
-w.model("tank_pod_dmg_right", [("enemy_C", 47, True)])(lambda: tank_damaged(True))
 
 
 if __name__ == "__main__":

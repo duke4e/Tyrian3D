@@ -3,7 +3,7 @@ earlier scripts' own builders and damaged as the damaged sprites show (burnt, de
 pieces so that each swaps in place when the game switches an enemy to its damaged sprite (the enemy data's dgr).
 The scripts: wave3_ao_works.py (sheet P: the cargo pod, the bronze pump's dome, the drilling rig's crane, the tan
 launcher, the small block; and the stone face's right half), wave3_ao_boss.py (sheet 4: the tusked boss),
-wave3_ao_deli.py (sheet C: DELI's tower, the gun on its mast, the long cannons, the green twin-tank ship) and
+wave3_ao_deli.py (sheet C: DELI's tower, the gun on its mast, the long cannons) and
 wave3_ao_zeppelin.py (sheet I: SAVARA's airship). The damaged sprites' pixels are in wave3_ao_art.py.
 
 The earlier scripts are imported as they are (quiet_import: their build loops, run on import by some of them,

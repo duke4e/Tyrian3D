@@ -1,18 +1,14 @@
 """Enemies of wave 1, batch B, modelled as their sprites look (models.cfg: yaw=0):
 
 (tank_pod_left / tank_pod_right, C 197 / C 199, are built by polish_tank_pod.py; arm_ball_left /
-arm_ball_right, V 89 / V 93, by polish_arm_bridge.py.)
-- flame_drop (sheet 3 267): a drop of fire, its tip up the screen.
+arm_ball_right, V 89 / V 93, by polish_arm_bridge.py; flame_drop, 3 267, by polish_flame_drop.py; comet_tail /
+comet_head, 5 203 / 5 241, by polish_comet.py.)
 - fire_orb (sheet A 277): a glossy glowing orange orb, red round the side; the sprite pulses darker
   (glow option).
 - cell_sphere (sheet 3 229 lava, 5 89 ice): a sphere of round cells with ridges between them, one
   grey model in palette shades taking each sprite's colour (color=sprite).
 - rod_top, rod_tail (sheet 5 55, 5 93): the upper and lower half of ?TUNNEL?'s mechanical rod
   lying on the ground: a knob, flanges, a cowl with red lights, a pointed tail.
-- comet_tail, comet_head (sheet 5 203, 5 241): the upper and lower half of a falling fireball.
-
-Fire is built as glowing relief: a loft through the sprite's outline whose top rises with the
-brightness of the sprite's pixels, coloured in bands of the sprite's shades.
 
 usage: Blender -b --factory-startup -P wave1_b.py -- [--only name,name] [--preview <prefix>]
        [--sheets <TYR3D_EXTRACT sheets dir>]   (--sheets: print each model's silhouette overlap)
@@ -24,7 +20,7 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 import tyrkit as k  # noqa: E402
@@ -252,220 +248,6 @@ def smoothstep(a, b, x):
     return t * t * (3 - 2 * t)
 
 
-def mirror_all():
-    """Mirrors the whole model left for right (the twin of a part drawn mirrored)."""
-    bpy.context.view_layer.update()
-    for obj in bpy.context.scene.objects:
-        if obj.type != "MESH":
-            continue
-        obj.data.transform(obj.matrix_world)
-        obj.matrix_world = Matrix.Identity(4)
-        obj.data.transform(Matrix.Scale(-1, 4, (1, 0, 0)))
-        obj.data.flip_normals()
-
-
-# --- Glowing relief (fire) -------------------------------------------------------------------------
-
-def shade_grid(art):
-    return [[None if ch == "." else int(ch, 16) for ch in row] for row in rows(art)] if art.strip() else []
-
-
-def smooth_field(grid, passes=2):
-    rows_count = len(grid)
-    f = [[None if v is None else float(v) for v in row] for row in grid]
-    for _ in range(passes):
-        g = [[None] * W for _ in range(rows_count)]
-        for r in range(rows_count):
-            for c in range(W):
-                if f[r][c] is None:
-                    continue
-                total = weight = 0.0
-                for dr in (-1, 0, 1):
-                    for dc in (-1, 0, 1):
-                        rr, cc = r + dr, c + dc
-                        if 0 <= rr < rows_count and 0 <= cc < W and f[rr][cc] is not None:
-                            wt = 2.0 if dr == dc == 0 else 1.0 if dr == 0 or dc == 0 else 0.5
-                            total += f[rr][cc] * wt
-                            weight += wt
-                g[r][c] = total / weight
-        f = g
-    return f
-
-
-def sample(field, x, y, offset=0):
-    """The field (per pixel; the sprite's rows start at row `offset`) at a point, bilinear between
-    pixel centres; outside, the nearest pixel's."""
-    rows_count = len(field)
-    c, r = x + W / 2 - 0.5, offset + H / 2 - 0.5 - y
-    c0, r0 = math.floor(c), math.floor(r)
-    fc, fr = c - c0, r - r0
-    total = weight = 0.0
-    for rr, cc, wt in ((r0, c0, (1 - fr) * (1 - fc)), (r0, c0 + 1, (1 - fr) * fc), (r0 + 1, c0, fr * (1 - fc)),
-                       (r0 + 1, c0 + 1, fr * fc)):
-        if 0 <= rr < rows_count and 0 <= cc < W and field[rr][cc] is not None:
-            total += field[rr][cc] * wt
-            weight += wt
-    if weight > 0.05:
-        return total / weight
-    best, distance = 0.0, 1e9
-    for rr in range(max(0, r0 - 3), min(rows_count, r0 + 5)):
-        for cc in range(max(0, c0 - 3), min(W, c0 + 5)):
-            if field[rr][cc] is not None and (rr - r) ** 2 + (cc - c) ** 2 < distance:
-                best, distance = field[rr][cc], (rr - r) ** 2 + (cc - c) ** 2
-    return best
-
-
-def glow_relief(name, art, bands, height, bump, bottom=0.45, above=None, below=None, n=26, step=0.35, soften=1):
-    """Fire: a loft through the sprite's outline (one run per row), its top rising with the sprite's
-    brightness. bands: [(lowest shade, material)], ascending; the top takes the bands of the
-    (smoothed) shade under it, the underside the first band. above/below: the art of the sprite
-    above or below, when the fire is the half of a taller object: the part is then cut at the
-    sprite's edge, where it meets the other half exactly (both halves built with the same values)."""
-    grid = shade_grid(above or "") + shade_grid(art) + shade_grid(below or "")
-    offset = H if above else 0
-    field = smooth_field(grid, 2)
-    spans = []  # (y, left, right) from the bottom row up
-    for r in range(len(grid) - 1, -1, -1):
-        cols = [c for c in range(W) if grid[r][c] is not None]
-        if cols:
-            spans.append((H / 2 - (r - offset + 0.5), cols[0] - W / 2, cols[-1] + 1 - W / 2))
-    for _ in range(soften):  # the rows' steps evened out (the ends stay)
-        spans = [spans[0]] + [(spans[i][0], (spans[i - 1][1] + 2 * spans[i][1] + spans[i + 1][1]) / 4,
-                               (spans[i - 1][2] + 2 * spans[i][2] + spans[i + 1][2]) / 4)
-                              for i in range(1, len(spans) - 1)] + [spans[-1]]
-    # Sections through the whole object, then those of this sprite, cut at its edge if it continues.
-    low, high = -H / 2 if below else -1e9, H / 2 if above else 1e9
-    smooth = k.profile(spans, step)
-    sections = []  # (y, left, right, end factor)
-    for i, (y, left, right) in enumerate(smooth):
-        if low <= y <= high:
-            sections.append((y, left, right, 1.0))
-        for edge in (low, high):  # the cut, exactly at the sprite's edge
-            if i + 1 < len(smooth) and y < edge < smooth[i + 1][0]:
-                t = (edge - y) / (smooth[i + 1][0] - y)
-                sections.append((edge, left + t * (smooth[i + 1][1] - left), right + t * (smooth[i + 1][2] - right),
-                                 1.0))
-    sections.sort()
-    # Free ends rounded off half a pixel past the last row.
-    if not below:
-        y, left, right, _ = sections[0]
-        cx, hw = (left + right) / 2, (right - left) / 2
-        sections[:0] = [(y - dy, cx - hw * f, cx + hw * f, max(f, 0.05))
-                        for dy, f in ((0.5, 0.0), (0.45, 0.45), (0.3, 0.75), (0.12, 0.93))]
-    if not above:
-        y, left, right, _ = sections[-1]
-        cx, hw = (left + right) / 2, (right - left) / 2
-        sections += [(y + dy, cx - hw * f, cx + hw * f, max(f, 0.05))
-                     for dy, f in ((0.12, 0.93), (0.3, 0.75), (0.45, 0.45), (0.5, 0.0))]
-    rings = []
-    for y, left, right, f in sections:
-        hw, cx = max((right - left) / 2, 0.02), (left + right) / 2
-        base = min(height, hw * 1.1) * f
-        top, under = [], []
-        for i in range(n + 1):
-            t = -math.cos(math.pi * i / n)
-            x = cx + t * hw
-            dome = math.sqrt(max(0.0, 1 - t * t))
-            z = base * dome ** 0.8 + bump * f * sample(field, x, y, offset) / 15 * dome ** 0.6
-            top.append(Vector((x, y, z)))
-            if 0 < i < n:
-                under.append(Vector((x, y, -bottom * base * dome)))
-        rings.append(top + under[::-1])
-    obj = k.loft(name, rings, None)
-    # Bands of the brightness under the top; the underside takes the first band.
-    values = [sample(field, v.co.x, v.co.y, offset) if v.co.z > -1e-6 else None for v in obj.data.vertices]
-    return band_split(obj, values, bands, lambda poly: 0 if poly.normal.z < -0.3 else None, smooth_angle=70)
-
-
-def fire_bands(prefix, levels, strength=0.6):
-    """Emissive bands of the fire ramp (7): levels [(lowest shade, palette shade)]."""
-    return [(lowest, pal(f"{prefix}{shade}", 0x70 | shade, metallic=0.0, roughness=0.5,
-                         glow=strength * (0.5 + shade / 30)))
-            for lowest, shade in levels]
-
-
-# --- C 197 / C 199: the tank pod's old geometry ------------------------------------------------------
-# Not exported any more (polish_tank_pod.py builds tank_pod_left / _right): kept only as the base that
-# wave3_ao_deli.py's damaged tank halves (tank_pod_dmg_left / _right, C 45 / C 47) are wrecked from.
-
-def tank_pod(mirror=False):
-    green = pal("pod_green", 40, metallic=0.35, roughness=0.3)
-    green_light = pal("pod_green_light", 42, metallic=0.35, roughness=0.3)
-    purple = pal("pod_purple", 88, metallic=0.5, roughness=0.35)
-    purple_light = pal("pod_purple_light", 90, metallic=0.5, roughness=0.3)
-    coil = pal("pod_coil", 84, metallic=0.5, roughness=0.45)
-    coil_dark = pal("pod_coil_dark", 81, metallic=0.4, roughness=0.6)
-    nozzle = pal("pod_nozzle", 120, metallic=0.0, roughness=0.4, glow=1.2, color=(255, 70, 10))
-
-    # The green tank along x, its rounded end on the left (rows 2-9).
-    tank = [(-12.0, 0.4), (-11.8, 1.9), (-11.3, 2.8), (-10.4, 3.5), (-9.0, 3.9), (-7.5, 4.0), (8.6, 4.0),
-            (9.2, 3.6)]
-    round_part("tank", tank, green, axis="x", at=8.0, z=4.6, segments=32)
-    for x in (5.5, 7.5):
-        round_part(f"band{x}", [(x - 0.55, 3.9), (x - 0.3, 4.3), (x + 0.3, 4.3), (x + 0.55, 3.9)], green_light,
-                   axis="x", at=8.0, z=4.6, segments=32)
-    # The purple end plate (the spine between the two halves) and the rail under the tank.
-    k.smooth(k.slab("plate", edges([(21, 1), (24, 1), (24, 12), (21, 12)]), 0.0, 9.6, purple_light,
-                    bevel_width=0.8, bevel_segments=3), 35)
-    round_part("rail", [(-8.0, 1.2), (-7.0, 1.5), (11.5, 1.5), (12.0, 1.4)], purple, axis="x", at=2.4, z=3.2,
-               segments=20)
-    k.smooth(k.ellipsoid("rail_end", (-8.4, 0.8, 3.0), (3.4, 3.1, 2.6), purple, 24, 12), 60)
-    # The ribbed coil gun (rows 14-18), rounded on the outside, with its glowing nozzle inside: rings
-    # where the sprite has its light columns.
-    coil_y, coil_z = -2.4, 3.6
-    profile = [(-5.2, 0.3), (-4.9, 1.8), (-4.2, 2.6), (-3.0, 2.9), (-1.0, 2.9)]
-    for x in (0.5, 2.5, 4.5, 6.5):
-        profile += [(x - 0.9, 2.95), (x - 0.5, 2.5), (x + 0.5, 2.5), (x + 0.9, 2.95)]
-    profile += [(8.6, 2.95), (9.0, 2.5)]
-    round_part("coil", profile, coil, axis="x", at=coil_y, z=coil_z, segments=24)
-    round_part("flange", [(7.5, 2.7), (7.7, 3.2), (8.9, 3.2), (9.1, 2.7)], purple_light, axis="x", at=coil_y,
-               z=coil_z, segments=24)
-    round_part("nozzle", [(8.8, 2.0), (12.0, 2.0)], nozzle, axis="x", at=coil_y + 0.3, z=coil_z, segments=20)
-    k.smooth(k.slab("strut", edges([(18, 12), (22, 12), (22, 14.2), (18, 14.2)]), 0.5, 3.8, coil_dark,
-                    bevel_width=0.4), 35)
-    if mirror:
-        mirror_all()
-
-
-# --- 3 267: the drop of fire ---------------------------------------------------------------------
-
-FLAME = """
-............0...........
-...........030..........
-..........04730.........
-.........016830.........
-.........047a510........
-.........0799740........
-........038a86620.......
-........038c88750.......
-.......0459c97870.......
-.......047aeb78720......
-.......059bdc69740......
-......045aaba59860......
-.....0187baa8477760.....
-.....0498ca97a668930....
-.....0797dc9db868a60....
-....02796eebeda48a950...
-....04497dfcedb69ba710..
-....05267dedeeb78a9620..
-....05337cccdcd8a88720..
-....02558accacdd998630..
-....02468bed9bdbba9730..
-....01467acdbaba9a9530..
-.....03579a9998787540...
-.....02458aaa98654410...
-......03456888544210....
-.......022456533200.....
-........000000000.......
-........................
-"""
-
-
-def flame_drop():
-    bands = fire_bands("flame", [(0, 2), (3.0, 5), (5.5, 7), (7.5, 9), (9.5, 11), (11.5, 13)])
-    glow_relief("flame", FLAME, bands, height=5.0, bump=5.5, bottom=0.7)
-
-
 # --- A 277: the glowing orb ----------------------------------------------------------------------
 
 def fire_orb():
@@ -578,92 +360,14 @@ def rod_tail():
                    squash=ROD_SQUASH, floor=floor)
 
 
-# --- 5 203 / 5 241: the falling fireball ----------------------------------------------------------
-
-COMET_TAIL = """
-...........0............
-...........12...........
-...........24...........
-...........37...........
-...........46...........
-...........56...........
-...........65...........
-..........1773..........
-..........3785..........
-..........3887..........
-..........48960.........
-..........48961.........
-..........69972.........
-........3.68a842........
-........42579953........
-........53578963........
-.......174578964........
-.......284597964........
-.......3747989641.......
-.......3768a9b741.......
-.......4869aab942.......
-.......4768abda53.......
-......2586abcfc52.......
-......2698cbbdb61.......
-......36a9ecbca5........
-......47cafdad972.......
-.....258fdfdada83.......
-.....35afffdbea850......
-"""
-
-COMET_HEAD = """
-.....568eeedcfc871......
-....257acdeccfc8710.....
-....367bcddcdec9830.....
-....467dbccdeeca852.....
-....568fcdcdfecca43.....
-....469edddefdbeb63.....
-....367dddfffdafb64.....
-....147bceedfeafb65.....
-.....48abddefeada65.....
-.....59acceffebcb751....
-.....59bdbdffcddc961....
-....15acecdfddfeca62....
-....27bcfcfedeedcb83....
-...149ddfcfdfffedc93....
-...25adffdeefffeeda2....
-...259cffeffffdeeca.....
-....48bffefeffdedc9.....
-....39bffffeefffeb6.....
-....18beffffffefc82.....
-.....6bfeffffdfeb62.....
-.....39ccdeecbdd941.....
-.....28acdddcbca63......
-.....26adffdbab94.......
-......259ccba8972.......
-.......346778974........
-........1256422.........
-........................
-........................
-"""
-
-
-def comet_tail():
-    bands = fire_bands("comet", [(0, 3), (3.5, 6), (6, 8), (8, 10), (10, 12), (12, 14)])
-    glow_relief("tail", COMET_TAIL, bands, height=4.2, bump=4.4, bottom=0.6, below=COMET_HEAD)
-
-
-def comet_head():
-    bands = fire_bands("comet", [(0, 3), (3.5, 6), (6, 8), (8, 10), (10, 12), (12, 14)])
-    glow_relief("head", COMET_HEAD, bands, height=4.2, bump=4.4, bottom=0.6, above=COMET_TAIL)
-
-
 # --- Building ------------------------------------------------------------------------------------
 
 # name: (builder, [(sheet file, sprite)] its top view should match)
 MODELS = {
-    "flame_drop": (flame_drop, [("enemy_3", 267)]),
     "fire_orb": (fire_orb, [("enemy_A", 277)]),
     "cell_sphere": (cell_sphere, [("enemy_3", 229), ("enemy_5", 89)]),
     "rod_top": (rod_top, [("enemy_5", 55)]),
     "rod_tail": (rod_tail, [("enemy_5", 93)]),
-    "comet_tail": (comet_tail, [("enemy_5", 203)]),
-    "comet_head": (comet_head, [("enemy_5", 241)]),
 }
 
 

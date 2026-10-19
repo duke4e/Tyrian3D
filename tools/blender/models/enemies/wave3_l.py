@@ -10,7 +10,6 @@ look (models.cfg: yaw=0 unless noted):
 - eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
   the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
-- red_link (5 168): a link of BRAINIAC's chain of red brains in steel clamps (as brain_clamp, 5 166).
 - hanging_pod (5 170): BRAINIAC's grey pod with a red eye hanging from a steel bracket.
 - arrow_left, arrow_right (5 247, 5 266): DREAD-NOT's and EYESPY's glowing green arrows (mirror images).
 - ear_right, ear_left (5 245, 5 284): EYESPY's flying ears, facing the camera: a rolled rim, the
@@ -373,43 +372,7 @@ model("stone_fist", 81)(lambda: stone_fist(False))
 model("stone_fist_r", 83)(lambda: stone_fist(True))
 
 
-# --- 5 168: BRAINIAC's red link, 5 170: the hanging pod ----------------------------------------------
-
-@model("red_link", 168)
-def red_link():
-    """A link of BRAINIAC's chain of red brains (the level stacks them down the screen, as the brain
-    held by clamps, 5 166, lies across it): a folded red mass glowing along a seam, held by a steel
-    strap down its left and a clamp at its right, with steel plates at its top and bottom where the
-    links meet."""
-    flesh = [pal(f"link_{i:x}", 0x70 + i, metallic=0.1, roughness=0.35, glow=g) for i, g in ((3, 0.15), (5, 0.25),
-                                                                                              (7, 0.4), (9, 0.6))]
-    seam = pal("link_seam", 0x79, metallic=0.0, roughness=0.3, glow=1.4)
-    metal = pal("link_metal", 0x68, metallic=0.65, roughness=0.3)
-    light = pal("link_metal_light", 0x6a, metallic=0.65, roughness=0.25)
-    a = w.Art(art.RED_LINK, (12, 14))
-    shade = w.shade_field(a, blur=1, letters={"s": 4.0}, skip="")
-    mass = w.poly_px(a, [(5.0, 4.6), (19.4, 4.6), (19.6, 22.6), (17.6, 23.6), (7.0, 23.6), (5.0, 22.0)])
-
-    def folds(x, y):
-        return math.sin(0.95 * x + 1.5 * math.sin(0.5 * y + 0.35 * x)) * math.sin(0.85 * y + 0.9 * math.sin(0.5 * x))
-    body = w.plate("mass", [mass], flesh[1], 5.4, radius=2.6, base=0.0, spacing=0.7,
-                   z_fn=lambda x, y, z: z + 0.45 * folds(x, y) * w.smoothstep(1.0, 3.0, z))
-    w.simplify_flat(body)
-    w.band_split(body, [folds(v.co.x, v.co.y) + 0.12 * (shade(v.co.x, v.co.y) - 5.0) if v.co.z > 1.2 else -2.0
-                        for v in body.data.vertices],
-                 [(-9.0, flesh[0]), (-0.3, flesh[1]), (0.5, flesh[2]), (1.1, flesh[3])], smooth_angle=60)
-    top = lambda x, y: sh.surface_z(body, x, y, 5.0)  # noqa: E731
-    path = w.catmull([(x, y, top(x, y) - 0.2) for x, y in ((-1.0, 3.6), (-0.4, 1.0), (1.0, -1.6), (0.6, -4.6))], 0.5)
-    w.tube("seam", path, 0.55, seam, 8)
-    # The steel: plates at both ends (rows 0-3, 24-27), the strap down the left and the clamp at the right.
-    for y in (12.0, -12.0):
-        w.rounded_box(f"plate{y}", (0.5, y, 2.6), (9.6, 4.4, 4.2), metal, bevel=0.6)
-        w.rounded_box(f"plate_light{y}", (0.0, y, 4.6), (1.4, 4.0, 0.5), light, bevel=0.2)
-    strap = [(-1.0, 10.2), (-1.4, 7.0), (-4.6, 6.4), (-5.2, 3.0), (-4.8, -2.0), (-1.4, -6.0), (-1.2, -10.2)]
-    w.tube("strap", w.catmull([(x, y, top(x, y) + 0.1) for x, y in strap], 0.9), 0.85, metal, 8)
-    w.rounded_box("clamp", (5.8, -0.4, 3.2), (3.4, 8.4, 5.2), metal, bevel=0.7)
-    w.rounded_box("clamp_light", (5.4, -0.4, 5.8), (1.0, 7.4, 0.5), light, bevel=0.2)
-
+# --- 5 170: the hanging pod (5 168, BRAINIAC's red link: polish_red_link.py) ------------------------
 
 @model("hanging_pod", 170)
 def hanging_pod():

@@ -1,9 +1,8 @@
-"""Batch F of the second wave of enemy models, facing the way their sprites do (models.cfg: yaw=0):
+"""Batch F of the second wave of enemy models, facing the way their sprites do (models.cfg: yaw=0)
+(spike_star, 3 246: polish_spike_star.py):
 
 - obsidian_egg (sheet M 271): MINERS' indestructible black glass egg with a smoky light inside,
   lying on the ground.
-- spike_star (sheet 3 246): the grey star of BRAINIAC, ICE EXIT and LAVA RUN: a hub with a red core,
-  four grey spikes and four red rods between them.
 - beer_mug (coins 241): the mug of beer (the bonus item), lying with its mouth up the screen and its
   handle to the right, as the sprite draws it.
 - jet_steel (sheet F 79): the blue-grey jet of SAVARA, TORM and BOTANY A, its nose down the screen.
@@ -53,48 +52,6 @@ def obsidian_egg():
         obj.data.transform(tilt)
         k.smooth(obj, 70)
     sh.flat_bottom(w.meshes())
-
-
-# --- The spiked star (sheet 3 246) -------------------------------------------------------------
-
-@model("spike_star", "enemy_3", 246)
-def spike_star():
-    """A grey hub with a red core showing through two slots, grey spikes up, down, left and right,
-    and red rods with dark caps on the diagonals."""
-    steel = pal("star_steel", 10, metallic=0.65, roughness=0.28)
-    shade = pal("star_shade", 6, metallic=0.6, roughness=0.35)
-    dark = pal("star_dark", 2, metallic=0.5, roughness=0.45)
-    rod = pal("star_rod", 74, metallic=0.3, roughness=0.3)
-    glow = pal("star_core", 71, roughness=0.25, glow=0.45, emission=(235, 60, 35))
-    c = Vector((px(12), py(14), 0.0))
-    # The hub: a faceted squat body (eight sides), its top raised round the core.
-    hub = k.lathe("hub", [(-3.0, 0.01), (-2.8, 3.2), (-1.1, 4.7), (0.8, 4.7), (2.2, 3.9), (3.0, 3.3), (3.3, 0.01)],
-                  steel, segments=8)
-    hub.data.transform(Matrix.Translation(c) @ Matrix.Rotation(math.radians(90), 4, "X") @
-                       Matrix.Rotation(math.radians(22.5), 4, "Y"))
-    k.recalc_normals(hub)
-    k.bevel(hub, 0.3, 2)
-    k.smooth(hub, 35)
-    # The core: two glowing red halves side by side in the hub's top, a steel rib between them.
-    for dx in (-1.35, 1.35):
-        w.sphere(f"core{dx}", c + Vector((dx, 0.0, 2.6)), (1.25, 2.9, 1.35), glow, 20, 12)
-    w.blade("rib", c + Vector((0, 2.9, 3.0)), c + Vector((0, -2.9, 3.0)),
-            [(0.0, 0.45, 0.8, 0.8), (0.5, 0.55, 1.1, 0.8), (1.0, 0.45, 0.8, 0.8)], steel)
-    # The spikes, faceted blades from the hub to the sprite's edges, a dark ring at their roots.
-    tips = [Vector((px(12), py(2) + 0.2, 0.0)), Vector((px(12), py(26) - 0.2, 0.0)),
-            Vector((px(1) - 0.3, py(14), 0.0)), Vector((px(23) + 0.3, py(14), 0.0))]
-    for i, tip in enumerate(tips):
-        d = (tip - c).normalized()
-        w.blade(f"spike{i}", c + d * 2.6, tip, [(0.0, 2.9, 2.6, 1.8), (0.3, 1.9, 1.7, 1.2), (0.8, 0.9, 0.7, 0.5)],
-                steel if i % 2 == 0 else shade)
-    # The diagonal rods with dark caps at their ends.
-    for sx, sy in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
-        d = Vector((sx, sy, 0)).normalized()
-        end = c + Vector((sx * 7.2, sy * 7.4, 0.2))
-        start = c + d * 4.0 + Vector((0, 0, 0.4))
-        w.tube(f"rod{sx}{sy}", [start, end], 1.0, rod, 14)
-        w.lathe_axis(f"cap{sx}{sy}", [(-0.01, 0.01), (0.0, 0.9), (0.2, 1.15), (1.4, 1.15), (1.6, 0.9), (1.61, 0.01)],
-                     dark, end - (end - start).normalized() * 0.4, end - start, 16)
 
 
 # --- The mug of beer (coins 241) ---------------------------------------------------------------

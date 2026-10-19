@@ -17,8 +17,6 @@ red lamp on two long legs, and a slotted block with legs or clawed fins under it
   inner sides, the claws hooking inwards at their feet.
 - k_lampgun (K 278): the crossbar with its lamp (lit) on two short legs pointing up the screen, on a
   block with tan windows and a salmon grille (the gun that drops K 171's red bombs).
-- fin_chevron (K 207): the grey V with two red flame-shaped fins rising from its inner sides and a vent
-  in its nose, pointing down the screen.
 
 usage: Blender -b --factory-startup -P wave3_o_machines.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole pincer_core --preview <prefix>]
@@ -342,43 +340,6 @@ def k_lampgun():
     base = slot_block(g, SPRITE, m, style="tan", prefix="base")
     o.mirror_y(base)
     o.budget(4300)
-
-
-# --- K 207: the red-finned V ------------------------------------------------------------------------
-
-@o.model("fin_chevron", [(207, True)])
-def fin_chevron():
-    """A grey V, its arms rounded bars that widen into a keel at its nose (down the screen) with a vent
-    box in it; two red fins shaped like flames rise from the V's inner sides, glowing along their inner
-    edges."""
-    g = o.grid(art.K207, 24)
-    m = mats()
-    hull_rows = grey_rows(g, lambda c, r: True)
-
-    def vent(x, y, z):
-        inside = min(o.smoothstep(-2.9, -2.1, x), o.smoothstep(3.9, 3.1, x), o.smoothstep(-8.9, -8.2, y),
-                     o.smoothstep(-5.6, -6.3, y))
-        return z - 1.5 * inside
-
-    hull = o.part("hull", hull_rows, "#", m["steel"], sh.pillow_profile(4.4, 1.9, crown=0.6),
-                  origin=SPRITE, bottom=0.5, smooth=2, epsilon=0.4, spacing=0.42, z_fn=vent, sigma=1.0)
-    paint_grey(hull, g, SPRITE, m)
-    o.rounded_box("vent_grille", (0.5, -7.2, 2.6), (4.6, 2.2, 0.7), m["seam"], bevel=0.25)
-    # The light lip along the inside of the V, under the fins' roots.
-    lip = [(-9.0, -1.2, 3.9), (-6.2, -4.3, 4.3), (0.5, -5.2, 4.5), (7.2, -4.3, 4.3), (10.0, -1.2, 3.9)]
-    o.tube("lip", o.catmull(lip, 0.6), 0.75, m["steel_bright"], 10)
-    fin = pal("chevron_fin", 0x76, metallic=0.35, roughness=0.25, glow=0.5)
-    fin_hot = pal("chevron_fin_hot", 0x79, metallic=0.2, roughness=0.25, glow=0.9)
-    fin_dark = pal("chevron_fin_dark", 0x72, metallic=0.4, roughness=0.35)
-    shade = o.shades(g, SPRITE, keep=lambda v: v >> 4 == 7, blur=1)
-    for side in ("l", "r"):
-        keep = (lambda c: c <= 11) if side == "l" else (lambda c: c >= 12)
-        rows = o.char_rows(g, lambda v, c, r: "f" if v >> 4 == 7 and keep(c) and r <= 17 else ".")
-        blade = o.part(f"fin_{side}", rows, "f", fin, sh.round_profile(2.4, max_height=6.0, min_height=2.4),
-                       origin=SPRITE, base=2.4, bottom=0.0, smooth=2, epsilon=0.35, spacing=0.3, sigma=0.9)
-        o.paint_bands(blade, lambda c, n: shade(c.x, c.y) if n.z > 0.25 else 3.0,
-                      [(0.0, fin_dark), (1.5, fin), (7.0, fin_hot)])
-    o.budget()
 
 
 if __name__ == "__main__":
