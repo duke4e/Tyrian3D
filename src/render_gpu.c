@@ -3900,6 +3900,40 @@ static bool relief_frame(const L3DFrame *frame, const bool *composed)
 	return false;
 }
 
+// TYR3D_LOG_GROUND_MODE: how the ground is drawn whenever that changes: as terrain (its map and heights),
+// in relief by tiles, or flat and why.
+static void log_ground(const L3DFrame *frame, const bool *composed)
+{
+	static char last[192];
+	char now[192];
+	int g = -1;
+	for (int i = 0; i < frame->background_count; ++i)
+		if (frame->backgrounds[i].set == 1)
+			g = i;
+	const unsigned long long map = g >= 0 ? (unsigned long long)b3d_map_hash(1) : 0;
+	const B3DTerrain *t = g >= 0 ? b3d_terrain(1) : NULL;
+	if (g < 0)
+		SDL_snprintf(now, sizeof(now), "none");
+	else if (frame_terrains[1] != NULL)
+		SDL_snprintf(now, sizeof(now), "terrain %016llx %d..%d%s", map, t->lowest, t->highest, t->hole_count > 0 ? " holes" : "");
+	else if (relief_frame(frame, composed))
+		SDL_snprintf(now, sizeof(now), "relief %016llx%s", map, t != NULL ? " (terrain not drawn)" : "");
+	else
+	{
+		char terrain[64] = "";
+		if (t != NULL)
+			SDL_snprintf(terrain, sizeof(terrain), "; terrain %d..%d%s", t->lowest, t->highest, t->holes ? " v2" : " v1");
+		SDL_snprintf(now, sizeof(now), "flat %016llx (%s%s)", map,
+		             frame->star_count > 0 ? "stars" : composed[g] ? "composed" : frame->backgrounds[g].effect_count > 0 ? "filter" :
+		             !m3d_enabled ? "models off" : "relief off", terrain);
+	}
+	if (SDL_strcmp(now, last) != 0)
+	{
+		printf("ground mode: %s (3D frame %u)\n", now, l3d_frame_number);
+		SDL_strlcpy(last, now, sizeof(last));
+	}
+}
+
 static BTBHGPUCustomMesh *relief_mesh(int cell)
 {
 	if (relief_generation != b3d_map_generation)
@@ -4689,6 +4723,7 @@ static TerrainRing terrain_rings[B3D_SETS + 1];
 static struct
 {
 	unsigned int generation;  // b3d_map_generation + 1 the meshes were made for
+	int tint;                 // and the tint they took (make_plant_meshes)
 	BTBHGPUCustomMesh *meshes[B3D_PLANT_KINDS];
 } plant_meshes;  // (vegetation)
 
@@ -5227,11 +5262,23 @@ static void build_grass(PlantBuilder *b, const B3DVegetation *veg)
 	}
 }
 
-static void make_plant_meshes(const B3DVegetation *veg)
+// The plants in their colours, or tinted as the ground is (tint_hue >= 0: b3d_tint_overlay; TIME WAR's
+// palms under its blue): the hue's palette colour at the brightness halfway between theirs and the tint's.
+static void make_plant_meshes(const B3DVegetation *veg, int tint_hue, int tint_brightness, const Uint32 colors[256])
 {
-	if (plant_meshes.generation == b3d_map_generation + 1)
+	const int tint = tint_hue < 0 ? -1 : tint_hue * 16 + tint_brightness;
+	if (plant_meshes.generation == b3d_map_generation + 1 && plant_meshes.tint == tint)
 		return;
 	plant_meshes.generation = b3d_map_generation + 1;
+	plant_meshes.tint = tint;
+	B3DVegetation tinted = *veg;
+	for (int c = 0; c < B3D_PLANT_KINDS * 2 && tint_hue >= 0; ++c)
+	{
+		const Uint8 *rgb = veg->colors[c];
+		const int brightness = (int)((0.299f * rgb[0] + 0.587f * rgb[1] + 0.114f * rgb[2]) / 255.0f * 15.0f + 0.5f);
+		memcpy(tinted.colors[c], &colors[(tint_hue << 4) | ((brightness + tint_brightness) / 2)], 3);
+	}
+	veg = &tinted;
 	static V3DVertex vertices[PLANT_VERTICES];
 	static Uint32 indices[PLANT_VERTICES * 6];
 	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
@@ -5302,12 +5349,23 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	// TYR3D_BACKGROUNDS: which maps get tiles, e.g. "13" for backgrounds 1 and 3 (default all).
 	const char *only = SDL_getenv("TYR3D_BACKGROUNDS");
 
+	// A blended background opaque all over tints a ground of terrain instead (b3d_tint_overlay).
+	int tint_set = 0, tint_brightness = 0;
+	Uint8 tint_hue = 0;
+	for (int i = 0; i < frame->background_count && b3d_terrain_ground; ++i)
+	{
+		const L3DBackground *b = &frame->backgrounds[i];
+		if (b->set > 1 && b->blend && !water_overlay(b) && !cloud_background(b, composed[i]) &&
+		    b3d_tint_overlay(b->set, &tint_hue, &tint_brightness))
+			tint_set = b->set;
+	}
+
 	for (int i = 0; i < frame->background_count; ++i)
 	{
 		const L3DBackground *background = &frame->backgrounds[i];
 		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
 			continue;
-		if (water_overlay(background))
+		if (water_overlay(background) || background->set == tint_set)
 			continue;
 		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
 		// go on beyond it, a little below so that the composed image wins where it is.
@@ -5355,11 +5413,18 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		else
 			b3d_tile_remap(background, remap);
 		for (int c = 0; c < 256; ++c)
-			page_colors[c] = colors[remap[c]];
+			page_colors[c] = background->set == 1 && tint_set != 0
+			                     ? colors[(tint_hue << 4) | (((remap[c] & 0x0f) + tint_brightness) / 2)]
+			                     : colors[remap[c]];
 		// The game clears the screen to colour 0 under background 1; a filter that recolours it
 		// shows there too (lava, ice), and so does a ground of terrain over stars with no holes for
-		// them (no black space, only dark specks: MINERS's lava).
-		const bool ground_zero = background->set == 1 && (remap[0] != 0 || stars_covered());
+		// them (no black space, only dark specks: MINERS's lava), black as the empty space it is.
+		const bool ground_zero = background->set == 1 && (remap[0] != 0 || stars_covered() || tint_set != 0);
+		if (background->set == 1 && remap[0] == 0 && stars_covered() && tint_set == 0)
+		{
+			static const Uint8 black[4] = { 0, 0, 0, 255 };
+			memcpy(&page_colors[0], black, 4);
+		}
 		const int page = tile_page(page_colors, ground_zero);
 
 		const int first = tile_count;
@@ -5558,7 +5623,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	const B3DVegetation *veg = frame_terrains[1] != NULL ? b3d_vegetation() : NULL;
 	if (veg == NULL || !m3d_enabled)
 		return;
-	make_plant_meshes(veg);
+	make_plant_meshes(veg, tint_set != 0 ? tint_hue : -1, tint_brightness, colors);
 	const B3DTerrain *ground = frame_terrains[1];
 
 	// No plants under ground enemies, where they are now (the vegetation tool clears only where
@@ -6437,6 +6502,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		b3d_solids = m3d_enabled;
 		bool composed_now[L3D_MAX_BACKGROUNDS];
 		b3d_composed_backgrounds(frame, composed_now);
+		if (SDL_getenv("TYR3D_LOG_GROUND_MODE") != NULL)
+			log_ground(frame, composed_now);
 		bool ok[B3D_SETS + 1] = { false, true, m3d_enabled, m3d_enabled };
 		for (int i = 0; i < frame->background_count; ++i)
 		{

@@ -268,6 +268,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_HD=0` | Leave out the HD volumes (the generated models from the 4x upscaled sheets) |
 | `TYR3D_FILTER=0` | Show the maps' tiles and the layers as sharp pixels instead of smoothly filtered |
 | `TYR3D_DEBUG_TERRAIN=1` | Print each frame which backgrounds can be terrain and why not (blended, filtered, composed) |
+| `TYR3D_LOG_GROUND_MODE=1` | Print how the ground is drawn whenever that changes: as terrain (its map, heights and holes), in relief by tiles, or flat and why (stars, a filter) |
 | `TYR3D_TURBO=<factor>` | Run the game that many times faster, showing only every so many ticks (for collecting data over whole levels) |
 | `TYR3D_LOG_GROUND=1` | Print where ground enemies stand or move on the ground map (`tools/terrain/ground_log.sh`) |
 | `TYR3D_RELIEF=<height>` | Per-tile relief of the ground where a map has no terrain asset (default 8, 0 off) |

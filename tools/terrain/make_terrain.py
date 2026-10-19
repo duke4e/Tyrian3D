@@ -31,7 +31,8 @@ into the dark, and the stars far below where the level has them; "rim" and "rim_
 platforms' edges off), "tiles" ({tile shape: height or "~"}: tiles the classes misread, such as
 MINERS's heaps and ridges of hex rock on the plateau (0), sorted with its sunken hex rock, or its
 craters: their surfaces other than the plain ground round them take the tile's height, found by
-their pixels, so in the generated side columns too).
+their pixels, so in the generated side columns too), "textured" ({"min": local contrast, "height"}:
+where the surface is textured, a forest's canopy as opposed to the smooth floor of its clearings).
 
 Backgrounds 2 and 3 (their maps' entries with "solid": true) become solids: their plane on top,
 rounded off over "bevel" pixels at the edges, walls down to the ground where they are clear or
@@ -94,6 +95,21 @@ def classify(rgb, k):
     # Smooth the classes (a vote over 5 x 5 pixels).
     votes = np.stack([ndimage.uniform_filter((labels == i).astype(np.float32), 5) for i in range(k)])
     return lum, votes.argmax(0), centroids
+
+
+def textured(lum, threshold):
+    """Where the surface is textured (local contrast above the threshold, smoothed): a forest's
+    canopy, as opposed to the smooth floor of its clearings."""
+    mean = ndimage.uniform_filter(lum, 7)
+    texture = ndimage.gaussian_filter(np.sqrt(np.maximum(ndimage.uniform_filter(lum * lum, 7) - mean * mean, 0)), 3)
+    square = np.ones((5, 5), bool)
+    return ndimage.binary_opening(ndimage.binary_closing(texture > threshold, square), square)
+
+
+def black_space(rgb):
+    """Whether the map has black space wider than specks (where the stars would show)."""
+    regions, count = ndimage.label(void_mask(rgb))
+    return count > 0 and np.bincount(regions.ravel())[1:].max() > 100
 
 
 def void_mask(rgb):
@@ -256,6 +272,10 @@ def heights(name, rgb, opaque, info, s):
             inherit |= labels == int(c)
         else:
             target[labels == int(c)] = float(height)
+    if "textured" in s:  # textured surface (a forest's canopy) at its own height
+        canopy = textured(lum, s["textured"]["min"])
+        target[canopy] = float(s["textured"]["height"])
+        inherit &= ~canopy
     for height, where in tile_masks(rgb, info, s.get("tiles", {})).items():
         where &= (target != 0) | inherit  # the tile's own surfaces, not the plain ground round them
         if height == "~":
@@ -328,9 +348,9 @@ def cmd_build(name):
     data[holes] = HOLE
     os.makedirs(OUT, exist_ok=True)
     # Version 2: the stars (on the levels with them) show only through the holes, so the game shows
-    # the terrain over them; also a ground with relief and no black space for them to show on (MINERS;
-    # a flat one leaves the game its relief by tiles there).
-    covers = info["background"] == 1 and np.abs(grid).max() > 3 and not void_mask(rgb).any()
+    # the terrain over them; also a ground with relief and no black space for them to show on, only
+    # specks (MINERS, ** ALE **; a flat one leaves the game its relief by tiles there).
+    covers = info["background"] == 1 and np.abs(grid).max() > 3 and not black_space(rgb)
     version = 2 if holes.any() or covers else 1
     header = struct.pack("<4sIIIII", b"TYTR", version, data.shape[1], data.shape[0], SAMPLE, info["side_columns"])
     with open(os.path.join(OUT, f"{name}.ter"), "wb") as f:

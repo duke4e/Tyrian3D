@@ -159,9 +159,13 @@
  },
  "6498eda0c182465c": {
   "classes": 6,
-  "heights": {},
-  "level": "ASTCITY",
-  "void": "hole"
+  "heights": {
+   "2": 10,
+   "4": -8,
+   "1": -4,
+   "3": "~"
+  },
+  "level": "ASTCITY"
  },
  "67c010441cb0af2d": {
   "classes": 6,
@@ -458,6 +462,12 @@
  "fe832346c752a19a": {
   "classes": 6,
   "heights": {},
+  "textured": {
+   "min": 0.065,
+   "height": 12
+  },
+  "detail": 8,
+  "vegetation": false,
   "level": "** ALE **"
  },
  "ed9562b14ea981be": {

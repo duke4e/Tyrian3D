@@ -137,6 +137,12 @@ void b3d_compose(const L3DFrame *frame, const bool composed[L3D_MAX_BACKGROUNDS]
 // Clouds: whether a tile of background 2 or 3 (index within its set) is a cloud, shown as a soft
 // cloud above the ground.
 bool b3d_tile_is_cloud(int set, int tile);
+
+// A blended background whose map is opaque all over (** ALE **'s blue grid over its trees): over a
+// ground of terrain it tints the ground as the game's blend does (its hue; the brightness halfway
+// between its own and the ground's) instead of being drawn. Its commonest hue (high nibble) and its
+// average brightness (low nibble), or false when it isn't one.
+bool b3d_tint_overlay(int set, Uint8 *hue, int *brightness);
 // A tile's pixels (24 x 28 palette indices, 0 transparent), and whether a set has cloud tiles.
 const Uint8 *b3d_tile_pixels(int set, int tile);
 bool b3d_set_has_clouds(int set);
@@ -181,7 +187,7 @@ typedef struct
 	int side_columns;    // tile columns beside the map that the samples cover on each side
 	bool holes;          // samples may be B3D_TERRAIN_HOLE (version 2: the stars show only through them)
 	int hole_count;      // samples that are B3D_TERRAIN_HOLE
-	int lowest;          // the lowest height of a sample with ground there (0 or below)
+	int lowest, highest; // the lowest and highest heights of samples with ground there (0 or beyond)
 	const Sint8 *heights;
 } B3DTerrain;
 

@@ -1086,6 +1086,50 @@ static bool classify_cloud(const Uint8 *data)
 	return opaque >= 40 && light * 10 >= opaque * 7 && dark * 25 <= opaque && sat / opaque < 0.45f;
 }
 
+bool b3d_tint_overlay(int set, Uint8 *hue, int *brightness)
+{
+	static unsigned int generation[B3D_SETS + 1];
+	static bool overlay[B3D_SETS + 1];
+	static Uint8 hues[B3D_SETS + 1];
+	static int brightnesses[B3D_SETS + 1];
+	if (set < 1 || set > B3D_SETS)
+		return false;
+	if (generation[set] != b3d_map_generation + 1)
+	{
+		generation[set] = b3d_map_generation + 1;
+		const MapSet m = map_set(set);
+		Uint32 hue_count[16] = { 0 };
+		Uint64 sum = 0, pixels = 0;
+		bool opaque = m.width * m.rows > 0;
+		for (int i = 0; i < m.width * m.rows && opaque; ++i)
+		{
+			const Uint8 *data = m.map[i];
+			const ptrdiff_t offset = data != NULL ? data - m.first_tile : -1;
+			if (offset < 0 || offset % m.tile_stride != 0 || offset / m.tile_stride >= m.tile_count)
+			{
+				opaque = false;
+				break;
+			}
+			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H && opaque; ++p)
+			{
+				opaque = data[p] != 0;
+				++hue_count[data[p] >> 4];
+				sum += data[p] & 0x0f;
+			}
+			pixels += B3D_TILE_W * B3D_TILE_H;
+		}
+		overlay[set] = opaque && pixels > 0;
+		hues[set] = 0;
+		for (int h = 1; h < 16; ++h)
+			if (hue_count[h] > hue_count[hues[set]])
+				hues[set] = (Uint8)h;
+		brightnesses[set] = pixels > 0 ? (int)((sum + pixels / 2) / pixels) : 0;
+	}
+	*hue = hues[set];
+	*brightness = brightnesses[set];
+	return overlay[set];
+}
+
 bool b3d_tile_is_cloud(int set, int tile)
 {
 	if (set < 2 || set > B3D_SETS || tile < 0 || tile >= B3D_TILES_PER_SET)
@@ -1488,12 +1532,15 @@ const B3DTerrain *b3d_terrain(int set)
 	}
 	free(packed);
 	t->heights = state->data;
-	t->hole_count = t->lowest = 0;
+	t->hole_count = t->lowest = t->highest = 0;
 	for (uLongf i = 0; i < size; ++i)
 		if (t->holes && state->data[i] == B3D_TERRAIN_HOLE)
 			++t->hole_count;
 		else
+		{
 			t->lowest = SDL_min(t->lowest, (int)state->data[i]);
+			t->highest = SDL_max(t->highest, (int)state->data[i]);
+		}
 	state->present = true;
 	printf("terrain: background %d: %s (%d x %d samples%s)\n", set, path, t->width, t->height, t->holes ? ", holes" : "");
 	return t;
