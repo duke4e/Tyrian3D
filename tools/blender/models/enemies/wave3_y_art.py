@@ -1,42 +1,6 @@
 """Pixel art of the batch Y sprites (wave3_y*.py, sheet 8): each pixel its palette index as two hex digits,
 ".." transparent; rows top to bottom (trailing transparent pixels left out)."""
 
-# Sheet 8 19: the small tan twin tube of IXMUCANE and SAWBLADES, broadside (its frames roll it).
-TWIN = """
-..0101............0101
-017774..01010101..757701
-011d1901161c181601181c01
-011b1716191d1a1815161901
-011b1715181c191714161901
-011b1715181b191714161901
-011b1715181b181714161901
-011b1716191c191815161901
-011d19011915161901181b01
-011916011713141701161701
-011a18011501011501181901
-011c18..01....01..181b01
-..011801........011801
-....01............01
-"""
-
-# Sheet 8 114: the twin tube edge-on (a quarter of its roll).
-TWIN_EDGE = """
-..........010101
-........0174777401
-........011c1d1901
-........011a1b1701
-........011a1b1701
-........011a1b1701
-........011a1b1701
-........011a1b1701
-........011c1d1901
-........0117191601
-........01191a1801
-........01191c1801
-........0119011801
-..........01..01
-"""
-
 # Sheet 8 1: the red ship with two long prongs (frames 3, 5, 7 pulse its core).
 RED_SHIP = """
 ..

@@ -1,11 +1,8 @@
 """Batch Y of wave 3 (sheet 8: IXMUCANE and SAWBLADES), the creatures and small ships, modelled as their
 sprites look (models.cfg: yaw=0). The rock wall is in wave3_y_wall.py; the red ship between its engines, the
 red pod and the big spider (objects the game draws in pieces) in wave3_y_boss.py; the kit is wave3_y_kit.py,
-the pixels wave3_y_art.py.
+the pixels wave3_y_art.py. (The twin tube, 8 19: polish_twin_tube.py.)
 
-- twin_tube (8 19): the small tan twin tube that comes in swarms: two tubes with glowing red tips joined
-  by a flat middle tube, two short legs under it. Its frames (19, 38, ... 151) roll it about its length,
-  half a turn in ten frames (roll=frames:20).
 - prong_ship (8 1): the red ship with two long prongs: a pod with a glowing core in the middle, a grey
   crossbar and two long red prongs tipped with grey (its frames pulse the core: it glows).
 - claw_dome (8 115): the grey dome with a glowing red eye at its front and a red lamp on top, on two
@@ -27,48 +24,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_y_kit as y  # noqa: E402
 from wave3_y_kit import k, sh, pal, tube, sphere, lathe_axis, catmull, smoothstep  # noqa: E402
-
-
-# --- 8 19: the twin tube ---------------------------------------------------------------------------
-
-TWIN = y.frame("TWIN", 12, (6, 7))
-
-
-@y.model("twin_tube", lambda: y.frame_mask(TWIN), size=(12, 14))
-def twin_tube():
-    """Two tan tubes (x -4 and 4) with glowing red tips at the top, a flat tube between them joined to
-    them by dark webs, two short legs under it; centred on its long axis (it rolls about it)."""
-    tan = pal("twin_tan", 0x1a, metallic=0.25, roughness=0.45)
-    tan_light = pal("twin_tan_light", 0x1d, metallic=0.25, roughness=0.4)
-    tan_dark = pal("twin_tan_dark", 0x15, metallic=0.2, roughness=0.55)
-    web = pal("twin_web", 0x12, metallic=0.1, roughness=0.6)
-    tip = pal("twin_tip", 0x76, metallic=0.0, roughness=0.35, glow=1.6)
-    tip_hot = pal("twin_tip_hot", 0x7a, metallic=0.0, roughness=0.3, glow=2.2)
-    for side in (-1, 1):
-        x = 4.25 * side
-        # The tube, from its foot to under the tip.
-        lathe_axis(f"tube{side}", [(0.0, 0.01), (0.15, 1.05), (0.5, 1.6), (1.3, 1.65), (1.6, 1.45), (2.0, 1.47),
-                                   (9.6, 1.55), (10.0, 1.75), (10.9, 1.75), (11.1, 1.6)],
-                   tan, (x, -6.0, 0.0), (0, 1, 0), segments=16)
-        lathe_axis(f"collar{side}", [(0.0, 1.62), (0.1, 1.85), (0.9, 1.85), (1.0, 1.62)], tan_light, (x, 3.6, 0.0),
-                   (0, 1, 0), segments=16)
-        lathe_axis(f"foot{side}", [(0.0, 0.01), (0.1, 1.1), (0.35, 1.7), (1.1, 1.75), (1.3, 1.45)], tan_dark,
-                   (x, -6.2, 0.0), (0, 1, 0), segments=16)
-        # The glowing tip: a nozzle round a hot core.
-        lathe_axis(f"tip{side}", [(0.0, 1.6), (0.2, 1.68), (0.9, 1.45), (1.15, 1.0), (1.25, 0.01)], tip,
-                   (x, 5.05, 0.0), (0, 1, 0), segments=16)
-        sphere(f"tip_core{side}", (x, 6.0, 0.0), (0.85, 0.5, 0.85), tip_hot, 12, 6)
-        # The web joining it to the middle tube.
-        y.slab(f"web{side}", [(1.6 * side, -3.6), (3.0 * side, -3.6), (3.0 * side, 5.0), (1.6 * side, 5.0)], -0.35,
-               0.35, web, bevel=0.1)
-        # A short leg under the middle tube.
-        lathe_axis(f"leg{side}", [(0.0, 0.01), (0.1, 0.45), (0.3, 0.6), (1.6, 0.55), (1.8, 0.01)], tan_dark,
-                   (1.35 * side, -5.0, 0.0), (0, 1, 0), segments=10)
-    # The middle tube: flatter, its top rounded, a light ridge along it.
-    mid = lathe_axis("mid", [(0.0, 0.01), (0.3, 1.2), (0.9, 1.9), (2.0, 2.05), (7.4, 2.05), (8.3, 1.8),
-                                 (8.9, 1.2), (9.2, 0.01)], tan, (0.0, -3.9, 0.0), (0, 1, 0), segments=20, squash=0.55)
-    y.paint_faces(mid, lambda c, nrm: tan_light if abs(c.x) < 0.7 and nrm.z > 0.5 else
-                  tan_dark if nrm.z < -0.2 else None)
 
 
 # --- 8 1: the red ship with two prongs ---------------------------------------------------------------

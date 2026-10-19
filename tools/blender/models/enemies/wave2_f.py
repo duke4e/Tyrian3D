@@ -1,5 +1,5 @@
 """Batch F of the second wave of enemy models, facing the way their sprites do (models.cfg: yaw=0)
-(spike_star, 3 246: polish_spike_star.py):
+(spike_star, 3 246: polish_spike_star.py; 7 51 is the squid ship turned round, polish_squid_ship.py):
 
 - obsidian_egg (sheet M 271): MINERS' indestructible black glass egg with a smoky light inside,
   lying on the ground.
@@ -9,8 +9,6 @@
 - eye_shell (sheet G 127): the small blue shell with an eye looking out (GYGES, MISTAKES); its
   animation moves the pupil a little, the model keeps it in the middle frame's place.
 - purple_shield (sheet 2 127): the purple armoured pod with blue windows (TYRIAN, HOLES).
-- beacon_frame (sheet 7 51): the grey frame with blue fins and a red beacon on top (CAMANIS, ICE
-  EXIT); the animation lights the beacon up, the model's beacon glows (glow option).
 - pebble (sheet D 133, 1x1): the small blue-grey rock of the asteroid levels.
 
 More of the batch (pieces of larger objects, the pod machines) are in wave2_f_more.py.
@@ -295,95 +293,6 @@ def purple_shield():
     w.rounded_box("window_frame", (cx, py(10.5), top(cx, py(10.5)) - 0.35), (5.6, 4.6, 0.9), edge, bevel=0.4)
     w.rounded_box("block", (cx, py(24.8), top(cx, py(24.8)) - 0.6), (7.6, 4.0, 2.0), block, bevel=0.6)
     w.rounded_box("block_lip", (cx, py(23.0), top(cx, py(23.0)) - 0.2), (7.4, 0.8, 1.1), teal, bevel=0.3)
-
-
-# --- The beacon frame (sheet 7 51) -------------------------------------------------------------
-
-BEACON = w.art("""
-........................
-........................
-......###.hhh.###.......
-...####a#hhhhh#a####....
-..#aaa#a##hh###a#aaa#...
-.#aa###aaa#aaaaa###aa#..
-.#a#..#a#a#a#a#a#..#a#..
-.#a#...#########...#a#..
-.#a#.....#ddd#.....#a#..
-.#aa#....dddd#....##a#..
-.#dd#..#dddddd##..#dd#..
-.#ddd#.#ddddddd#.#ddd#..
-..#dd####ddddd###ddd#...
-...#dd#aa#ddd#aa#dd#....
-....#ddaaaad#aaa#dd.....
-####ddddaaa#aa###dd####.
-#dddddddd#aaa#dddddddd#.
-######ddd#aaa#dd#######.
-..##aaddd#aaa#dd#aa##...
-...##addd#aaa#dd#a##....
-....#addd#aaa#dd#a#.....
-....#a####aaa####a#.....
-....#aaaa#aaa#aaaa#.....
-.....#aaa#aaa#aaa#......
-......#aa#aaa#aa#.......
-.......#a#aaaaa#........
-........##aaa##.........
-.........#####..........
-""")
-
-
-@model("beacon_frame", "enemy_7", 51)
-def beacon_frame():
-    """A grey frame shaped like a shield: a dark pillar down its middle, blue fins out to the sides,
-    a blue crystal above them, two curved horns rising to a crossbar and a red beacon on top."""
-    steel = pal("beacon_steel", 8, metallic=0.65, roughness=0.3)
-    light = pal("beacon_light", 10, metallic=0.65, roughness=0.25)
-    dark = pal("beacon_dark", 4, metallic=0.55, roughness=0.4)
-    blue = pal("beacon_blue", 56, metallic=0.4, roughness=0.25)
-    crystal = pal("beacon_crystal", 59, metallic=0.2, roughness=0.08, glow=0.35, emission=(80, 150, 220))
-    red = pal("beacon_red", 119, roughness=0.2, glow=2.5, emission=(255, 60, 20))
-    hot = pal("beacon_hot", 124, roughness=0.2, glow=4.0, emission=(255, 210, 90))
-    ax = px(11)  # the sprite is symmetric about column 11
-    # The lower shield (rows 17-26), with the pillar down its middle.
-    shield = [(px(4) - 0.3, py(17.5)), (px(18) + 0.3, py(17.5)), (px(18) + 0.2, py(22)), (px(16), py(24.2)),
-              (px(13.5), py(26.6)), (px(8.5), py(26.6)), (px(6), py(24.2)), (px(4) - 0.2, py(22))]
-    obj = sh.inflate("shield", [shield], steel, sh.round_profile(0.55, max_height=3.4), bottom=0.5, spacing=0.55,
-                     sigma=1.5)
-    k.smooth(obj, 55)
-    pillar = [(px(10) - 0.2, py(13.0)), (px(12) + 0.2, py(13.0)), (px(12) + 0.2, py(24.5)), (ax, py(26.2)),
-              (px(10) - 0.2, py(24.5))]
-    k.smooth(sh.inflate("pillar", [pillar], dark, sh.pillow_profile(4.6, 0.8), bottom=0.6, spacing=0.4), 50)
-    # Grey ribs on the shield either side of the pillar, a bright stud at its foot.
-    for side in (-1, 1):
-        rib = [(ax + side * 5.6, py(18.6), 1.9), (ax + side * 5.4, py(21.5), 1.9), (ax + side * 3.6, py(24.3), 1.6)]
-        w.tube(f"rib{side}", w.catmull(rib, 0.6), 0.55, light, 8)
-    w.sphere("stud", (ax, py(25.4), 3.6), (0.8, 0.7, 0.6), light, 12, 6)
-    # The blue fins, straight out to the sprite's edges along row 16, swept down at their roots.
-    for side in (-1, 1):
-        root = ax + side * 2.0
-        tip = ax + side * 11.2
-        w.blade(f"fin{side}", (root, py(16.0), 1.6), (tip, py(16.2), 0.8),
-                [(0.0, 1.3, 1.2, 0.8), (0.5, 0.9, 0.7, 0.5), (0.9, 0.55, 0.45, 0.35)], blue, sides=8)
-        panel = w.rounded_box(f"panel{side}", (0, 0, 0), (1.9, 6.6, 1.3), blue, bevel=0.45)
-        panel.data.transform(Matrix.Translation((ax + side * 3.3, py(17.6), 2.7)) @
-                             Matrix.Rotation(math.radians(-side * 6), 4, "Z"))
-    # The crystal: a faceted blue gem above the fins.
-    w.blade("crystal", (ax, py(14.6), 3.4), (ax, py(7.6), 3.4),
-            [(0.0, 0.6, 0.6, 0.6), (0.45, 3.0, 2.6, 1.6), (0.8, 1.6, 1.4, 1.0)], crystal, smooth_angle=20)
-    # The horns: from the crossbar out and down to the sides, grey above and blue below.
-    for side in (-1, 1):
-        def at(c, r, z):
-            return (ax + side * (c - 11), py(r), z)
-        upper = [at(8.0, 4.3, 3.0), at(5.0, 4.0, 3.2), at(2.6, 4.9, 3.0), at(1.6, 7.0, 2.6), at(1.7, 9.5, 2.3)]
-        lower = [at(1.7, 9.5, 2.3), at(2.2, 11.6, 2.1), at(3.8, 13.3, 2.0), at(5.8, 14.6, 2.0), at(7.6, 15.0, 2.0)]
-        w.tube(f"horn{side}", w.catmull(upper, 0.6), 0.95, light, 10)
-        w.tube(f"horn_low{side}", w.catmull(lower, 0.6), 1.05, blue, 10)
-    # The crossbar with its slots, the red beacon on top.
-    w.rounded_box("crossbar", (ax, py(5.0), 2.6), (10.6, 3.6, 2.6), steel, bevel=0.6)
-    for i in range(4):
-        x = ax - 3.0 + 2.0 * i
-        w.rounded_box(f"slot{i}", (x, py(5.6), 3.65), (0.7, 1.8, 0.6), dark, bevel=0.2)
-    w.sphere("beacon", (ax, py(3.4), 3.8), (2.1, 1.7, 1.7), red, 20, 10)
-    w.sphere("beacon_core", (ax, py(3.2), 4.7), (1.0, 0.8, 1.0), hot, 12, 6)
 
 
 # --- The pebble (sheet D 133, 1x1) -------------------------------------------------------------

@@ -2,11 +2,11 @@
 is built whole, in shared coordinates, from its pixel art (wave3_l_art.py) and cut along its sprites'
 edges into the pieces, each moved to its sprite's centre (models.cfg: origin, so that they meet again).
 The levels place the pieces as the sheet arranges them (checked in the level files' enemy events).
-(The grey and red jet, redjet_left / redjet_right / redjet_nose, is built by polish_redjet.py.)
+(The grey and red jet, redjet_left / redjet_right / redjet_nose, is built by polish_redjet.py; the long grey ship,
+longship_left / longship_mid / longship_right, by polish_longship.py.)
 
 - ringship_pod, ringship_ring (39, 41) and their mirror images ringship_ring_r, ringship_pod_r (43, 45):
   HARVEST's machine on a ring frame, a blue pod and a grey housing round a blue sphere.
-- longship_left, longship_mid, longship_right (115, 117, 119): the long grey ship of APPROACH and SAVARA IV.
 - drip_top, drip_bottom (53 above 91): NOSE DRIP's twisted drip of fire.
 - fire_bowl_left, fire_bowl_right (156, 158): NOSE DRIP's bowl of flames.
 - brain_* (196, 198, 200 / 233, 235, 237, 239 / 272, 274, 276): BRAINIAC's brain, 96 x 84 pixels.
@@ -133,87 +133,6 @@ def ring_piece(name, mirror):
         if mirror:
             x0, x1 = -x1, -x0
         return w.cut_piece(x0, x1, y0, y1)
-    return build
-
-
-# --- The long ship (115, 117, 119) --------------------------------------------------------------
-
-LONG = w.Art(art.LONGSHIP, (36, 14))
-LONG_PIECES = {"longship_left": (-36, -12, -14, 14), "longship_mid": (-12, 12, -14, 14),
-               "longship_right": (12, 36, -14, 14)}
-
-
-def build_longship():
-    """APPROACH's and SAVARA IV's long grey ship flying down the screen: a long tube across the screen
-    (rows 9-18) with bright rounded pods at its ends, red rings and red bands along its front, small
-    pylons with red tips above and below it, and across its middle the fuselage, its blunt nose down
-    (row 26) with dark slots, a small fin with red canards at the top (rows 0-4)."""
-    a = LONG
-    grey = pal("longship_grey", 0x05, metallic=0.55, roughness=0.35)
-    pod = pal("longship_pod", 0x08, metallic=0.55, roughness=0.3)
-    light = pal("longship_light", 0x0b, metallic=0.6, roughness=0.25)
-    dark = pal("longship_dark", 0x02, metallic=0.4, roughness=0.5)
-    red = pal("longship_red", 0x45, metallic=0.35, roughness=0.35)
-    red_light = pal("longship_red_light", 0x47, metallic=0.35, roughness=0.3)
-    yc, zc, squash = 0.0, 0.0, 0.8
-    # The tube, along x: (x, radius) for its left half, mirrored.
-    half = [(-34.4, 0.02), (-34.3, 2.6), (-33.9, 3.7), (-33.0, 4.35), (-31.6, 4.65), (-25.4, 4.65), (-24.8, 4.1),
-            (-23.6, 4.1), (-23.0, 4.3), (-6.0, 4.3)]
-    prof = [(x + 34.4, r) for x, r in half] + [(-x + 34.4, r) for x, r in reversed(half[:-1])]
-    tube = w.lathe_axis("tube", prof, grey, (-34.4, yc, zc), (1, 0, 0), 28, squash=squash)
-    w.paint(tube, lambda c, n: 1 if abs(c.x) > 24.9 else 0, [grey, pod])
-    # A light seam round each end pod.
-    for side in (-1, 1):
-        x = side * 28.0
-        w.lathe_axis(f"pod_ring{side}", [(0.0, 4.5), (0.15, 4.85), (0.85, 4.85), (1.0, 4.5)], light,
-                     (x - 0.5, yc, zc), (1, 0, 0), 28, squash=squash)
-    # The red rings (columns 16-18 and their mirror images) and the red bands along the front (rows 13-16).
-    for side in (-1, 1):
-        for i, x in enumerate((-19.6, -17.4)):
-            xx = side * x
-            w.lathe_axis(f"red_ring{side}{i}", [(0.0, 4.1), (0.2, 4.75), (1.0, 4.75), (1.2, 4.1)], red,
-                         (xx - 0.6, yc, zc), (1, 0, 0), 28, squash=squash)
-        x0, x1 = (-16.2, -4.0) if side < 0 else (4.0, 16.2)
-        w.arc_band(f"red_band{side}", x0, x1, yc, zc, 4.0, 4.6, 8.0, 80.0, red_light, squash=squash)
-    # The pylons above and below the tube, with red tips: (x centre, half width, reach up, reach down, tip).
-    for side in (-1, 1):
-        for i, (xc, hw, up, down, tip) in enumerate(((-28.0, 2.6, 7.0, 8.0, 1.6), (-17.8, 3.6, 8.6, 6.9, 2.0),
-                                                     (-9.0, 2.0, 7.0, 6.8, 0.0))):
-            x = side * xc
-            for j, (sy, r) in enumerate(((1, up), (-1, down))):
-                w.rounded_box(f"pylon{side}{i}{j}", (x, yc + sy * (r / 2 + 1.0), zc + 0.6),
-                              (2 * hw, r - 1.4, 3.2), grey, bevel=0.6)
-                if tip:
-                    w.rounded_box(f"pylon_tip{side}{i}{j}", (x, yc + sy * (r - 0.5), zc + 0.9), (2 * hw - 0.6, tip, 2.6),
-                                  red, bevel=0.45)
-                else:
-                    w.sphere(f"knob{side}{i}{j}", (x, yc + sy * (r - 1.2), zc + 1.2), (1.5, 1.5, 1.3), light, 12, 6)
-    # The fuselage along y, its blunt nose down.
-    ax = 0.5
-    widths = [(-12.6, 0.3), (-12.2, 1.6), (-11.4, 2.6), (-10.0, 3.6), (-7.5, 4.3), (-4.0, 4.6), (0.0, 4.7),
-              (4.0, 4.6), (5.0, 4.2), (6.0, 3.4), (7.5, 2.6), (9.5, 2.6), (11.5, 2.3), (13.0, 1.5), (13.8, 0.4)]
-    secs = [(y, ax, zc + 0.3, hw, hw * 1.08, hw * 0.75) for y, hw in widths]
-    body = w.loft_y("fuselage", secs, grey, segments=24, power=2.2)
-    w.tube("spine", w.catmull([(ax - 0.4, -11.0, zc + 2.6), (ax - 0.4, -6.0, zc + 4.7), (ax - 0.4, 2.0, zc + 5.2),
-                               (ax - 0.4, 8.0, zc + 4.4), (ax - 0.3, 12.0, zc + 1.8)], 0.6), 0.5, light, 8)
-    # Dark slots on the fuselage's lower part (rows 18-23).
-    for i, x in enumerate((ax - 2.4, ax + 2.4)):
-        w.tube(f"slot{i}", [(x, -4.8, zc + 4.0), (x, -9.0, zc + 2.6)], 0.5, dark, 8)
-    # The small fin and red canards at the top.
-    w.fin_blade("fin", [(13.9, ax, zc + 1.0, zc + 3.2), (11.5, ax, zc + 2.6, zc + 5.4), (7.5, ax, zc + 3.8, zc + 5.6)],
-                light, thickness=1.2)
-    # The head: a bar across the fuselage's top end (rows 2-4), its arms red.
-    w.rounded_box("head", (ax, 10.9, zc + 2.6), (10.6, 2.6, 2.2), grey, bevel=0.6)
-    for side in (-1, 1):
-        w.rounded_box(f"head_arm{side}", (ax + side * 3.5, 10.9, zc + 3.6), (3.0, 1.6, 0.8), red, bevel=0.3)
-    for obj in w.meshes():
-        k.recalc_normals(obj)
-
-
-def long_piece(name):
-    def build():
-        build_longship()
-        return w.cut_piece(*LONG_PIECES[name])
     return build
 
 
@@ -398,9 +317,6 @@ PIECES.append(("ringship_ring", 41, ring_piece("ringship_ring", False)))
 PIECES.append(("ringship_ring_r", 43, ring_piece("ringship_ring", True)))
 PIECES.append(("ringship_pod_r", 45, ring_piece("ringship_pod", True)))
 w.whole("ringship", build_ringship, (48, 28), RING.mask())
-for _name, _sprite in (("longship_left", 115), ("longship_mid", 117), ("longship_right", 119)):
-    PIECES.append((_name, _sprite, long_piece(_name)))
-w.whole("longship", build_longship, (72, 28), LONG.mask())
 for _name, _sprite in (("drip_top", 53), ("drip_bottom", 91)):
     PIECES.append((_name, _sprite, drip_piece(_name)))
 w.whole("drip", build_drip, (24, 56), DRIP.mask())

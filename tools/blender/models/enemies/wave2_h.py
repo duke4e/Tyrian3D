@@ -4,8 +4,6 @@
   the rock is 3 162, 164, 198, 200, 202): a sloping nub cut where the rock goes on (origin).
 - bronze_yuanbao (sheet H 93): GYGES' flying bronze ingot, a boat with upturned horns and a dome,
   tilted towards the camera as the sprite draws it.
-- squid_ship (sheet 7 237): the grey and blue ship of CAMANIS and ICE EXIT with hanging claws and a
-  glowing engine (its frames only change the flame, which the model's emissive engine stands for).
 - asteroid_turret (sheet P 13): the grey turret of ASTEROID2 with a bronze dome; its frames are eight
   headings the level picks, so the model is built pointing up the screen and aims at the player.
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
@@ -384,105 +382,6 @@ def twin_claw_right():
     kit.mirror_all()
 
 
-# --- 7 237: the squid ship -----------------------------------------------------------------------
-
-SQUID_AXIS = 0.5  # the ship is symmetric about column 12's centre
-
-
-def squid_ship():
-    """CAMANIS' ship (sprite 7 237), nose up the screen: a grey hood with a spine and blue panels, a
-    thin blue wing across, a blue keel under it, two claws hanging from the wing and curling in to
-    the ribbed engine at the bottom, whose nozzle glows."""
-    grey = pal("squid_grey", 0x05, metallic=0.5, roughness=0.35)
-    grey_light = pal("squid_light", 0x08, metallic=0.5, roughness=0.3)
-    dark = pal("squid_dark", 0x02, metallic=0.4, roughness=0.5)
-    blue = pal("squid_blue", 0x37, metallic=0.4, roughness=0.25)
-    blue_light = pal("squid_blue_light", 0x3b, metallic=0.4, roughness=0.2, glow=0.25)
-    flame = pal("squid_flame", 0x77, metallic=0.0, roughness=0.3, glow=2.0, color=(255, 60, 20))
-    flame_core = pal("squid_flame_core", 0x7b, metallic=0.0, roughness=0.3, glow=3.0, color=(255, 200, 80))
-    ax = SQUID_AXIS
-
-    # The hood (rows 0-10): a dome, its spine raised between two grooves, a groove across the lobes
-    # at row 6 and blue panels below it.
-    hood_rows = {0: (10, 14), 1: (9, 15), 2: (8, 16), 3: (7, 17), 4: (6, 18), 5: (5, 19), 6: (5, 19), 7: (5, 19),
-                 8: (4, 20), 9: (3, 21), 10: (2, 22)}
-    left = [(G2.x(c0), G2.y(r)) for r, (c0, _c1) in sorted(hood_rows.items())]
-    left = [(G2.x(10.2), G2.y(-0.1))] + left + [(G2.x(1.5), G2.y(11.0))]
-    outline = left + [(2 * ax - x, y) for x, y in reversed(left)]
-    hood_poly = [outline]
-
-    def hood_top(x, y, d):
-        u = abs(x - ax)
-        z = 1.8 + 4.2 * round_edge(d, 5.5) * (1 - 0.2 * smoothstep(8.5, 3.0, y))
-        z -= 0.55 * math.exp(-((u - 2.05) / 0.4) ** 2) * smoothstep(2.0, 4.0, y)
-        z -= 0.45 * math.exp(-((y - 7.5) / 0.4) ** 2) * smoothstep(2.2, 3.2, u)
-        return z
-
-    kit.solid("hood", hood_poly, hood_top, 1.2, grey, spacing=0.6, band=1.4)
-    # The spine down its middle (columns 11-13), a rounded ridge sloping to the nose.
-    spine = [(G2.y(10.6), 0.6), (G2.y(10.2), 1.45), (G2.y(6), 1.5), (G2.y(3), 1.5), (G2.y(1.6), 1.3), (G2.y(0.9), 0.9),
-             (G2.y(0.5), 0.2)]
-    obj = kit.lathe("spine", spine, grey_light, axis="y", at=(ax, 0.0), segments=20, squash=0.7, angle=60)
-    for v in obj.data.vertices:
-        v.co.z += hood_top(ax, v.co.y, 9) - 0.55
-    # Dark seams in its grooves and blue panels on its lobes (rows 7-10).
-    for side in (1, -1):
-        gx = ax + side * 2.05
-        groove = kit.catmull([(gx, y, hood_top(gx, y, 9) - 0.12) for y in (G2.y(2.5), G2.y(6), G2.y(10.3))], 1.0)
-        kit.tube(f"groove{side}", groove, [0.28] * len(groove), dark, 8)
-        across = kit.catmull([(ax + side * u, G2.y(6.5), hood_top(ax + side * u, G2.y(6.5), 9) - 0.1)
-                              for u in (2.2, 4.5, 6.6)], 1.0)
-        kit.tube(f"across{side}", across, [0.26] * len(across), dark, 8)
-        panel = [(2.9, G2.y(7.0)), (5.3, G2.y(7.0)), (5.6, G2.y(10.6)), (3.0, G2.y(10.6))]
-        panel = [(ax + side * u, y) for u, y in panel]
-        if side < 0:
-            panel = panel[::-1]
-        kit.solid(f"panel{side}", [panel], lambda x, y, d: hood_top(x, y, 9) + 0.05 + 0.25 * round_edge(d, 0.35),
-                  0.8, blue_light, spacing=0.35)
-    # The wing across (row 11), thin and blue, its tips pointed.
-    wing = []
-    for i in range(25):
-        t = -1 + 2 * i / 24
-        x = ax + t * 11.6
-        hw = 1.25 * (1 - abs(t) ** 8) + 0.1
-        wing.append((x, G2.y(11.5) + 0.25 * abs(t), 3.9 - 0.6 * abs(t) ** 2, hw, 0.6 * hw + 0.05))
-    kit.section_loft("wing", wing, blue, segments=10, start=(ax - 11.9, wing[0][1], wing[0][2]),
-                     end=(ax + 11.9, wing[-1][1], wing[-1][2]))
-    # The keel under the wing: a grey neck and a blue shield-shaped hull with a ridge down it.
-    keel = [(G2.x(9), G2.y(12)), (G2.x(16), G2.y(12)), (G2.x(16), G2.y(15)), (G2.x(15), G2.y(17)),
-            (G2.x(14), G2.y(19)), (G2.x(13.3), G2.y(20)), (G2.x(10.7), G2.y(20)), (G2.x(10), G2.y(19)),
-            (G2.x(9), G2.y(17)), (G2.x(8), G2.y(15)), (G2.x(8), G2.y(12))]
-    kit.solid("keel", [keel[::-1]], lambda x, y, d: 2.0 + 0.9 * round_edge(d, 0.6) + 2.2 * max(0.0, 1 - abs(x - ax) / 3.6),
-              1.0, blue, spacing=0.6,
-              smooth_angle=25)
-    ridge = kit.catmull([(ax, G2.y(13.8), 5.15), (ax, G2.y(17), 5.1), (ax, G2.y(19.6), 4.6)], 0.6)
-    kit.tube("ridge", ridge, [0.32] * len(ridge), blue_light, 8)
-    # The claws: from the wing down the sides, blue above, grey below, curling in to the engine.
-    claw = [(6.2, 12.2, 3.6), (6.0, 13.8, 3.5), (4.5, 15.3, 3.3), (3.3, 16.8, 3.1), (3.0, 18.5, 2.9),
-            (3.0, 20.8, 2.7), (3.8, 22.4, 2.6), (5.5, 23.3, 2.5), (7.8, 23.2, 2.4)]
-    for side in (1, -1):
-        pts = [(G2.x(c + 0.5) if side > 0 else 2 * ax - G2.x(c + 0.5), G2.y(r + 0.5), z) for c, r, z in claw]
-        path = kit.catmull(pts, 0.7)
-        upper = [p for p in path if p.y > G2.y(17.6)]
-        lower = [p for p in path if p.y <= G2.y(17.9)]
-        radii = [1.05 - 0.15 * i / len(path) for i in range(len(path))]
-        kit.tube(f"claw_blue{side}", upper, radii[:len(upper)], blue, 10)
-        kit.tube(f"claw_grey{side}", lower, radii[len(path) - len(lower):], grey_light, 10)
-    # The engine: a ribbed block (rows 20-24), its nozzle and flame at the bottom.
-    engine = [(G2.x(7.5), G2.y(20)), (G2.x(17.5), G2.y(20)), (G2.x(17.5), G2.y(23)), (G2.x(16), G2.y(24.6)),
-              (G2.x(9), G2.y(24.6)), (G2.x(7.5), G2.y(23))]
-    kit.solid("engine", [engine[::-1]], lambda x, y, d: 1.4 + 2.4 * round_edge(d, 1.0), 0.6, dark, spacing=0.55,
-              band=1.1)
-    for col in (8.5, 10.5, 12.5, 14.5, 16.5):
-        x = G2.x(col)
-        kit.lathe(f"rib{col}", [(G2.y(24.2), 0.2), (G2.y(23.9), 0.55), (G2.y(20.4), 0.55), (G2.y(20.1), 0.2)],
-                  grey_light, axis="y", at=(x, 3.75), segments=10, squash=1.2)
-    kit.lathe("nozzle", [(G2.y(23.0), 1.7), (G2.y(24.4), 2.0), (G2.y(24.8), 2.1), (G2.y(25.0), 1.5)], grey,
-              axis="y", at=(ax, 2.8), segments=20, squash=0.9)
-    kit.ellipsoid("flame", (ax, G2.y(25.0), 2.8), (1.6, 1.1, 1.3), flame, 16, 8)
-    kit.ellipsoid("flame_core", (ax, G2.y(25.1), 2.9), (0.9, 0.7, 0.8), flame_core, 12, 6)
-
-
 # --- A 237 / 275 (and their mirror images A 7 / 45): the fire flap ---------------------------------
 
 # The flap's face, as the closed frames draw it (A 231 rows 9-27 over A 269 rows 0-18, columns 0-10
@@ -707,7 +606,6 @@ MODELS = [
     ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
-    ("squid_ship", squid_ship, [("7", 237, True)], E),
     ("bronze_yuanbao", bronze_yuanbao, [("H", 93, True)], E),
     ("fire_flap_r_top", fire_flap_r_top, [("A", 237, True)], E),
     ("fire_flap_r_bottom", fire_flap_r_bottom, [("A", 275, True)], E),
