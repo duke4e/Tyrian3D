@@ -1,10 +1,7 @@
 """Enemies of wave 3, batch Z, continued (sheet L): the small creatures of SQUADRON and TIME WAR and two of MINERS's
 flyers, modelled as their sprites look (models.cfg: yaw=0). The kit is wave3_z_kit.py, the pixels wave3_z_art.py.
+(The spiked fire ball, L 116, and the eyeball, L 117: polish_fire_spike_ball.py, polish_squad_eyeball.py.)
 
-- fire_spike_ball (L 116): the spiked ball of fire that marches with SQUADRON's rows and drifts down TIME WAR
-  (beside the lava ball L 115, molten_rock, and the dark ember L 118, dark_ember): a glowing core, hotter
-  towards its upper left, four spikes out to the sprite's edges and four short ones between them.
-- squad_eyeball (L 117): the white eyeball of the same rows, its blue iris looking down the screen and up.
 - red_mouth_lander (L 229): MINERS's grey lander (in the sky; one stands in SQUADRON): an armoured shell with
   a slatted face over a red mouth, a red glowing jet under it and two legs reaching down the screen.
 - yellow_pod_fighter (L 267): MINERS's grey fighter, nose down the screen: a slim fuselage with a gun in
@@ -13,108 +10,18 @@ flyers, modelled as their sprites look (models.cfg: yaw=0). The kit is wave3_z_k
 usage: Blender -b --factory-startup -P wave3_z_small.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1]
 """
-import math
 import os
-import random
 import sys
 
-import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_z_kit as kit  # noqa: E402
-import wave2_h_kit as hk  # noqa: E402
 from wave3_z_kit import k, sh, w, pal, smoothstep  # noqa: E402
 
-SPIKY = kit.frame("SPIKY", 12, (6, 7))
-EYE = kit.frame("EYE", 12, (6, 7))
 MECH = kit.frame("MECH", 24, (12, 14))
 SHIP = kit.frame("SHIP", 24, (12, 14))
-
-
-def sphere_mesh(name, centre, radii, subdivisions=4):
-    bm = bmesh.new()
-    bmesh.ops.create_icosphere(bm, subdivisions=subdivisions, radius=1.0)
-    for v in bm.verts:
-        v.co = Vector(centre) + Vector((v.co.x * radii[0], v.co.y * radii[1], v.co.z * radii[2]))
-    mesh = bpy.data.meshes.new(name)
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    return obj
-
-
-# --- L 116: the spiked fire ball -------------------------------------------------------------------
-
-@kit.model("fire_spike_ball", mask=lambda: SPIKY.mask(), size=(12, 14))
-def fire_spike_ball():
-    f = SPIKY
-    crust = pal("spike_crust", 0x72, metallic=0.0, roughness=0.55, glow=0.25)
-    red = pal("spike_red", 0x75, metallic=0.0, roughness=0.45, glow=0.45)
-    warm = pal("spike_warm", 0x78, metallic=0.0, roughness=0.4, glow=0.9)
-    hot = pal("spike_hot", 0x7b, metallic=0.0, roughness=0.4, glow=1.5)
-    white = pal("spike_white", 0x7d, metallic=0.0, roughness=0.4, glow=2.2)
-    cx, cy = f.X(5.0), f.Y(7.0)
-    centre = Vector((cx, cy, 4.6))
-    core = sphere_mesh("core", centre, (4.6, 4.6, 4.2), 4)
-    rng = random.Random(116)
-    waves = [(Vector([rng.uniform(-1, 1) for _ in range(3)]).normalized() * rng.uniform(1.0, 2.2), rng.uniform(0, 6.3))
-             for _ in range(9)]
-    hot_dir = Vector((-0.45, 0.35, 0.82)).normalized()  # the sprite's bright spot, upper left
-    values = []
-    for v in core.data.vertices:
-        n_ = (v.co - centre).normalized()
-        flame = sum(math.sin(wv.dot(n_) * 2.2 + ph) for wv, ph in waves) / 3.0
-        v.co = centre + (v.co - centre) * (1.0 + 0.05 * flame)
-        values.append(1.25 * max(0.0, n_.dot(hot_dir)) ** 10 + 0.3 * flame + 0.1 * n_.z)
-    hk.band_split(core, values, [(-9, crust), (-0.05, red), (0.42, warm), (0.9, hot), (1.18, white)], smooth_angle=70)
-    # The spikes: four out to the sprite's edges (rows 0 and 13, columns 0 and 10), four short ones between.
-    spikes = [((0, 1), 7.0 - cy - 0.1, 1.7), ((0, -1), cy + 7.0 - 0.1, 1.7), ((-1, 0), cx + 6.0 - 0.1, 1.6),
-              ((1, 0), 5.0 - cx - 0.1, 1.6)]
-    for i, ((dx, dy), reach, base) in enumerate(spikes):
-        d = Vector((dx, dy, 0.08)).normalized()
-        start = centre + d * 3.2
-        kit.cone(f"spike{i}", tuple(start), tuple(d), reach - 3.2, base, red, segments=12)
-    for i, (dx, dy) in enumerate(((-1, 1), (1, 1), (-1, -1), (1, -1))):
-        d = Vector((dx, dy, 0.35)).normalized()
-        kit.cone(f"nub{i}", tuple(centre + d * 3.8), tuple(d), 2.5, 1.4, crust, segments=10)
-    sh.flat_bottom(w.meshes(), 0.0)
-
-
-# --- L 117: the eyeball ----------------------------------------------------------------------------
-
-@kit.model("squad_eyeball", mask=lambda: EYE.mask(), size=(12, 14))
-def squad_eyeball():
-    f = EYE
-    pupil = pal("eyeball_pupil", 0x31, metallic=0.0, roughness=0.08)
-    iris = pal("eyeball_iris", 0x37, metallic=0.1, roughness=0.15)
-    ring = pal("eyeball_ring", 0x33, metallic=0.0, roughness=0.25)
-    white = pal("eyeball_white", 0x0c, metallic=0.05, roughness=0.15)
-    shade = pal("eyeball_shade", 0x09, metallic=0.05, roughness=0.3)
-    radius = 5.45
-    centre = Vector((f.X(6.0), f.Y(7.0), radius))
-    look = Vector((0.0, -math.sin(math.radians(38)), math.cos(math.radians(38))))
-    bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=40, v_segments=24, radius=1.0)
-    values = []
-    for v in bm.verts:
-        n_ = v.co.normalized()
-        angle = math.degrees(n_.angle(look))
-        bulge = 0.06 * (1 - smoothstep(0, 32, angle)) - 0.03 * (1 - smoothstep(5, 10, angle))
-        v.co = centre + n_ * radius * (1 + bulge)
-        value = -angle
-        if angle >= 31 and n_.z < -0.15:  # the white's underside, in shade
-            value = -200.0
-        values.append(value)
-    mesh = bpy.data.meshes.new("eyeball")
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new("eyeball", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    hk.band_split(obj, values, [(-999, shade), (-150, white), (-31, ring), (-27, iris), (-9, pupil)], smooth_angle=80)
-    sh.flat_bottom([obj], 0.0)
 
 
 # --- L 229: the lander -----------------------------------------------------------------------------

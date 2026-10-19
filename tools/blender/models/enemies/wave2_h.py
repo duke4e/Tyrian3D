@@ -8,7 +8,6 @@ ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_mo
   sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
   make them flap): they show the first frame, the flap standing on edge, which is how they are
   modelled (origin; the whole flap is built once and cut into the two sprites' pieces).
-- dark_ember (sheet L 118): a dark red pod with a glowing light.
 - asteroid_lumpy (sheet D 5): a grey faceted asteroid.
 - twin_claw_left, twin_claw_right (sheet 3 8, 3 10): the two halves of the claw ship of SURFACE, CORE
   and ICE EXIT, back to back with a glowing core between them; each half's claws hold a flame
@@ -69,22 +68,6 @@ def desert_rock_tip():
         return 0 if d < 0.55 else 1 if d < 1.3 else 2
 
     kit.solid("tip", polys, top, 0.0, [dark, mid, tan], mat, side_mat=0, spacing=0.3, smooth_angle=35, cut=cut)
-
-
-# --- L 118: the dark ember pod -------------------------------------------------------------------
-
-def dark_ember():
-    """A dark red pod, a rounded block lying across the sprite's diagonal, with a dome and a
-    glowing light on its upper left side (the sprite's bright spot)."""
-    body = pal("ember_body", 0x72, metallic=0.25, roughness=0.3)
-    cap = pal("ember_cap", 0x75, metallic=0.3, roughness=0.25)
-    light = pal("ember_light", 0x7b, metallic=0.0, roughness=0.2, glow=2.5, color=(255, 190, 60))
-    # Built along x (the long axis), then turned 45 degrees up to the upper right.
-    k.pillow("pod", 5.5, 3.95, 4.6, body, rounding=2.2, dome=1.1, power=3.0)
-    # The dome with the light.
-    kit.ellipsoid("dome", (0.3, 1.6, 5.0), (1.8, 1.7, 1.15), cap, 20, 10)
-    kit.ellipsoid("light", (0.3, 1.75, 6.0), (0.8, 0.8, 0.5), light, 14, 7)
-    kit.transform_all(Matrix.Translation((0.0, -0.5, 0)) @ Matrix.Rotation(math.radians(45), 4, "Z"))
 
 
 # --- D 5: the asteroid ---------------------------------------------------------------------------
@@ -399,7 +382,6 @@ def fire_flap_l_bottom():
 E = kit.ENEMIES
 MODELS = [
     ("desert_rock_tip", desert_rock_tip, [("3", 180, False)], E),
-    ("dark_ember", dark_ember, [("L", 118, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),

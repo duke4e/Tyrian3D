@@ -1,15 +1,9 @@
 """Enemies of wave 3, batch R (sheet G), the creatures and ships of GRYPHON, GEM WAR, MARKERS, GYGES,
 MISTAKES and SOH JIN; modelled as their sprites look (models.cfg: yaw=0). The grey machines on TORM's
 leaves are in wave3_r.py.
-(GRYPHON's blue orb tower, orb_tower (G 201), is built by polish_orb_tower.py.)
+(GRYPHON's blue orb tower, orb_tower (G 201), is built by polish_orb_tower.py, GEM WAR's blue chevron (G 163) by
+polish_blue_chevron.py and GYGES' violet pincer (G 121) by polish_violet_pincer.py.)
 
-- blue_chevron (G 163): GEM WAR's and MARKERS' blue chevron rising from the bottom of the screen (enemy
-  809): an armoured arrowhead pointing up the screen, two shoulder plates with pale rims, two red eyes
-  glowing in the crease under them, broad plates sweeping down to red-tipped wings and a notch between
-  them.
-- violet_pincer (G 121): GYGES' and MISTAKES' violet pincer (enemy 184): a glossy violet ball of a head
-  and two arms of three jointed segments hanging from it in an arch, ending in golden fangs curving in
-  (its frames close the arms a little and brighten the head).
 - tusk_beetle (G 49): SOH JIN's and MISTAKES' golden beetle (enemy 778): a ridged carapace, two horns
   sweeping up and out from its shoulders, a leaf-shaped plate on each side and two long tusks curving
   down round an open ring under it (its frames close the tusks a little).
@@ -61,92 +55,6 @@ def painter(g, keep, bands, origin=(12, 14), wall_drop=2.0, under=None, blur=1, 
 
 
 # --- G 201: the orb tower ---------------------------------------------------------------------------
-
-# --- G 163: the blue chevron ---------------------------------------------------------------------------
-
-@r.model("blue_chevron", [(163, True)])
-def blue_chevron():
-    """An armoured blue arrowhead pointing up the screen: two shoulder plates with pale rims,
-    two red eyes glowing in the crease under them, broad plates sweeping down to red-tipped wings, a
-    notch between them."""
-    g = w.grid(art.CHEVRON, 24)
-    bands = ramp_bands("chevron", 3, [1, 3, 5, 7, 9, 0xb, 0xd], metallic=0.25, roughness=0.32)
-    tan_light = pal("chevron_rim", 0x8a, metallic=0.3, roughness=0.3)
-    eye = pal("chevron_eye", 0x74, metallic=0.1, roughness=0.15, glow=1.0)
-    eye_hot = pal("chevron_eye_hot", 0x77, metallic=0.0, roughness=0.1, glow=1.5)
-    tip = pal("chevron_tip", 0x75, metallic=0.1, roughness=0.2, glow=1.0)
-    paint = painter(g, lambda v: v >> 4 == 3, bands, lift=0.8)
-
-    rows = w.regions(g, lambda v, c, row: "b")
-
-    # The plates: a ridge down the middle, the shoulders and the wings' plates as soft bulges.
-    def shape(x, y, z):
-        ax = abs(x)
-        ridge = 1.6 * math.exp(-(ax / 2.2) ** 2) * r.smoothstep(-8.0, 6.0, y)
-        shoulder = 1.4 * math.exp(-(((ax - 4.2) / 2.4) ** 2 + ((y - 3.0) / 2.2) ** 2))
-        wing = 1.1 * math.exp(-(((ax - 6.5) / 3.4) ** 2 + ((y + 4.5) / 2.6) ** 2))
-        crease = -0.9 * math.exp(-((y - 0.2) / 0.6) ** 2) * r.smoothstep(1.0, 3.0, ax)
-        return z + ridge + shoulder + wing + crease
-    body = r.inflated("body", rows, "b", bands[3][1], sh.round_profile(0.55, max_height=4.6, min_height=1.2),
-                      grow=0.1, z_fn=shape, spacing=0.5, bottom=0.35)
-    w.paint_faces(body, paint)
-    # The light rims along the shoulders' upper edges (row 8, ramp 8: pale cyan in the levels' palette).
-    for sgn in (-1, 1):
-        rim = [(sgn * 6.0, py(9.3), 0.0), (sgn * 3.9, py(8.4), 0.0), (sgn * 1.4, py(7.6), 0.0)]
-        rim = [(x, y, sh.surface_z(body, x, y, 3.0) + 0.1) for x, y, _ in rim]
-        w.tube(f"rim{sgn}", w.catmull(rim, 0.5), 0.55, tan_light, 8, squash=0.7)
-    # The eyes slanting in the crease and the wings' red tips.
-    for sgn in (-1, 1):
-        x = sgn * 3.0
-        e = w.sphere(f"eye{sgn}", (0, 0, 0), (0.95, 1.8, 0.8), eye, 14, 7)
-        e.data.transform(Matrix.Translation((x, py(15.0), sh.surface_z(body, x, py(15.0), 3.0) - 0.1)) @
-                         Matrix.Rotation(math.radians(30 * sgn), 4, "Z"))
-        e2 = w.sphere(f"eye_hot{sgn}", (0, 0, 0), (0.45, 0.9, 0.4), eye_hot, 10, 5)
-        e2.data.transform(Matrix.Translation((x, py(15.0), sh.surface_z(body, x, py(15.0), 3.0) + 0.45)) @
-                          Matrix.Rotation(math.radians(30 * sgn), 4, "Z"))
-        w.lathe_axis(f"tip{sgn}", [(0.0, 1.1), (0.8, 1.0), (1.6, 0.6), (2.0, 0.01)], tip,
-                     (sgn * 10.2, py(24.6), 1.3), (sgn * 0.6, -0.8, -0.1), 12)
-    r.budget(4800, floor=600)
-
-
-# --- G 121: the violet pincer ---------------------------------------------------------------------------
-
-@r.model("violet_pincer", [(121, True)])
-def violet_pincer():
-    """A glossy violet ball of a head; from its lower sides two arms of jointed segments hang in an arch,
-    each ending in a golden fang that curves in."""
-    skin = pal("pincer_skin", 0x57, metallic=0.3, roughness=0.3)
-    skin_light = pal("pincer_skin_light", 0x58, metallic=0.3, roughness=0.28)
-    joint = pal("pincer_joint", 0x54, metallic=0.2, roughness=0.4)
-    head = pal("pincer_head", 0x56, metallic=0.35, roughness=0.2)
-    head_hot = pal("pincer_head_hot", 0x5e, metallic=0.1, roughness=0.15, glow=0.4)
-    gold = pal("pincer_gold", 0x1b, metallic=0.6, roughness=0.25)
-    axis = 0.5
-
-    def pod(name, centre, radii, angle, mat, segments=20):
-        """An ellipsoid turned by angle (degrees) about Z at centre."""
-        obj = w.sphere(name, (0, 0, 0), radii, mat, segments, segments // 2)
-        obj.data.transform(Matrix.Translation(centre) @ Matrix.Rotation(math.radians(angle), 4, "Z"))
-        return obj
-
-    # The head, its highlight glowing a little.
-    hx, hy = axis, py(4.4)
-    w.sphere("head", (hx, hy, 7.2), (5.6, 5.0, 4.9), head, 26, 13)
-    w.sphere("head_hot", (hx - 1.3, hy + 1.1, 10.9), (2.0, 1.7, 1.2), head_hot, 14, 7)
-    # The arms: an upper and a lower segment down each side, joints between, the fangs at their ends.
-    for s_ in (-1, 1):
-        def X(dx):
-            return axis + s_ * dx
-        pod(f"upper{s_}", (X(5.0), py(11.6), 5.4), (3.3, 4.2, 2.8), s_ * 40, skin_light)
-        w.sphere(f"elbow{s_}", (X(7.0), py(14.6), 4.4), (1.9, 1.6, 1.7), joint, 14, 7)
-        pod(f"lower{s_}", (X(7.8), py(17.2), 4.0), (3.8, 3.7, 2.9), s_ * 10, skin)
-        w.sphere(f"wrist{s_}", (X(7.8), py(19.8), 3.2), (2.2, 1.6, 1.8), joint, 14, 7)
-        # The fang: down from the wrist, curving in to its point.
-        path = [(X(8.2), py(19.8), 3.2), (X(8.5), py(22.0), 2.6), (X(7.6), py(24.2), 1.8), (X(5.4), py(25.6), 1.2),
-                (X(3.6), py(26.0), 1.0)]
-        pts = w.catmull(path, 0.45)
-        w.tube(f"fang{s_}", pts, [2.2 * (1.0 - i / (len(pts) - 1)) ** 0.8 + 0.15 for i in range(len(pts))], gold, 12)
-    r.budget(4800, floor=600)
 
 # --- G 49: the tusked beetle ----------------------------------------------------------------------------
 

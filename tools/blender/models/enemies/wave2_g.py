@@ -11,15 +11,13 @@
   frame of two rails.
 - warp_orb (sheet P 85): the swirling fire orb that leads to a secret level; its frames brighten it
   (glow option).
-- stone_plant (sheet J 1): the grey stone plant of TORM, BOTANY B and BONUS, standing on the ground:
-  a bud on a stalk, a round bulb, leaves and a small bud at the side.
+- stone_plant: now built by polish_stone_plant.py.
 - pipe_arm_2 (sheet 4 269): the second of the four pieces of the brown pipe arm of TYRIAN's boss
   (4 267-273); the whole arm is built and cut (origin).
 - hatch_ship (sheet S 93): the grey shield-shaped ship of the asteroid levels, a hatch in its middle
   opening on a red eye (frames 93, 131), red lights at its corners and a blue canopy at its tip.
 - lava_star: now built by polish_lava_star.py.
-- pink_torpedo_front, pink_torpedo_rear (sheet 8 125, 8 127): the two halves of the pink torpedo of
-  IXMUCANE and SAWBLADES lying on its side, its muzzle glowing at the front (origin).
+- pink_torpedo_front, pink_torpedo_rear: now built by polish_pink_torpedo.py.
 - horseshoe: now built by polish_horseshoe.py.
 - gem_bud: now built by polish_gem_bud.py.
 - bomb_pickup (coins sheet 89): the pick-up of a super bomb: the word BOMB in glowing orange
@@ -32,7 +30,7 @@ to keep the models light.
 
 usage: Blender -b --factory-startup -P wave2_g.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       Blender -b --factory-startup -P wave2_g.py -- --whole torpedo|pipe_arm --preview <prefix>
+       Blender -b --factory-startup -P wave2_g.py -- --whole pipe_arm --preview <prefix>
 --preview renders <prefix><name>_top.png and _3q.png; --check prints each model's silhouette overlap
 with its sprite; --stats prints the triangles per part; --whole renders a whole object the game
 draws in pieces (the pieces are cut from it) instead of exporting.
@@ -492,83 +490,6 @@ def hatch_ship():
     for x in (-7.5, 7.5):
         k.smooth(k.ellipsoid(f"lamp{x}", (x, 10.9, 3.35), (1.05, 1.0, 0.6), lamp, 12, 6), 60)
     k.smooth(k.ellipsoid("canopy", (0.0, -7.9, 4.1), (1.9, 3.3, 1.6), blue, 20, 12), 60)
-
-
-# --- 8 125 / 8 127: the pink torpedo ---------------------------------------------------------------
-
-def build_torpedo():
-    """The whole torpedo, 48 x 28 pixels, centred on its middle (the halves' common edge): it lies
-    along the screen's x, its glowing muzzle to the left, a grey barrel with a tan hatch, a brown
-    collar with armour fins reaching up and down the screen (pink tips), and a bulbous pink body
-    with two glowing red slits, narrowing to the right. Flat underneath (it lies on the ground)."""
-    grey = pal("torpedo_grey", 0x09, metallic=0.6, roughness=0.3)
-    hatch = pal("torpedo_hatch", 0x14, metallic=0.4, roughness=0.5)
-    hatch_rim = pal("torpedo_hatch_rim", 0x41, metallic=0.4, roughness=0.6)
-    collar = pal("torpedo_collar", 0xa5, metallic=0.5, roughness=0.4)
-    armour = pal("torpedo_armour", 0x15, metallic=0.5, roughness=0.4)
-    pink = pal("torpedo_pink", 0x48, metallic=0.35, roughness=0.35)
-    tip = pal("torpedo_tip", 0x4a, metallic=0.35, roughness=0.3)
-    red = pal("torpedo_red", 0x75, metallic=0.1, roughness=0.3, glow=0.7)
-    hot = pal("torpedo_hot", 0x7b, metallic=0.0, roughness=0.3, glow=1.2)
-    slit = pal("torpedo_slit", 0x78, metallic=0.0, roughness=0.3, glow=1.0)
-    axis_y, squash = 2.5, 0.62
-    axis_z = 3.2
-    body = [(-18.2, 6.4), (-17.6, 6.6), (-7.0, 6.6), (-4.6, 7.1), (-2.5, 7.5), (0.0, 8.3), (3.0, 9.3), (5.0, 9.6),
-            (10.0, 9.6),
-            (14.5, 9.0), (17.5, 7.8), (20.0, 6.2), (22.0, 4.6), (23.3, 3.0), (23.9, 0.01)]
-    hull = lathe_x("hull", [(-18.4, 0.01)] + k.profile(body, 0.7), grey, 28, y=axis_y, z=axis_z, squash=squash)
-    sh.paint_x(hull, [(-4.4, 30.0, pink)])
-    k.smooth(hull, 50)
-    # The muzzle: a glowing cap with a hot core.
-    k.smooth(lathe_x("muzzle", [(-21.6, 3.6), (-21.3, 4.5), (-19.5, 4.7), (-18.0, 4.4)], red, 24, y=axis_y - 0.6,
-                     z=axis_z, squash=0.8), 50)
-    k.smooth(lathe_x("muzzle_core", [(-24.0, 0.01), (-23.9, 1.8), (-23.4, 3.0), (-22.4, 3.8), (-21.0, 4.0),
-                                     (-20.0, 3.6)], hot, 24, y=axis_y - 0.6, z=axis_z, squash=0.85), 50)
-    for side in (-1, 1):  # the pink lips round the muzzle
-        k.smooth(k.ellipsoid(f"lip{side}", (-19.8, axis_y - 0.6 + side * 4.4, axis_z), (1.5, 0.9, 1.3), pink, 12, 6),
-                 60)
-    # The tan hatch on the barrel.
-    top = axis_z + 6.6 * squash
-    k.smooth(simplify_bottom(sh.inflate("hatch_rim", [rounded_rect(-17.2, 0.4, -9.8, 4.6, 0.6)], hatch_rim,
-                                        sh.pillow_profile(0.5, 0.3), bottom=0.0, base=top - 0.6, spacing=0.5)), 40)
-    k.smooth(simplify_bottom(sh.inflate("hatch", [rounded_rect(-16.4, 1.1, -10.6, 3.9, 0.4)], hatch,
-                                        sh.pillow_profile(0.55, 0.3), bottom=0.0, base=top - 0.45, spacing=0.5)), 40)
-    # The collar and its armour fins (pink tips).
-    k.smooth(lathe_x("collar", [(-7.2, 6.4), (-7.0, 7.0), (-4.6, 7.4), (-4.3, 7.1)], collar, 32, y=axis_y, z=axis_z,
-                     squash=squash), 50)
-    for side in (-1, 1):
-        y0 = axis_y + side * 5.0
-        y1 = axis_y + side * 10.1
-        poly = [(-11.6, y0), (-0.3, y0), (-0.3, y1 - side * 0.6), (-1.3, y1), (-6.2, y1), (-9.6, y0 + side * 2.4)]
-        fin = sh.inflate(f"fin{side}", [poly], armour, sh.pillow_profile(1.5, 0.6, crown=0.3), bottom=1.0,
-                         base=axis_z + 1.2, spacing=0.6)
-        k.smooth(fin, 40)
-        k.smooth(k.ellipsoid(f"fin_tip{side}", (-4.5, axis_y + side * 10.3, axis_z + 0.6), (2.3, 1.6, 1.3), tip,
-                             16, 8), 60)
-    # A raised segment round the pink body, which the slits cut through, and a seam behind it.
-    k.smooth(lathe_x("segment", [(2.6, 9.0), (3.2, 9.95), (8.3, 9.95), (8.9, 9.3)], tip, 40, y=axis_y, z=axis_z,
-                     squash=squash), 50)
-    k.smooth(lathe_x("seam", [(13.6, 8.9), (14.0, 9.35), (14.8, 9.2), (15.2, 8.7)], tip, 40, y=axis_y, z=axis_z,
-                     squash=squash), 50)
-    # The glowing slits on the pink body.
-    for x in (4.5, 6.5):
-        z = axis_z + 9.95 * squash
-        k.smooth(k.ellipsoid(f"slit{x}", (x, axis_y + 0.4, z - 0.3), (0.55, 3.2, 0.6), slit, 12, 8), 60)
-    return sh.flat_bottom(scene_objects())
-
-
-def torpedo_half(left):
-    objects = build_torpedo()
-    x0, x1 = (-24.0, 0.0) if left else (0.0, 24.0)
-    kept = sh.cut_box(objects, x0, x1, -14.0, 14.0)
-    sh.move(kept, -(x0 + 12.0), 0.0)
-    for obj in kept:
-        k.smooth(obj, 50)
-
-
-WHOLES["torpedo"] = (build_torpedo, (48, 28))
-model("pink_torpedo_front", "8", 125)(lambda: torpedo_half(True))
-model("pink_torpedo_rear", "8", 127)(lambda: torpedo_half(False))
 
 
 # --- 4 269: a piece of the boss's pipe arm --------------------------------------------------------

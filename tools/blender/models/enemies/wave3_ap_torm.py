@@ -1,10 +1,7 @@
-"""Batch AP of wave 3 (sheet J): the damaged looks of TORM's and BONUS' grey machines on the foliage: the stone plant
-(wave2_g.py), the field gun's barrel and the lens pad (wave3_m_ground.py), modelled as the sprites look (models.cfg:
+"""Batch AP of wave 3 (sheet J): the damaged looks of TORM's and BONUS' grey machines on the foliage: the field gun's
+barrel and the lens pad (wave3_m_ground.py), modelled as the sprites look (models.cfg:
 yaw=0). The kit is wave3_ap_kit.py, the pixels wave3_ap_art.py (J1_DMG, J77_DMG, CANNON_DMG).
 
-- stone_plant_damaged (J 3; the dgr of J 1, enemy 750, dlevel 3): wave2_g's stone plant with its bud shot off the
-  stalk (a broken ring left on its top), red-hot cracks down the stalk's foot and through the bulb (stand-alone,
-  as stone_plant).
 - field_gun_barrel_damaged (J 273; of J 89, enemy 764, dlevel -1: it stays so): wave3_m_ground's whole field gun
   (gun_whole), its barrel burnt and torn open along its top where the red lights were, its red tip blackened and
   broken, cut as field_gun_barrel is (origin); the breech and the mount (127, 129) keep their sprites.
@@ -22,7 +19,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_ap_kit as kit  # noqa: E402
 from wave3_ap_kit import k, w, pal, Painter, Frame  # noqa: E402
 
-plants = kit.load("wave2_g")
 ground = kit.load("wave3_m_ground")
 J = ground.J
 kit.forget(w.MODELS, w.WHOLES)
@@ -33,32 +29,6 @@ def painter(prefix):
                    finish={7: (0.1, 0.4), 0xc: (0.1, 0.1)},
                    glow={0x73: 0.5, 0x74: 0.8, 0x75: 1.0, 0x76: 1.2, 0x77: 1.4, 0xc4: 0.6, 0xc5: 0.8, 0xc7: 1.0,
                          0xc9: 1.2})
-
-
-# --- J 1 -> 3: the stone plant ------------------------------------------------------------------------------------
-
-@w.model("stone_plant_damaged", [(J, 3, True)])
-def stone_plant_damaged():
-    plants.stone_plant()
-    w.bake()
-    f = kit.frame("J1_DMG", 24, (12, 14))
-    dmg = kit.Damage(Frame(plants.art.J1, 24, (12, 14)), f)
-    p = painter("plant_dmg")
-    # The bud (its round lobe and its petal) shot off: a broken ring on the stalk's top; the stalk snapped there.
-    kit.remove(["part_h", "part_p"])
-    kit.delete_over(kit.named("base"), lambda x, y: dmg.gone(x, y) or (y > 3.6 and x < 0.0),
-                    any_vertex=True)
-    kit.delete_over([o for o in w.meshes() if not o.name.startswith(("base", "stalk"))], dmg.gone)
-    for obj in kit.named("stalk"):
-        kit.jag(obj, (-4.6, 4.2, 5.8), (0.0, 0.6, 0.8), 1.4, scale=0.7, seed=1.0)
-    kit.remnant("stump", f, lambda c, r: r <= 13 and c <= 11 and f.get(c, r) is not None and
-                (r <= 12 or c <= 10), 3.6, 2.4, p, edge=0.8, crumple=0.5, seed=2.0)
-    parts = [o for o in w.meshes() if not o.name.startswith("stump")]
-    kit.repaint(parts, dmg, p, walls=2, blur=0, soot=1, soot_radius=1.2, soot_chance=0.6)
-    kit.sink(parts, dmg, 0.8, min_z=0.5, seed=3.0, min_nz=0.2)
-    for obj in w.meshes():
-        k.smooth(obj, 60)
-    kit.budget(4800)
 
 
 # --- J 89 -> 273: the field gun's barrel ----------------------------------------------------------------------------
