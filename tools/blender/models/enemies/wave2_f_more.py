@@ -2,13 +2,10 @@
 (models.cfg: yaw=0). Larger objects the game draws from several sprites are built whole and cut
 into the sprites' pieces, which are drawn at their own origins (models.cfg: origin) so they meet (the drilling
 machine, V 1 above V 39, is built by polish_drillrig.py, the arch, 2 49 beside 2 51, by polish_arch.py, the big asteroid, D 7 9 / 45 47, by
-polish_asteroids.py):
+polish_asteroids.py, the pod dome, C 163, by polish_pod_dome.py):
 
 - grabber_left, grabber_right (sheet 2 123, 2 125): the grey grabber of TYRIAN and FLEET with a
   glowing blue bar down its neck and two hooked legs, standing on the ground.
-- pod_dome (sheet C 163): the ground relative of DELI's flying pod machine (pod_turret, C 191, is built by
-  polish_pod_turret.py): a blue double dome, the two pods and the grey
-  gun pointing down the screen with blue lights at its muzzle.
 
 usage: blender -b --factory-startup -P wave2_f_more.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole <prefix>]
@@ -148,64 +145,6 @@ def grabber_right():
     grabber_whole()
     w.bake()
     w.piece(w.meshes(), 0, 24, -14, 14)
-
-
-# --- The pod machines (sheet C 191 and C 163) -----------------------------------------------------
-
-def pod_parts(prefix, flip, mats):
-    """What the two machines share: two blue-grey pods either side with dark bores, and the grey gun
-    housing along the middle with two dark slots, pointing up the screen (flip 1) or down (-1)."""
-    px, py = w.px, w.py
-    pod, rim, grey, light, dark = mats
-    # The pods: short cylinders standing up out of the hull, leaning outwards and towards the gun's end.
-    for side in (-1, 1):
-        base = Vector((side * 7.0, 0.0, 1.0))
-        axis = Vector((side * 0.35, flip * 0.45, 1.0)).normalized()
-        w.lathe_axis(f"{prefix}pod{side}", [(0.0, 3.6), (4.2, 3.6), (4.5, 3.3), (4.6, 0.01)], pod, base, axis, 24)
-        w.lathe_axis(f"{prefix}pod_rim{side}", [(0.0, 3.3), (0.3, 3.95), (0.9, 3.95), (1.2, 3.4)], rim,
-                     base + axis * 3.6, axis, 24)
-        w.lathe_axis(f"{prefix}pod_bore{side}", [(0.0, 0.01), (0.05, 2.1), (0.6, 2.1), (0.65, 0.01)], dark,
-                     base + axis * 4.3, axis, 16)
-        w.lathe_axis(f"{prefix}pod_band{side}", [(0.0, 3.55), (0.2, 3.85), (0.8, 3.85), (1.0, 3.55)], rim,
-                     base + axis * 1.2, axis, 24)
-    # The gun housing: a grey cylinder along the middle with a rounded end and slots on top.
-    end = py(3) if flip > 0 else py(24.6)
-    start = py(12.5) if flip > 0 else py(13.5)
-    length = abs(end - start)
-    w.lathe_axis(f"{prefix}gun", [(0.0, 3.8), (length - 2.6, 4.1), (length - 1.2, 3.6), (length - 0.3, 2.4),
-                                  (length, 0.01)], grey, (0.0, start, 4.4), (0, flip, 0), 24, squash=0.95)
-    for i, x in enumerate((-1.7, 1.7)):
-        y = (start + end) / 2 - flip * 0.8
-        w.rounded_box(f"{prefix}slot{i}", (x, y, 8.15), (1.9, length * 0.6, 1.0), dark, bevel=0.35)
-    w.lathe_axis(f"{prefix}gun_collar", [(0.0, 4.1), (0.3, 4.5), (1.4, 4.5), (1.7, 4.1)], light,
-                 (0.0, start + flip * 0.4, 4.4), (0, flip, 0), 24, squash=0.95)
-
-
-def pod_materials(prefix):
-    return (pal(prefix + "_pod", 106, metallic=0.55, roughness=0.3), pal(prefix + "_podrim", 108, metallic=0.55,
-                                                                        roughness=0.25),
-            pal(prefix + "_grey", 8, metallic=0.65, roughness=0.3), pal(prefix + "_greylight", 9, metallic=0.65,
-                                                                       roughness=0.25),
-            pal(prefix + "_dark", 1, metallic=0.4, roughness=0.6))
-
-
-@model("pod_dome", "enemy_C", 163)
-def pod_dome():
-    """The pod machine on the ground: a blue double dome at the top, a blue-grey band across the
-    middle carrying the two pods, and the grey gun pointing down the screen, two blue lights at its
-    muzzle."""
-    px, py = w.px, w.py
-    mats = pod_materials("podd")
-    blue = pal("podd_blue", 56, metallic=0.4, roughness=0.28)
-    band = mats[1]
-    light = pal("podd_light", 59, roughness=0.2, glow=1.5, emission=(80, 160, 255))
-    for side in (-1, 1):
-        k.smooth(k.ellipsoid(f"dome{side}", (side * 5.8, py(5.8), 0.0), (6.3, 4.9, 6.4), blue, 32, 14), 60)
-    w.rounded_box("band", (0.0, py(11.8), 2.8), (23.4, 4.2, 5.4), band, bevel=1.4)
-    pod_parts("", -1, mats)
-    for x in (-1.5, 1.5):
-        w.sphere(f"muzzle_light{x}", (x, py(25.6), 4.0), (0.8, 0.9, 0.8), light, 12, 6)
-    sh.flat_bottom(w.meshes())
 
 
 # --- Main ----------------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Batch AT of wave 3 (the second animation pass): four more objects whose frames change shape, for frame lines, each
+"""Batch AT of wave 3 (the second animation pass): three more objects whose frames change shape, for frame lines, each
 built by its own script's builder (imported as it is, its output unchanged) and posed as the frames draw it
 (models.cfg: as the first frame's models, yaw=0).
 
@@ -6,11 +6,6 @@ built by its own script's builder (imported as it is, its output unchanged) and 
   slide apart on its red eye and shut again, 164 162 160 160 160 162 162 162 162 164. wave3_l's hatch has them nearly
   shut on a slit, as 164 draws them; 162 has them half open (the eye 6 pixels tall between them), 160 drawn back to
   thin rims at the socket's edge, the whole eye glowing brighter.
-- maze_pipe_cage_<sprite> (sheet S: 115, 117, 119, 121, 123; enemies 589 of MINEMAZE and GAUNTLET, maze_pipe_cage;
-  wave3_u.py): the red core in the pipe's cage swells and shrinks, 115 115 117 117 119 119 121 121 123 123 121 ...
-  117: wave3_u's pipe (built whole and cut as maze_pipe_cage is) with its core as each frame draws it: 115 none (a
-  dark plug sunk in its rim; a frame line on 115 itself, since wave3_u's core is half grown), then a dull red
-  blister growing and brightening to a glowing dome over the rim (123).
 - ice_drill_arm_<sprite> (sheet 7: 205, 203; enemy 86 of CAMANIS, ice_drill_arm; wave3_ac_ice.py): the arm pulls in
   when it launches, 207 205 203 205 207: the knuckle, the grey head with its band, point and bracket slide up the
   screen 2 and 3 pixels, the thin rod behind them sliding into the flange.
@@ -35,7 +30,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_at_kit as kit  # noqa: E402
 
 wl = kit.quiet_import("wave3_l")
-wu = kit.quiet_import("wave3_u")
 wa = kit.quiet_import("wave3_ac_ice")
 wz = kit.quiet_import("wave3_z_rock")
 kit.forget()
@@ -81,45 +75,6 @@ HATCH = {162: (2.6, 1.6, 1.5, (0x77, 1.7), ((0x7b, 2.2), (2.8, 1.4, 0.9))),
          160: (3.9, 1.3, 1.0, (0x78, 2.0), ((0x7c, 2.6), (3.2, 1.9, 1.0)))}
 for s, args in HATCH.items():
     lk.model(f"eye_hatch_{s}", s)(lambda args=args: eye_hatch(*args))
-
-
-# --- Sheet S: the core in the pipe's cage ------------------------------------------------------------------------
-
-CAGE_X = 12.0         # the caged segment's middle in the whole pipe (wave3_u's cage_segment(m, 12.0))
-
-
-def pipe_cage(radii, mat, hot):
-    """wave3_u's whole pipe with its core as a frame draws it (radii; its material's (index, glow); a hotter heart's
-    (index, glow) or None), cut as maze_pipe_cage is."""
-    objects = wu.pipe_whole()
-    core = bpy.data.objects["core"]
-    zs = [v.co.z for v in core.data.vertices]
-    centre_z = (min(zs) + max(zs)) / 2            # wave3_u's core centre (the crest's top less 1.2)
-    objects = [o for o in objects if o.name != "core"]
-    kit.remove(["core"])
-    ci, cg = mat
-    m = pal(f"mp_core_{ci:x}_{int((cg or 0) * 10)}", ci, metallic=0.1 if cg else 0.3, roughness=0.25 if cg else 0.5,
-            glow=cg)
-    # Under 300 triangles, so that the triangle budget leaves it smooth.
-    objects.append(w.sphere("core", (CAGE_X, wu.PIPE_Y, centre_z), radii, m, 18, 8))
-    if hot:
-        hi, hg = hot
-        hm = pal(f"mp_core_hot_{hi:x}_{int(hg * 10)}", hi, metallic=0.0, roughness=0.2, glow=hg)
-        objects.append(w.sphere("core_hot", (CAGE_X - 0.6, wu.PIPE_Y + 1.0, centre_z + radii[2] - 0.35),
-                                (radii[0] * 0.45, radii[1] * 0.4, 0.5), hm, 16, 6))
-    wu.u.cut(objects, (CAGE_X - 12.0, CAGE_X + 12.0, -14.0, 14.0), (CAGE_X, 0.0))
-    wu.u.budget(4800)
-
-
-# (sprite: the core's radii, its material, its hot heart) -- the frames' red grows from nothing (115) to a lump about
-# 4, 6, 8 and 9 pixels across, its reds from 40-42 (dull) to 49-4f (bright).
-CAGE = {115: ((3.2, 4.2, 0.5), (0x40, None), None),
-        117: ((2.6, 3.5, 1.5), (0x42, 0.45), None),
-        119: ((3.1, 4.1, 2.3), (0x45, 0.8), None),
-        121: ((3.5, 4.6, 3.0), (0x47, 1.3), (0x4a, 1.6)),
-        123: ((3.9, 5.2, 3.8), (0x49, 1.8), (0x4d, 2.3))}
-for s, args in CAGE.items():
-    wu.u.model(f"maze_pipe_cage_{s}", [(s, True)])(lambda args=args: pipe_cage(*args))
 
 
 # --- Sheet 7: the drill's arm pulling in --------------------------------------------------------------------------

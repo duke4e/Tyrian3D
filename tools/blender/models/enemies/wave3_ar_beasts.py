@@ -11,10 +11,6 @@ frame's models, yaw=0).
   with 17, 55, 93, 131. wave3_k.py's airship has two white blades in the fan's duct (40 and 140 degrees round it);
   the frames show four blades in other places (about 20, 65, 115 and 160 degrees), which the models here have
   (wave3_k's two blades turned and copied), the rest as wave3_k builds it, cut into the same pieces.
-- hatch_bunker_<sprite> (sheet 3, DESERTRUN's bunker, 3 18; wave3_n.py): when it fires, its hatch's two doors slide
-  open on a sensor with a red eye and close again, 18 56 94 284 94 56 18. wave3_n.py's bunker (hatch_bunker) is 284,
-  the doors drawn back under the frame; the models here are 18 (the doors shut, meeting in the middle, the sensor
-  down under them), 56 and 94 (the doors part way open), grey doors with a diagonal rib as the sprites draw them.
 - lava_bubble_<sprite> (sheet 3, CORE's lava bubble, 3 128; wave3_n.py): it wobbles, 128 130 132 130, the bubble
   swelling a pixel (130) and the lava splashed round its foot moving (130, 132): wave3_n's bubble with the splashes
   where those frames draw them (its builder fed their pixels), swollen for 130.
@@ -39,7 +35,6 @@ zk = kit.quiet_import("wave3_k")
 kit.forget()
 n = kit.n
 w = kit.w
-pal = kit.pal
 
 
 def objects(prefix):
@@ -90,54 +85,6 @@ def zeppelin_fan():
 # Same boxes as I 3, 5, 41 and 43 (wave3_k.ZEPPELIN_PIECES).
 ZEP_FRAMES = {3: 17, 5: 55, 41: 93, 43: 131}
 ZEP_PIECES = [(ZEP_FRAMES[s], x0, x1, y0, y1) for s, x0, x1, y0, y1 in zk.ZEPPELIN_PIECES if s in ZEP_FRAMES]
-
-
-# --- DESERTRUN's hatch bunker -------------------------------------------------------------------------------------
-
-HATCH_TOP, HATCH_BOTTOM = 10.0, -7.0   # the hatch's north and south edges (inside the red frame)
-DOOR_Z = nb.HATCH_DOOR_Z               # as wave3_n's doors: under the frame
-
-
-def hatch_bunker(north_end, south_end, shut):
-    """wave3_n's bunker (the hatch on its collar) with its doors as a frame draws them: the north door from the
-    hatch's north edge down to north_end, the south one from south_end down to the south edge (they meet at 0.5 when
-    shut); when shut, the sensor is down under the doors, unseen: left out (lowered, it would reach below the ground,
-    and the game lifts a model by what reaches below it). The bunker is first made light exactly as wave3_n's build
-    loop makes it (baked, the triangle budget), so that its parts are the same as hatch_bunker's; the new doors cost
-    fewer triangles than the old ones, so that the loop's budget leaves them alone."""
-    nb.hatch_bunker()
-    w.bake()
-    n.budget()
-    for name in ("door_n", "door_s"):
-        bpy.data.objects.remove(bpy.data.objects[name])
-    if shut:
-        for name in ("collar", "strut-1", "strut1", "dome", "eye", "eye_core"):
-            bpy.data.objects.remove(bpy.data.objects[name])
-    door = pal("bunker_door_lid", 0x04, metallic=0.4, roughness=0.45)
-    door_edge = pal("bunker_door", 0x02, metallic=0.5, roughness=0.4)
-    rib = pal("bunker_door_rib", 0x05, metallic=0.4, roughness=0.4)
-    x0, x1 = -7.8, 6.4
-    for name, y0, y1 in (("lid_n", north_end, HATCH_TOP + 0.4), ("lid_s", HATCH_BOTTOM - 0.4, south_end)):
-        depth = y1 - y0
-        lid = w.rounded_box(name, ((x0 + x1) / 2, (y0 + y1) / 2, DOOR_Z), (x1 - x0, depth, 0.8), door, bevel=0.25,
-                            segments=1)
-        kit.sh.apply_modifiers(lid)
-        w.paint_faces(lid, lambda c, nrm: door if nrm.z > 0.7 else door_edge)
-        # A diagonal rib across the door's visible part (the sprites' light diagonal), up to the right.
-        ya, yb = (y0 + 0.6, min(y1, HATCH_TOP) - 0.6) if name == "lid_n" else (max(y0, HATCH_BOTTOM) + 0.6, y1 - 0.6)
-        if yb - ya > 0.8:
-            slope = 0.55
-            span = (yb - ya) / slope
-            xa = max(x0 + 1.0, (x0 + x1) / 2 - span / 2)
-            xb = min(x1 - 1.0, xa + span)
-            w.tube(f"{name}_rib", [(xa, ya, DOOR_Z + 0.45), (xb, ya + (xb - xa) * slope, DOOR_Z + 0.45)], 0.32, rib,
-                   segments=8, squash=0.6)
-
-
-HATCH = {18: (0.5, 0.5, True), 56: (3.0, -2.0, False), 94: (5.0, -4.0, False)}
-for sprite, (ne, se, shut) in HATCH.items():
-    n.model(f"hatch_bunker_{sprite}", mask=lambda sprite=sprite: kit.sheet_mask("enemy_3", sprite))(
-        lambda ne=ne, se=se, shut=shut: hatch_bunker(ne, se, shut))
 
 
 # --- CORE's lava bubble --------------------------------------------------------------------------------------------

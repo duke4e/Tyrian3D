@@ -1,11 +1,8 @@
 """Enemies of wave 3, batch N (sheet 3: SURFACE, DESERTRUN and CORE), the machines and ships; modelled
 as their sprites look (models.cfg: yaw=0 unless noted). The rock arch and the stepped pyramid are in
-wave3_n_rocks.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py.
+wave3_n_rocks.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py,
+DESERTRUN's hatch bunker (3 18) in polish_hatch_bunker.py.
 
-- hatch_bunker (3 18): the red-framed hatch in DESERTRUN's grey bunker roof; its frames (56, 94, 284)
-  slide the hatch's doors open on a grey sensor with a red eye and close them again. The model shows
-  it open, the doors drawn back under the frame, the eye glowing. The roof round it is the map's: the
-  model is the hatch on a low collar.
 - lava_bubble (3 128): CORE's glossy dark red bubble of lava on the ground, splashes round its foot
   (its frames 130 and 132 burst it).
 - plank_turret (3 12): SURFACE's brown turret, a box of planks with two guns; its eight frames are
@@ -33,67 +30,6 @@ from wave3_n_kit import art, k, sh, w, pal, px, py  # noqa: E402
 
 def mask_of(name, width):
     return lambda: n.art_mask(w.grid(getattr(art, name), width))
-
-
-# --- 3 18: the hatch bunker ----------------------------------------------------------------------
-
-HATCH_TOP = 1.8               # the collar's top round the hatch
-HATCH_DOOR_Z = HATCH_TOP - 0.8  # the doors' middle: under the frame
-
-
-@n.model("hatch_bunker", mask=mask_of("BUNKER", 24))
-def hatch_bunker():
-    """A hatch in the bunker's roof: a low grey collar round it, a red frame on the collar, the two
-    doors drawn back under the frame; in the hatch a grey sensor dome on a collar, raised, its big red
-    eye glowing. The roof round it is the map's (the sprite is the map's own pixels): not modelled."""
-    grey = pal("bunker_grey", 0x05, metallic=0.25, roughness=0.6)
-    grey_light = pal("bunker_grey_light", 0x07, metallic=0.25, roughness=0.55)
-    grey_dark = pal("bunker_grey_dark", 0x03, metallic=0.25, roughness=0.65)
-    red = pal("bunker_red", 0x48, metallic=0.35, roughness=0.4)
-    red_light = pal("bunker_red_light", 0x4b, metallic=0.35, roughness=0.35)
-    pit = pal("bunker_pit", 0x01, metallic=0.2, roughness=0.7)
-    door = pal("bunker_door", 0x02, metallic=0.5, roughness=0.4)
-    sensor = pal("bunker_sensor", 0x06, metallic=0.6, roughness=0.3)
-    sensor_light = pal("bunker_sensor_light", 0x09, metallic=0.6, roughness=0.25)
-    eye = pal("bunker_eye", 0x75, metallic=0.0, roughness=0.15, glow=1.1)
-    eye_core = pal("bunker_eye_core", 0x7b, metallic=0.0, roughness=0.1, glow=1.8)
-
-    # The collar: a low rim round the hatch (a hole), its outer edges rounded.
-    top = HATCH_TOP
-    outline = [(-9.9, 11.9), (-9.9, -8.9), (8.5, -8.9), (8.5, 11.9)]
-    hole = [(-8.0, 10.0), (6.6, 10.0), (6.6, -7.0), (-8.0, -7.0)]
-    housing = sh.inflate("housing", [outline, hole], grey, sh.pillow_profile(top - 0.2, 0.7), bottom=0.0,
-                         spacing=0.45, rim=0.3)
-    w.simplify_bottom(housing)
-    k.smooth(housing, 40)
-    w.paint_faces(housing, lambda c, nrm: grey_light if (nrm.y < -0.35 or nrm.x > 0.35) and nrm.z > 0.2 else
-                  grey_dark if (nrm.y > 0.35 or nrm.x < -0.35) and nrm.z < 0.5 and abs(c.x + 0.7) < 7.5 and
-                  -7.2 < c.y < 10.2 else None)
-    # The hatch: dark walls and floor, the doors drawn back under the frame (north and south).
-    w.rounded_box("pit_floor", (-0.7, 1.5, 0.25), (14.4, 16.8, 0.5), pit, bevel=0.15)
-    w.rounded_box("door_n", (-0.7, 8.9, HATCH_DOOR_Z), (14.2, 2.6, 0.7), door, bevel=0.25)
-    w.rounded_box("door_s", (-0.7, -5.8, HATCH_DOOR_Z), (14.2, 2.8, 0.7), door, bevel=0.25)
-    # The red frame round the hatch, its top lighter.
-    loop = [(-8.6, 10.6), (7.2, 10.6), (7.2, -7.6), (-8.6, -7.6)]
-    pts = []
-    for i in range(4):
-        a, b = Vector(loop[i]), Vector(loop[(i + 1) % 4])
-        for t in range(6):
-            p = a + (b - a) * (t / 6)
-            pts.append((p.x, p.y, top + 0.2))
-    pts.append(pts[0])
-    frame = w.tube("frame", pts, 0.85, red, 8, smooth_angle=50, squash=0.9)
-    w.paint_faces(frame, lambda c, nrm: red_light if nrm.z > 0.7 else None)
-    # The sensor: a collar, a grey dome, the red eye on its top.
-    cx, cy = px(11.5), py(12.2)
-    w.hoop("collar", (cx, cy, 1.5), [(3.0, -0.2), (4.6, -0.2), (4.8, 0.6), (4.0, 1.0), (3.0, 0.8)], sensor_light, 28)
-    for s in (-1, 1):
-        w.rounded_box(f"strut{s}", (cx + s * 4.6, cy - 1.6, 2.2), (1.4, 4.4, 2.2), sensor, bevel=0.35)
-    w.sphere("dome", (cx, cy, 1.4), (3.9, 3.7, 3.4), sensor, 24, 12)
-    w.sphere("eye", (cx, cy + 0.2, 3.4), (2.7, 2.6, 1.7), eye, 24, 12)
-    w.sphere("eye_core", (cx - 0.5, cy + 0.6, 4.8), (1.0, 1.0, 0.45), eye_core, 12, 6)
-    # Nothing below the roof (the game would lift the model by what reaches below it).
-    sh.flat_bottom(w.meshes())
 
 
 # --- 3 128: the lava bubble ----------------------------------------------------------------------

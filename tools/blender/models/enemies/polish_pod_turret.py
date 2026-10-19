@@ -24,7 +24,7 @@ built about x = 0 and its left parts mirrored. Origin at the sprite's centre (pi
 sprite, +Z towards the camera.
 
 Replaces wave2_f_more.py's pod_turret() (its @model registration): remove it so that it doesn't overwrite
-these models (pod_parts() and pod_materials() stay: pod_dome uses them).
+these models (pod_dome, C 163, is polish_pod_dome.py's, built from this script's parts).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouette
 against enemy_C.png: 191 as built, and 155 with the model turned round), --preview <prefix>.

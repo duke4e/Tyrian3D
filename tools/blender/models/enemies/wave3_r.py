@@ -1,14 +1,9 @@
 """Enemies of wave 3, batch R (sheet G: TORM, BOTANY A and B, BONUS), the grey machines on the foliage;
 modelled as their sprites look (models.cfg: yaw=0). Objects the game draws from several sprites are built
 whole and cut into their pieces, drawn at their own origins (origin) so they meet; the level files' enemy
-events say how the pieces are placed. The creatures and ships of sheet G are in wave3_r_beasts.py.
+events say how the pieces are placed. The creatures and ships of sheet G are in wave3_r_beasts.py; the bunker in the cliff
+(G 153 above 191) in polish_cliff_bunker.py.
 
-- cliff_bunker_top, cliff_bunker_base (G 153 above G 191): the bunker set into the foot of TORM's grey
-  cliffs (events: 758 = 153 at (x, y - 28), 759 = 191 at (x, y); the levels also put two side by side,
-  24 pixels apart): a grey housing on a casing, its framed window open on a red eye (its frames roll the
-  shutter up and light the eye: the model shows it open, the shutter rolled at the window's top, the eye
-  glowing), a support block, a grille of bars and a strut under it in the leaves. The cliff round it and
-  the leaves are the map's (the sprites carry a copy of them) and not modelled.
 - jaw_gun_a_left, jaw_gun_a_right (G 229 beside G 231) and jaw_gun_b_left, jaw_gun_b_right (G 267 beside
   G 269): the jawed guns lying in TORM's and BOTANY's leaves (events: 753 = 229 at (x, y), 754 = 231 at
   (x + 24, y); 756 = 267, 757 = 269 likewise): a long grey hull, a hooked cap at one end, a lens box and a
@@ -26,7 +21,7 @@ events say how the pieces are placed. The creatures and ships of sheet G are in 
   piece holds only the bits of the mount that reach into it.
 
 usage: Blender -b --factory-startup -P wave3_r.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole bunker|gun_a|gun_b|mortar --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole gun_a|gun_b|mortar --preview <prefix>]
 """
 import math
 import os
@@ -37,100 +32,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_r_kit as r  # noqa: E402
 from wave3_r_kit import k, sh, w, pal  # noqa: E402
-
-
-# --- G 153 above G 191: the bunker in the cliff --------------------------------------------------------
-
-BUNKER_ORIGIN = (12, 28)  # the art (153 above 191) is 24 x 56
-
-
-def bpx(c):
-    return c + 0.5 - BUNKER_ORIGIN[0]
-
-
-def bpy(row):
-    return BUNKER_ORIGIN[1] - row - 0.5
-
-
-@r.whole("bunker", (24, 56))
-def bunker_whole():
-    """A grey housing whose framed window is open on a glowing red eye, the shutter rolled up at its
-    top, tilted to face the screen on a casing standing on the ground; under the housing's front a
-    support block, a grille of bars and a strut standing in the leaves. The cliff round it and the
-    leaves are the map's (the sprite carries a copy of them): not modelled."""
-    gm = r.greys("bunker")
-    seam = pal("bunker_seam", 0x01, metallic=0.3, roughness=0.7)
-    pit = pal("bunker_pit", 0x01, metallic=0.2, roughness=0.5)
-    eye = pal("bunker_eye", 0x74, metallic=0.1, roughness=0.15, glow=0.9)
-    eye_hot = pal("bunker_eye_hot", 0x7b, metallic=0.0, roughness=0.1, glow=1.6)
-    eye_core = pal("bunker_eye_core", 0x7e, metallic=0.0, roughness=0.1, glow=2.2)
-
-    # The housing: a block tilted to face the screen (its window looks up and down the screen a little).
-    # Built facing up, then tilted.
-    tilt = math.radians(28)
-    cx, cy, cz = -0.5, 3.4, 10.0
-    hw, hd, ht = 8.5, 8.4, 6.0  # half width, half depth (along the face), thickness
-    parts = []
-    body = w.rounded_box("housing", (0, 0, -ht / 2), (2 * hw, 2 * hd, ht), gm[5], bevel=0.7)
-    parts.append(body)
-    # The frame round the window: four bars, the top and left lit.
-    fw, fd = hw - 0.2, hd - 0.2
-    parts.append(w.rounded_box("frame_n", (0, fd - 0.9, 0.35), (2 * fw, 1.9, 1.3), gm[7], bevel=0.45))
-    parts.append(w.rounded_box("frame_s", (0, -fd + 0.75, 0.35), (2 * fw, 1.5, 1.3), gm[5], bevel=0.45))
-    parts.append(w.rounded_box("frame_w", (-fw + 0.75, 0, 0.35), (1.5, 2 * fd, 1.3), gm[7], bevel=0.45))
-    parts.append(w.rounded_box("frame_e", (fw - 0.75, 0, 0.35), (1.5, 2 * fd, 1.3), gm[4], bevel=0.45))
-    # The window's dark well and the eye in it.
-    parts.append(w.rounded_box("well", (0, -0.3, -0.25), (2 * fw - 2.6, 2 * fd - 2.8, 0.6), pit, bevel=0.2))
-    ex, ey = bpx(12) - cx + 0.3, -2.1
-    parts.append(w.hoop("eye_socket", (ex, ey, 0.0), [(4.3, -0.3), (5.3, -0.3), (5.3, 0.2), (4.5, 0.5)], seam, 32,
-                        scale_y=0.7))
-    parts.append(w.sphere("eye", (ex, ey, 0.0), (4.8, 3.3, 1.6), eye, 24, 12))
-    parts.append(w.sphere("eye_hot", (ex, ey + 0.1, 0.9), (2.8, 2.0, 0.9), eye_hot, 16, 8))
-    parts.append(w.sphere("eye_core", (ex - 0.2, ey + 0.2, 1.5), (1.0, 0.95, 0.4), eye_core, 12, 6))
-    # The shutter rolled up at the window's top.
-    parts.append(w.lathe_axis("shutter", [(0.0, 0.01), (0.15, 0.95), (12.6, 0.95), (12.75, 0.01)], gm[9],
-                              (-6.4, fd - 2.6, 0.2), (1, 0, 0), 14))
-    rot = Matrix.Translation((cx, cy, cz)) @ Matrix.Rotation(tilt, 4, "X")
-    for p in parts:
-        sh.apply_modifiers(p)
-        p.data.transform(rot)
-
-    # The casing under the housing's back: a wedge from the ground up to it (the cliff held it before).
-    low = rot @ Vector((0.0, -hd + 0.6, -ht + 0.3))
-    high = rot @ Vector((0.0, hd - 0.6, -ht + 0.3))
-    profile = [(low.y, 0.0), (high.y, 0.0), (high.y, high.z), (low.y, low.z)]
-    casing = k.slab("casing", profile, cx - hw + 0.6, cx + hw - 0.6, gm[4], bevel_width=0.5, bevel_segments=2)
-    sh.apply_modifiers(casing)
-    casing.data.transform(Matrix(((0, 0, 1, 0), (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 0, 1))))
-    k.recalc_normals(casing)
-    k.smooth(casing, 40)
-    for i, x in enumerate((-5.5, 4.5)):  # ribs down its sides
-        w.rounded_box(f"casing_rib{i}", (cx + x, (low.y + high.y) / 2 + 1.0, high.z / 2), (1.4, high.y - low.y - 2.0,
-                                                                                        high.z - 0.6), gm[6], bevel=0.4)
-
-    # Under the housing: the support block (left), the grille of bars and the strut (right).
-    sup = w.block("support", (bpx(4.5), bpy(36.0)), 2.9, 3.6, 5.2, gm[5], rounding=0.9, power=4)
-    w.paint_faces(sup, lambda c, n: gm[7] if n.z > 0.6 and c.x < bpx(4) else None)
-    w.rounded_box("support_plate", (bpx(5.0), bpy(33.6), 4.6), (6.6, 2.0, 1.6), gm[6], bevel=0.45)
-    for c in (10, 12, 14):
-        w.tube(f"bar{c}", [(bpx(c), bpy(32.5), 5.2), (bpx(c), bpy(36.0), 3.4), (bpx(c), bpy(39.5), 0.6)], 0.42,
-               gm[4], 8)
-    w.tube("strut", [(bpx(17), bpy(31.0), 5.8), (bpx(17), bpy(35.0), 3.6), (bpx(16.8), bpy(39.8), 0.4)], 1.15, gm[4],
-           12)
-    w.lathe_axis("strut_collar", [(0.0, 1.2), (0.2, 1.6), (1.4, 1.6), (1.6, 1.2)], gm[6], (bpx(17), bpy(34.0), 4.4),
-                 (0, -1, -0.5), 12)
-
-
-def bunker_piece(box, centre):
-    bunker_whole()
-    w.bake()
-    r.cut(w.meshes(), box, centre)
-    r.stats_print(*w.meshes())
-    r.budget(4800, floor=700)
-
-
-r.model("cliff_bunker_top", [(153, True)])(lambda: bunker_piece((-12, 12, 0, 28), (0, 14)))
-r.model("cliff_bunker_base", [(191, True)])(lambda: bunker_piece((-12, 12, -28, 0), (0, -14)))
 
 
 # --- G 229 beside G 231 (and G 267 beside G 269, mirrored): the jawed guns ------------------------------

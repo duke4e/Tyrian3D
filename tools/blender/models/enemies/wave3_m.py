@@ -1,13 +1,9 @@
 """Enemies of wave 3, batch M (sheet J: TORM, BOTANY A, BONUS), the green machines; modelled as their
 sprites look (models.cfg: yaw=0). The building, the field gun and the small ground machines are in
 wave3_m_ground.py, the big green shell of ?TUNNEL? in wave3_m_shell.py.
-(The small green machine of TORM and BONUS, green_scarab (J 131), is built by polish_green_scarab.py.)
+(The small green machine of TORM and BONUS, green_scarab (J 131), is built by polish_green_scarab.py, the green
+tower, J 13 15 / 51 53, by polish_green_tower.py.)
 
-- green_tower_tl, green_tower_tr, green_tower_bl, green_tower_br (J 13, 15, 51, 53): the green tower
-  of TORM, BONUS and BOTANY A, which the level events place as four sprites (13 and 15 above 51 and
-  53): a wide ribbed plate on the ground, a fluted stem rising from it and leaning up the screen to
-  a long pod held high, its top three pale bulging segments, a dark slot across its front and the
-  red claws at its ends; built whole and cut into its pieces (origin).
 - green_skiff_rear, green_skiff_nose (J 169, 207): the green skiff the events bring in from the left
   (169 beside 207), drawn from the tower's parts: the tower's pod (its left half, with the lamp and
   the claw) for a stern and a hull with the outline of the right half of the tower's plate for a bow,
@@ -20,7 +16,7 @@ wave3_m_ground.py, the big green shell of ?TUNNEL? in wave3_m_shell.py.
 The pale parts are the light end of the green ramp (0x2c-0x2f), the claws the red ramp (0x70s).
 
 usage: Blender -b --factory-startup -P wave3_m.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole tower|skiff|skiff_l --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole skiff|skiff_l --preview <prefix>]
 """
 import math
 import os
@@ -186,43 +182,6 @@ def plate_details(m, cx, cy, z_of, half_w, half_h, xmin=-99.0, prefix="plate", o
         w.ribbon(f"{prefix}_rib{x:.0f}", pts, 1.8, 0.8, m["light"])
 
 
-# --- J 13, 15 above 51, 53: the green tower ---------------------------------------------------------
-
-TOWER_ORIGIN = (24, 28)
-
-
-@whole("tower", (48, 56))
-def tower_whole():
-    """A wide ribbed plate on the ground; from its middle a fluted stem rises, leaning up the screen,
-    to the long pod held high above it: three pale bulging segments, a dark slot across its front,
-    red lamps and claws at its ends and two short struts under it."""
-    g = w.grid(art.TOWER, 48)
-    m = greens("tower")
-    base = plate("plate", plate_outline(0.0, -14.6, 22.8, 7.6, 10.2), m, 0.0, 4.4)
-    # The pod, high up.
-    axis_y, axis_z = 14.0, 17.0
-    pod(m, axis_y, axis_z, prefix="pod")
-    # The stem, from the plate's middle up to the pod's underside, fluted, a red collar at its top.
-    start, end = Vector((-0.5, -12.5, 2.5)), Vector((-0.5, 10.5, 13.0))
-    d = end - start
-    L = d.length
-    stem = [(0.0, 7.2), (0.8, 6.4), (2.0, 5.2), (3.4, 4.5), (6.0, 4.3), (L - 5.0, 4.3), (L - 2.0, 4.6), (L, 5.2)]
-    w.fluted("stem", k.profile(stem, 0.9), m["light"], start, d, flutes=8, depth=0.14, segments=32, light=m["cream"])
-    w.lathe_axis("collar", [(L - 6.2, 4.6), (L - 5.9, 5.3), (L - 4.6, 5.3), (L - 4.3, 4.6)], m["red"], start, d, 32)
-    for side in (-1, 1):
-        p = start + d * ((L - 5.25) / L) + Vector((side * 5.1, 0.0, 0.4))
-        w.sphere(f"collar_lamp{side}", p, (0.8, 0.9, 0.8), m["lamp"], 10, 5)
-    # The struts under the pod.
-    for side in (-1, 1):
-        x = side * 8.5 - 0.0
-        w.tube(f"strut{side}", [(x, 9.0, 12.5), (x, 5.0, 10.0), (x, 1.8, 7.4)], 1.05, m["green"], 10)
-        w.sphere(f"strut_foot{side}", (x, 1.6, 7.2), (1.3, 1.3, 1.1), m["pale"], 10, 5)
-    # The plate's ribs and the bulge at its front.
-    outline = plate_outline(0.0, -14.6, 22.8, 7.6, 10.2)
-    plate_details(m, -0.5, -15.5, lambda x, y: sh.surface_z(base, x, y, 4.4), 22.0, 8.6, prefix="plate", outline=outline)
-    w.tube("plate_front", [(-4.5, -21.2, 2.4), (0.5, -22.0, 2.6), (5.5, -21.2, 2.4)], 1.35, m["pale"], 12)
-
-
 # --- J 169 beside 207 (and 245 beside 283): the green skiff ---------------------------------------------
 
 def bow_y(x, cy, half_w, top, bottom):
@@ -295,18 +254,6 @@ model("green_skiff_rear", [(J, 169, True)])(lambda: skiff_piece(False, -24, 0))
 model("green_skiff_nose", [(J, 207, True)])(lambda: skiff_piece(False, 0, 24))
 model("green_skiff_l_nose", [(J, 245, True)])(lambda: skiff_piece(True, -24, 0))
 model("green_skiff_l_rear", [(J, 283, True)])(lambda: skiff_piece(True, 0, 24))
-
-
-def tower_piece(x0, x1, y0, y1):
-    tower_whole()
-    w.bake()
-    w.piece(w.meshes(), x0, x1, y0, y1)
-
-
-model("green_tower_tl", [(J, 13, True)])(lambda: tower_piece(-24, 0, 0, 28))
-model("green_tower_tr", [(J, 15, True)])(lambda: tower_piece(0, 24, 0, 28))
-model("green_tower_bl", [(J, 51, True)])(lambda: tower_piece(-24, 0, -28, 0))
-model("green_tower_br", [(J, 53, True)])(lambda: tower_piece(0, 24, -28, 0))
 
 
 # --- J 117: the green pod ship -----------------------------------------------------------------------
