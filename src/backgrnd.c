@@ -44,27 +44,91 @@ JE_byte map1YDelay, map1YDelayMax, map2YDelay, map2YDelayMax;
 JE_boolean  anySmoothies;
 JE_byte     smoothie_data[9]; /* [1..9] */
 
+// Tyrian3D: the screen's columns the filters cover: the original's playfield, or on the wide
+// playfield (l3d_field_wide) all 320, as its 2D view may show any 264 of them (JE_starShowVGA).
+static int filter_left(void) { return l3d_field_wide ? 0 : 24; }
+static int filter_width(void) { return l3d_field_wide ? 320 : 264; }
+
 void JE_darkenBackground(JE_word neat)  /* wild detail level */
 {
 	Uint8 *s = VGAScreen->pixels; /* screen pointer, 8-bit specific */
 	int x, y;
+	const int width = filter_width();
 	
-	s += 24;
+	s += filter_left();
 	
 	for (y = 184; y; y--)
 	{
-		for (x = 264; x; x--)
+		for (x = width; x; x--)
 		{
 			*s = ((((*s & 0x0f) << 4) - (*s & 0x0f) + ((((x - neat - y) >> 2) + *(s-2) + (y == 184 ? 0 : *(s-(VGAScreen->pitch-1)))) & 0x0f)) >> 4) | (*s & 0xf0);
 			s++;
 		}
-		s += VGAScreen->pitch - 264;
+		s += VGAScreen->pitch - width;
+	}
+}
+
+// Tyrian3D: whether a map entry is one of the maps' (an entry beside the original's 12 tiles of a
+// row may be past the start or end of its map).
+static bool map_entry(Uint8 **entry)
+{
+	Uint8 **const maps[3][2] = {
+		{ &megaData1.mainmap[0][0], &megaData1.mainmap[0][0] + sizeof(megaData1.mainmap) / sizeof(Uint8 *) },
+		{ &megaData2.mainmap[0][0], &megaData2.mainmap[0][0] + sizeof(megaData2.mainmap) / sizeof(Uint8 *) },
+		{ &megaData3.mainmap[0][0], &megaData3.mainmap[0][0] + sizeof(megaData3.mainmap) / sizeof(Uint8 *) },
+	};
+	for (int i = 0; i < 3; ++i)
+		if (entry >= maps[i][0] && entry < maps[i][1])
+			return true;
+	return false;
+}
+
+// Tyrian3D: a row of background tiles on the wide playfield (l3d_field_wide). Its 2D view shows any
+// 264 of the screen's 320 columns (JE_starShowVGA), so the row covers all of them: the map's tiles
+// beside the original's 12 too (the maps hold still where their columns cover 0-319, see
+// JE_playerMovement), clipped to the screen.
+static void blit_background_row_wide(SDL_Surface *surface, int x, int y, Uint8 **map, bool blend)
+{
+	const int first = x > 0 ? -1 : 0, last = (surface->w - 1 - x) / 24;
+
+	for (int row = 0; row < 28; row++)
+	{
+		const int screen_y = y + row;
+		if (screen_y < surface_top(surface))
+			continue;
+		if (screen_y >= surface->h)
+			return;
+
+		Uint8 *line = (Uint8 *)surface->pixels + screen_y * surface->pitch;
+		for (int tile = first; tile <= last; tile++)
+		{
+			if ((tile < 0 || tile >= 12) && !map_entry(map + tile))
+				continue;
+			const Uint8 *data = map[tile];
+			if (data == NULL)
+				continue;
+			data += row * 24;
+
+			const int tile_x = x + tile * 24;
+			for (int sx = SDL_max(tile_x, 0); sx < SDL_min(tile_x + 24, surface->w); sx++)
+			{
+				const Uint8 d = data[sx - tile_x];
+				if (d != 0)
+					line[sx] = blend ? (d & 0xf0) | (((line[sx] & 0x0f) + (d & 0x0f)) / 2) : d;
+			}
+		}
 	}
 }
 
 void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
 	assert(SDL_BITSPERPIXEL(surface->format) == 8);
+	
+	if (l3d_field_wide)
+	{
+		blit_background_row_wide(surface, x, y, map, false);
+		return;
+	}
 	
 	Uint8 *pixels = (Uint8 *)surface->pixels + (y * surface->pitch) + x,
 	      *pixels_ll = surface_pixels_ll(surface),  // lower limit
@@ -111,6 +175,12 @@ void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 void blit_background_row_blend(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
 	assert(SDL_BITSPERPIXEL(surface->format) == 8);
+	
+	if (l3d_field_wide)
+	{
+		blit_background_row_wide(surface, x, y, map, true);
+		return;
+	}
 	
 	Uint8 *pixels = (Uint8 *)surface->pixels + (y * surface->pitch) + x,
 	      *pixels_ll = surface_pixels_ll(surface),  // lower limit
@@ -272,6 +342,7 @@ void JE_filterScreen(JE_shortint col, JE_shortint int_)
 	Uint8 *s = NULL; /* screen pointer, 8-bit specific */
 	int x, y;
 	unsigned int temp;
+	const int width = filter_width();
 	
 	if (filterFade)
 	{
@@ -300,35 +371,35 @@ void JE_filterScreen(JE_shortint col, JE_shortint int_)
 	if (col != -99 && filtrationAvail)
 	{
 		s = VGAScreen->pixels;
-		s += 24;
+		s += filter_left();
 		
 		col <<= 4;
 		
 		for (y = 184; y; y--)
 		{
-			for (x = 264; x; x--)
+			for (x = width; x; x--)
 			{
 				*s = col | (*s & 0x0f);
 				s++;
 			}
-			s += VGAScreen->pitch - 264;
+			s += VGAScreen->pitch - width;
 		}
 	}
 	
 	if (int_ != -99 && explosionTransparent)
 	{
 		s = VGAScreen->pixels;
-		s += 24;
+		s += filter_left();
 		
 		for (y = 184; y; y--)
 		{
-			for (x = 264; x; x--)
+			for (x = width; x; x--)
 			{
 				temp = (*s & 0x0f) + int_;
 				*s = (*s & 0xf0) | (temp >= 0x1f ? 0 : (temp >= 0x0f ? 0x0f : temp));
 				s++;
 			}
-			s += VGAScreen->pitch - 264;
+			s += VGAScreen->pitch - width;
 		}
 	}
 }
