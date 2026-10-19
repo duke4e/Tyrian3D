@@ -538,13 +538,11 @@ def cut(source, box_xy, cap_mat):
                 n = shading.normal(mesh.vertices[mesh.loops[li].vertex_index].co, poly.center)
             normals.append(tuple(n if n is not None else poly.normal))
     mesh.normals_split_custom_set(normals)
-    # Materials no face uses any more are dropped.
+    # Materials no face uses any more are dropped (materials.pop moves the faces' material indices
+    # above the slot down itself).
     used = {p.material_index for p in mesh.polygons}
     for i in reversed(range(len(mesh.materials))):
         if i not in used and len(mesh.materials) > 1:
-            for p in mesh.polygons:
-                if p.material_index > i:
-                    p.material_index -= 1
             mesh.materials.pop(index=i)
     return obj
 

@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch N (sheet 3: SURFACE, DESERTRUN and CORE), the machines and ships; modelled
 as their sprites look (models.cfg: yaw=0 unless noted). The rock arch and the stepped pyramid are in
-wave3_n_rocks.py, CORE's fire in wave3_n_fire.py.
+wave3_n_rocks.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py.
 
 - hatch_bunker (3 18): the red-framed hatch in DESERTRUN's grey bunker roof; its frames (56, 94, 284)
   slide the hatch's doors open on a grey sensor with a red eye and close them again. The model shows
@@ -8,8 +8,6 @@ wave3_n_rocks.py, CORE's fire in wave3_n_fire.py.
   model is the hatch on a low collar.
 - lava_bubble (3 128): CORE's glossy dark red bubble of lava on the ground, splashes round its foot
   (its frames 130 and 132 burst it).
-- horned_pod (3 1): SURFACE's grey flying pod: a round hull with a belt, a deck across its top
-  carrying a tower with a dark visor and two horn-like blades sweeping up the screen.
 - plank_turret (3 12): SURFACE's brown turret, a box of planks with two guns; its eight frames are
   headings the level picks, so the model points up the screen (as 3 14) and aims at the player
   (yaw=aim).
@@ -143,52 +141,6 @@ def lava_bubble():
                         12, 6)
         angle = math.atan2(d.y, d.x) - math.pi / 2
         drop.data.transform(Matrix.Translation((x, y, 0.15)) @ Matrix.Rotation(angle, 4, "Z"))
-
-
-# --- 3 1: the horned pod -------------------------------------------------------------------------
-
-@n.model("horned_pod", mask=mask_of("CLAW_SHIP", 24))
-def horned_pod():
-    """A grey flying pod: a round hull with a dark seam down its top and a belt round it; a deck
-    across the hull's north side carrying a tower with a dark visor between two horn-like blades that
-    sweep up the screen, rising towards their tips."""
-    g = w.grid(art.CLAW_SHIP, 24)
-    grey = pal("pod_grey", 0x07, metallic=0.65, roughness=0.3)
-    grey_light = pal("pod_grey_light", 0x0a, metallic=0.65, roughness=0.25)
-    grey_shine = pal("pod_grey_shine", 0x0c, metallic=0.7, roughness=0.2)
-    grey_dark = pal("pod_grey_dark", 0x04, metallic=0.6, roughness=0.35)
-    seam = pal("pod_seam", 0x12, metallic=0.3, roughness=0.6)
-    visor = pal("pod_visor", 0x03, metallic=0.4, roughness=0.15)
-    # The hull: a round pod, its seam and belt.
-    hx, hy = px(11.5), py(19.8)
-    hull = k.ellipsoid("hull", (hx, hy, 0.0), (8.6, 6.4, 6.0), grey, 40, 20)
-    k.smooth(hull, 60)
-    w.paint_faces(hull, lambda c, nrm: grey_light if nrm.z > 0.55 and nrm.x < 0.1 else
-                  grey_dark if nrm.z < -0.3 else None)
-    w.tube("hull_seam", [(hx, hy - 6.2, 1.8), (hx, hy - 4.5, 4.6), (hx, hy - 1.0, 5.9), (hx, hy + 3.0, 5.4),
-                         (hx, hy + 5.6, 3.2)], 0.35, seam, 8)
-    w.hoop("belt", (hx, hy, 0.6), [(8.3, -0.7), (9.1, -0.5), (9.2, 0.5), (8.4, 0.8)], grey_shine, 48,
-           scale_y=6.6 / 8.6)
-    w.hoop("belt_seam", (hx, hy, 1.4), [(8.0, -0.15), (8.75, -0.15), (8.75, 0.15), (8.0, 0.15)], seam, 48,
-           scale_y=6.6 / 8.6)
-    # The deck across the hull's north side.
-    w.rounded_box("deck", (px(11.5), py(11.2), 3.0), (19.6, 3.8, 3.4), grey, bevel=1.0, segments=3)
-    # The tower with its visor.
-    w.block("tower", (px(11.5), py(7.8)), 3.0, 5.2, 10.5, grey_light, taper=0.5, rounding=1.2, power=4.0,
-            segments=32, z0=1.0)
-    w.rounded_box("visor", (px(11.5), py(4.6), 9.2), (4.0, 1.6, 1.6), visor, bevel=0.4)
-    w.rounded_box("tower_slot", (px(11.5), py(8.4), 11.3), (1.3, 4.6, 0.7), seam, bevel=0.2)
-    # The blades: inflated thin from the sprite's horns, their inner edges and tips raised (curved up
-    # like wings), a light stripe along them.
-    rows = w.regions(g, lambda v, c, r: "L" if c <= 8 and r <= 12 else "R" if c >= 15 and r <= 12 else ".")
-    for label, sign, outer in (("L", -1, -11.0), ("R", 1, 11.0)):
-        def curl(x, y, z, s=sign, o=outer):
-            inward = abs(x - o)
-            return z + 0.55 * inward + 0.32 * max(0.0, y - 1.0) + 1.0
-        blade = w.part(f"blade{label}", rows, label, grey, sh.round_profile(0.7, max_height=1.4), bottom=0.8,
-                       base=2.0, z_fn=curl, spacing=0.35, smooth_angle=45, grow=-0.25)
-        w.paint_faces(blade, lambda c, nrm, s=sign: grey_shine if nrm.z > 0.3 and nrm.x * s < -0.25 else
-                      grey_dark if nrm.z < -0.2 else None)
 
 
 # --- 3 12: the plank turret ----------------------------------------------------------------------

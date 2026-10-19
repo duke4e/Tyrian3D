@@ -21,7 +21,7 @@
   shrink it; the model keeps the first frame's size).
 - pink_torpedo_front, pink_torpedo_rear (sheet 8 125, 8 127): the two halves of the pink torpedo of
   IXMUCANE and SAWBLADES lying on its side, its muzzle glowing at the front (origin).
-- horseshoe (sheet 3 126): the grey horseshoe ring with tan plates of SURFACE and CORE.
+- horseshoe: now built by polish_horseshoe.py.
 - gem_bud: now built by polish_gem_bud.py.
 - bomb_pickup (coins sheet 89): the pick-up of a super bomb: the word BOMB in glowing orange
   letters beside a blue bomb (assets/models/items).
@@ -520,99 +520,6 @@ def lava_star():
     paint_faces(star, shade_bands(g, bands, blur=0))
     simplify_bottom(star)
     k.smooth(star, 35)
-
-
-# --- 3 126: the horseshoe -------------------------------------------------------------------------
-
-@model("horseshoe", "3", 126)
-def horseshoe():
-    """A thick grey horseshoe ring with tan plates on its sides, heavier blocks at its lower ends
-    (a seam where they meet the ring) standing on two feet, and a thin bar with a stud closing the
-    ring between them."""
-    g = grid(art.E3_126, 24)
-
-    def where(v, c, r):
-        if 9 <= c <= 15 and r >= 22 or 8 <= c <= 15 and 14 <= r <= 21 and (v & 15 <= 2 or v >> 4 == 15 or r >= 19):
-            return "."
-        if v >> 4 in (1, 10):
-            return "t"
-        return "u" if r <= 13 else "l"
-    rows = regions(g, where)
-    grey = pal("shoe_grey", 0x07, metallic=0.6, roughness=0.3)
-    block = pal("shoe_block", 0x08, metallic=0.6, roughness=0.3)
-    dark = pal("shoe_dark", 0x03, metallic=0.5, roughness=0.5)
-    tan = pal("shoe_tan", 0x17, metallic=0.5, roughness=0.35)
-    stud = pal("shoe_stud", 0x0b, metallic=0.7, roughness=0.2)
-    seam_y = -0.5
-
-    def shape(x, y, z):
-        # The blocks stand higher than the ring; a seam where they meet it.
-        if z < 0.4:
-            return z
-        lift = 0.8 * sh.smoothstep(seam_y + 0.2, seam_y - 1.2, y)
-        return z + lift - 0.9 * math.exp(-((y - seam_y) / 0.35) ** 2)
-    ring = part("ring", rows, "utl", grey, sh.round_profile(0.85, max_height=3.4), smooth=2, epsilon=0.5,
-                spacing=0.45, rim=0.3, z_fn=shape)
-    paint_faces(ring, lambda c, n: block if c.y < seam_y and n.z > -0.5 else None)
-    # The tan plates, wrapped round the ring.
-    for side, (x0, x1) in ((-1, (-8.3, -3.9)), (1, (5.9, 10.3))):
-        plate = sh.inflate(f"plate{side}", [rounded_rect(x0, 0.4, x1, 7.4, 0.5)], tan, sh.pillow_profile(1.0, 0.45),
-                           bottom=0.0, rim=0.0, spacing=0.45)
-        for v in plate.data.vertices:
-            v.co.z = sh.surface_z(ring, v.co.x, v.co.y, 2.0) - 0.5 + 0.85 * v.co.z
-        k.smooth(plate, 45)
-    # The bar closing the ring, its stud.
-    k.smooth(lathe_x("bar", [(-4.6, 0.7), (-4.4, 1.0), (5.4, 1.0), (5.6, 0.7)], dark, 12, y=-6.6, z=1.6), 50)
-    k.smooth(k.ellipsoid("stud", (0.5, -6.6, 2.3), (1.2, 1.1, 0.9), stud, 12, 6), 60)
-    simplify_bottom(ring)
-    decimate(ring, 2400)
-    k.smooth(ring, 50)
-
-
-@model("stone_plant", "J", 1)
-def stone_plant():
-    """A grey stone plant standing on the ground: a bud of two lobes (a round one and an upright
-    petal) high on a stalk, a round bulb in the middle, a leaf curling down the left side and
-    leaves round the foot, a small bud on a short stalk at the right, the crevices between them
-    dark."""
-    g = grid(art.J1, 24)
-    rows = regions(g, lambda v, c, r: "#")
-
-    def where(v, c, r):
-        if v & 15 <= 2:
-            return "."
-        if r <= 10:
-            return "p" if c >= 9 and r <= 9 else "h"
-        if r <= 14 and c <= 9:
-            return "s"
-        if 13 <= r <= 18 and 10 <= c <= 16:
-            return "b"
-        if c >= 17 and r <= 19:
-            return "d"
-        if r <= 23 and c <= 8:
-            return "l"
-        return "f"
-    lit = regions(g, where)
-    stone = pal("plant_stone", 0x08, metallic=0.25, roughness=0.45)
-    pale = pal("plant_pale", 0x0a, metallic=0.25, roughness=0.4)
-    dark = pal("plant_dark", 0x02, metallic=0.2, roughness=0.7)
-    mid = pal("plant_mid", 0x06, metallic=0.25, roughness=0.5)
-    base = part("base", rows, "#", dark, sh.pillow_profile(1.0, 0.8), smooth=2, epsilon=0.5, spacing=0.9)
-    k.smooth(simplify_bottom(base), 50)
-    parts = []
-    for chars, mat, aspect, top, base_z, bottom in (("h", pale, 1.0, 3.0, 5.0, 0.8), ("p", stone, 1.0, 3.0, 5.2, 0.8),
-                                                    ("s", mid, 1.0, 2.5, 1.0, 0.0), ("b", stone, 1.1, 4.2, 0.6, 0.0),
-                                                    ("d", pale, 1.0, 3.2, 0.8, 0.0), ("l", stone, 0.9, 3.0, 0.6, 0.0),
-                                                    ("f", mid, 0.9, 2.8, 0.6, 0.0)):
-        obj = part(f"part_{chars}", lit, chars, mat, sh.round_profile(aspect, max_height=top), smooth=2, epsilon=0.4,
-                   spacing=0.55, grow=0.45, base=base_z, bottom=bottom, min_area=1.0, sigma=1.6)
-        parts.append(obj)
-    # The stalk rising to the bud.
-    tube("stalk", [(-4.6, -1.0, 2.0), (-4.7, 0.8, 3.6), (-4.7, 2.6, 5.0), (-4.6, 4.2, 5.8)], [1.5, 1.3, 1.2, 1.2],
-         mid, segments=10)
-    for obj in parts:
-        k.smooth(obj, 70)
-    sh.flat_bottom(scene_objects())
 
 
 # --- F 87: the fork ship ---------------------------------------------------------------------------

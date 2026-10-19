@@ -1,9 +1,8 @@
-"""Enemies of wave 2, batch H, modelled as their sprites look (models.cfg: yaw=0 unless noted):
+"""Enemies of wave 2, batch H, modelled as their sprites look (models.cfg: yaw=0 unless noted). (GYGES' bronze
+ingot, H 93: polish_yuanbao.py.)
 
 - desert_rock_tip (sheet 3 180): the 1x1 tip of the big tan rock of DESERTRUN and SURFACE (the rest of
   the rock is 3 162, 164, 198, 200, 202): a sloping nub cut where the rock goes on (origin).
-- bronze_yuanbao (sheet H 93): GYGES' flying bronze ingot, a boat with upturned horns and a dome,
-  tilted towards the camera as the sprite draws it.
 - asteroid_turret (sheet P 13): the grey turret of ASTEROID2 with a bronze dome; its frames are eight
   headings the level picks, so the model is built pointing up the screen and aims at the player.
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
@@ -516,85 +515,6 @@ def fire_flap_l_bottom():
     fire_flap("bottom", True)
 
 
-# --- H 93: the bronze yuanbao ---------------------------------------------------------------------
-
-YB_LENGTH = 10.5   # half the length, horn tip to horn tip
-YB_PITCH = 68.0    # degrees the ingot is tilted towards the camera (its front up)
-
-
-def _segment(a, b, count, bulge=0.0):
-    """count points from a towards b (b left out), bowed outwards by bulge (to the right of a->b)."""
-    out = []
-    for i in range(count):
-        t = i / count
-        p = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
-        if bulge:
-            nx, ny = (b[1] - a[1]), -(b[0] - a[0])
-            length = math.hypot(nx, ny) or 1.0
-            w = bulge * 4 * t * (1 - t)
-            p = (p[0] + nx / length * w, p[1] + ny / length * w)
-        out.append(p)
-    return out
-
-
-def _yuanbao_section(x):
-    """The ingot's cross-section at x (natural pose: y' front to back, front negative, z' up), as
-    points round it: front wall, rim, the hollow inside, back rim, back wall, bottom."""
-    ax = abs(x)
-    taper = max(0.0, 1 - (ax / YB_LENGTH) ** 3) ** 0.7
-    rim = 10.0 + 5.0 * smoothstep(4.0, YB_LENGTH, ax) ** 1.6
-    front = (6.0 - 0.4 * ax) * taper + 0.45 * (1 - taper)   # the front wall's crease (prow) at x = 0
-    back = (5.2 - 0.15 * ax) * taper + 0.45 * (1 - taper)
-    base_len = 6.4
-    if ax < base_len:
-        base, base_z = 3.4 * math.sqrt(1 - (ax / base_len) ** 2) + 0.4, 0.0
-    else:
-        base, base_z = 0.4 + 0.6 * (1 - taper), (ax - base_len) * 1.55
-    hollow = 4.2 * smoothstep(9.4, 6.8, ax)
-    lip = min(0.9, 0.45 * (front + back) - 0.1)
-    p = []
-    p += _segment((-base, base_z), (-front, rim), 7, bulge=0.5)          # the front wall
-    p += _segment((-front, rim), (-front + lip, rim + 0.25), 2)           # the front lip
-    p += _segment((-front + lip, rim + 0.25), (-front + lip + 1.2, rim - hollow), 3)
-    p += _segment((-front + lip + 1.2, rim - hollow), (back - lip - 1.2, rim - hollow), 4)
-    p += _segment((back - lip - 1.2, rim - hollow), (back - lip, rim + 0.25), 3)
-    p += _segment((back - lip, rim + 0.25), (back, rim), 2)                # the back lip
-    p += _segment((back, rim), (base, base_z), 7, bulge=0.5)              # the back wall
-    p += _segment((base, base_z), (-base, base_z), 5)                     # the bottom
-    return p
-
-
-def bronze_yuanbao():
-    """GYGES' flying ingot: a bronze boat whose ends rise into horns, a creased front, a hollow
-    with a dome in it. Built standing, then tilted towards the camera by YB_PITCH, as the sprite
-    shows it (front face, rim, dome and horns above)."""
-    bronze = pal("yb_bronze", 0x16, metallic=0.75, roughness=0.3)
-    rim_mat = pal("yb_rim", 0x18, metallic=0.75, roughness=0.25)
-    hollow_mat = pal("yb_hollow", 0x12, metallic=0.6, roughness=0.45)
-    dome_mat = pal("yb_dome", 0x17, metallic=0.8, roughness=0.18)
-    shade = pal("yb_shade", 0x14, metallic=0.75, roughness=0.35)
-    xs = [YB_LENGTH * math.copysign(abs(t) ** 0.8, t) for t in [i / 20 - 1 for i in range(1, 40)]]
-    rings = []
-    for x in xs:
-        rings.append([Vector((x, yy, zz)) for yy, zz in _yuanbao_section(x)])
-    tip = 15.3
-    body = k.loft("body", rings, bronze, start_point=(-YB_LENGTH - 0.3, 0.0, tip), end_point=(YB_LENGTH + 0.3, 0.0, tip))
-    k.smooth(body, 42)
-    # Colour: the hollow dark, the lips light.
-    # Colour: the hollow dark, the lips light, the front's right facet (away from the sun) darker.
-    kit.paint(body, [bronze, rim_mat, hollow_mat, shade], lambda c, n: 2 if (n.z > 0.2 and c.z < 9.6 and
-                                                                             abs(c.x) < 8.6 and abs(c.y) < 3.6) else
-              1 if c.z > 9.75 and abs(c.x) < 9.2 and n.z > 0.3 else
-              3 if 0.05 < c.x < 8.2 and n.y < -0.3 and c.z < 9.5 else 0)
-    # A highlight along the front's crease.
-    crease = [Vector(_yuanbao_section(0.0)[i]) for i in range(0, 8)]
-    kit.tube("crease", [(0.0, p.x - 0.05, p.y) for p in crease[1:7]], [0.3] * 6, rim_mat, 8)
-    kit.ellipsoid("dome", (0.0, 0.9, 9.4), (4.8, 3.6, 5.2), dome_mat, 32, 16)
-    kit.transform_all(Matrix.Rotation(math.radians(-YB_PITCH), 4, "X"))
-    low, high = kit.bounds()
-    kit.transform_all(Matrix.Translation((0.5, G2.y(21) - low.y, -low.z)))
-
-
 # --- Building ------------------------------------------------------------------------------------
 
 E = kit.ENEMIES
@@ -606,7 +526,6 @@ MODELS = [
     ("asteroid_turret", asteroid_turret, [("P", 15, True, (-0.5, 1.5))], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
-    ("bronze_yuanbao", bronze_yuanbao, [("H", 93, True)], E),
     ("fire_flap_r_top", fire_flap_r_top, [("A", 237, True)], E),
     ("fire_flap_r_bottom", fire_flap_r_bottom, [("A", 275, True)], E),
     ("fire_flap_l_top", fire_flap_l_top, [("A", 7, True)], E),

@@ -1,11 +1,8 @@
 """Batch U of wave 3 (sheet S: MINEMAZE, GAUNTLET and the asteroid levels), modelled as their sprites look
 (models.cfg: yaw=0). The black orb is in wave3_u_orb.py, the tracked carrier with its launcher and robot in
-wave3_u_carrier.py, the hangar in wave3_u_hangar.py; the kit is wave3_u_kit.py, the pixels wave3_u_art.py.
+wave3_u_carrier.py, the hangar in wave3_u_hangar.py; the kit is wave3_u_kit.py, the pixels wave3_u_art.py. (The
+bunker with the green lamp, S 277, is built by polish_green_lamp_bunker.py.)
 
-- green_lamp_bunker (S 277): the grey sentry post of the asteroid levels: a tower at the back with a visor
-  whose green lamp blinks (the frames 125, 11 brighten and darken it: it glows), a rounded armoured front over
-  the ground, two pipes down over it and a third from under it to the ground. The grey rubble round it in the
-  sprite is the map's ground (the 3D ground shows it): the model leaves it out.
 - maze_pipe_end_l, maze_pipe, maze_pipe_cage, maze_pipe_end_r (S 1, 7, 115, 3): the dark blue pipe the
   levels lay across MINEMAZE's and GAUNTLET's corridors, one sprite after another along a row (enemies 586,
   588 or 589 repeated, 587): its left end, a plain segment, the segment with the ring cage round its red
@@ -25,73 +22,6 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_u_kit as u  # noqa: E402
 from wave3_u_kit import art, k, sh, w, pal, px, py  # noqa: E402
-
-
-# --- S 277: the bunker with the green lamp -------------------------------------------------------
-
-def grey_mats(prefix, metallic=0.45, roughness=0.42):
-    return {s: pal(f"{prefix}_grey{s}", s, metallic=metallic, roughness=roughness) for s in range(1, 15)}
-
-
-@u.model("green_lamp_bunker", [(277, True)])
-def green_lamp_bunker():
-    """A tower at the back with a visor (grey glass over the green lamp), a rounded armoured front (a half
-    dome against the tower) falling to the ground, pipes over it and under it. The rubble the sprite draws round
-    it is the map's ground: left out."""
-    g0 = u.grid(art.BUNKER, 24)
-    origin = (12, 14)
-    m = grey_mats("glb", metallic=0.3, roughness=0.45)
-    dark = pal("glb_slot", 0x02, metallic=0.3, roughness=0.5)
-    glass = pal("glb_glass", 0x08, metallic=0.5, roughness=0.12)
-    lamp = pal("glb_lamp", 0xc6, metallic=0.0, roughness=0.3, glow=2.2)
-    lamp_rim = pal("glb_lamp_rim", 0xc2, metallic=0.1, roughness=0.3, glow=0.8)
-    pipe = pal("glb_pipe", 0x0a, metallic=0.6, roughness=0.3)
-    pipe_dark = pal("glb_pipe_dark", 0x06, metallic=0.55, roughness=0.35)
-
-    # The sentry: the tower (rows 0-6, columns 4-19) and the front (rows 7-15).
-    # The tower: a block with rounded edges, lighter on top.
-    top = 9.0
-    tower = w.block("tower", (-0.2, 10.6), 8.0, 3.5, top, m[9], taper=0.6, rounding=1.1, power=6.0, segments=48)
-    w.paint_faces(tower, lambda c, n: m[10] if n.z > 0.8 and c.x < -5.0 else m[9] if n.z > 0.8 else m[7] if n.z > 0.2
-                  else m[5])
-    # The visor: a dark frame let into the top, grey glass over the green lamp in it.
-    w.rounded_box("visor_frame", (-0.5, 10.9, top - 0.05), (8.8, 5.2, 0.5), dark, bevel=0.2)
-    w.rounded_box("visor_glass", (-0.5, 12.0, top + 0.25), (7.0, 1.9, 0.5), glass, bevel=0.22)
-    w.rounded_box("lamp_rim", (-0.5, 9.45, top + 0.2), (7.2, 2.5, 0.5), lamp_rim, bevel=0.22)
-    w.tube("lamp", [(-2.9, 9.45, top + 0.42), (1.9, 9.45, top + 0.42)], 0.9, lamp, 14, squash=0.75)
-
-    # The front: a half dome against the tower, its flat back at y = 7.
-    cx, cy, rx, ry, height = -0.5, 7.4, 8.0, 8.9, 7.6
-
-    def front_z(x, y):
-        r = math.hypot((x - cx) / rx, max(cy - y, 0.0) / ry)
-        return 0.4 + height * max(0.0, 1.0 - min(r, 1.0) ** 2.2) ** 0.55
-
-    outline = [(cx + rx * math.cos(a), cy - ry * math.sin(a)) for a in [math.pi * i / 32 for i in range(33)]]
-    front = u.q.heightfield("front", [outline], front_z, m[9], spacing=0.45)
-    w.simplify_bottom(front)
-    fshade = u.shades(g0, origin, lambda v: v >> 4 == 0 and v & 15 >= 6, blur=2)
-
-    def paint_front(c, n):
-        s = 9.0 + (fshade(c.x, c.y) - 9.0) * 0.6 - (1.0 if c.z < 1.6 else 0.0)
-        return m[int(min(12, max(7, round(s))))]
-    w.paint_faces(front, paint_front)
-    u.decimate(front, 2400)
-    # A seam where the front meets the tower.
-    w.tube("seam", [(cx - rx + 0.3, cy, 0.6), (cx, cy + 0.2, height + 0.2), (cx + rx - 0.3, cy, 0.6)], 0.45, m[4], 10)
-
-    # The pipes: two from the tower down over the front to the ground, one from under it.
-    for i, x in enumerate((px(10), px(12))):
-        path = [(x, 10.6, top - 0.4), (x, 7.6, front_z(x, 7.6) + 0.55)]
-        for y in (5.0, 2.5, 0.0, -1.5):
-            path.append((x, y, front_z(x, y) + 0.55))
-        path += [(x, -3.0, 0.9), (x, py(22), 0.6), (x, py(23.5), 0.35)]
-        w.tube(f"pipe{i}", u.catmull(path, 0.5), 0.62, pipe, 10)
-        w.tube(f"pipe_foot{i}", [(x, py(23.2), 0.2), (x, py(24.2), 0.2)], 0.95, pipe_dark, 10)
-    x = px(16)
-    w.tube("pipe2", u.catmull([(x, 0.0, 1.8), (x, -2.0, 1.2), (x, py(21), 0.6), (x, py(22.5), 0.35)], 0.5), 0.55,
-           pipe_dark, 10)
-    u.budget(4800)
 
 
 # --- S 1, 7, 115, 3: the pipe across the maze ------------------------------------------------------

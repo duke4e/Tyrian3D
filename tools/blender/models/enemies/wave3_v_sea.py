@@ -1,12 +1,9 @@
 """Enemies of wave 3, batch V (sheet T), CORAL's sea creatures and machines; modelled as their sprites look
 (models.cfg: yaw=0 unless noted). DELI's boss is in wave3_v.py; the kit is wave3_v_kit.py, the pixels
 wave3_v_art.py. Objects the levels put together from several sprites (the level files' enemy events say
-how) are built whole and cut into their pieces, drawn at their own origins (origin).
+how) are built whole and cut into their pieces, drawn at their own origins (origin). (CORAL's bony fish, T 229
+beside T 231: polish_coral_fish.py.)
 
-- coral_fish_left, coral_fish_right (T 229 beside T 231): CORAL's pale spiny fish, swimming down the
-  screen in files of five (events: 1197 = 229 at (x, y), 1198 = 231 at (x + 24, y)): a silvery body from
-  a forked tail at the top to a pointed head, a fan of fins round the head whose spines sweep back and
-  out, two long curved spines at its ends. Built whole and cut in two (origin).
 - coral_seahorse_left (T 203) and coral_seahorse_right (T 241, its mirror image): CORAL's brown seahorses
   in profile, swimming in from the right (1221) and the left (1205): a ridged body arching from the crowned
   head to the curled tail, a long snout, a pale eye, a frilly pale blue fin at the back of the head (its
@@ -45,107 +42,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_v_kit as v  # noqa: E402
 from wave3_v_kit import art, k, sh, w, n, pal  # noqa: E402
-
-
-# --- T 229 beside T 231: the spiny fish ------------------------------------------------------------
-
-FISH = v.Frame(art.FISH, 48, (24, 14))
-
-
-def fish_whole():
-    """A silvery fish swimming down the screen: a slim body from the forked tail to the pointed head, a
-    fan of fins round the head with spines sweeping back and out, two long curved spines at its ends."""
-    f = FISH
-    bands = v.bands_of("fish", 0, (6, 8, 0xa, 0xc, 0xd), metallic=0.3, roughness=0.3)
-    blue = v.bands_of("fish_fin", 6, (9, 0xb, 0xc), metallic=0.3, roughness=0.3)
-    shade = f.shade((0, 5, 6), blur=1)
-    body_mat = bands[2][1]
-    fin_mat = blue[1][1]
-    spine_mat = bands[3][1]
-    eye = pal("fish_eye", 0x01, metallic=0.2, roughness=0.15)
-
-    # The body: along the screen from the tail (row 4) to the head's point (row 26.6), round in section,
-    # its back higher than its belly; the widths from the sprite.
-    widths = [(4.0, 0.9), (5.5, 1.7), (8.0, 1.9), (11.0, 2.1), (13.5, 2.8), (16.0, 3.0), (19.0, 3.3), (21.5, 3.2),
-              (23.5, 2.7), (25.0, 1.8), (26.2, 0.9), (26.8, 0.3)]
-    rings = []
-    for row, hw in reversed(widths):
-        y = f.Y(row - 0.5)
-        rings.append(k.ring(y, hw, hw * 0.95, 20, z=3.0, top=1.0, bottom=0.75))
-    body = k.loft("body", rings, body_mat, start_point=(0.0, f.Y(27.0), 3.0), end_point=(0.0, f.Y(3.3), 3.4))
-    k.smooth(body, 60)
-    # A ridge along the back.
-    ridge = [(0.0, f.Y(r), 3.0 + 0.95 * hw + 0.2) for r, hw in ((6.0, 1.8), (10.0, 2.0), (14.0, 2.85), (18.0, 3.2),
-                                                               (21.5, 3.2), (24.0, 2.5))]
-    w.tube("ridge", w.catmull(ridge, 0.6), 0.55, spine_mat, 10, squash=0.8)
-    # Eyes on the head's sides.
-    for s in (-1, 1):
-        w.sphere(f"eye{s}", (s * 2.3, f.Y(22.6), 3.7), (0.7, 0.8, 0.6), eye, 12, 6)
-
-    # The tail: a fork of two thin fins up the screen.
-    for s, tip in ((-1, (20.0, 1.0)), (1, (27.0, 1.0))):
-        root = (s * 0.6, f.Y(4.6), 3.3)
-        mid = ((f.X(tip[0]) + root[0]) * 0.55, f.Y(2.6), 3.5)
-        end = (f.X(tip[0]), f.Y(tip[1]), 3.6)
-        pts = w.catmull([root, mid, end], 0.4)
-        w.tube(f"tail{s}", pts, [0.9 - 0.75 * i / (len(pts) - 1) for i in range(len(pts))], fin_mat, 10, squash=0.45)
-
-    # The fan of fins round the head (rows 17-22): a thin plate under the body, its edge dipping.
-    fan = [(f.X(13.0), f.Y(18.0)), (f.X(16.5), f.Y(17.6)), (f.X(23.5), f.Y(17.0)), (f.X(30.5), f.Y(17.6)),
-           (f.X(35.0), f.Y(18.0)), (f.X(33.0), f.Y(19.8)), (f.X(29.5), f.Y(21.7)), (f.X(26.0), f.Y(23.4)),
-           (f.X(21.0), f.Y(23.4)), (f.X(17.5), f.Y(21.7)), (f.X(14.5), f.Y(19.8))]
-
-    def fan_z(x, y, z):
-        return z + 1.6 - 0.05 * abs(x) ** 1.4 * 0.5
-    plate = v.relief("fan", [fan], fin_mat, sh.pillow_profile(0.9, 0.8, crown=0.4), bottom=0.6, base=2.2,
-                     z_fn=fan_z, spacing=0.45)
-    n.paint_shades(plate, lambda x, y: shade(x, y) - 0.6, bands[:3] + blue[2:], wall_drop=1.5)
-    # Rays across the fan, from the body out to its edge.
-    for s in (-1, 1):
-        for x_end, row_end, row_root in ((10.0, 18.6, 19.0), (8.0, 19.8, 20.0), (5.5, 21.2, 21.0), (3.2, 22.6, 22.0)):
-            pts = [(s * 2.6, f.Y(row_root)), (s * (2.6 + x_end) / 2, f.Y((row_root + row_end) / 2)),
-                   (s * x_end, f.Y(row_end))]
-            pts = [(x, y, sh.surface_z(plate, x, y, 3.0) + 0.02) for x, y in pts]
-            w.tube(f"ray{s}{x_end}", w.catmull(pts, 0.5), 0.3, spine_mat, 8, squash=0.6)
-
-    # The spines: the long outer ones curving out and up the screen to their tips (columns 9 and 38, row
-    # 11), the shorter ones between them, all rising from the fan.
-    spines = [
-        ([(14.5, 19.2), (12.4, 17.2), (11.0, 15.0), (10.2, 13.0), (9.4, 11.0)], 0.75),
-        ([(33.0, 19.2), (35.2, 17.2), (36.5, 15.0), (37.4, 13.0), (38.3, 11.2)], 0.75),
-        ([(17.6, 18.6), (16.4, 16.4), (15.4, 14.2)], 0.6),
-        ([(30.0, 18.6), (31.2, 16.4), (32.2, 14.2)], 0.6),
-        ([(20.0, 18.4), (19.4, 16.2)], 0.5),
-        ([(27.8, 18.4), (28.2, 16.2)], 0.5),
-    ]
-    for i, (path, radius) in enumerate(spines):
-        pts = [(f.X(c), f.Y(r), 3.1 + 0.35 * j) for j, (c, r) in enumerate(path)]
-        pts = w.catmull(pts, 0.4)
-        last = len(pts) - 1
-        w.tube(f"spine{i}", pts, [radius * (1.0 - 0.8 * (j / last) ** 1.3) for j in range(len(pts))], spine_mat,
-               10, squash=0.8)
-    # The webbing between the spines' roots: low fins along the fan's edge.
-    for s in (-1, 1):
-        web = [(s * x, y) for x, y in ((3.0, f.Y(17.0)), (9.3, f.Y(17.2)), (11.2, f.Y(16.0)), (10.6, f.Y(18.3)),
-                                       (4.0, f.Y(18.8)))]
-        if s < 0:
-            web = web[::-1]
-        v.relief(f"web{s}", [web], fin_mat, sh.pillow_profile(0.5, 0.5), bottom=0.5, base=2.9, spacing=0.4)
-
-    # Paint the body by the sprite's shades (its light along the middle).
-    n.paint_shades(body, lambda x, y: shade(x, y) + 1.2 * math.exp(-(x / 1.6) ** 2), bands, wall_drop=1.5)
-
-
-def fish_piece(name, sprite, left):
-    box = (-24.0, 0.0, -14.0, 14.0) if left else (0.0, 24.0, -14.0, 14.0)
-    centre = (-12.0, 0.0) if left else (12.0, 0.0)
-    cols = (0, 24) if left else (24, 48)
-    return (name, box, centre, lambda: FISH.mask((cols[0], cols[1], 0, 28)))
-
-
-v.pieced("coral_fish", fish_whole, (48, 28), [fish_piece("coral_fish_left", 229, True),
-                                              fish_piece("coral_fish_right", 231, False)])
-
 
 
 # --- T 203 (and T 241, its mirror image): the seahorses ----------------------------------------------

@@ -1,13 +1,10 @@
 """Batch F of the second wave, continued (wave2_f.py has the rest), facing the way the sprites do
 (models.cfg: yaw=0). Larger objects the game draws from several sprites are built whole and cut
-into the sprites' pieces, which are drawn at their own origins (models.cfg: origin) so they meet:
+into the sprites' pieces, which are drawn at their own origins (models.cfg: origin) so they meet (the drilling
+machine, V 1 above V 39, is built by polish_drillrig.py, the arch, 2 49 beside 2 51, by polish_arch.py):
 
-- arch_left, arch_right (sheet 2 49, 2 51): episode 1's purple and grey arch, two curved arms over a
-  small hub with two red thrusters hanging from it. (2 49 had a flat plate model, arch_ship.)
 - grabber_left, grabber_right (sheet 2 123, 2 125): the grey grabber of TYRIAN and FLEET with a
   glowing blue bar down its neck and two hooked legs, standing on the ground.
-- drillrig_head, drillrig_bit (sheet V 1, V 39): the drilling machine of GRYPHON, MISTAKES and
-  STATION: a blue armoured head and the spiral drill below it. (V 39 had a stand-alone drill.)
 - asteroid_tl, asteroid_tr, asteroid_bl, asteroid_br (sheet D 7, 9, 45, 47): the big lumpy asteroid
   of the asteroid levels, lying on the ground.
 - pod_dome (sheet C 163): the ground relative of DELI's flying pod machine (pod_turret, C 191, is built by
@@ -37,114 +34,6 @@ def X(col, ox=24):
 
 def Y(row, oy=14):
     return oy - (row + 0.5)
-
-
-# --- The arch (sheet 2 49 and 51) ---------------------------------------------------------------
-# a grey, p purple plates, t the thrusters' rods and brace, r the red thrusters.
-
-ARCH = w.art("""
-............#####a###......######a##............
-..........##aaaaappppp....#pppppaaaa##..........
-........##aaagaaappppp#..#pppppppaaaaaa##.......
-......##aaaaaaaaappapp#..#ppppppppaaaaaaa##.....
-.....#aaaaaaa######p#####a##p####a#a#aaaaa#.....
-.....#aaaaaa#aaaaa###aa##aa###aaaaa##aaaaa#.....
-.....#aaaaaaagaaaa#aaaaaaaaaa#aaaaaaa##aa##.....
-.....#aaaaaaagaaaa###aaaaaa###aaaaaaaaa####.....
-.....#aaaaaaaaa####.#tt#ttt#.####aaaaaaaa##.....
-...##aaaaaaaaa#.....#tt##tt#.....aaaaaaaaaa##...
-..#appppppaaa#......#t####t#......#aaapppppa#...
-..#pppppppaa#.......#t#..#t#.......#aappppppp#..
-..#pppppppa#......###tt###t###......#appppppp#..
-..#pppppaa#.......#tttt##tttt#.......#ppppppp#..
-..#pppppaa........##t#t##t#t##........#appppp#..
-..#ppppaaa........#tttt##tttt#........#appppa#..
-..#pppaaaa........#t#tt##tt#t#........#aaappp#..
-..#ppaaaa#........###t####t###........#aaaapa#..
-..#aaaapa#.........#rr#..#rr#.........#ppaaaa#..
-..#aaappa#.........#rr#..#rr#.........#ppaaaa#..
-..#aapppa#.........#rr#..#rr#.........#pppaaa#..
-..#appppa#.........#rr#..arr#..........#pppaa#..
-..#appa#...........#rr#..#rr#...........#ppaa#..
-..#ppp#............#r#....#r#............#paa#..
-..#pp#.............##......##.............#aa#..
-..#a#......................................#a#..
-..##........................................##..
-................................................
-""")
-
-
-# The purple plates (pixel edges, column and row): on the top band near the middle, and two on each
-# arm's lower part, split by a grey stripe.
-ARCH_PLATES = [
-    [(17.2, 1.2), (21.8, 1.2), (21.8, 3.8), (17.2, 3.8)],
-    [(3.3, 10.3), (9.8, 10.3), (9.8, 12.8), (8.0, 13.6), (5.2, 17.8), (3.3, 17.8)],
-    [(7.0, 18.2), (7.9, 18.2), (7.9, 21.8), (5.6, 24.2), (4.2, 24.8), (3.3, 24.8), (3.3, 23.0), (4.0, 21.0)],
-    [(27.2, 1.2), (32.8, 1.2), (32.8, 3.8), (27.2, 3.8)],
-    [(38.2, 10.3), (44.7, 10.3), (44.7, 17.8), (42.8, 17.8), (40.0, 13.6), (38.2, 12.8)],
-    [(39.1, 18.2), (40.0, 18.2), (41.6, 20.4), (42.8, 22.0), (42.8, 23.8), (42.0, 23.8), (39.1, 20.6)],
-]
-
-
-def arch_whole():
-    """The whole arch, centred on the line between its two sprites (art column 24)."""
-    hull = pal("arch2_hull", 6, metallic=0.6, roughness=0.32)
-    light = pal("arch2_light", 9, metallic=0.6, roughness=0.28)
-    plate = pal("arch2_plate", 90, metallic=0.4, roughness=0.3)
-    dark = pal("arch2_dark", 3, metallic=0.5, roughness=0.45)
-    red = pal("arch2_red", 117, roughness=0.25, glow=1.6, emission=(255, 50, 20))
-    hot = pal("arch2_hot", 120, roughness=0.2, glow=3.0, emission=(255, 150, 60))
-    origin = (24, 14)
-    arms = w.relabel(ARCH, [("#tr", ".", 18, 29, 8, 26)])
-    polys = sh.outlines(arms, "#apg", origin, smooth=2, epsilon=0.5, min_area=2.0)
-
-    def shape(x, y, z):
-        # The arms are highest along their middles; a seam where the top band meets the arms.
-        return z - 0.5 * math.exp(-((y - Y(4.2)) / 0.4) ** 2) * (abs(x) > 4.5)
-    body = sh.inflate("arms", polys, hull, sh.pillow_profile(3.0, 0.9, crown=0.4), bottom=0.0, spacing=0.65,
-                      z_fn=shape)
-    k.smooth(body, 50)
-    top = lambda x, y: sh.surface_z(body, x, y, 3.0)
-    # The purple plates, a little proud of the arms.
-    for i, outline in enumerate(ARCH_PLATES):
-        poly = [(c - origin[0], origin[1] - r) for c, r in outline]
-        pl = sh.inflate(f"plate{i}", [poly], plate, sh.pillow_profile(0.7, 0.5), bottom=0.0, base=0.0, spacing=0.55)
-        for v in pl.data.vertices:
-            v.co.z += top(v.co.x, v.co.y) - 0.12
-        k.smooth(pl, 45)
-    # Ribs across the arms where the sprite has bright lines.
-    for side in (-1, 1):
-        w.tube(f"rib{side}", w.catmull([(side * 13.5, Y(5.5), 3.6), (side * 11.0, Y(7.5), 3.7),
-                                        (side * 10.5, Y(9.5), 3.6)], 0.6), 0.4, light, 8)
-    # The hub under the middle of the top band, the two rods, the brace between them, the thrusters.
-    w.rounded_box("hub", (0.0, Y(5.5), 2.4), (11.0, 4.6, 3.6), hull, bevel=0.8)
-    for side in (-1, 1):
-        x = side * 2.5
-        w.lathe_axis(f"rod{side}", [(0.0, 1.0), (10.5, 1.0)], light, (x, Y(7.0), 2.2), (0, -1, 0), 12,
-                     squash=0.9)
-        w.lathe_axis(f"collar{side}", [(0.0, 1.2), (0.2, 1.5), (1.4, 1.5), (1.6, 1.2)], dark, (x, Y(16.2), 2.2),
-                     (0, -1, 0), 14)
-        w.lathe_axis(f"thruster{side}", [(-0.01, 0.01), (0.0, 1.15), (4.5, 1.15), (5.4, 0.8), (5.7, 0.01)], red,
-                     (x, Y(17.8), 2.2), (0, -1, 0), 16)
-        w.sphere(f"thruster_hot{side}", (x, Y(22.6), 2.2), (0.6, 0.6, 0.6), hot, 10, 6)
-    w.rounded_box("brace", (0.0, Y(14.5), 2.4), (11.6, 5.0, 2.2), hull, bevel=0.7)
-    for side in (-1, 1):
-        w.rounded_box(f"brace_light{side}", (side * 2.0, Y(14.2), 3.5), (1.0, 3.4, 0.6), light, bevel=0.25)
-    w.rounded_box("brace_slot", (0.0, Y(14.5), 3.45), (1.4, 3.8, 0.5), dark, bevel=0.2)
-
-
-@model("arch_left", "enemy_2", 49)
-def arch_left():
-    arch_whole()
-    w.bake()
-    w.piece(w.meshes(), -24, 0, -14, 14)
-
-
-@model("arch_right", "enemy_2", 51)
-def arch_right():
-    arch_whole()
-    w.bake()
-    w.piece(w.meshes(), 0, 24, -14, 14)
 
 
 # --- The grabber (sheet 2 123 and 125) ----------------------------------------------------------
@@ -260,84 +149,6 @@ def grabber_right():
     grabber_whole()
     w.bake()
     w.piece(w.meshes(), 0, 24, -14, 14)
-
-
-# --- The drilling machine (sheet V 1 and 39) ----------------------------------------------------
-# One object 24 x 56 pixels: the head is the upper sprite (V 1), the drill the lower (V 39).
-
-DRILL_PROFILE = [(17, 7.6), (19, 8.2), (21, 9.3), (23, 10.0), (26, 10.1), (28, 9.4), (31, 8.3), (35, 7.1), (39, 6.1),
-                 (43, 5.0), (47, 3.3), (51, 2.0), (54, 0.9)]
-
-
-def drillrig_whole():
-    """The drilling machine lying on the ground, its drill pointing down the screen: a blue armoured
-    head (a tall block in the middle, a sloping plate on the left, a grey hatch open at the front, a
-    grey piston on the right) on the drill's wide shoulder; the drill a cone with two spiral threads."""
-    Xd = lambda c: c + 0.5 - 12
-    Yd = lambda r: 28 - (r + 0.5)
-    armour = pal("drill_armour", 56, metallic=0.45, roughness=0.28)
-    plate = pal("drill_plate", 59, metallic=0.45, roughness=0.25)
-    edge = pal("drill_edge", 53, metallic=0.4, roughness=0.35)
-    steel = pal("drill_steel", 11, metallic=0.6, roughness=0.25)
-    grey = pal("drill_grey", 7, metallic=0.7, roughness=0.3)
-    thread = pal("drill_thread", 9, metallic=0.65, roughness=0.3)
-    dark = pal("drill_dark", 3, metallic=0.5, roughness=0.5)
-    ax, az, squash = 0.5, 6.4, 0.66
-    # The drill: turned along -Y, its threads two helices just proud of it.
-    prof = [(Yd(55) - 0.1, 0.05)] + [(Yd(r), rad) for r, rad in reversed(DRILL_PROFILE)]
-    bit = k.lathe("drill", k.profile(prof, 1.0), steel, segments=28, axis_x=ax, axis_z=az, squash=squash)
-    k.smooth(bit, 60)
-    radius = lambda y: next((r for yy, r in reversed(k.profile(prof, 0.3)) if yy <= y), 0.05)
-    for start in (0.0, math.pi):
-        pts = []
-        y = Yd(22)
-        while y > Yd(52):
-            t = start + (Yd(22) - y) * 2 * math.pi / 9.0
-            r = radius(y) + 0.2
-            pts.append((ax + r * math.cos(t), y, az + squash * r * math.sin(t)))
-            y -= 0.6
-        w.tube(f"thread{start:.0f}", pts, 0.7, thread, 7)
-    # The head's body: a rounded hull over the drill's shoulder, flat underneath.
-    body = [(Xd(1) - 0.2, Yd(4)), (Xd(4), Yd(1) + 0.3), (Xd(17) + 0.3, Yd(1) + 0.3), (Xd(18) + 0.4, Yd(4)),
-            (Xd(21) + 0.3, Yd(10)), (Xd(22) + 0.3, Yd(13)), (Xd(22) + 0.3, Yd(15.5)), (Xd(20), Yd(17.5)),
-            (Xd(3), Yd(17.5)), (Xd(2) - 0.3, Yd(15)), (Xd(1) - 0.3, Yd(9))]
-    k.smooth(sh.inflate("head", [body], armour, sh.pillow_profile(9.0, 3.0, crown=0.8), bottom=0.0, spacing=0.8),
-             50)
-    # The tall block at the top middle with its lighter face, and the sloping plate on the left.
-    w.rounded_box("tower", (Xd(12.8), Yd(4.9), 11.2), (9.4, 9.6, 7.0), plate, bevel=1.8)
-    w.rounded_box("tower_face", (Xd(12.8), Yd(4.6), 14.6), (6.4, 6.6, 0.6), armour, bevel=0.3)
-    pad = w.rounded_box("pauldron", (0, 0, 0), (7.6, 8.8, 4.0), plate, bevel=1.4)
-    pad.data.transform(Matrix.Translation((Xd(4.8), Yd(5.2), 10.4)) @ Matrix.Rotation(math.radians(-16), 4, "Y"))
-    w.rounded_box("pauldron_rim", (Xd(4.6), Yd(9.6), 10.0), (7.0, 1.0, 1.6), edge, bevel=0.4)
-    # The column down the front middle and the plates on the right.
-    w.rounded_box("column", (Xd(13), Yd(13.2), 10.0), (3.0, 8.2, 3.0), plate, bevel=0.9)
-    for i, (c, r, sx, sy, z) in enumerate(((17.2, 11.6, 4.2, 3.8, 10.2), (19.6, 14.8, 4.4, 4.0, 9.4))):
-        w.rounded_box(f"side_plate{i}", (Xd(c), Yd(r), z), (sx, sy, 2.4), plate, bevel=0.8)
-    # The open hatch at the front left: grey machinery in a dark frame.
-    w.rounded_box("hatch", (Xd(8.6), Yd(13.2), 8.9), (6.2, 6.4, 0.8), dark, bevel=0.3)
-    w.lathe_axis("hatch_drum", [(0.0, 0.01), (0.05, 1.7), (5.0, 1.7), (5.05, 0.01)], grey,
-                 (Xd(6.2), Yd(12.4), 9.6), (1, 0, 0), 16)
-    w.lathe_axis("hatch_drum2", [(0.0, 0.01), (0.05, 1.2), (4.0, 1.2), (4.05, 0.01)], steel,
-                 (Xd(6.7), Yd(15.3), 9.2), (1, 0, 0), 14)
-    # The grey piston on the right.
-    w.lathe_axis("piston", [(0.0, 0.01), (0.05, 1.6), (4.0, 1.6), (4.3, 1.2), (6.6, 1.2), (6.8, 0.01)], grey,
-                 (Xd(19.6), Yd(4.6), 9.6), (0, -1, 0), 16)
-    w.rounded_box("piston_mount", (Xd(18.8), Yd(8.2), 9.6), (3.0, 3.0, 2.6), steel, bevel=0.6)
-    sh.flat_bottom(w.meshes())
-
-
-@model("drillrig_head", "enemy_V", 1)
-def drillrig_head():
-    drillrig_whole()
-    w.bake()
-    w.piece(w.meshes(), -12, 12, 0, 28)
-
-
-@model("drillrig_bit", "enemy_V", 39)
-def drillrig_bit():
-    drillrig_whole()
-    w.bake()
-    w.piece(w.meshes(), -12, 12, -28, 0)
 
 
 # --- The big asteroid (sheet D 7, 9, 45, 47) -----------------------------------------------------
@@ -514,7 +325,7 @@ def pod_dome():
 
 # --- Main ----------------------------------------------------------------------------------------
 
-WHOLE = {"arch": (arch_whole, (48, 28)), "grabber": (grabber_whole, (48, 28)), "drillrig": (drillrig_whole, (24, 56)),
+WHOLE = {"grabber": (grabber_whole, (48, 28)),
          "asteroid": (asteroid_whole, (48, 56))}
 
 

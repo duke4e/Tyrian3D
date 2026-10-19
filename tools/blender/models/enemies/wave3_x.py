@@ -1,11 +1,7 @@
 """Batch X of wave 3 (sheet C: DELI, New Deli, BONUS and others), modelled as their sprites look (models.cfg:
 yaw=0). DELI's tall tower and the gun on its mast are in wave3_x_tower.py, its long cannons in
-wave3_x_cannon.py; the kit is wave3_x_kit.py, the pixels wave3_x_art.py.
+wave3_x_cannon.py; the kit is wave3_x_kit.py, the pixels wave3_x_art.py. (The glass hatch, C 1, is built by polish_glass_hatch.py.)
 
-- glass_hatch (C 1): the square glass hatch let into DELI's floor tiles: a raised pale frame round a pane of
-  tinted glass with a diagonal glint (the sprite's first frame), and under the glass, rising from a dark pit
-  in the tiles, the red machine the hatch hides: a red dome with three glowing slots (the frames 3-13 fade it
-  in and light the slots; the model shows it through the glass, its slots glowing) and two grey claws.
 - slit_bunker (C 39): the grey bunker with a rounded back, a raised spine down its middle with two slits in it
   (the frames 41, 43 light them red; the slits glow), a band across it and four ribs at its front reaching
   down to the floor tiles it stands on.
@@ -27,111 +23,6 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_x_kit as x  # noqa: E402
 from wave3_x_kit import art, k, sh, w, pal, px, py  # noqa: E402
-
-
-# --- C 1: the glass hatch ------------------------------------------------------------------------------
-
-@x.model("glass_hatch", [(1, True)])
-def glass_hatch():
-    """The tiles as a pad, a raised pale frame (cols 2-20, rows 3-24) round a glass pane, the dark pit in the
-    tiles under it and the red machine rising from it to just under the glass."""
-    shut = x.grid(art.HATCH, 24)
-    hot = x.grid(art.HATCH_HOT, 24)
-    origin = (12, 14)
-    pad_top = 1.2
-
-    # The tiles: the shut frame's floor, the glint on the glass left out (inside the frame the open frame's
-    # tiles where it has them) and the frame's shadow (col 21, row 25) given the floor's shades.
-    def inside(c, r):
-        return 3 <= c <= 19 and 4 <= r <= 23
-
-    merged = []
-    for r in range(28):
-        row = []
-        for c in range(24):
-            v = shut[r][c]
-            if inside(c, r):
-                h = hot[r][c]
-                v = h if h is not None and h >> 4 == 6 else (0x60 | min(v & 15, 6))
-            row.append(v)
-        merged.append(row)
-    shadow = lambda v, c, r: (c == 21 and 4 <= r <= 25) or (r == 25 and 2 <= c <= 21)
-    fg = x.floor_grid(merged, lambda v, c, r: v >> 4 in (0, 6), shadow, seed=5)
-    x.floor_bed("tiles", fg, origin, top=pad_top, prefix="gh_floor")
-
-    # The pit in the tiles under the machine: the open frame's hole and the dark blue below the dome.
-    pit_rows = x.regions(hot, lambda v, c, r: "#" if inside(c, r) and v >> 4 in (0, 3, 7) else ".")
-    pit_rows = [("".join("#" if (ch == "#" or (hot[r][c] is None and inside(c, r))) else "." for c, ch in enumerate(line)))
-                for r, line in enumerate(pit_rows)]
-    pits = sh.outlines(pit_rows, "#", origin, smooth=2, epsilon=0.4, min_area=1.0)
-    pit_mat = pal("gh_pit", 0x01, metallic=0.1, roughness=0.8)
-    for i, poly in enumerate(pits):
-        k.slab(f"pit{i}", x.t.ccw(sh.inset(poly, -0.3)), pad_top - 0.2, pad_top + 0.08, pit_mat)
-
-    # The case: a pale steel sill on the tiles, glass walls and a pale steel rim round the glass top, posts at
-    # its corners.
-    frame_lo = pal("gh_frame", 0x69, metallic=0.55, roughness=0.3)
-    frame_hi = pal("gh_frame_top", 0x6b, metallic=0.55, roughness=0.25)
-    frame_dark = pal("gh_frame_dark", 0x65, metallic=0.5, roughness=0.35)
-    top = 6.6
-    outer, inner = (-10.25, 9.25, -11.25, 11.25), (-9.0, 8.0, -10.0, 10.0)
-    paint = lambda c, n: frame_hi if n.z > 0.7 else frame_dark if n.x > 0.5 or n.y < -0.5 else None
-    w.paint_faces(x.frame_mesh("sill", outer, inner, 0.0, pad_top + 1.0, frame_lo, bevel=0.3), paint)
-    w.paint_faces(x.frame_mesh("rim", outer, inner, top - 1.1, top, frame_lo, bevel=0.3), paint)
-    for cx in (-9.6, 8.6):
-        for cy in (-10.6, 10.6):
-            w.rounded_box(f"post{cx}{cy}", (cx, cy, top / 2 + 0.15), (1.9, 1.9, top + 0.3), frame_hi, bevel=0.45, segments=1)
-    walls = x.glass("gh_wall", 0x67, 0.25)
-    for name, centre, size in (("wall_n", (-0.5, 10.6, top / 2), (18.0, 0.25, top - 1.0)),
-                               ("wall_s", (-0.5, -10.6, top / 2), (18.0, 0.25, top - 1.0)),
-                               ("wall_w", (-9.6, 0.0, top / 2), (0.25, 20.0, top - 1.0)),
-                               ("wall_e", (8.6, 0.0, top / 2), (0.25, 20.0, top - 1.0))):
-        k.box(name, centre, size, walls)
-
-    # The machine: a red dome with three glowing slots, a dark blue body under it, two grey claws.
-    red = pal("gh_red", 0x75, metallic=0.4, roughness=0.3)
-    red_dark = pal("gh_red_dark", 0x72, metallic=0.35, roughness=0.4)
-    slot_glow = pal("gh_slot", 0x7b, metallic=0.0, roughness=0.3, glow=2.0)
-    slot_core = pal("gh_slot_core", 0x7d, metallic=0.0, roughness=0.3, glow=2.6)
-    body = pal("gh_body", 0x32, metallic=0.4, roughness=0.4)
-    grey = {s: pal(f"gh_grey{s}", s, metallic=0.55, roughness=0.32) for s in (4, 6, 8, 10)}
-    cx, cy = px(11), py(10.6)
-    w.rounded_box("body", (cx, py(17.5), pad_top + 1.4), (5.6, 6.5, 2.8), body, bevel=0.8)
-    w.tube("neck", [(cx, py(14.5), pad_top), (cx, py(13.0), 3.4)], 2.2, body, 14)
-    dome = w.sphere("dome", (cx, cy, 2.8), (4.7, 4.3, 2.9), red, 24, 12)
-    w.paint_faces(dome, lambda c, n: red_dark if n.z < 0.3 else None)
-    # The slots: vertical lozenges set into the dome (left, middle and right), the middle one widest.
-    for sx, wd, mat in ((px(8.2), 0.8, slot_glow), (px(11.0), 1.15, slot_core), (px(13.8), 0.8, slot_glow)):
-        zt = 2.8 + 2.9 * math.sqrt(max(0.0, 1 - ((sx - cx) / 4.7) ** 2)) - 0.35
-        w.sphere(f"slot{sx:.1f}", (sx, cy + 0.6, zt), (wd, 2.4, 0.55), mat, 12, 6)
-    # Dark ribs between the slots.
-    for rx in (px(9.6), px(12.4)):
-        zt = 2.8 + 2.9 * math.sqrt(max(0.0, 1 - ((rx - cx) / 4.7) ** 2)) - 0.15
-        w.sphere(f"rib{rx:.1f}", (rx, cy + 0.4, zt), (0.45, 2.9, 0.5), red_dark, 10, 6)
-
-    # The claws: a shoulder by the dome, an arm out and down, a hooked foot on the tiles.
-    for side in (-1, 1):
-        sx = cx + side * 5.9
-        w.sphere(f"shoulder{side}", (cx + side * 4.4, py(12.2), 3.0), (1.4, 1.4, 1.2), grey[8], 10, 6)
-        w.tube(f"arm{side}", [(cx + side * 4.4, py(12.2), 3.0), (sx, py(13.8), 3.4), (sx + side * 0.4, py(16.5), 2.8)],
-               0.95, grey[6], 10)
-        w.sphere(f"elbow{side}", (sx + side * 0.4, py(16.5), 2.8), (1.25, 1.25, 1.1), grey[10], 10, 6)
-        w.tube(f"leg{side}", [(sx + side * 0.4, py(16.5), 2.8), (sx, py(19.0), 2.2), (sx - side * 0.3, py(20.6), 1.6)],
-               0.85, grey[6], 10)
-        w.rounded_box(f"foot{side}", (sx - side * 0.2, py(21.0), 1.6), (2.6, 1.6, 1.0), grey[4], bevel=0.35)
-
-    # The glass pane under the frame's top, and the glint across it (the shut frame's diagonal).
-    pane = x.glass("gh_glass", 0x68, 0.22)
-    w.rounded_box("pane", (-0.5, 0.0, top - 0.55), (17.4, 20.4, 0.3), pane, bevel=0.1)
-    glint = x.glass("gh_glint", 0x6c, 0.3, roughness=0.02)
-    a, b = Vector((px(4.5), py(5.0), top - 0.36)), Vector((px(19.0), py(21.0), top - 0.36))
-    d = (b - a).normalized()
-    side = Vector((-d.y, d.x, 0.0)) * 1.1
-    verts = [a - side, a + side, b + side * 0.6, b - side * 0.6]
-    obj = k.mesh_object("glint", verts, [(0, 3, 2, 1)], glint)
-    if obj.data.polygons[0].normal.z < 0:
-        obj.data.flip_normals()
-    x.report()
 
 
 # --- C 39: the bunker with the slits ---------------------------------------------------------------------
