@@ -1,12 +1,8 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the machines; modelled as their sprites
-look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py.
+look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py; the cage turret (D 275), the red furnace
+(D 267) and the red medallion (D 117) are built by polish_cage_turret.py, polish_red_furnace.py and
+polish_medallion_red.py.
 
-- cage_turret (D 275): AST. CITY's tan machine on the tiled floor: a lattice of tan bars over dark
-  steel windows with a lens, steel pipes to red lamps at both sides and a gun pointing down the
-  screen with a red muzzle (its frames light the lamps and the muzzle: they glow).
-- red_furnace (D 267): the red housing on the tiled floor with a glowing element in a deep well inside
-  a raised rim, steel knobs in dark side slots and red rails clamped to its sides (its frames heat the
-  element up: it glows).
 - eye_tub (D 193): the bronze tub on the tiled floor, its iris open on a glowing red eye with a red
   light on its front (the frames open the iris from shut to the eye, 169; the model shows it open).
 - dome_cannon_barrel, dome_cannon_dome (D 245 above D 283): the brown dome on the tiled floor with a
@@ -16,7 +12,6 @@ look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py.
   sprite, a red-hot crescent vent under its rounded front (the frames 239, 243 brighten it: it glows).
 - shell_ship (D 157): the ship of two dark curved shells round a red eye (its frames close the shells;
   the model shows them open).
-- medallion_red (D 117): the red winged medallion with an orange gem, D 79's red relative.
 - bronze_beetle (D 16): the bronze beetle with red wing cases and green hooked legs.
 
 The ground machines stand directly on the ground: the tiled floor the sprites draw round them is the map's (the game
@@ -36,133 +31,6 @@ import wave3_j_kit as w  # noqa: E402
 from wave3_j_kit import art, k, sh, pal, px, py, model, whole  # noqa: E402
 
 D = "enemy_D"
-
-
-# --- D 275: the cage turret ----------------------------------------------------------------------
-
-LAMP_Z = 2.0  # the cage turret's lamps' axis: on the ground (their half height 2.0)
-
-
-@model("cage_turret", [(D, 275, True)])
-def cage_turret():
-    """A tan armoured body whose top is a lattice of raised bars over dark steel windows (a lens in
-    the lower middle one), steel pipes out to red lamps at both sides, a tan stub with two steel
-    knobs at the back and a tan gun pointing down the screen, its muzzle glowing red."""
-    tan = pal("cage_tan", 0xa8, metallic=0.55, roughness=0.35)
-    tan_light = pal("cage_tan_light", 0xab, metallic=0.55, roughness=0.3)
-    tan_dark = pal("cage_tan_dark", 0xa4, metallic=0.5, roughness=0.45)
-    steel = pal("cage_steel", 0x63, metallic=0.6, roughness=0.35)
-    steel_light = pal("cage_steel_light", 0x69, metallic=0.7, roughness=0.2)
-    lens = pal("cage_lens", 0x6c, metallic=0.4, roughness=0.08, glow=0.25)
-    lamp = pal("cage_lamp", 0x75, metallic=0.1, roughness=0.3, glow=1.1)
-    muzzle = pal("cage_muzzle", 0x76, metallic=0.0, roughness=0.3, glow=1.4)
-
-    top = 6.0  # the body's top (the windows); the bars stand on it
-    # The body: a rounded block under the lattice, tan sides, its top the dark steel of the windows.
-    body = w.block("body", (-0.5, 4.4), 8.9, 8.1, top, tan, taper=0.7, rounding=1.0, power=5.0, segments=36)
-    w.paint_faces(body, lambda c, n: steel if n.z > 0.6 else tan_dark if c.z < 1.6 else None)
-
-    def bar(name, c0, c1, r0, r1, height=1.5):
-        """A tan bar of the lattice over pixel columns c0..c1 and rows r0..r1 (edges)."""
-        x0, x1, y0, y1 = c0 - 12, c1 - 12, 14 - r1, 14 - r0
-        b = w.rounded_box(name, ((x0 + x1) / 2, (y0 + y1) / 2, top + height / 2 - 0.3), (x1 - x0, y1 - y0, height + 0.6),
-                          tan, bevel=0.45, segments=2)
-        sh.apply_modifiers(b)
-        return w.paint_faces(b, lambda c, n: tan_light if n.z > 0.8 else None)
-
-    bar("bar_top", 3.4, 19.6, 2.2, 4.8, 1.7)
-    bar("bar_bottom", 3.4, 19.6, 15.6, 17.4, 1.5)
-    bar("bar_left", 3.2, 5.2, 3.0, 17.0, 1.5)
-    bar("bar_right", 17.8, 19.8, 3.0, 17.0, 1.5)
-    bar("bar_inner_left", 7.0, 9.0, 3.5, 16.5, 1.9)
-    bar("bar_inner_right", 13.8, 15.8, 3.5, 16.5, 1.9)
-    bar("bar_middle", 8.5, 14.3, 8.7, 10.7, 1.6)
-    # The lens in the lower middle window and a slot in the upper one.
-    w.hoop("lens_ring", (px(11.0), py(13.3), top), [(1.5, 0.0), (2.4, -0.5), (2.5, 0.4), (2.0, 0.85)], steel_light, 24)
-    w.sphere("lens", (px(11.0), py(13.3), top + 0.7), (1.6, 1.6, 0.9), lens, 16, 8)
-    w.rounded_box("slot", (px(11.0), py(7.2), top + 0.15), (4.0, 1.2, 0.6), steel_light, bevel=0.25)
-    # The steel pipes out to the lamps, through the side windows.
-    for side in (-1, 1):
-        x_in, x_out = px(11.0) + side * 5.0, px(11.0) + side * 10.2
-        w.tube(f"pipe{side}", [(x_in, py(9.8), top - 0.4), (x_out, py(9.8), LAMP_Z + 0.4)], 1.05, steel_light, 12)
-        w.sphere(f"pipe_ball{side}", (px(11.0) + side * 6.0, py(9.8), top + 0.2), (0.95, 0.95, 0.9), steel_light, 12, 6)
-    # The lamps: red capsules lying along the sides on the ground.
-    for side, x in ((-1, px(1.6)), (1, px(21.4))):
-        w.tube(f"lamp{side}", [(x, py(7.3), LAMP_Z), (x, py(13.0), LAMP_Z)], 1.75, lamp, 14, squash=1.15)
-        w.lathe_axis(f"lamp_cap{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(6.4), LAMP_Z), (0, -1, 0),
-                     14)
-        w.lathe_axis(f"lamp_capb{side}", [(0.0, 1.9), (0.5, 2.1), (1.0, 1.9)], steel, (x, py(13.6), LAMP_Z), (0, 1, 0),
-                     14)
-    # At the back: a tan stub into the ground, two steel knobs on the ground beside it.
-    w.tube("stub", [(px(11.0), py(3.0), top - 1.4), (px(11.0), py(0.6), top - 2.6), (px(11.0), py(-0.4), 0.4)], 1.5,
-           tan, 14)
-    for x in (px(7.6), px(15.6)):
-        w.sphere(f"knob{x}", (x, py(0.8), 1.3), (1.3, 1.1, 1.3), steel_light, 14, 8)
-    # At the front: a steel neck and the gun pointing down the screen, its muzzle glowing.
-    w.lathe_axis("neck", [(0.0, 2.1), (1.0, 2.3), (2.6, 1.9), (3.2, 2.2)], steel_light, (px(11.0), py(17.0), 3.4),
-                 (0, -1, 0), 20)
-    gun = [(0.0, 2.8), (0.4, 3.2), (4.0, 3.0), (4.4, 3.3), (6.2, 3.3), (6.6, 2.9), (6.7, 2.2), (6.75, 0.01)]
-    w.lathe_axis("gun", k.profile(gun, 0.4), tan, (px(11.0), py(19.6), 3.4), (0, -1, 0.18), 24, squash=0.95)
-    w.lathe_axis("muzzle", [(6.4, 2.45), (6.8, 2.2), (6.95, 1.4), (7.0, 0.01)], muzzle, (px(11.0), py(19.6), 3.4),
-                 (0, -1, 0.18), 20, squash=0.95)
-
-
-# --- D 267: the red furnace ----------------------------------------------------------------------
-
-def rounded_rect(x0, x1, y0, y1, radius, count=10):
-    """A rectangle with rounded corners as a polygon (counter-clockwise)."""
-    pts = []
-    for cx, cy, a0 in ((x1 - radius, y1 - radius, 0), (x0 + radius, y1 - radius, 90), (x0 + radius, y0 + radius, 180),
-                       (x1 - radius, y0 + radius, 270)):
-        for i in range(count + 1):
-            a = math.radians(a0 + 90 * i / count)
-            pts.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
-    return pts
-
-
-@model("red_furnace", [(D, 267, True)])
-def red_furnace():
-    """A red housing with rounded edges on the ground: a deep well down its middle with a
-    glowing element in it, a raised rim round the well, dark slots at both sides with steel knobs,
-    and red rails clamped to its sides."""
-    red = pal("furnace_red", 0x47, metallic=0.45, roughness=0.35)
-    red_light = pal("furnace_red_light", 0x4b, metallic=0.45, roughness=0.3)
-    red_dark = pal("furnace_red_dark", 0x43, metallic=0.4, roughness=0.45)
-    pit = pal("furnace_pit", 0x71, metallic=0.1, roughness=0.6, glow=0.5)
-    core = pal("furnace_core", 0x77, metallic=0.0, roughness=0.4, glow=1.2)
-    slot = pal("furnace_slot", 0x10, metallic=0.3, roughness=0.5)
-    knob = pal("furnace_knob", 0x0b, metallic=0.75, roughness=0.2)
-    bolt = pal("furnace_bolt", 0x17, metallic=0.6, roughness=0.35)
-
-    height = 7.2
-    outline = rounded_rect(-10.0, 7.0, -12.0, 14.0, 3.0)
-    well = rounded_rect(-4.0, 1.0, -5.0, 9.0, 1.0, 4)
-    slots = [rounded_rect(-9.0, -6.0, -3.0, 7.0, 1.0, 4), rounded_rect(3.0, 6.0, -3.0, 7.0, 1.0, 4)]
-    housing = sh.inflate("housing", [outline, well] + slots, red, sh.pillow_profile(height, 2.2, crown=0.4),
-                         bottom=0.0, spacing=0.7, rim=0.3)
-    w.simplify_bottom(housing)
-    w.decimate(housing, 1600)
-    k.smooth(housing, 60)
-    # The well: its floor glows, the element along it glows hotter.
-    w.rounded_box("well_floor", (-1.5, 2.0, 1.2), (5.4, 14.4, 1.6), pit, bevel=0.3)
-    w.tube("element", [(-2.0, 8.0, 2.4), (-2.0, -4.0, 2.4)], 0.75, core, 12)
-    for y in (8.4, -4.4):
-        w.rounded_box(f"element_post{y}", (-2.0, y, 2.0), (1.6, 1.0, 2.2), red_dark, bevel=0.3)
-    # The raised rim round the well.
-    rim = rounded_rect(px(6.6), px(13.4), py(19.6), py(2.6), 2.2, 4)
-    loop = [(x, y, height + 0.35) for x, y in rim]
-    loop = [p for p in w.catmull(loop + loop[:3], 0.6)]
-    w.tube("well_rim", loop[:-6], 0.95, red_light, 10, squash=0.8)
-    # The slots: dark floors, two steel knobs each.
-    for x in (-7.5, 4.5):
-        w.rounded_box(f"slot_floor{x}", (x, 2.0, 1.0), (3.4, 10.4, 1.4), slot, bevel=0.3)
-        for y in (5.0, -1.0):
-            w.sphere(f"knob{x}{y}", (x, y, 2.6), (1.25, 1.25, 1.4), knob, 16, 8)
-    # The rails clamped to the sides, lying on the ground.
-    for x, xin in ((px(0.9), -9.6), (px(19.6), 6.6)):
-        w.tube(f"rail{x}", [(x, py(6.0), 1.2), (x, py(17.6), 1.2)], 1.2, red, 12)
-        for y in (py(7.3), py(16.0)):
-            w.tube(f"clamp{x}{y}", [(x, y, 1.2), (xin, y, 2.0)], 0.55, bolt, 8)
 
 
 # --- D 193: the eye tub --------------------------------------------------------------------------
@@ -354,45 +222,6 @@ def shell_ship():
     w.rounded_box("neck", (0.0, -2.6, -0.4), (4.0, 3.6, 3.4), inner, bevel=0.6)
     w.hoop("eye_ring", (0.0, 5.3, 2.4), [(1.4, -0.3), (2.2, -0.2), (2.3, 0.3), (1.6, 0.5)], rim, 20, scale_y=0.8)
     w.sphere("eye", (0.0, 5.3, 2.3), (1.6, 1.2, 0.9), eye, 16, 8)
-
-
-# --- D 117: the red medallion --------------------------------------------------------------------
-
-@model("medallion_red", [(D, 117, True)])
-def medallion_red():
-    """A winged medallion of pink-red metal, like D 79's golden one (ornament): a shield-shaped
-    plate with rounded wings, ridges from its corners to an orange gem in a setting low in its
-    middle, a ridge up to a ring at its top. It flies, so its back is rounded too."""
-    g = w.grid(art.D117, 24)
-    metal = pal("medal_red", 0x47, metallic=0.75, roughness=0.3)
-    light = pal("medal_red_light", 0x4b, metallic=0.75, roughness=0.25)
-    dark = pal("medal_red_dark", 0x43, metallic=0.7, roughness=0.35)
-    gem = pal("medal_gem", 0x79, metallic=0.1, roughness=0.08, glow=0.9)
-    gem_core = pal("medal_gem_core", 0x7c, metallic=0.0, roughness=0.05, glow=1.3)
-    rows = w.regions(g, lambda v, c, r: "#")
-    rows = w.relabel(rows, [("#", ".", 8, 15, 0, 5)])  # the ring is turned
-    plate = w.part("plate", rows, "#", metal, sh.pillow_profile(2.6, 1.3, crown=1.1), bottom=0.45, smooth=2,
-                   epsilon=0.4, spacing=0.45)
-    w.decimate(plate, 2400)
-    k.smooth(plate, 50)
-    w.paint_faces(plate, lambda c, n: dark if n.z < -0.2 else None)
-
-    def on_plate(x, y, lift=0.0):
-        return (x, y, sh.surface_z(plate, x, y, 2.6) + lift)
-    # The ridges: from the wings' tops and the lower corners to the gem, and up to the ring.
-    gx, gy = px(11.5), py(17.2)
-    for (c0, r0), (c1, r1) in (((3.0, 6.0), (10.0, 15.5)), ((20.0, 6.0), (13.0, 15.5)), ((2.5, 15.0), (9.0, 18.0)),
-                               ((21.0, 15.0), (14.0, 18.0)), ((11.5, 6.0), (11.5, 13.8))):
-        pts = [on_plate(px(c0 + (c1 - c0) * t), py(r0 + (r1 - r0) * t), 0.15) for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
-        w.tube(f"ridge{c0}{r0}", pts, 0.65, light, 10, squash=0.8)
-    # The gem in its setting.
-    z = sh.surface_z(plate, gx, gy, 3.0)
-    w.hoop("setting", (gx, gy, z), [(1.9, -0.3), (2.9, -0.2), (3.0, 0.4), (2.3, 0.8)], light, 28, scale_y=0.95)
-    w.sphere("gem", (gx, gy, z + 0.3), (2.1, 2.0, 1.4), gem, 20, 10)
-    w.sphere("gem_core", (gx - 0.4, gy + 0.4, z + 1.35), (0.8, 0.8, 0.35), gem_core, 12, 6)
-    # The ring at the top.
-    w.hoop("ring", (px(11.5), py(4.0), 1.6), [(1.0, -0.6), (2.5, -0.6), (2.9, 0.0), (2.5, 0.6), (1.0, 0.6),
-                                             (0.7, 0.0)], metal, 28, scale_y=0.85)
 
 
 # --- D 16: the bronze beetle ---------------------------------------------------------------------

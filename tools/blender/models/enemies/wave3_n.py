@@ -1,10 +1,9 @@
 """Enemies of wave 3, batch N (sheet 3: SURFACE, DESERTRUN and CORE), the machines and ships; modelled
 as their sprites look (models.cfg: yaw=0 unless noted). The rock arch and the stepped pyramid are in
 wave3_n_rocks.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py,
-DESERTRUN's hatch bunker (3 18) in polish_hatch_bunker.py.
+DESERTRUN's hatch bunker (3 18) in polish_hatch_bunker.py, CORE's lava bubble (3 128) in
+polish_lava_bubble.py.
 
-- lava_bubble (3 128): CORE's glossy dark red bubble of lava on the ground, splashes round its foot
-  (its frames 130 and 132 burst it).
 - plank_turret (3 12): SURFACE's brown turret, a box of planks with two guns; its eight frames are
   headings the level picks, so the model points up the screen (as 3 14) and aims at the player
   (yaw=aim).
@@ -26,57 +25,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_n_kit as n  # noqa: E402
 from wave3_n_kit import art, k, sh, w, pal, px, py  # noqa: E402
-
-
-def mask_of(name, width):
-    return lambda: n.art_mask(w.grid(getattr(art, name), width))
-
-
-# --- 3 128: the lava bubble ----------------------------------------------------------------------
-
-@n.model("lava_bubble", mask=mask_of("DOME", 24))
-def lava_bubble():
-    """A glossy dark red bubble of lava standing on the ground, a little lighter towards its east side
-    and darker at its foot, a faint glow in it; drops and lumps splashed round its foot, some still
-    hot."""
-    import random
-    g = w.grid(art.DOME, 24)
-    skin = pal("bubble_skin", 0x72, metallic=0.1, roughness=0.1, glow=0.15)
-    skin_dark = pal("bubble_dark", 0x70, metallic=0.1, roughness=0.2, glow=0.05)
-    lump_dark = pal("bubble_lump", 0x72, metallic=0.05, roughness=0.25, glow=0.1)
-    lump_hot = pal("bubble_hot", 0x76, metallic=0.0, roughness=0.3, glow=1.0)
-    cx, cy, rx, ry = 0.0, 1.6, 11.2, 9.4
-    dome = k.ellipsoid("dome", (cx, cy, 0.0), (rx, ry, 9.5), skin, 48, 24)
-    sh.flat_bottom([dome])
-    k.smooth(dome, 60)
-    w.paint_faces(dome, lambda c, nrm: skin_dark if c.z < 1.2 else None)
-    # A lip of lava round its foot.
-    w.hoop("lip", (cx, cy, 0.0), [(rx - 0.8, 0.0), (rx + 0.6, 0.0), (rx + 0.5, 0.6), (rx - 0.4, 1.1)], skin_dark, 48,
-           scale_y=ry / rx)
-    # The splashes: a drop at the sprite's pixels outside the dome (one per pixel or two), the bright
-    # ones hot.
-    rnd = random.Random(128)
-    drops = []
-    for r in range(len(g)):
-        for c in range(24):
-            v = g[r][c]
-            if v is None:
-                continue
-            x, y = px(c), py(r)
-            if ((x - cx) / (rx + 0.3)) ** 2 + ((y - cy) / (ry + 0.3)) ** 2 < 1.0:
-                continue
-            if y > cy - 2.0 or any((x - dx) ** 2 + (y - dy) ** 2 < 2.5 ** 2 for dx, dy, _ in drops):
-                continue
-            drops.append((x, y, v))
-    for i, (x, y, v) in enumerate(drops):
-        hot = (v & 15) >= 5
-        size = rnd.uniform(0.9, 1.35)
-        # A splat, flattened, stretched away from the bubble.
-        d = Vector((x - cx, y - cy)).normalized()
-        drop = w.sphere(f"drop{i}", (0.0, 0.0, 0.0), (size, size * 1.35, size * 0.55), lump_hot if hot else lump_dark,
-                        12, 6)
-        angle = math.atan2(d.y, d.x) - math.pi / 2
-        drop.data.transform(Matrix.Translation((x, y, 0.15)) @ Matrix.Rotation(angle, 4, "Z"))
 
 
 # --- 3 12: the plank turret ----------------------------------------------------------------------

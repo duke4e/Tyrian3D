@@ -1,4 +1,4 @@
-"""Batch AR of wave 3: three objects whose frames change shape, for frame lines, built by their own scripts' builders
+"""Batch AR of wave 3: two objects whose frames change shape, for frame lines, built by their own scripts' builders
 (imported as they are, their output unchanged) and posed as the frames draw them (models.cfg: as their first
 frame's models, yaw=0).
 
@@ -11,9 +11,7 @@ frame's models, yaw=0).
   with 17, 55, 93, 131. wave3_k.py's airship has two white blades in the fan's duct (40 and 140 degrees round it);
   the frames show four blades in other places (about 20, 65, 115 and 160 degrees), which the models here have
   (wave3_k's two blades turned and copied), the rest as wave3_k builds it, cut into the same pieces.
-- lava_bubble_<sprite> (sheet 3, CORE's lava bubble, 3 128; wave3_n.py): it wobbles, 128 130 132 130, the bubble
-  swelling a pixel (130) and the lava splashed round its foot moving (130, 132): wave3_n's bubble with the splashes
-  where those frames draw them (its builder fed their pixels), swollen for 130.
+(CORE's lava bubble's frames, 3 130 and 132: polish_lava_bubble.py.)
 
 usage: Blender -b --factory-startup -P wave3_ar_beasts.py -- [--only names] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
@@ -30,7 +28,6 @@ import wave3_ar_kit as kit  # noqa: E402
 import wave3_ar_art as art  # noqa: E402
 
 gi = kit.quiet_import("wave3_ai_gryphon")
-nb = kit.quiet_import("wave3_n")
 zk = kit.quiet_import("wave3_k")
 kit.forget()
 n = kit.n
@@ -87,34 +84,10 @@ ZEP_FRAMES = {3: 17, 5: 55, 41: 93, 43: 131}
 ZEP_PIECES = [(ZEP_FRAMES[s], x0, x1, y0, y1) for s, x0, x1, y0, y1 in zk.ZEPPELIN_PIECES if s in ZEP_FRAMES]
 
 
-# --- CORE's lava bubble --------------------------------------------------------------------------------------------
-
-def lava_bubble(sprite, swell):
-    """wave3_n's lava bubble with the splashes round its foot where frame `sprite` draws them (its builder fed the
-    frame's pixels), the bubble swollen by `swell` (taller, its top a little further up the screen)."""
-    saved = nb.art.DOME
-    nb.art.DOME = getattr(art, f"LAVA_{sprite}")
-    try:
-        nb.lava_bubble()
-    finally:
-        nb.art.DOME = saved
-    if swell:
-        foot = 1.6 - 9.4          # the bubble's south edge (cy - ry, as wave3_n builds it)
-        grow = Matrix.Translation((0.0, foot, 0.0)) @ Matrix.Diagonal((1.0, 1.0 + swell * 0.45, 1.0 + swell, 1.0)) @ \
-            Matrix.Translation((0.0, -foot, 0.0))
-        w.transform([bpy.data.objects["dome"], bpy.data.objects["lip"]], grow)
-
-
-for sprite, swell in ((130, 0.12), (132, 0.0)):
-    n.model(f"lava_bubble_{sprite}", mask=lambda sprite=sprite: kit.sheet_mask("enemy_3", sprite))(
-        lambda sprite=sprite, swell=swell: lava_bubble(sprite, swell))
-
-
 def main():
     options = kit.k.args()
     only = set(options["only"].split(",")) if "only" in options else None
-    # Each with its own script's build loop: the head's (wave3_v_kit's, as wave3_ai_gryphon builds it), the bunker's
-    # and the bubble's (wave3_n_kit's, as wave3_n builds them).
+    # Each with its own script's build loop: the head's (wave3_v_kit's, as wave3_ai_gryphon builds it).
     saved = list(n.MODELS)
     try:
         n.MODELS[:] = [m for m in saved if m[0].startswith("gryphon_head")]

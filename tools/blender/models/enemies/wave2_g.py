@@ -17,8 +17,7 @@
   (4 267-273); the whole arm is built and cut (origin).
 - hatch_ship (sheet S 93): the grey shield-shaped ship of the asteroid levels, a hatch in its middle
   opening on a red eye (frames 93, 131), red lights at its corners and a blue canopy at its tip.
-- lava_star (sheet 5 278): the spiked star of glowing lava of BRAINIAC and SQUADRON (its frames
-  shrink it; the model keeps the first frame's size).
+- lava_star: now built by polish_lava_star.py.
 - pink_torpedo_front, pink_torpedo_rear (sheet 8 125, 8 127): the two halves of the pink torpedo of
   IXMUCANE and SAWBLADES lying on its side, its muzzle glowing at the front (origin).
 - horseshoe: now built by polish_horseshoe.py.
@@ -494,32 +493,6 @@ def hatch_ship():
     for x in (-7.5, 7.5):
         k.smooth(k.ellipsoid(f"lamp{x}", (x, 10.9, 3.35), (1.05, 1.0, 0.6), lamp, 12, 6), 60)
     k.smooth(k.ellipsoid("canopy", (0.0, -7.9, 4.1), (1.9, 3.3, 1.6), blue, 20, 12), 60)
-
-
-# --- 5 278: the lava star --------------------------------------------------------------------------
-
-@model("lava_star", "5", 278)
-def lava_star():
-    """A star of lava crust, eight points (four long ones up, down and to the sides, four short
-    ones on the diagonals) rising in ridges to its middle, bulging where the sprite glows and
-    glowing there in the sprite's shades (its frames shrink it; the model keeps the first frame's
-    size). It lies on the ground."""
-    g = grid(art.E5_278, 24)
-    rows = regions(g, lambda v, c, r: "#")
-    shade = sampler(g, blur=1)
-    bands = [(lowest, pal(f"lava_{index:x}", index, metallic=0.0, roughness=0.6, glow=glow))
-             for lowest, index, glow in ((0.0, 0x71, 0.25), (3.0, 0x73, 0.4), (5.0, 0x75, 0.55), (6.5, 0x77, 0.7),
-                                         (8.0, 0x79, 0.9), (10.0, 0x7b, 1.1), (12.5, 0x7d, 1.3))]
-
-    def ridges(d, w):
-        return np.minimum(0.95 * d, 6.0) + 0.25
-
-    def bulge(x, y, z):
-        return z + 0.9 * max(0.0, shade(x, y) - 5.0) / 10.0 * min(1.0, z / 1.5)
-    star = part("star", rows, "#", bands[0][1], ridges, smooth=0, epsilon=0.6, spacing=0.4, z_fn=bulge, rim=0.3)
-    paint_faces(star, shade_bands(g, bands, blur=0))
-    simplify_bottom(star)
-    k.smooth(star, 35)
 
 
 # --- F 87: the fork ship ---------------------------------------------------------------------------

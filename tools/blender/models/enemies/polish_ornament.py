@@ -374,4 +374,5 @@ def build():
     k.finish(os.path.join(here, "..", "..", "..", "..", "assets", "models", "enemies", "ornament.glb"))
 
 
-build()
+if __name__ == "__main__":
+    build()
