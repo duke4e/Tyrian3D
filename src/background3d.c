@@ -1266,10 +1266,11 @@ static bool water_like(Uint8 index)
 {
 	if (water_pixel(index))
 		return true;
-	// Cool colours (the crests', the glare's pale blue-greys) and the darkest troughs.
+	// Cool colours (the crests', the glare's pale blue-greys) and the darkest troughs, all tinted
+	// blue: plain greys are stone (SAVARA's grey fortresses in the sea were water).
 	const Uint8 *c = (const Uint8 *)&rgb_palette[index];
 	const int brightest = SDL_max(c[0], SDL_max(c[1], c[2]));
-	return (c[2] >= c[0] && c[2] + 8 >= c[1]) || brightest < 40;
+	return (c[2] >= c[0] + 6 && c[2] + 8 >= c[1]) || (brightest < 40 && c[2] > c[0]);
 }
 
 static int water_class(int set, int tile);
