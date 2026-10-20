@@ -3,7 +3,6 @@ look (models.cfg: yaw=0 unless noted):
 
 - purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
 - flesh_stinger (5 207): BRAINIAC's fleshy stinger, a capped beak of two halves.
-- green_eye (5 79): EYESPY's green eyeball, authored looking up the screen (models.cfg: yaw=aim).
 - eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
   the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
@@ -22,10 +21,6 @@ silhouette overlap with its sprite; --whole renders the objects the game draws i
 import math
 import os
 import sys
-
-import bmesh
-import bpy
-from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_l_art as art  # noqa: E402
@@ -117,40 +112,6 @@ def flesh_stinger():
             ang = math.pi / 2 + u
             pts.append((ax + rad * math.cos(ang) * 0.98, y, zc + rad * math.sin(ang) * squash * 0.98))
         w.tube(f"seam{i}", pts, 0.3 if i else 0.38, dark, 8)
-
-
-# --- 5 79: EYESPY's green eyeball ------------------------------------------------------------------
-
-@model("green_eye", 79)
-def green_eye():
-    """A green eyeball (21 pixels across), its dark iris and pupil looking up the screen and a little up
-    at the camera, the cornea bulging over them: with yaw=aim it looks at the player, as the sprite's
-    eye looks down at him (as EYESPY's grey eye, 5 202)."""
-    pupil = pal("geye_pupil", 0x21, metallic=0.0, roughness=0.06)
-    iris = pal("geye_iris", 0x24, metallic=0.1, roughness=0.12)
-    iris_rim = pal("geye_iris_rim", 0x27, metallic=0.1, roughness=0.18)
-    ring = pal("geye_ring", 0x22, metallic=0.0, roughness=0.25)
-    ball = pal("geye_ball", 0x29, metallic=0.1, roughness=0.12)
-    back = pal("geye_back", 0x26, metallic=0.05, roughness=0.3)
-    centre, radius, flat = Vector((0.5, 1.5, 0.0)), 10.4, 0.8
-    look = Vector((0.0, math.sin(math.radians(24)), math.cos(math.radians(24))))
-    bm = bmesh.new()
-    bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=32, radius=1.0)
-    values = []
-    for v in bm.verts:
-        n = v.co.normalized()
-        angle = math.degrees(n.angle(look))
-        bulge = 0.05 * (1 - w.smoothstep(0, 32, angle)) - 0.03 * (1 - w.smoothstep(5, 10, angle))
-        p = n * radius * (1 + bulge)
-        v.co = centre + Vector((p.x, p.y, p.z * flat))
-        values.append(-angle)
-    mesh = bpy.data.meshes.new("eye")
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new("eye", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    w.band_split(obj, values, [(-999, back), (-105, ball), (-33, ring), (-30, iris_rim), (-25, iris), (-11, pupil)],
-                 smooth_angle=80)
 
 
 # --- 5 164: BRAINIAC's hatch with a red eye ----------------------------------------------------------

@@ -4,7 +4,6 @@
   WAR, at both sides of the screen with their knobs facing each other (the axle goes on into the
   background): a knob, a tube, two flanges with red lamps and a collar with red clamps, turned round
   the axle. Mirror images.
-- gem_pyramid (coins 76): the small red pyramid gem worth 50 credits (items).
 - face_eye (sheet 5 270): the eyeballs of NOSE DRIP's face, authored looking up the screen so that
   yaw=aim turns them after the player (the sprite looks down the screen).
 - nose_bridge (sheet 5 154): the bridge of NOSE DRIP's nose; nose_tip_left / nose_tip_right (5 191 / 193)
@@ -121,37 +120,6 @@ def station_end(mirror):
 
 model("station_end_left", "L", 24)(lambda: station_end(False))
 model("station_end_right", "L", 34)(lambda: station_end(True))
-
-
-# --- The pyramid gem (coins 76) ---------------------------------------------------------------------
-
-@model("gem_pyramid", "coins", 76, large=False, directory="items")
-def gem_pyramid():
-    """A small red gem cut as a pyramid on a square turned 45 degrees (the sprite's diamond), its
-    bright apex a small table, a shallow pyramid below the girdle."""
-    red = k.material("pyramid_red", palette=70, metallic=0.25, roughness=0.15, emission=(200, 50, 30),
-                     emission_strength=0.12)
-    light = k.material("pyramid_table", palette=74, metallic=0.2, roughness=0.1, emission=(255, 120, 90),
-                       emission_strength=0.2)
-    cx, cy = 0.5, -0.5
-    r, t = 6.05, 1.1  # the girdle's and the table's half-diagonals
-    dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-    verts = [(cx + dx * t, cy + dy * t, 3.6) for dx, dy in dirs]             # the table
-    verts += [(cx + dx * r, cy + dy * r, 0.45) for dx, dy in dirs]           # the girdle's top
-    verts += [(cx + dx * r, cy + dy * r, -0.35) for dx, dy in dirs]          # the girdle's bottom
-    verts.append((cx, cy, -2.9))                                             # the pavilion's point
-    faces = [(0, 1, 2, 3)]
-    for i in range(4):
-        j = (i + 1) % 4
-        faces.append((i, 4 + i, 4 + j, j))          # the crown
-        faces.append((4 + i, 8 + i, 8 + j, 4 + j))  # the girdle
-        faces.append((8 + i, 12, 8 + j))            # the pavilion
-    obj = k.mesh_object("gem", verts, faces)
-    k.recalc_normals(obj)
-    obj.data.materials.append(red)
-    obj.data.materials.append(light)
-    obj.data.polygons[0].material_index = 1
-    k.bevel(obj, 0.18, 1)
 
 
 # --- NOSE DRIP's eye (sheet 5 270) ------------------------------------------------------------------

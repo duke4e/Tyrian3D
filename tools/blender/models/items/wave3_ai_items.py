@@ -1,6 +1,6 @@
 """Items of wave 3, batch AI (the coins sheet's remaining sprites), modelled as their sprites look; the kit is
-enemies/wave3_ai_kit.py, the pixels enemies/wave3_ai_art.py. The fruit and the gem turn slowly (spin) as the other
-loose items do; the things with letters or symbols (the tick, the hot dog) and the key keep still.
+enemies/wave3_ai_kit.py, the pixels enemies/wave3_ai_art.py. The fruit turns slowly (spin) as the other loose items
+do; the things with letters or symbols (the tick, the hot dog) and the key keep still.
 
 - strawberry (coins 75, 300 credits): a glossy red strawberry lying tip down the screen, yellow seeds in it, a
   green calyx of seven leaves and a stalk at its top.
@@ -8,7 +8,6 @@ loose items do; the things with letters or symbols (the tick, the hot dog) and t
   a curled brown twig; the sprites differ only by the grapes' colour (the twig stays brown), so two models.
 - fruit_round (coins 37 and 113: a lime of 150 and an orange of 500 credits): a round citrus fruit with dimpled
   peel and a small navel; one model in the orange's shades that takes each sprite's colour (color=sprite).
-- gem_pyramid_purple (coins 57, 2000 or 100 credits): gem_pyramid (wave2_e.py) cut in violet.
 
 usage: Blender -b --factory-startup -P wave3_ai_items.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1]
@@ -156,37 +155,6 @@ def fruit_round():
         marks.append(kit.pip(f"fruit_crease{j}", tuple(p), tuple(nrm), (0.18, 0.5, 0.06), navel, sink=0.04))
         k.recalc_normals(marks[-1])
     kit.join(marks, "fruit_navel")
-
-
-# --- Coins 57: the violet pyramid gem ---------------------------------------------------------------------------
-
-@kit.model("gem_pyramid_purple", mask=lambda: kit.frame("PYRAMID_P", 12, (6, 7)).mask(), size=SMALL)
-def gem_pyramid_purple():
-    """gem_pyramid's cut (wave2_e.py): a pyramid on a square turned 45 degrees (the sprite's diamond), its bright
-    apex a small table, a shallow pyramid below the girdle; in the violet of the sprite."""
-    body = k.material("pyramid_violet", palette=0x57, metallic=0.25, roughness=0.15, emission=(150, 110, 190),
-                      emission_strength=0.12)
-    light = k.material("pyramid_violet_table", palette=0x5b, metallic=0.2, roughness=0.1, emission=(215, 190, 240),
-                       emission_strength=0.2)
-    cx, cy = 0.5, -0.5
-    r, t = 6.05, 1.1
-    dirs = [(1, 0), (0, 1), (-1, 0), (0, -1)]
-    verts = [(cx + dx * t, cy + dy * t, 3.6) for dx, dy in dirs]
-    verts += [(cx + dx * r, cy + dy * r, 0.45) for dx, dy in dirs]
-    verts += [(cx + dx * r, cy + dy * r, -0.35) for dx, dy in dirs]
-    verts.append((cx, cy, -2.9))
-    faces = [(0, 1, 2, 3)]
-    for i in range(4):
-        j = (i + 1) % 4
-        faces.append((i, 4 + i, 4 + j, j))
-        faces.append((4 + i, 8 + i, 8 + j, 4 + j))
-        faces.append((8 + i, 12, 8 + j))
-    obj = k.mesh_object("gem", verts, faces)
-    k.recalc_normals(obj)
-    obj.data.materials.append(body)
-    obj.data.materials.append(light)
-    obj.data.polygons[0].material_index = 1
-    k.bevel(obj, 0.18, 1)
 
 
 # --- Coins 243: SOH JIN's golden key ----------------------------------------------------------------------------

@@ -1,16 +1,13 @@
-"""Helpers for the batch O models of wave 3 (sheet K: wave3_o.py, the fire column, the WARNING sign and
-the sparks; wave3_o_machines.py, the grey machines): the sprites' pixels (wave3_o_art.py), the part
-builders of batch J (wave3_j_kit: palette materials, inflated parts, turned parts, tubes, painting faces),
-cutting a whole object into the pieces the game draws, periodic noise for tiling pieces, and the build
-loop (wave3_j_kit.run).
+"""Helpers for the batch O models of wave 3 (sheet K: wave3_o.py, the sparks; wave3_o_machines.py, the grey
+machines; also used by other batches' kits): the sprites' pixels (wave3_o_art.py), the part builders of batch J
+(wave3_j_kit: palette materials, inflated parts, turned parts, tubes, painting faces), cutting a whole object into
+the pieces the game draws, and the build loop (wave3_j_kit.run).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre. Pixel (column c, row r) of an art with origin (ox, oy) covers
 x = c - ox .. c + 1 - ox, y = oy - r - 1 .. oy - r.
 """
-import math
 import os
-import random
 import sys
 
 import bmesh
@@ -40,10 +37,6 @@ run = w.run
 
 
 # --- Pixels --------------------------------------------------------------------------------------
-
-def shades(g, origin, keep, value=lambda v: v & 15, blur=1):
-    """A function (x, y) -> the shade of the pixels keep(index) accepts, as wave3_j_kit.sampler."""
-    return sampler(g, origin, value=value, blur=blur, keep=lambda v: v is not None and keep(v))
 
 
 def char_rows(g, fn):
@@ -117,46 +110,6 @@ def merge(name, objects):
 
 def decimate(obj, target):
     return w.decimate(obj, target)
-
-
-# --- Noise ---------------------------------------------------------------------------------------
-
-class PeriodicPuffs:
-    """Soft bumps scattered over a band x0..x1 that repeats every `period` along y: value(x, y) is the
-    sum of Gaussian bumps (amplitude, radius across, `stretch` times that along y) and the same for
-    every copy of the pattern."""
-
-    def __init__(self, count, x0, x1, period, radius=(3.0, 6.0), amplitude=(1.0, 3.0), stretch=(1.0, 1.0), seed=1):
-        rnd = random.Random(seed)
-        self.period = period
-        self.puffs = []
-        for _ in range(count):
-            r = rnd.uniform(*radius)
-            self.puffs.append((rnd.uniform(x0, x1), rnd.uniform(0, period), r, r * rnd.uniform(*stretch),
-                               rnd.uniform(*amplitude)))
-
-    def __call__(self, x, y):
-        total = 0.0
-        for px_, py_, rx, ry, a in self.puffs:
-            dy = (y - py_) % self.period
-            for d in (dy, dy - self.period):
-                q = ((x - px_) / rx) ** 2 + (d / ry) ** 2
-                if q < 9.0:
-                    total += a * math.exp(-q)
-        return total
-
-
-class PeriodicWaves:
-    """A sum of sine waves periodic along y with `period` (whole multiples) and free along x."""
-
-    def __init__(self, count, period, kx=(0.15, 0.6), harmonics=(1, 4), seed=2):
-        rnd = random.Random(seed)
-        self.waves = [(rnd.uniform(*kx) * rnd.choice((-1, 1)), 2 * math.pi * rnd.randint(*harmonics) / period,
-                       rnd.uniform(0, 2 * math.pi)) for _ in range(count)]
-        self.norm = 1.0 / math.sqrt(count / 2.0)
-
-    def __call__(self, x, y):
-        return self.norm * sum(math.sin(a * x + b * y + p) for a, b, p in self.waves)
 
 
 def smoothstep(e0, e1, x):
