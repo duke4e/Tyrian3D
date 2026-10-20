@@ -1,8 +1,7 @@
 """Enemies of wave 2, batch H, modelled as their sprites look (models.cfg: yaw=0 unless noted). (GYGES' bronze
-ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_molten_rock.py.)
+ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_molten_rock.py; the rock arch's
+nub, 3 180: polish_rock_arch.py.)
 
-- desert_rock_tip (sheet 3 180): the 1x1 tip of the big tan rock of DESERTRUN and SURFACE (the rest of
-  the rock is 3 162, 164, 198, 200, 202): a sloping nub cut where the rock goes on (origin).
 - fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
   fire_flap_l_bottom (A 7, 45): the glowing fire flaps of APPROACH, MISTAKES and SOH JIN, each two
   sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
@@ -30,45 +29,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave2_h_kit as kit  # noqa: E402
-from wave2_h_kit import G1, G2, k, pal, sh, smoothstep, round_edge  # noqa: E402
-
-# --- 3 180: the tip of the big rock --------------------------------------------------------------
-
-ROCK_TIP = G1.art("""
-............
-............
-............
-............
-............
-............
-............
-............
-............
-............
-...........a
-..........ab
-..........ab
-.........abb
-""")
-
-
-def desert_rock_tip():
-    dark = pal("rock_dark", 0x12, metallic=0.0, roughness=0.8)
-    mid = pal("rock_mid", 0x16, metallic=0.0, roughness=0.75)
-    tan = pal("rock_tan", 0x1a, metallic=0.0, roughness=0.7)
-    polys = G1.polys(ROCK_TIP, "ab", smooth=1, epsilon=0.3)
-    # The right and bottom edges are the sprite's: the rock goes on there (3 162, 3 198).
-    cut = (lambda a, b: (a[0] > 5.99 and b[0] > 5.99) or (a[1] < -6.99 and b[1] < -6.99))
-
-    def top(x, y, d):
-        # Rising from the outer edge into the rock, a facet a little steeper near the tip.
-        return 0.3 + 1.25 * d + 0.2 * (x - 4.5)
-
-    def mat(x, y, z, d):
-        return 0 if d < 0.55 else 1 if d < 1.3 else 2
-
-    kit.solid("tip", polys, top, 0.0, [dark, mid, tan], mat, side_mat=0, spacing=0.3, smooth_angle=35, cut=cut)
-
+from wave2_h_kit import G2, k, pal, sh, smoothstep, round_edge  # noqa: E402
 
 # --- D 5: the asteroid ---------------------------------------------------------------------------
 
@@ -381,7 +342,6 @@ def fire_flap_l_bottom():
 
 E = kit.ENEMIES
 MODELS = [
-    ("desert_rock_tip", desert_rock_tip, [("3", 180, False)], E),
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),

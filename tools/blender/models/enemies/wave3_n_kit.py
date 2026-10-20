@@ -1,7 +1,6 @@
 """Helpers for the batch N models of wave 3 (sheet 3: SURFACE, DESERTRUN and CORE; wave3_n.py, the
-machines and ships, wave3_n_rocks.py, the rock arch and the stepped pyramid, wave3_n_fire.py, CORE's
-fire): the sprites' pixels (wave3_n_art.py), the parts and materials of batch J's kit
-(wave3_j_kit.py, re-exported here), painting faces by the sprite's shades, relief solids inflated from
+machines and ships, wave3_n_fire.py, CORE's fire; used by many later batches' kits too): the sprites' pixels
+(wave3_n_art.py), the parts and materials of batch J's kit (wave3_j_kit.py, re-exported here), painting faces by the sprite's shades, relief solids inflated from
 the pixels, larger objects built whole and cut into their sprites' pieces (several pieces from one
 build), the silhouette check against any pixel mask, and the build loop.
 
@@ -36,18 +35,6 @@ SHEET = "enemy_3"
 def smoothstep(a, b, x):
     t = min(1.0, max(0.0, (x - a) / (b - a)))
     return t * t * (3 - 2 * t)
-
-
-def joined(*parts):
-    """Grids side by side: parts are (grid, width) pairs, padded to the tallest."""
-    h = max(len(g) for g, _ in parts)
-    out = []
-    for r in range(h):
-        row = []
-        for g, width in parts:
-            row += g[r] if r < len(g) else [None] * width
-        out.append(row)
-    return out
 
 
 def band_index(value, bands):

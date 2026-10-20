@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch N (sheet 3: SURFACE, DESERTRUN and CORE), the machines and ships; modelled
-as their sprites look (models.cfg: yaw=0 unless noted). The rock arch and the stepped pyramid are in
-wave3_n_rocks.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py,
+as their sprites look (models.cfg: yaw=0 unless noted). The rock arch is in polish_rock_arch.py, the stepped
+pyramid in polish_pyramid.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py,
 DESERTRUN's hatch bunker (3 18) in polish_hatch_bunker.py, CORE's lava bubble (3 128) in
 polish_lava_bubble.py.
 
