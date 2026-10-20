@@ -58,7 +58,7 @@ static const struct
 	float height;
 } layer_info[L3D_LAYER_TYPE_COUNT] = {
 	[L3D_GROUND]       = { "ground",       0.0f },
-	[L3D_BG2_LOW]      = { "bg2-low",      6.0f },
+	[L3D_BG2_LOW]      = { "bg2-low",      2.0f },  // under the ground enemies, as the game draws it
 	[L3D_GROUND_ENEMY] = { "ground-enemy", 4.0f },
 	[L3D_BG2]          = { "bg2",         12.0f },
 	[L3D_SKY_ENEMY]    = { "sky-enemy",   22.0f },
@@ -75,8 +75,9 @@ float l3d_terrain_headroom = 0;
 
 float l3d_layer_height(L3DLayerType type)
 {
-	// Above the ground and its enemies, room for the terrain's raised ground (render_gpu.c).
-	const bool above = type != L3D_GROUND && type != L3D_GROUND_ENEMY && type != L3D_OVERLAY;
+	// Above the ground and its enemies, room for the terrain's raised ground (render_gpu.c); background 2
+	// drawn under the ground enemies stays with the ground.
+	const bool above = type != L3D_GROUND && type != L3D_BG2_LOW && type != L3D_GROUND_ENEMY && type != L3D_OVERLAY;
 	return layer_info[type].height + (above ? l3d_terrain_headroom : 0.0f);
 }
 

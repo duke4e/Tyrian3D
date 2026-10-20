@@ -1086,6 +1086,13 @@ static bool classify_cloud(const Uint8 *data)
 	return opaque >= 40 && light * 10 >= opaque * 7 && dark * 25 <= opaque && sat / opaque < 0.45f;
 }
 
+bool b3d_map_opaque(int set)
+{
+	Uint8 hue;
+	int brightness;
+	return b3d_tint_overlay(set, &hue, &brightness);
+}
+
 bool b3d_tint_overlay(int set, Uint8 *hue, int *brightness)
 {
 	static unsigned int generation[B3D_SETS + 1];

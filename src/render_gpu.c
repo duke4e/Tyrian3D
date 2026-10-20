@@ -3890,9 +3890,20 @@ static float relief_height(void)
 }
 
 // Whether a frame's ground is shown as terrain: background 1 not composed (filters), no starfield.
+// Background 2 drawn under the ground enemies and opaque all over (APPROACH's sea) hides the ground:
+// the ground stays flat under it (no terrain, no relief), and its enemies stand on background 2.
+static bool ground_covered(const L3DFrame *frame)
+{
+	for (int i = 0; i < frame->background_count; ++i)
+		if (frame->backgrounds[i].set >= 2 && !frame->backgrounds[i].blend &&
+		    frame->layers[frame->backgrounds[i].layer].type == L3D_BG2_LOW && b3d_map_opaque(frame->backgrounds[i].set))
+			return true;
+	return false;
+}
+
 static bool relief_frame(const L3DFrame *frame, const bool *composed)
 {
-	if (!m3d_enabled || relief_height() <= 0 || frame->star_count > 0)
+	if (!m3d_enabled || relief_height() <= 0 || frame->star_count > 0 || ground_covered(frame))
 		return false;
 	for (int i = 0; i < frame->background_count; ++i)
 		if (frame->backgrounds[i].set == 1)
@@ -6492,6 +6503,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		// for the relief, not composed nor filtered.
 		frame_terrains[1] = m3d_enabled ? b3d_terrain(1) : NULL;
 		if (frame_terrains[1] != NULL && frame->star_count > 0 && !frame_terrains[1]->holes)
+			frame_terrains[1] = NULL;
+		if (ground_covered(frame))
 			frame_terrains[1] = NULL;
 		b3d_terrain_ground = frame_terrains[1] != NULL;
 		lift_ground = NULL;

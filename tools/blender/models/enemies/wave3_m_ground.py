@@ -1,13 +1,7 @@
 """Enemies of wave 3, batch M (sheet J: TORM, BONUS, BOTANY A), the grey machines on the foliage; modelled
 as their sprites look (models.cfg: yaw=0). The green machines are in wave3_m.py, the big green shell
-in wave3_m_shell.py.
+in wave3_m_shell.py. (The grey building with the green windows, J 5, 7, 43, 45: polish_window_block.py.)
 
-- window_block_tl, window_block_tr, window_block_bl, window_block_br (J 5, 7, 43, 45): the grey
-  building of TORM and BONUS, which event 12 places as four sprites (5 and 7 above 43 and 45): a
-  tall spine with three green windows glowing in its roof (its frames light them one after the
-  other), a roof sloping down to the left, a ribbed block with a pipe along it at the right and a
-  plinth with vents in front; built whole and cut (origin). The patch of foliage the sprites draw it on
-  is the map's ground (the game draws it under the building), so the model has none.
 - field_gun_barrel, field_gun_breech, field_gun_mount (J 89; J 127 and 129 below it): the heavy grey
   gun of TORM, BONUS and BOTANY A, which the events place as 89 above 127 with 129 to its right
   (and an empty sprite, 119, for the muzzle flash): a long barrel with a red tip and two red lights
@@ -21,7 +15,7 @@ in wave3_m_shell.py.
   shows it open, the eye glowing).
 
 usage: Blender -b --factory-startup -P wave3_m_ground.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole block|gun --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole gun --preview <prefix>]
 """
 import math
 import os
@@ -69,76 +63,6 @@ def inside(poly, x, y):
         if (ay > y) != (by > y) and x < ax + (y - ay) * (bx - ax) / (by - ay):
             hit = not hit
     return hit
-
-
-# --- J 5, 7 above 43, 45: the window block -------------------------------------------------------------
-
-BLOCK_ORIGIN = (24, 28)
-
-
-@whole("block", (48, 56))
-def block_whole():
-    """A grey building on the foliage: a tall spine with three green windows glowing in its roof
-    between a light frame and a pillar, a roof sloping down to the left of it, a ribbed block with
-    a pipe along it at the right, and a plinth with vents and a light ledge in front."""
-    m = greys("block")
-    window = pal("block_window", 0xc8, metallic=0.1, roughness=0.12, glow=1.0)
-    window_lit = pal("block_window_lit", 0xcc, metallic=0.1, roughness=0.1, glow=1.6)
-    # No foliage under it: the sprite's patch of leaves is the map's ground, which the game draws under it
-    # (batch AV); the building stands on the ground, every part down to z 0.
-
-    # The plinth along the front, under everything.
-    plinth = wedge("plinth", [(-20.2, -19.2), (14.6, -19.2), (16.6, -16.4), (16.6, -4.0), (-20.2, -4.0)],
-                     lambda x, y: 7.0 if y > -15.2 else 7.0 - (-15.2 - y) * 1.1, m["grey"], bevel=0.45, z0=0.0)
-    w.paint_faces(plinth, lambda c, n: m["dark"] if n.y < -0.5 else m["light"] if n.z > 0.5 and c.y < -14.0 else None)
-    # The ledge along the plinth's front and the vents in its top.
-    w.rounded_box("ledge", (-1.8, -15.0, 6.9), (36.0, 1.6, 1.2), m["pale"], bevel=0.4)
-    for x0, x1 in ((-18.6, -12.4), (-7.0, 0.2), (2.2, 8.4)):
-        w.rounded_box(f"vent{x0}", ((x0 + x1) / 2, -11.2, 6.7), (x1 - x0, 3.6, 1.0), m["black"], bevel=0.3)
-        for i in range(3):
-            x = x0 + (x1 - x0) * (i + 0.5) / 3
-            w.rounded_box(f"vent_slat{x0}{i}", (x, -11.2, 7.1), (0.9, 3.0, 0.9), m["mid"], bevel=0.25)
-
-    # The roof sloping down to the left, and its rim.
-    def slope(x, y):
-        return 8.0 + 8.0 * min(1.0, max(0.0, (x + 19.6) / 8.6))
-    roof = wedge("roof", [(-20.2, -6.0), (-10.6, -6.0), (-10.6, 24.0), (-20.2, 13.8)], slope, m["grey"], bevel=0.5,
-                   z0=0.0)
-    w.paint_faces(roof, lambda c, n: m["mid"] if n.z > 0.5 and c.y > 6.0 else m["dark"] if n.z < 0.3 else None)
-    w.tube("roof_rim", [(-19.6, -5.5, 8.4), (-19.6, 13.6, 8.4), (-11.0, 23.4, 15.6)], 0.6, m["pale"], 8)
-    # The pillar and the spine with the windows.
-    w.rounded_box("pillar", (-9.0, 8.6, 9.5), (3.4, 30.4, 19.0), m["light"], bevel=0.6)
-    spine = w.rounded_box("spine", (-3.4, 9.0, 9.0), (8.4, 30.0, 18.0), m["mid"], bevel=0.6)
-    w.rounded_box("spine_cap", (-4.6, 22.6, 18.4), (12.4, 2.8, 1.6), m["pale"], bevel=0.5)
-    w.rounded_box("frame", (1.4, 8.6, 9.2), (2.0, 30.4, 18.4), m["grey"], bevel=0.5)
-    for (y0, y1), lit in (((14.2, 20.8), True), ((6.2, 11.8), False), ((-2.2, 2.8), False)):
-        w.rounded_box(f"window_well{y0}", (-3.6, (y0 + y1) / 2, 17.5), (6.6, y1 - y0 + 0.8, 1.4), m["black"], bevel=0.3)
-        w.rounded_box(f"window{y0}", (-3.6, (y0 + y1) / 2, 17.9), (5.8, y1 - y0, 0.9), window_lit if lit else window,
-                      bevel=0.25)
-    for y in (12.8, 4.2):
-        w.rounded_box(f"window_bar{y}", (-3.6, y, 18.1), (7.4, 1.6, 1.0), m["pale"], bevel=0.35)
-    # The ribbed block at the right with the pipe along it.
-    right = w.rounded_box("right", (9.1, 6.0, 7.2), (15.2, 30.0, 14.4), m["grey"], bevel=0.7)
-    w.paint_faces(right, lambda c, n: m["dark"] if n.x > 0.6 or n.y < -0.6 else None)
-    for y in (17.0, 12.4, 7.4, 2.4, -3.2):
-        w.lathe_axis(f"rib{y}", [(0.0, 0.01), (0.2, 1.0), (13.2, 1.0), (13.4, 0.01)], m["light"], (2.4, y, 14.2),
-                     (1, 0, 0), 12, squash=0.8)
-    w.tube("pipe", [(11.0, 20.4, 15.6), (11.0, 6.0, 16.0), (11.0, -8.2, 15.4), (11.0, -9.6, 12.6)], 1.55, m["pale"], 14)
-    for y in (16.0, 1.0):
-        w.lathe_axis(f"pipe_clamp{y}", [(-0.6, 1.6), (-0.4, 2.0), (0.4, 2.0), (0.6, 1.6)], m["dark"], (11.0, y, 15.8),
-                     (0, 1, 0), 14)
-
-
-def block_piece(x0, x1, y0, y1):
-    block_whole()
-    w.bake()
-    w.piece(w.meshes(), x0, x1, y0, y1)
-
-
-model("window_block_tl", [(J, 5, True)])(lambda: block_piece(-24, 0, 0, 28))
-model("window_block_tr", [(J, 7, True)])(lambda: block_piece(0, 24, 0, 28))
-model("window_block_bl", [(J, 43, True)])(lambda: block_piece(-24, 0, -28, 0))
-model("window_block_br", [(J, 45, True)])(lambda: block_piece(0, 24, -28, 0))
 
 
 # --- J 89 above 127, with 129 at its right: the field gun --------------------------------------------

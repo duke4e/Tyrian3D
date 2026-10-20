@@ -1,9 +1,8 @@
 """Enemies of wave 3, batch AI (sheet 0): BOTANY's armoured creatures on the ground, modelled as their sprites look
 (models.cfg: yaw=0). The kit is wave3_ai_kit.py, the pixels wave3_ai_art.py; GRYPHON's boss is in
-wave3_ai_gryphon.py, the coins sheet's items in items/wave3_ai_items.py.
+wave3_ai_gryphon.py, the coins sheet's items in items/wave3_ai_items.py, BOTANY B's lilac stone in
+polish_botany_stone.py.
 
-- botany_stone (0 153, enemy 820, BOTANY B): a lilac stone of four rounded lobes with a knob at each point of its
-  diamond; between the lobes a cross of crevices where a red core glows (its frames 155, 157 light it).
 - botany_beetle (0 229, enemy 821, BOTANY B): a blue beetle with folded wing cases, each with a ridge along it, its
   narrow tail between their lower ends marked with a glowing red chevron, red streaks on the cases' lower edges
   (its frames 231, 233 light them).
@@ -40,37 +39,6 @@ def shade_by_slope(prefix, levels):
                 chosen = mat
         return chosen
     return pick
-
-
-STONE = kit.frame("STONE", 24, (12, 14))
-SC = (0.5, 0.5)  # its centre
-
-
-@kit.model("botany_stone", mask=lambda: STONE.mask())
-def botany_stone():
-    base = pal("stone_base", 0x5a, metallic=0.15, roughness=0.38)
-    knob = pal("stone_knob", 0x5b, metallic=0.15, roughness=0.35)
-    floor = pal("stone_floor", 0x55, metallic=0.15, roughness=0.5)
-    core = pal("stone_core", 0x75, metallic=0.0, roughness=0.3, glow=1.4)
-    hot = pal("stone_core_hot", 0x78, metallic=0.0, roughness=0.3, glow=1.8)
-    cx, cy = SC
-    lobes = []
-    for i, (sx, sy) in enumerate(((-1, 1), (1, 1), (-1, -1), (1, -1))):
-        centre = (cx + sx * 3.45, cy + sy * 3.4, 3.0)
-        lobe = w.lumpy(f"stone_lobe{i}", centre, (3.55, 3.5, 3.5), base, seed=i + 2, amount=0.06, segments=24,
-                       rings=14)
-        lobes.append(lobe)
-    for i, (dx, dy) in enumerate(((0, 1), (0, -1), (-1, 0), (1, 0))):
-        centre = (cx + dx * 7.4, cy + dy * 7.4, 2.0)
-        lobes.append(w.sphere(f"stone_knob{i}", centre, (2.3 if dx == 0 else 1.9, 1.9 if dx == 0 else 2.3, 2.0),
-                              knob, 16, 10))
-    # The core: a glowing cross deep in the crevices between the lobes.
-    for name, size in (("stone_core_ns", (1.3, 13.0, 2.6)), ("stone_core_we", (13.0, 1.3, 2.6))):
-        w.rounded_box(name, (cx, cy, 2.0), size, core, bevel=0.5)
-    w.sphere("stone_core_hot", (cx, cy, 2.6), (1.1, 1.1, 1.0), hot, 12, 8)
-    # A low plinth under it all, so no gap shows between the lobes from the side.
-    w.sphere("stone_floor", (cx, cy, 0.4), (6.5, 6.5, 1.6), floor, 24, 8)
-    kit.flatten_under(w.meshes())
 
 
 # --- 0 229: the beetle --------------------------------------------------------------------------------------

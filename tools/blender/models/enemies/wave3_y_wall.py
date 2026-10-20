@@ -5,8 +5,6 @@ The levels build the wall from 2x2 sprites, one column of three (top, middle, bo
 a left end (8 169 / 207 / 245), a slot (277 / 203 / 241), one or three rock columns (167 / 205 / 243),
 a slot again and a right end (161 / 199 / 237), all on one layer (events 6, 7, 10 or 15).
 
-- ixm_wall_rock_top, _mid, _low (8 167, 205, 243): the rock: a wall of tan boulders, level on top, its
-  front a cliff of ribs and fingers of rock falling to the ground.
 - ixm_wall_slot_top, _mid, _low (8 277, 203, 241): a red machine set into the wall between rocks: a
   housing with a lip at the back and a glowing window on top (277's frames brighten it: it glows), a
   smaller lit panel, two bars at the top's front edge and, down the cliff, a grille of red bars over a
@@ -17,6 +15,8 @@ a slot again and a right end (161 / 199 / 237), all on one layer (events 6, 7, 1
 Each column's left and right edges have the same section (the ridge, its boulders faded out at the edges),
 so the columns meet whatever their neighbours; every piece is cut from its column and drawn at its own
 origin (origin). ixm_wall_end_l_low replaces rock_tip (8 245, wave2_g.py), a low tip made alone.
+The rock column (8 167, 205, 243) stays in the whole, so that its neighbours keep their overlap with it, but its
+pieces, ixm_wall_rock_top, _mid and _low, are polish_ixm_wall_rock.py's.
 
 The wall stands upright. The sprites draw it in the game's oblique view: its top of boulders (rows 0-44) and,
 below it, its face of rock ribs (rows 44-69) seen from the front. Modelled as drawn, the face was a long ramp
@@ -246,6 +246,8 @@ def build_wall(stand=True):
 
 PIECES = []
 for _name, _cx, _sprites in COLUMNS:
+    if _name == "rock":  # (its pieces: polish_ixm_wall_rock.py)
+        continue
     for _row, (_suffix, _y0) in enumerate((("top", 14.0), ("mid", -14.0), ("low", -42.0))):
         _sprite = _sprites[_row]
         _box = (_cx - 12.0, _cx + 12.0, _y0, _y0 + 28.0)

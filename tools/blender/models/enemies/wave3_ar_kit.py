@@ -6,8 +6,8 @@ is, quiet_import: its output stays unchanged) or, for objects no earlier batch m
 own builders, posed as the frame draws it and cut into the same pieces as the first frame, so that it swaps in place.
 
 The scripts: wave3_ar_saw.py (sheet #: the spinning claw and the dark sawblade, first frames and all their frames),
-wave3_ar_flap.py (sheet A: the fire flaps swinging), wave3_ar_gyges.py (sheet N: GYGES' maw opening, its pincers),
-wave3_ar_beasts.py (sheet 0: the GRYPHON's jaw; sheet I: SAVARA's airship fan; sheet 3: the hatch bunker).
+wave3_ar_gyges.py (sheet N: GYGES' maw opening, its pincers),
+wave3_ar_beasts.py (sheet 0: the GRYPHON's jaw).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera); the origin
 is the whole object's centre (for objects the game draws in pieces) or the sprite's centre.

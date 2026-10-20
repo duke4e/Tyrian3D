@@ -143,6 +143,8 @@ bool b3d_tile_is_cloud(int set, int tile);
 // between its own and the ground's) instead of being drawn. Its commonest hue (high nibble) and its
 // average brightness (low nibble), or false when it isn't one.
 bool b3d_tint_overlay(int set, Uint8 *hue, int *brightness);
+// Whether a background's map is opaque all over (the same scan).
+bool b3d_map_opaque(int set);
 // A tile's pixels (24 x 28 palette indices, 0 transparent), and whether a set has cloud tiles.
 const Uint8 *b3d_tile_pixels(int set, int tile);
 bool b3d_set_has_clouds(int set);

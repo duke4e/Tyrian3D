@@ -1,7 +1,7 @@
-"""Batch Q of wave 3 (sheet A: GAUNTLET and MACES), the mace and its chain, the mace's anchor and the skull
-chest; modelled as their sprites look (models.cfg: yaw=0). The levels place them (custom enemies, events
+"""Batch Q of wave 3 (sheet A: GAUNTLET and MACES), the mace and its chain and the skull chest; modelled as their
+sprites look (models.cfg: yaw=0). (The mace's anchor, A 83, 85 above 121, 123: polish_mace_anchor.py.) The levels place them (custom enemies, events
 49-52) as the sheet arranges them: the mace's six sprites in three columns and two rows, the anchor's four
-in two by two, the chest's eight in four by two; the three chain rings run between the mace and its
+in two by two (polish_mace_anchor.py), the chest's eight in four by two; the three chain rings run between the mace and its
 anchor, larger towards the mace (and come out of the chest at first).
 
 - mace_tl, mace_tc, mace_tr, mace_bl, mace_bc, mace_br (A 77, 79, 81 above 115, 117, 119): the mace head,
@@ -10,15 +10,12 @@ anchor, larger towards the mace (and come out of the chest at first).
   and cut into its six pieces (origin).
 - chain_ring_s, chain_ring_m, chain_ring_l (A 87, 125, 127): the chain's steel rings, lying flat at the
   height of the mace's eyelet and the anchor's ball (origin: they keep that height).
-- mace_anchor_tl, mace_anchor_tr, mace_anchor_bl, mace_anchor_br (A 83, 85 above 121, 123): the chain's
-  anchor, a wooden crate whose front slopes down (the sprite's darker front face, split down its middle)
-  with a dark steel ball joint in a socket on its top. Built whole and cut into its four pieces (origin).
 - skull_chest_t1 ... skull_chest_t4, skull_chest_b1 ... skull_chest_b4 (A 153, 155, 157, 159 above 191,
   193, 195, 197): the wooden chest with two steel straps, a skull carved in a sunken panel between them
   and a steel handle folded back over its rear edge. Built whole and cut into its eight pieces (origin).
 
 usage: Blender -b --factory-startup -P wave3_q_mace.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole mace|anchor|chest --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole mace|chest --preview <prefix>]
 """
 import math
 import os
@@ -132,63 +129,6 @@ def chain_ring(prefix, centre, major, minor):
 q.model("chain_ring_s", [(87, True)])(lambda: chain_ring("ring_s", (0.5, -0.5), 6.5, 1.85))
 q.model("chain_ring_m", [(125, True)])(lambda: chain_ring("ring_m", (0.5, -0.5), 8.55, 2.0))
 q.model("chain_ring_l", [(127, True)])(lambda: chain_ring("ring_l", (0.0, 0.0), 9.55, 2.4))
-
-
-# --- A 83, 85, 121, 123: the mace's anchor -----------------------------------------------------------
-
-ANCHOR_ORIGIN = (24, 28)  # the art: 48 x 56
-CRATE_H = 13.0
-CRATE_FRONT = -12.5  # where the top ends and the front slopes down
-JOINT = Vector((0.5, 1.5, CRATE_H + 2.3))
-
-
-@q.whole("anchor", (48, 56))
-def anchor_whole():
-    g = q.grid(art.ANCHOR, 48)
-    wd = wood("anchor")
-    st = steel("anchor")
-    ball_mat = pal("anchor_ball", 0x06, metallic=0.6, roughness=0.18)
-    socket = pal("anchor_socket", 0x08, metallic=0.7, roughness=0.3)
-    grain = q.shades(g, ANCHOR_ORIGIN, keep=lambda v: v >> 4 == 1, blur=1)
-
-    def z_of(x, y, e):
-        if y > CRATE_FRONT:
-            z = CRATE_H + 0.1 * (grain(x, y) - 8.0)
-        else:
-            t = min(1.0, (CRATE_FRONT - y) / 12.0)
-            z = CRATE_H - (CRATE_H - 4.0) * t
-        # The split down the front and the dark slot right of it.
-        if y < -15.4:
-            z -= 0.9 * math.exp(-((x + 1.5) / 0.45) ** 2)
-            z -= 1.1 * q.smoothstep(-0.6, -0.1, x) * q.smoothstep(4.6, 4.1, x) * q.smoothstep(-15.4, -16.2, y)
-        # The socket the ball sits in.
-        z -= 1.4 * q.smoothstep(9.0, 7.6, math.hypot(x - JOINT.x, y - JOINT.y))
-        return z - 1.3 * (1.0 - e)
-
-    polys = q.pixel_polys(g, lambda v, c, r: True, ANCHOR_ORIGIN, smooth=1, epsilon=0.3)
-    crate = q.heightfield("crate", polys, z_of, wd[8], spacing=0.5, edge=1.2)
-    q.w.simplify_bottom(crate)
-    shade = q.shades(g, ANCHOR_ORIGIN, keep=lambda v: v >> 4 == 1, blur=1)
-
-    def special(c, n):
-        if math.hypot(c.x - JOINT.x, c.y - JOINT.y) < 8.6 and n.z > 0.2:
-            return wd[2]
-        return None
-    shade_paint(crate, shade, wd, mid=8.0, squeeze=0.85, side=-2.5, under=2, override=special)
-    q.decimate(crate, 9000)
-    parts = [crate,
-             q.sphere("ball", tuple(JOINT), (7.5, 7.5, 6.8), ball_mat, 36, 18),
-             q.torus("socket", (JOINT.x, JOINT.y, CRATE_H - 0.6), 7.3, 1.35, socket, 40, 12, squash=0.8),
-             q.torus("socket_lip", (JOINT.x, JOINT.y, CRATE_H + 0.2), 6.9, 0.55, st[11], 40, 8)]
-    return parts
-
-
-ANCHOR_PIECES = []
-for _row, (_cy, _y0, _y1) in enumerate(((14.0, 0.0, 32.0), (-14.0, -32.0, 0.0))):
-    for _col, (_cx, _x0, _x1) in enumerate(((-12.0, -28.0, 0.0), (12.0, 0.0, 28.0))):
-        ANCHOR_PIECES.append((f"mace_anchor_{'tb'[_row]}{'lr'[_col]}", (83, 85, 121, 123)[_row * 2 + _col],
-                              (_cx, _cy), (_x0, _x1, _y0, _y1)))
-place_pieces("anchor", anchor_whole, ANCHOR_PIECES)
 
 
 # --- A 153 ... 197: the skull chest ------------------------------------------------------------------

@@ -1,12 +1,7 @@
 """Enemies of wave 2, batch H, modelled as their sprites look (models.cfg: yaw=0 unless noted). (GYGES' bronze
 ingot, H 93: polish_yuanbao.py; the molten rock ball, L 115 and 3 134: polish_molten_rock.py; the rock arch's
-nub, 3 180: polish_rock_arch.py.)
+nub, 3 180: polish_rock_arch.py; the fire flaps, A 237 and others: polish_fire_gate.py.)
 
-- fire_flap_r_top, fire_flap_r_bottom (sheet A 237, 275) and their mirror images fire_flap_l_top,
-  fire_flap_l_bottom (A 7, 45): the glowing fire flaps of APPROACH, MISTAKES and SOH JIN, each two
-  sprites tall, hinged on one side. Their enemies don't animate by themselves (a level event can
-  make them flap): they show the first frame, the flap standing on edge, which is how they are
-  modelled (origin; the whole flap is built once and cut into the two sprites' pieces).
 - asteroid_lumpy (sheet D 5): a grey faceted asteroid.
 - twin_claw_left, twin_claw_right (sheet 3 8, 3 10): the two halves of the claw ship of SURFACE, CORE
   and ICE EXIT, back to back with a glowing core between them; each half's claws hold a flame
@@ -25,11 +20,11 @@ import sys
 
 import bmesh
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave2_h_kit as kit  # noqa: E402
-from wave2_h_kit import G2, k, pal, sh, smoothstep, round_edge  # noqa: E402
+from wave2_h_kit import G2, k, pal, sh, smoothstep  # noqa: E402
 
 # --- D 5: the asteroid ---------------------------------------------------------------------------
 
@@ -204,140 +199,6 @@ def twin_claw_right():
     kit.mirror_all()
 
 
-# --- A 237 / 275 (and their mirror images A 7 / 45): the fire flap ---------------------------------
-
-# The flap's face, as the closed frames draw it (A 231 rows 9-27 over A 269 rows 0-18, columns 0-10
-# from the hinge out): shades of the fire ramp (palette 0x70 + shade), the hinge knuckles' pixels
-# replaced by 6.
-FLAP_FACE = """
-44444444411
-66455556541
-66666667763
-66888aba964
-66abcffca95
-66bddffdaa6
-69abcdda9b7
-6aa999a8ac9
-9abaaaaacda
-bccccccceeb
-ddddeeefffb
-bccccccceeb
-aaaabcccddb
-88888abbcda
-7777778abca
-66777779aba
-66688879aba
-666888889a9
-665999999a9
-667aaaaa9a9
-669ccccbab9
-669ddddcbc7
-46aeeffdcd7
-57adeeeecd6
-59befffedf6
-5abdfffedf6
-49abdddddf5
-479abccdde5
-3678999bdd4
-3456789abc4
-334679aaac4
-6678aaa9ab4
-66b799988b3
-66634558ac2
-66344568c91
-6649999b930
-35555554200
-23222221000
-"""
-FLAP_TOP, FLAP_BOTTOM = G2.y(9), G2.y(28 + 19)  # y 5 .. -33: rows 9 of A 237 to 18 of A 275
-FLAP_HINGE_X, FLAP_HINGE_Z = -11.3, 1.0
-# The hinge knuckles (y ranges, in the top sprite's coordinates).
-FLAP_KNUCKLES = [(G2.y(10), G2.y(15)), (G2.y(24), G2.y(28 + 3)), (G2.y(28 + 12), G2.y(28 + 17))]
-
-
-def _flap_field():
-    rows = [line for line in FLAP_FACE.strip().split("\n")]
-    grid = [[int(ch, 16) for ch in row] for row in rows]
-
-    def shade(x, y):
-        """The face's shade at a point of the closed flap (bilinear between pixel centres)."""
-        c = x - G2.x(0) - 0.5
-        r = FLAP_TOP - y - 0.5
-        c0, r0 = math.floor(c), math.floor(r)
-        fc, fr = c - c0, r - r0
-        total = weight = 0.0
-        for rr, cc, wt in ((r0, c0, (1 - fr) * (1 - fc)), (r0, c0 + 1, (1 - fr) * fc), (r0 + 1, c0, fr * (1 - fc)),
-                           (r0 + 1, c0 + 1, fr * fc)):
-            rr, cc = min(max(rr, 0), len(grid) - 1), min(max(cc, 0), 10)
-            total += grid[rr][cc] * wt
-            weight += wt
-        return total / weight
-    return shade
-
-
-def fire_flap(piece, mirror):
-    """The whole flap of two sprites, built closed (lying flat, its fire face up, as A 231 and 269
-    draw it), then swung up about its hinge to stand on edge (A 237 and 275, the enemies' first
-    frame); cut into the top or bottom sprite's piece."""
-    steel = pal("flap_steel", 0x0a, metallic=0.6, roughness=0.3)
-    steel_dark = pal("flap_steel_dark", 0x06, metallic=0.55, roughness=0.4)
-    fire = [pal(f"flap_fire_{i:x}", 0x70 + i, metallic=0.0, roughness=0.45, glow=g)
-            for i, g in ((3, 0.5), (5, 0.8), (8, 1.2), (10, 1.6), (12, 2.0), (14, 2.5))]
-    shade = _flap_field()
-    half = 0.42  # half the flap's thickness
-    rect = [(G2.x(0), FLAP_BOTTOM), (G2.x(11), FLAP_BOTTOM), (G2.x(11), FLAP_TOP), (G2.x(0), FLAP_TOP)]
-    flap = kit.solid("flap", [rect], lambda x, y, d: FLAP_HINGE_Z + half * (0.55 + 0.45 * round_edge(d, 0.4)),
-                     lambda x, y, d: FLAP_HINGE_Z - half * (0.55 + 0.45 * round_edge(d, 0.4)), fire[0],
-                     spacing=0.75)
-    # The far edge (the top when it stands) glows darker, as the edge-on frames draw it.
-    values = [min(shade(v.co.x, v.co.y), 8.0 if v.co.x > G2.x(10.6) else 99) for v in flap.data.vertices]
-    kit.band_split(flap, values, [(-9, fire[0]), (4.5, fire[1]), (7.5, fire[2]), (9.5, fire[3]), (11.5, fire[4]),
-                                  (13.5, fire[5])], smooth_angle=50)
-    # Swung up about the hinge: the far edge rises, the fire face turns outwards.
-    swing = (Matrix.Translation((FLAP_HINGE_X, 0, FLAP_HINGE_Z)) @ Matrix.Rotation(math.radians(-90), 4, "Y") @
-             Matrix.Translation((-FLAP_HINGE_X, 0, -FLAP_HINGE_Z)))
-    flap.data.transform(swing)
-    # The hinge: knuckles round a pin, on a low rail along the ground.
-    for i, (y0, y1) in enumerate(FLAP_KNUCKLES):
-        kit.lathe(f"knuckle{i}", [(y1, 0.55), (y1 + 0.15, 0.95), (y0 - 0.15, 0.95), (y0, 0.55)], steel, axis="y",
-                  at=(FLAP_HINGE_X, FLAP_HINGE_Z), segments=16, angle=40)
-        for y in (y0 - 0.35, y1 + 0.35):
-            kit.lathe(f"ring{i}_{y}", [(y - 0.12, 0.9), (y - 0.1, 1.0), (y + 0.1, 1.0), (y + 0.12, 0.9)], steel_dark,
-                      axis="y", at=(FLAP_HINGE_X, FLAP_HINGE_Z), segments=16, angle=40)
-    kit.lathe("pin", [(FLAP_BOTTOM + 0.2, 0.35), (FLAP_BOTTOM + 0.3, 0.45), (FLAP_TOP - 0.3, 0.45),
-                      (FLAP_TOP - 0.2, 0.35)], steel_dark, axis="y", at=(FLAP_HINGE_X, FLAP_HINGE_Z), segments=10)
-    rail = [(G2.x(0), FLAP_BOTTOM - 0.4), (G2.x(1.2), FLAP_BOTTOM - 0.4), (G2.x(1.2), FLAP_TOP + 0.4),
-            (G2.x(0), FLAP_TOP + 0.4)]
-    kit.solid("rail", [rail], lambda x, y, d: 0.25 + 0.35 * round_edge(d, 0.3), 0.0, steel_dark, spacing=0.5,
-              band=0.4, coarse=3)
-    # The piece of this sprite (the bottom one moved up to its own centre).
-    objects = kit.meshes()
-    kit.bake()
-    if piece == "top":
-        sh.cut_box(objects, -50, 50, G2.y(28), 50)
-    else:
-        sh.cut_box(objects, -50, 50, -100, G2.y(28))
-        kit.transform_all(Matrix.Translation((0, 28, 0)))
-    if mirror:
-        kit.mirror_all()
-
-
-def fire_flap_r_top():
-    fire_flap("top", False)
-
-
-def fire_flap_r_bottom():
-    fire_flap("bottom", False)
-
-
-def fire_flap_l_top():
-    fire_flap("top", True)
-
-
-def fire_flap_l_bottom():
-    fire_flap("bottom", True)
-
-
 # --- Building ------------------------------------------------------------------------------------
 
 E = kit.ENEMIES
@@ -345,10 +206,6 @@ MODELS = [
     ("asteroid_lumpy", asteroid_lumpy, [("D", 5, True)], E),
     ("twin_claw_left", twin_claw_left, [("3", 8, True)], E),
     ("twin_claw_right", twin_claw_right, [("3", 10, True)], E),
-    ("fire_flap_r_top", fire_flap_r_top, [("A", 237, True)], E),
-    ("fire_flap_r_bottom", fire_flap_r_bottom, [("A", 275, True)], E),
-    ("fire_flap_l_top", fire_flap_l_top, [("A", 7, True)], E),
-    ("fire_flap_l_bottom", fire_flap_l_bottom, [("A", 45, True)], E),
 ]
 
 kit.run(MODELS)
