@@ -1,15 +1,14 @@
 """Batch Q of wave 3 (sheet A: GAUNTLET and MACES), the mace and its chain and the skull chest; modelled as their
-sprites look (models.cfg: yaw=0). (The mace's anchor, A 83, 85 above 121, 123: polish_mace_anchor.py.) The levels place them (custom enemies, events
-49-52) as the sheet arranges them: the mace's six sprites in three columns and two rows, the anchor's four
-in two by two (polish_mace_anchor.py), the chest's eight in four by two; the three chain rings run between the mace and its
-anchor, larger towards the mace (and come out of the chest at first).
+sprites look (models.cfg: yaw=0). (The mace's anchor, A 83, 85 above 121, 123: polish_mace_anchor.py; the chain
+rings, A 87, 125, 127: polish_chain_ring.py.) The levels place them (custom enemies, events 49-52) as the sheet
+arranges them: the mace's six sprites in three columns and two rows, the anchor's four in two by two, the chest's
+eight in four by two; the three chain rings run between the mace and its anchor, larger towards the mace (and come
+out of the chest at first).
 
 - mace_tl, mace_tc, mace_tr, mace_bl, mace_bc, mace_br (A 77, 79, 81 above 115, 117, 119): the mace head,
   a steel ball with four long spikes in bronze collars along the screen's axes and four shorter ones
   rising between them, a bronze eyelet with a steel bolt on its top where the chain is fixed. Built whole
   and cut into its six pieces (origin).
-- chain_ring_s, chain_ring_m, chain_ring_l (A 87, 125, 127): the chain's steel rings, lying flat at the
-  height of the mace's eyelet and the anchor's ball (origin: they keep that height).
 - skull_chest_t1 ... skull_chest_t4, skull_chest_b1 ... skull_chest_b4 (A 153, 155, 157, 159 above 191,
   193, 195, 197): the wooden chest with two steel straps, a skull carved in a sunken panel between them
   and a steel handle folded back over its rear edge. Built whole and cut into its eight pieces (origin).
@@ -26,8 +25,6 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_q_kit as q  # noqa: E402
 from wave3_q_kit import art, pal  # noqa: E402
-
-CHAIN_Z = 14.0  # the chain's height: between the anchor's ball and the mace's eyelet
 
 
 def steel(prefix, lo=2, hi=15, metallic=0.7, roughness=0.3):
@@ -115,20 +112,6 @@ for _row, (_cy, _y0, _y1) in enumerate(((14.0, 0.0, 32.0), (-14.0, -32.0, 0.0)))
         MACE_PIECES.append((f"mace_{'tb'[_row]}{'lcr'[_col]}", (77, 79, 81, 115, 117, 119)[_row * 3 + _col],
                             (_cx, _cy), (_x0, _x1, _y0, _y1)))
 place_pieces("mace", mace_whole, MACE_PIECES)
-
-
-# --- A 87, 125, 127: the chain rings -----------------------------------------------------------------
-
-def chain_ring(prefix, centre, major, minor):
-    light = pal(f"{prefix}_light", 0x0a, metallic=0.75, roughness=0.25)
-    dark = pal(f"{prefix}_dark", 0x06, metallic=0.7, roughness=0.32)
-    ring = q.torus(prefix, (centre[0], centre[1], CHAIN_Z), major, minor, light, 48, 14, squash=0.9)
-    q.paint_faces(ring, lambda c, n: dark if n.z < 0.15 else None)
-
-
-q.model("chain_ring_s", [(87, True)])(lambda: chain_ring("ring_s", (0.5, -0.5), 6.5, 1.85))
-q.model("chain_ring_m", [(125, True)])(lambda: chain_ring("ring_m", (0.5, -0.5), 8.55, 2.0))
-q.model("chain_ring_l", [(127, True)])(lambda: chain_ring("ring_l", (0.0, 0.0), 9.55, 2.4))
 
 
 # --- A 153 ... 197: the skull chest ------------------------------------------------------------------

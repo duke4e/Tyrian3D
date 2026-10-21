@@ -32,8 +32,8 @@ turns a pixel edge of the picture (column c, row r) into the whole's coordinates
 
 Replaces wave3_q_mace.py's anchor: remove ANCHOR_ORIGIN, CRATE_H, CRATE_FRONT, JOINT, anchor_whole() (its
 @q.whole("anchor", (48, 56)) registration), ANCHOR_PIECES with its loop and place_pieces("anchor", ...), and the
-mace_anchor lines of its docstring; wave3_q_art.py's ANCHOR (nothing else reads it). steel(), wood(), shade_paint(),
-place_pieces() and CHAIN_Z stay (the mace, the chain rings and the skull chest use them).
+mace_anchor lines of its docstring; wave3_q_art.py's ANCHOR (nothing else reads it). steel(), wood(), shade_paint()
+and place_pieces() stay (the mace and the skull chest use them).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouettes of the whole
 and of each piece against enemy_A.png), --preview <prefix> (the whole's and each piece's top and 3/4 views),
@@ -75,7 +75,7 @@ def Y(r):
     return 28.0 - r
 
 
-CHAIN_Z = 14.0               # the chain rings' height (wave3_q_mace.py): the ball's middle
+CHAIN_Z = 14.0               # the chain rings' height (polish_chain_ring.py): the ball's middle
 SKIRT = -4.0                 # how far the walls reach under the foot
 TOP = 11.0                   # the top
 TOP_EDGE, FOOT = 40.8, 52.6  # the front: from the top's edge (row) down to the ground

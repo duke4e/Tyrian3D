@@ -1,10 +1,9 @@
 """Batch F of the second wave of enemy models, facing the way their sprites do (models.cfg: yaw=0)
-(spike_star, 3 246: polish_spike_star.py; 7 51 is the squid ship turned round, polish_squid_ship.py):
+(spike_star, 3 246: polish_spike_star.py; 7 51 is the squid ship turned round, polish_squid_ship.py; the mug of
+beer, coins 241: items/polish_beer_mug.py):
 
 - obsidian_egg (sheet M 271): MINERS' indestructible black glass egg with a smoky light inside,
   lying on the ground.
-- beer_mug (coins 241): the mug of beer (the bonus item), lying with its mouth up the screen and its
-  handle to the right, as the sprite draws it.
 - jet_steel (sheet F 79): the blue-grey jet of SAVARA, TORM and BOTANY A, its nose down the screen.
 - pebble (sheet D 133, 1x1): the small blue-grey rock of the asteroid levels.
 
@@ -46,54 +45,6 @@ def obsidian_egg():
         obj.data.transform(tilt)
         k.smooth(obj, 70)
     sh.flat_bottom(w.meshes())
-
-
-# --- The mug of beer (coins 241) ---------------------------------------------------------------
-
-@model("beer_mug", "coins", 241, out=w.ITEMS)
-def beer_mug():
-    """A faceted glass mug lying with its mouth up the screen: amber beer in its lower part, a head
-    of foam above it, a thick base and the handle on the right."""
-    glass = pal("mug_glass", 10, metallic=0.4, roughness=0.03, alpha=0.24)
-    rim = pal("mug_rim", 12, metallic=0.4, roughness=0.05, alpha=0.55)
-    flute = pal("mug_flute", 12, metallic=0.4, roughness=0.02, alpha=0.32)
-    beer = pal("mug_beer", 21, metallic=0.1, roughness=0.12, glow=0.35, emission=(170, 105, 25))
-    foam = pal("mug_foam", 12, roughness=0.8)
-    foam_shade = pal("mug_foam_shade", 10, roughness=0.8)
-    ax, az = px(10) + 0.5, 6.6       # the mug's axis (along y) in x and height
-    base_y, rim_y = py(21) + 0.3, py(5)
-    r_out, r_in = 6.6, 5.7
-    sides = 12                        # the facets of the glass
-    # The glass: faceted outside, round inside, a thick base.
-    outer = k.lathe("glass", [(base_y, r_out - 0.6), (base_y + 0.4, r_out), (rim_y - 0.3, r_out),
-                              (rim_y, r_out - 0.15)], glass, segments=sides, axis_x=ax, axis_z=az)
-    k.smooth(outer, 20)
-    k.lathe("rim", [(rim_y - 0.9, r_out - 0.05), (rim_y - 0.8, r_out + 0.15), (rim_y - 0.05, r_out + 0.15),
-                    (rim_y, r_out - 0.3), (rim_y + 0.01, 0.01)], rim, segments=sides * 2, axis_x=ax, axis_z=az)
-    # The base, thick glass.
-    k.lathe("base", [(base_y - 0.01, 0.01), (base_y, r_out - 0.6), (base_y + 1.6, r_out - 0.2),
-                     (base_y + 1.61, 0.01)], rim, segments=sides * 2, axis_x=ax, axis_z=az)
-    # The beer up to the sprite's row 12, a thin head of foam on it; the glass above is empty.
-    beer_top = py(12) + 0.5
-    k.smooth(k.lathe("beer", [(base_y + 1.6, 0.01), (base_y + 1.65, r_in), (beer_top, r_in), (beer_top + 0.01, 0.01)],
-                     beer, segments=32, axis_x=ax, axis_z=az), 50)
-    head = [(beer_top - 0.05, r_in - 0.02), (beer_top + 0.9, r_in - 0.02), (beer_top + 1.3, r_in - 0.6),
-            (beer_top + 1.45, 0.01)]
-    k.smooth(k.lathe("foam", head, foam, segments=32, axis_x=ax, axis_z=az), 60)
-    for i, (a, s) in enumerate(((20, 0.9), (70, 0.7), (115, 1.0), (160, 0.8), (250, 0.7), (300, 0.9))):
-        ang = math.radians(a)
-        c = (ax + (r_in - 1.2) * math.cos(ang), beer_top + 1.0, az + (r_in - 1.2) * math.sin(ang))
-        w.sphere(f"bubble{i}", c, (s, s * 0.7, s), foam if i % 2 else foam_shade, 12, 6)
-    # Vertical flutes on the glass (the sprite's bright stripes).
-    for i in range(sides):
-        a = 2 * math.pi * (i + 0.5) / sides
-        x, z = ax + (r_out - 0.05) * math.cos(a), az + (r_out - 0.05) * math.sin(a)
-        w.tube(f"flute{i}", [(x, base_y + 1.0, z), (x, rim_y - 1.2, z)], 0.3, flute, 8)
-    # The handle: a thick loop from the side of the mug out to the sprite's column 20.
-    hx = px(20)
-    path = [(ax + r_out - 0.8, py(8.5), az), (hx - 0.6, py(8.5), az), (hx + 0.3, py(9.8), az),
-            (hx + 0.4, py(16.5), az), (hx - 0.4, py(18.2), az), (ax + r_out - 0.8, py(18.2), az)]
-    w.tube("handle", w.catmull(path, 0.35), 1.15, rim, 16)
 
 
 # --- The steel jet (sheet F 79) ----------------------------------------------------------------

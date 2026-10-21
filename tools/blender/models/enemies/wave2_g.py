@@ -18,8 +18,7 @@
 - pink_torpedo_front, pink_torpedo_rear: now built by polish_pink_torpedo.py.
 - horseshoe: now built by polish_horseshoe.py.
 - gem_bud: now built by polish_gem_bud.py.
-- bomb_pickup (coins sheet 89): the pick-up of a super bomb: the word BOMB in glowing orange
-  letters beside a blue bomb (assets/models/items).
+- bomb_pickup: now built by items/polish_bomb_pickup.py.
 - fork_ship: now built by polish_fork_ship.py (F 87 is F 3's pixels in other ramps).
 
 Parts are mostly inflated from the outlines of regions of the sprites' pixels (wave2_g_art.py holds
@@ -550,52 +549,6 @@ def deli_tower_tl():
     kept = sh.cut_box(sh.flat_bottom(scene_objects()), -12.0, 12.0, -14.0, 14.0)
     for obj in kept:
         k.smooth(obj, 50)
-
-
-# --- coins 89: the bomb pick-up --------------------------------------------------------------------
-
-@model("bomb_pickup", "coins", 89, kind="items")
-def bomb_pickup():
-    """The pick-up of a super bomb: the word BOMB down its left side in raised letters glowing in the
-    sprite's fire shades on a dark red backing, and a blue-grey bomb beside it (a dome, a glowing blue
-    band, a tail with four fins), lying up the screen. No spin: the letters must stay readable."""
-    g = grid(art.BOMB, 24)
-    letters = regions(g, lambda v, c, r: ("#" if v & 15 >= 2 else "o") if c <= 11 else ".")
-    backing = pal("bomb_backing", 0x72, metallic=0.2, roughness=0.5, glow=0.2)
-    fire = [(lowest, pal(f"bomb_fire_{index:x}", index, metallic=0.1, roughness=0.4, glow=glow))
-            for lowest, index, glow in ((0.0, 0x76, 0.6), (6.5, 0x78, 0.8), (8.5, 0x7a, 1.0), (10.5, 0x7c, 1.2))]
-    plate = part("letter_backing", letters, "#o", backing, sh.pillow_profile(1.0, 0.5), smooth=1, epsilon=0.5,
-                 spacing=0.7)
-    k.smooth(planar(simplify_bottom(plate)), 40)
-    word = part("letters", letters, "#", fire[0][1], sh.pillow_profile(1.4, 0.45), smooth=0, epsilon=0.3,
-                spacing=0.38, base=0.6, grow=0.1)
-    paint_faces(word, shade_bands(g, fire, blur=0, low=0.9))
-    k.smooth(planar(simplify_bottom(word)), 35)
-    # The bomb.
-    shell = pal("bomb_shell", 0x3b, metallic=0.35, roughness=0.25)
-    shell_dark = pal("bomb_shell_dark", 0x39, metallic=0.35, roughness=0.3)
-    band = pal("bomb_band", 0x99, metallic=0.2, roughness=0.15, glow=0.4)
-    ax, az = 5.5, 2.6
-    k.smooth(k.lathe("dome", [(4.0, 4.3), (4.6, 4.9), (6.5, 5.3), (8.5, 5.0), (10.2, 4.1), (11.3, 2.8), (11.9, 1.3),
-                              (12.1, 0.01)], shell, 28, axis_x=ax, axis_z=az, squash=0.62), 50)
-    k.smooth(k.lathe("band", [(-0.9, 3.9), (-0.7, 4.3), (4.2, 4.3), (4.4, 3.9)], band, 28, axis_x=ax, axis_z=az,
-                     squash=0.62), 50)
-    k.smooth(k.lathe("tail", [(-10.0, 0.01), (-9.9, 1.6), (-9.0, 2.2), (-4.0, 3.0), (-1.4, 3.8), (-0.6, 3.9)],
-                     shell_dark, 24, axis_x=ax, axis_z=az, squash=0.62), 50)
-    for side in (-1, 1):  # the fins at the sides, flat
-        fin = [(ax + side * 2.0, -1.4), (ax + side * 6.0, -4.0), (ax + side * 6.2, -9.0), (ax + side * 5.2, -10.4),
-               (ax + side * 2.0, -9.2)]
-        if side < 0:
-            fin = fin[::-1]
-        k.smooth(k.slab(f"fin{side}", fin, az - 0.45, az + 0.45, shell, bevel_width=0.3), 40)
-    # The fin standing up the middle.
-    up = [(-1.4, 0.0), (-4.0, 4.3), (-9.0, 4.6), (-10.4, 3.6), (-9.2, 0.0)]
-    top_fin = k.slab("fin_top", [(y, z) for y, z in up], -0.45, 0.45, shell, bevel_width=0.3)
-    top_fin.data.transform(Matrix.Translation((ax, 0, az)) @ Matrix(((0, 0, 1, 0), (1, 0, 0, 0), (0, 1, 0, 0),
-                                                                      (0, 0, 0, 1))))
-    k.recalc_normals(top_fin)
-    k.smooth(top_fin, 40)
-    sh.flat_bottom(scene_objects())
 
 
 # --- Main ------------------------------------------------------------------------------------------
