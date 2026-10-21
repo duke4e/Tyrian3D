@@ -1,4 +1,4 @@
-"""Wave 2, batch E of the enemy models, authored as their sprites look (models.cfg: yaw=0 unless noted):
+"""Wave 2, batch E of the enemy models, authored as their sprites look (models.cfg: yaw=0 unless noted; the faceted orbs, V 153: polish_facet_orb.py):
 
 - station_end_left / station_end_right (sheet L 24 / 34): the ends of a steel axle in STATION and TIME
   WAR, at both sides of the screen with their knobs facing each other (the axle goes on into the
@@ -10,8 +10,6 @@
   are the tip below it, cut from the same nose.
 - deli_capsule (sheet 9 123): UNDERDELI's lilac capsule on the ground, its light band glowing (the
   frames sweep a light over it).
-- facet_orb (sheet V 153, 155, 195): TIME WAR's faceted orbs, light blue, blue and green: one model
-  in the blue's shades that takes each sprite's colour (color=sprite).
 - eyespy_* (sheet 9 1, 3, 5, 7, 39, 45): the two armoured halves of EYESPY's robot (a domed shoulder and
   an arm ending in a gun with a blue lens), cut into the six sprites the game puts together.
 - anchor_* (sheet 9 235, 236, 254, 274 and 238, 239, 258, 276): DREAD-NOT's two anchors on the ground, a
@@ -264,75 +262,6 @@ def deli_capsule():
         foot = k.slab("foot", [(x - 0.9, -14.0), (x + 0.9, -14.0), (x + 0.9, -11.0), (x - 0.9, -11.0)], 0.0, 1.4,
                       dark, bevel_width=0.25)
         k.smooth(foot, 40)
-
-
-# --- TIME WAR's faceted orbs (sheet V 153, 155, 195) -----------------------------------------------
-
-@model("facet_orb", "V", 153)
-def facet_orb():
-    """A cut gem in a rounded octagon (columns 3-20, rows 5-22): a table shaped like a diamond (the
-    square turned 45 degrees the sprites show), crown facets down to a dark girdle, a shallow
-    pavilion. In the blue ramp's shades: models.cfg gives it each sprite's colour."""
-    crown = k.material("orb_crown", palette=59, metallic=0.35, roughness=0.12, emission=(60, 110, 150),
-                       emission_strength=0.1)
-    table = k.material("orb_table", palette=60, metallic=0.25, roughness=0.08, emission=(150, 190, 215),
-                       emission_strength=0.18)
-    girdle = k.material("orb_girdle", palette=52, metallic=0.4, roughness=0.3)
-    cx, cy = 0.0, 0.0
-    n = 16
-
-    def outline_r(a):
-        # The sprite's outline: a circle squared off a little (radius 9).
-        c, s = abs(math.cos(a)), abs(math.sin(a))
-        return 9.0 / (c ** 3.0 + s ** 3.0) ** (1 / 3.0) * 0.985
-
-    table_r, table_z = 3.7, 5.6
-    star_r, star_z = 6.9, 3.0
-    verts, faces, mats = [], [], []
-
-    def add(p):
-        verts.append(p)
-        return len(verts) - 1
-
-    # The table: a diamond, its corners up, left, down and right.
-    table_ids = [add((cx + table_r * math.cos(math.pi / 2 * i), cy + table_r * math.sin(math.pi / 2 * i), table_z))
-                 for i in range(4)]
-    # Eight crown points between the table and the girdle: at the corners and between them.
-    star_ids = []
-    for i in range(8):
-        a = math.pi / 4 * i
-        r = star_r if i % 2 else star_r * 0.93
-        star_ids.append(add((cx + r * math.cos(a), cy + r * math.sin(a), star_z if i % 2 else star_z + 0.4)))
-    # The girdle, top and bottom.
-    g_top = [add((cx + outline_r(2 * math.pi * i / n) * math.cos(2 * math.pi * i / n),
-                  cy + outline_r(2 * math.pi * i / n) * math.sin(2 * math.pi * i / n), 1.1)) for i in range(n)]
-    g_bot = [add((cx + outline_r(2 * math.pi * i / n) * math.cos(2 * math.pi * i / n),
-                  cy + outline_r(2 * math.pi * i / n) * math.sin(2 * math.pi * i / n), -0.6)) for i in range(n)]
-    bottom = add((cx, cy, -4.2))
-    faces.append(tuple(table_ids)); mats.append(1)
-    for i in range(4):
-        c0, c1 = table_ids[i], table_ids[(i + 1) % 4]
-        s_corner, s_mid, s_next = star_ids[2 * i], star_ids[2 * i + 1], star_ids[(2 * i + 2) % 8]
-        faces.append((c0, s_corner, s_mid)); mats.append(0)
-        faces.append((c0, s_mid, c1)); mats.append(0)
-        faces.append((c1, s_mid, s_next)); mats.append(0)
-    for i in range(8):
-        s0, s1 = star_ids[i], star_ids[(i + 1) % 8]
-        g0, g1, g2 = g_top[2 * i], g_top[2 * i + 1], g_top[(2 * i + 2) % n]
-        faces.append((s0, g0, g1)); mats.append(0)
-        faces.append((s0, g1, s1)); mats.append(0)
-        faces.append((s1, g1, g2)); mats.append(0)
-    for i in range(n):
-        j = (i + 1) % n
-        faces.append((g_top[i], g_bot[i], g_bot[j], g_top[j])); mats.append(2)
-        faces.append((g_bot[i], bottom, g_bot[j])); mats.append(2)
-    obj = k.mesh_object("orb", verts, faces)
-    k.recalc_normals(obj)
-    for m in (crown, table, girdle):
-        obj.data.materials.append(m)
-    for poly, m in zip(obj.data.polygons, mats):
-        poly.material_index = m
-    k.bevel(obj, 0.12, 1)
 
 
 # --- The assembled objects (wave2_e_parts.py) -------------------------------------------------------

@@ -3,7 +3,7 @@ that draw the same picture in two ramps, models.cfg's color=sprite giving each i
 
 - sheet 3 sprite 229 (2x2: a 23 x 23 ball in the 24 x 28 cell; ramp 7, lava; SIDE EXIT, ICE EXIT, BRAINIAC,
   ICESECRET, sky and top layers, and CORE and THE CORE, where enemy 254 pulses: 229 231 233 235 233 231,
-  three game frames each);
+  three game frames each, and the fireball the lava bubbles launch there grows through them: 235 233 231 229);
 - sheet 5 sprite 89 (the same picture in ramp 3, ice; SURFACE, LAVA EXIT, BRAINIAC, NOSE DRIP, sky and top).
 
 As the 4x upscales draw it: a ball whose shell is a lattice of rounded strands round deep round holes, a

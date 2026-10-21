@@ -1,5 +1,5 @@
-"""Helpers for the batch AB models of wave 3 (sheet 4: TYRIAN, TYRIAN X, HOLES and ASSASSIN; wave3_ab_boss.py, the
-tusked boss and its small copy flying up the screen; wave3_ab_arms.py, the two long arms): the sprites' pixels
+"""Helpers for the batch AB models of wave 3 (sheet 4: TYRIAN, TYRIAN X, HOLES and ASSASSIN; wave3_ab_arms.py, the
+two long arms; the tusked boss and its small copy are polish_tusk_boss*.py now): the sprites' pixels
 (wave3_ab_art.py), the pixel frames, sprite painting and shapes of batch S (wave3_s_kit), the limbs and lofts of
 batch Y (wave3_y_kit), the parts of batch J (wave3_j_kit), and the build loop of batch N (wave3_n_kit: whole
 objects cut into their sprites' pieces, silhouettes checked against pixel masks). Its own: reliefs whose height

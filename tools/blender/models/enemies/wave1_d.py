@@ -6,7 +6,7 @@
 - eye_beetle (sheet V 197): the blue armoured eye of MARKERS and TIME WAR.
 - ring_frame (sheet 3 271): the grey frame with a blue orb of BRAINIAC, DREAD-NOT and ICE EXIT.
 - mast_left, mast_right (sheet B 39 and 47, mirror images): CAMANIS' tanks with a rod and a post.
-- boss_chin (sheet 4 128): the brown lower jaw of the tusked boss of TYRIAN, HOLES and ASSASSIN.
+(The tusked boss's jaw, sheet 4 128, is a piece of polish_tusk_boss.py's boss.)
 
 Curved outlines come from the sprites' pixels (wave1_d_art.py) and get their volume by inflation
 (wave1_d_shapes.py): rounded like tubes or like pillows, holes and all.
@@ -373,56 +373,6 @@ def mast(mirror):
 
 model("mast_left", "B", 39)(lambda: mast(False))
 model("mast_right", "B", 47)(lambda: mast(True))
-
-
-# --- The chin of the tusked boss (sheet 4 128) ----------------------------------------------------
-
-@model("boss_chin", "4", 128)
-def boss_chin():
-    """The lower jaw under the head of episode 1's and 3's tusked boss (it hangs below sprite 90 of
-    the same sheet): a brown hull narrowing and curving away downwards, with a red band down
-    its middle and grey caps at both ends. Its top edge is cut flat where it meets the head."""
-    brown = k.material("chin_brown", palette=22, metallic=0.45, roughness=0.5)
-    grey = k.material("chin_grey", palette=6, metallic=0.6, roughness=0.3)
-    red = k.material("chin_red", palette=72, metallic=0.35, roughness=0.3)
-    cx = 0.5
-    rows_hw = [10.5, 10.5, 9.5, 8.5, 7.5, 6.5, 5.5, 4.5]   # the sprite's rows 0-7, half-widths
-    power = 2.6
-    top_y, bottom_y = 14.0, 6.0
-
-    def half_width(y):
-        t = min(7.0, max(0.0, top_y - y - 0.5))
-        i = min(6, int(t))
-        return rows_hw[i] + (rows_hw[i + 1] - rows_hw[i]) * (t - i)
-
-    def height(y):
-        u = (top_y - y) / (top_y - bottom_y + 0.6)
-        return 1.0 + 5.2 * math.sqrt(max(0.0, 1.0 - u * u))
-
-    ys = list(np.linspace(bottom_y, top_y, 33))
-    rings = [k.ring(y, half_width(y) - (0.6 if y == bottom_y else 0.0), 1.0, 48, x=cx, top=height(y),
-                    bottom=0.4 * height(y), power=power) for y in ys]
-    body = k.loft("chin", rings, brown, start_point=(cx, bottom_y - 0.2, 0.3), end_point=(cx, top_y, 0.3))
-    sh.paint_x(body, [(-20.0, -6.0, grey), (6.0, 20.0, grey)])
-    k.smooth(body, 50)
-
-    # The red band down the middle: a strip a little proud of the hull.
-    def z_body(x, y):
-        hw, ht = half_width(y), height(y)
-        return ht * max(0.0, 1.0 - abs((x - cx) / hw) ** power) ** (1.0 / power)
-
-    band_rings = []
-    xs = list(np.linspace(2.0, -2.0, 13))
-    for y in np.linspace(7.4, top_y, 25):
-        top = [Vector((x, y, z_body(x, y) + 0.3)) for x in xs]
-        inner = [Vector((x, y, z_body(x, y) - 0.4)) for x in reversed(xs)]
-        band_rings.append(top + inner)
-    band = k.loft("band", band_rings, red)
-    k.smooth(band, 50)
-    # Bolts on the grey caps.
-    for side in (-1, 1):
-        x = cx + side * 8.6
-        k.smooth(k.ellipsoid(f"bolt{side}", (x, 12.4, z_body(x, 12.4) + 0.05), (0.8, 0.8, 0.45), grey, 12, 6), 60)
 
 
 # --- Main ----------------------------------------------------------------------------------------

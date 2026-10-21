@@ -1,5 +1,5 @@
 """Batch AB of wave 3 (sheet 4): the two long arms of TYRIAN and TYRIAN X, which the level events sweep across the
-screen before the tusked boss comes (wave3_ab_boss.py), modelled as their sprites look (models.cfg: yaw=0), each
+screen before the tusked boss comes (polish_tusk_boss.py), modelled as their sprites look (models.cfg: yaw=0), each
 built whole and cut into its seven sprites' pieces, drawn at their own origins (origin) so they meet. The kit is
 wave3_ab_kit.py, the pixels wave3_ab_art.py.
 
