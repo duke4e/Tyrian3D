@@ -1,5 +1,5 @@
-"""Batch AO of wave 3, sheet C (DELI, New Deli, BONUS, STATION): the damaged looks of DELI's tower, the gun on its
-mast and its long cannons (wave3_x_tower.py, wave3_x_cannon.py), built by those scripts' own builders (imported as
+"""Batch AO of wave 3, sheet C (DELI, New Deli, BONUS, STATION): the damaged looks of DELI's tower and its long
+cannons (wave3_x_tower.py, wave3_x_cannon.py; the burnt gun on its mast: polish_ball_mast_dmg.py), built by those scripts' own builders (imported as
 they are, their output unchanged) and damaged as the damaged sprites show (the enemy data's dgr), cut into the same
 pieces so that each swaps in place (models.cfg: origin, yaw=0, as the intact pieces). The kit is wave3_ao_kit.py,
 the pixels wave3_ao_art.py. (The green twin-tank ship's damaged halves, C 45 47: polish_tank_pod_dmg.py.)
@@ -8,8 +8,6 @@ the pixels wave3_ao_art.py. (The green twin-tank ship's damaged halves, C 45 47:
   115, 17, 55, enemies 240, 239, 238, 237): the tower with its head blown off: the dome and the red skirt gone,
   the cup above the crown torn away to a jagged black stump rising to a point, the crown's vents dead,
   dark holes and cracks in the shaft and the bulbs, soot down its front.
-- ball_mast_dmg_gun, ball_mast_dmg_ball (C 229, 267: of 245, 283, enemies 145, 146): the gun burnt black, embers
-  in its breaches, its blue fin shot away; the mast and the ball scorched, embers in the ball.
 - deli_cannon_dmg_breech, _mount, _barrel, _muzzle (C 231, 233, 235, 237: of 269, 271, 273, 275, enemies
   228-231) and deli_cannon_l_dmg_muzzle, _barrel, _mount, _breech (C 276, 277, 279, 281: of 238, 239, 241, 243,
   enemies 232-235): the long cannons cracked and holed, red embers in the cracks, the muzzle's glow out.
@@ -117,49 +115,6 @@ def tower_damaged_piece(cy):
 for _name, _sprite, _cy in (("red_tower_dmg_head", 91, 42.0), ("red_tower_dmg_vents", 129, 14.0),
                             ("red_tower_dmg_shaft", 93, -14.0), ("red_tower_dmg_base", 131, -42.0)):
     x.model(_name, [(_sprite, True)])(lambda cy=_cy: tower_damaged_piece(cy))
-
-
-# --- C 229 above 267: the gun on the mast over the ball, burnt -------------------------------------------------
-
-M_INT = kit.Frame(x.art.MAST, 24, tower.MAST_ORIGIN)
-M_DMG = kit.frame("MAST_DMG", 24, tower.MAST_ORIGIN)
-
-
-def mast_damaged_whole():
-    tower.mast_whole()
-    w.bake()
-    p = deli_painter("aomast")
-    fi, fd = M_INT, M_DMG
-    # The blue fin is shot away.
-    for obj in kit.find("fin"):
-        bpy.data.objects.remove(obj)
-    holes = holes_of(fi, fd)
-    for obj in kit.meshes():
-        if obj.name.startswith(("gun", "housing", "ball", "grip")):
-            kit.sink(obj, holes, 1.0, mode="normal", seed=3.0)
-    kit.wreck(kit.meshes(), fi, fd, p, (fi.left(0), fi.right(23), fi.bottom(55), fi.top(0)), keep_floor="tiles",
-              delete=False)
-    # The gun's pale grip and window, the blue mast and the ball burnt all over: every face the damaged pixel
-    # under it (or soot where the sprite draws none).
-    for obj in kit.meshes():
-        if obj.name.startswith(("grip", "window", "mast", "collar", "gun_band", "ball")):
-            kit.repaint(obj, fi, fd, p, walls=2, pixel=False, test=lambda dv, iv: dv is not None, default=p(0x03))
-
-
-x.whole("mast_damaged", (24, 56))(mast_damaged_whole)
-
-
-def mast_damaged_piece(cy):
-    mast_damaged_whole()
-    x.bake()
-    sh.flat_bottom([o for o in x.meshes() if not o.name.startswith("tiles")])
-    x.cut(x.meshes(), (-12.0, 12.0, cy - 14.0, cy + 14.0), (0.0, cy))
-    x.drop_slivers()
-    x.budget(4800)
-
-
-for _name, _sprite, _cy in (("ball_mast_dmg_gun", 229, 14.0), ("ball_mast_dmg_ball", 267, -14.0)):
-    x.model(_name, [(_sprite, True)])(lambda cy=_cy: mast_damaged_piece(cy))
 
 
 # --- C 231 233 235 237 / 276 277 279 281: the long cannons, cracked ----------------------------------------------

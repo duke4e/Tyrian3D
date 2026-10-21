@@ -1,8 +1,7 @@
 """Wave 3, batch L of the enemy models: the remaining enemies of sheet 5 (episode 4), authored as their sprites
-look (models.cfg: yaw=0 unless noted):
+look (models.cfg: yaw=0 unless noted; the stinger, 5 207: polish_flesh_stinger.py):
 
 - purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
-- flesh_stinger (5 207): BRAINIAC's fleshy stinger, a capped beak of two halves.
 - eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
   the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
@@ -82,36 +81,6 @@ def purple_beacon():
         w.tube(f"horn{side}", pts, 1.0, light, 10, radii=radii)
     for obj in w.meshes():
         w.lift(obj, -2.5)
-
-
-# --- 5 207: BRAINIAC's stinger ---------------------------------------------------------------------
-
-@model("flesh_stinger", 207)
-def flesh_stinger():
-    """BRAINIAC's fleshy stinger lying as drawn, its point down the screen: a broad cap at the back (rows
-    0-4) behind a grooved collar and a ring (rows 5-9), then a beak of two halves meeting along a seam
-    (rows 10-26), narrowing to the point."""
-    flesh = pal("stinger_flesh", 0x47, metallic=0.15, roughness=0.35)
-    light = pal("stinger_light", 0x4a, metallic=0.15, roughness=0.3)
-    dark = pal("stinger_dark", 0x42, metallic=0.1, roughness=0.5)
-    ax, zc, squash = 0.5, 3.4, 0.82
-    prof = [(-12.9, 0.02), (-12.5, 0.55), (-11.0, 1.25), (-9.0, 2.3), (-7.0, 3.3), (-5.0, 4.25), (-3.0, 4.8),
-            (-1.5, 5.4), (2.0, 5.55), (3.4, 6.3), (6.5, 6.55), (7.4, 5.6), (7.9, 5.3), (8.5, 5.7), (9.3, 6.6),
-            (10.0, 6.8), (10.4, 6.5), (10.8, 7.0), (11.6, 7.65), (12.8, 7.4), (13.5, 6.4), (13.95, 4.2), (14.0, 0.02)]
-    body = w.lathe_axis("body", [(y + 12.9, r) for y, r in prof], flesh, (ax, -12.9, zc), (0, 1, 0), 32,
-                        squash=squash, smooth_angle=50)
-    w.paint(body, lambda c, n: 2 if 7.2 < c.y < 8.2 or 10.1 < c.y < 10.7 else 1 if c.y > 10.7 and n.z > 0.2 else 0,
-            [flesh, light, dark])
-    # The seam between the beak's halves, along its top, and two side seams.
-    for i, (u, y0) in enumerate(((0.0, 4.0), (-0.62, 1.5), (0.62, 1.5))):
-        pts = []
-        for j in range(14):
-            y = y0 - (y0 + 11.8) * j / 13
-            rad = next(r1 + (r2 - r1) * (y - y1) / (y2 - y1) for (y1, r1), (y2, r2) in zip(prof, prof[1:])
-                       if y1 <= y <= y2)
-            ang = math.pi / 2 + u
-            pts.append((ax + rad * math.cos(ang) * 0.98, y, zc + rad * math.sin(ang) * squash * 0.98))
-        w.tube(f"seam{i}", pts, 0.3 if i else 0.38, dark, 8)
 
 
 # --- 5 164: BRAINIAC's hatch with a red eye ----------------------------------------------------------

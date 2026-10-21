@@ -1,6 +1,6 @@
 """Helpers for the batch Q models of wave 3 (sheet A: wave3_q.py, the fire gates' housings, the small
 hinged pod and the MISSILE SHIPS sign; wave3_q_mace.py, the mace, its chain and anchor, and the skull
-chest; wave3_q_bronze.py, SOH JIN's bronze pieces): the sprites' pixels (wave3_q_art.py), the part
+chest): the sprites' pixels (wave3_q_art.py), the part
 builders of batches J and O (wave3_j_kit, wave3_o_kit: palette materials, turned parts, tubes, painting
 faces, cutting a whole object into its sprites' pieces, the build loop), and a few of its own: parts
 whose top is a height function over an outline, ribs and grooves that follow a surface, and the half

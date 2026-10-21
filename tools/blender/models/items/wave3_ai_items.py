@@ -1,6 +1,6 @@
 """Items of wave 3, batch AI (the coins sheet's remaining sprites), modelled as their sprites look; the kit is
 enemies/wave3_ai_kit.py, the pixels enemies/wave3_ai_art.py. The fruit turns slowly (spin) as the other loose items
-do; the things with letters or symbols (the tick, the hot dog) and the key keep still.
+do; the things with letters or symbols (the tick, the hot dog) keep still. (SOH JIN's golden key: polish_key_gold.py.)
 
 - strawberry (coins 75, 300 credits): a glossy red strawberry lying tip down the screen, yellow seeds in it, a
   green calyx of seven leaves and a stalk at its top.
@@ -157,31 +157,7 @@ def fruit_round():
     kit.join(marks, "fruit_navel")
 
 
-# --- Coins 243: SOH JIN's golden key ----------------------------------------------------------------------------
-
-KEY = kit.frame("KEY", 24, (12, 14))
 SHADOW = (0xa0, 0xa1)  # the sprites' drop shadows (the game's light casts the models' own)
-
-
-@kit.model("key_gold", mask=lambda: KEY.mask_where(lambda val: val not in SHADOW))
-def key_gold():
-    """A golden key lying with its bit up the screen: a round shaft from a looped bow to a bit of two prongs
-    pointing left, each with a small lip; bevelled and rounded, polished gold."""
-    gold = pal("key_gold", 0x19, metallic=0.75, roughness=0.28)
-    gold_light = pal("key_gold_light", 0x1c, metallic=0.75, roughness=0.25)
-    f = KEY
-    # The key's pixels (gold and its black outline, no shadow), inflated into rounded metal; the bow's eye cut
-    # through it (the sprite's dark gold in its lower middle).
-    polys = kit.polys_where(f, lambda val, c, r: val not in SHADOW and (val >> 4 == 1 or (
-        val == 0x01 and any((f.get(c + dc, r + dr) or 0) >> 4 == 1 for dc in (-1, 0, 1) for dr in (-1, 0, 1)))),
-        smooth=2, epsilon=0.3, min_area=1.0, grow=-0.35)
-    eye = sh.ellipse(0.9, -6.1, 2.3, 1.15, angle=-8.0, count=24)
-    body = sh.inflate("key_body", polys + [eye[::-1]], gold, sh.round_profile(aspect=0.75, max_height=1.5),
-                      bottom=0.55, base=0.0, rim=0.25, spacing=0.4, sigma=1.0)
-    k.smooth(body, 50)
-    # The shaft's top edge: a thin bright ridge along it.
-    kit.limb("key_ridge", [(1.5, -2.2, 1.55), (1.5, 3.0, 1.62), (1.5, 9.4, 1.6)], [0.42, 0.42, 0.38], gold_light,
-             segments=8, squash=0.6)
 
 
 # --- Coins 245: the rainbow tick --------------------------------------------------------------------------------

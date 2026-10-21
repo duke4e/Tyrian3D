@@ -6,7 +6,6 @@ The levels place the pieces as the sheet arranges them (checked in the level fil
 longship_left / longship_mid / longship_right, by polish_longship.py; HARVEST's ring ship, 5 39 41 / 43 45, by
 polish_ringship.py.)
 
-- drip_top, drip_bottom (53 above 91): NOSE DRIP's twisted drip of fire.
 - fire_bowl_left, fire_bowl_right (156, 158): NOSE DRIP's bowl of flames.
 - brain_* (196, 198, 200 / 233, 235, 237, 239 / 272, 274, 276): BRAINIAC's brain, 96 x 84 pixels.
 """
@@ -17,79 +16,13 @@ import wave3_l_kit as w
 from wave3_l_kit import k, sh, pal
 
 
-# --- NOSE DRIP's twisted drip (53 above 91) ----------------------------------------------------------
-
-DRIP = w.Art(art.DRIP, (12, 28))
-DRIP_PIECES = {"drip_top": (-12, 12, 0, 28), "drip_bottom": (-12, 12, -28, 0)}
+# --- NOSE DRIP's fire (the drip, 53 above 91, is polish_drip.py's) -----------------------------------
 
 
 def drip_bands():
     return [(lowest, pal(f"drip_{index:x}", index, metallic=0.0, roughness=0.5, glow=glow))
             for lowest, index, glow in ((-9.0, 0x72, 0.35), (3.0, 0x74, 0.5), (5.0, 0x76, 0.7), (7.0, 0x78, 0.9),
                                         (9.0, 0x7a, 1.1), (11.0, 0x7c, 1.35))]
-
-
-def build_drip():
-    """NOSE DRIP's drip of fire, two sprites tall: two glowing strands twisting round each other down
-    the screen, thin at the top (row 0), crossing twice with gaps between them (rows 10 and 16-19),
-    and thickening into a lumpy braid at the bottom (rows 28-53) over a molten core; glowing where
-    the sprite is bright."""
-    a = DRIP
-    bands = drip_bands()
-    shade = w.shade_field(a, blur=1)
-    # The art's extent along each row: (centre x, half width).
-    extent = {}
-    for r in range(a.h):
-        cols = [c for c in range(a.w) if a.rows[r][c] != "."]
-        if cols:
-            extent[r] = ((cols[0] + cols[-1] + 1) / 2.0 - a.ox, (cols[-1] + 1 - cols[0]) / 2.0)
-
-    def ext(y):
-        r = min(max(a.oy - y - 0.5, 0.0), 53.0)
-        r0 = int(math.floor(r))
-        r1 = min(r0 + 1, 53)
-        f = r - r0
-        (c0, h0), (c1, h1) = extent[r0], extent[r1]
-        return c0 + (c1 - c0) * f, h0 + (h1 - h0) * f
-
-    zc = 4.6
-    for k_ in range(2):
-        pts, radii = [], []
-        for i in range(96):
-            r = 0.4 + 53.0 * i / 95
-            y = a.oy - r
-            cx, hw = ext(y)
-            rs = 0.7 + 1.6 * w.smoothstep(0.0, 14.0, r) + 0.9 * w.smoothstep(20.0, 40.0, r)  # the strand's radius
-            reach = max(0.0, hw - rs * 0.9)                          # how far it swings out
-            phase = 2 * math.pi * (r / 14.5) + math.pi * k_ + 0.6
-            pts.append((cx + reach * math.cos(phase), y, zc + reach * 0.85 * math.sin(phase)))
-            radii.append(rs * (0.35 + 0.65 * w.smoothstep(0.0, 3.0, r)))
-        strand = w.tube(f"strand{k_}", pts, 1.0, bands[0][1], 11, radii=radii)
-        strand.data.update()
-        normals = [v.normal for v in strand.data.vertices]
-        w.band_split(strand, [shade(v.co.x, v.co.y) + 1.5 * n.z - 0.5 for v, n in zip(strand.data.vertices, normals)],
-                     bands, smooth_angle=60)
-    # The molten core of the lower braid (rows 26-53), lumpy.
-    rows = a.select(lambda c, r, ch: r >= 26)
-    polys = a.polys(rows=rows, smooth=2, epsilon=0.4)
-    for p in polys:
-        for i, (x, y) in enumerate(p):
-            p[i] = (x * 0.86, y)
-    core = w.rounded("core", polys, bands[0][1], aspect=0.9, max_height=6.4, bottom=0.0, base=zc - 3.0, spacing=0.8,
-                     z_fn=lambda x, y, z: z + 0.25 * (shade(x, y) - 6.0) * w.smoothstep(zc, zc + 2.0, z))
-    w.simplify_flat(core)
-    core.data.update()
-    w.band_split(core, [shade(v.co.x, v.co.y) + 1.0 * v.normal.z - 1.0 for v in core.data.vertices], bands,
-                 smooth_angle=55)
-    w.bake()
-    sh.flat_bottom(w.meshes())
-
-
-def drip_piece(name):
-    def build():
-        build_drip()
-        return w.cut_piece(*DRIP_PIECES[name])
-    return build
 
 
 # --- NOSE DRIP's bowl of flames (156 and 158) -----------------------------------------------------
@@ -192,9 +125,6 @@ def brain_piece(name):
 # --- Registry -----------------------------------------------------------------------------------
 
 PIECES = []  # (name, sprite, builder)
-for _name, _sprite in (("drip_top", 53), ("drip_bottom", 91)):
-    PIECES.append((_name, _sprite, drip_piece(_name)))
-w.whole("drip", build_drip, (24, 56), DRIP.mask())
 for _name, _sprite in (("fire_bowl_left", 156), ("fire_bowl_right", 158)):
     PIECES.append((_name, _sprite, bowl_piece(_name)))
 w.whole("fire_bowl", build_fire_bowl, (48, 28), BOWL.mask())

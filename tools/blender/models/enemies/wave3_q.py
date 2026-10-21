@@ -1,6 +1,6 @@
 """Batch Q of wave 3 (sheet A: APPROACH, MISTAKES, SOH JIN, GAUNTLET), SOH JIN's sign; modelled as its
-sprites look (models.cfg: yaw=0). (The fire gates' housings: polish_fire_gate.py.) The mace, its chain and anchor
-and the skull chest are in wave3_q_mace.py, SOH JIN's bronze pieces in wave3_q_bronze.py.
+sprites look (models.cfg: yaw=0). (The fire gates' housings: polish_fire_gate.py.) The skull chest
+is in wave3_q_mace.py; the mace, its chain and anchor and SOH JIN's bronze pieces in polish_*.py.
 
 - missile_sign_left, missile_sign_right (A 49 beside 51): SOH JIN's red "WARNING / MISSILE SHIPS!!"
   sign, glowing red letter strokes, built whole and cut in two (origin).

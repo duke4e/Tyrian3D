@@ -1,4 +1,5 @@
-"""Batch AC of wave 3 (sheet 7: CAMANIS and ICESECRET), the ground objects the game draws in pieces, modelled
+"""Batch AC of wave 3 (sheet 7: CAMANIS and ICESECRET; the globe on its legs: polish_ice_globe.py), the ground objects
+the game draws in pieces, modelled
 as their sprites look (models.cfg: yaw=0), each built whole and cut into its sprites' pieces, drawn at their
 own origins (origin) so they meet. The level events place the pieces as the sheet arranges them (event 12
 lays four 2x2 sprites as a square: the enemy, the next one beside it, the two after them above; the red dome
@@ -6,10 +7,6 @@ is placed as two events, the dome 28 rows above its arm). All stand on the groun
 ice plateau round them and their shadows on it: the models leave both out (the 3D ground shows the ice, the
 game casts the shadows). The kit is wave3_ac_kit.py, the pixels wave3_ac_art.py.
 
-- ice_globe_tl, _tr, _bl, _br (7 161, 163 above 199, 201; events 89, 90 above 87, 88): the grey globe on
-  purple legs, 48 x 56: a big steel sphere with panel seams, gripped at its sides by two purple clamps and
-  carried by two thick armoured purple legs that reach forward, down the screen, to their feet on the ice
-  (about 30 pixels high).
 - ice_bunker_tl, _tr, _bl, _br (7 1, 3 above 39, 41; events 82, 83 above 80, 81): the grey and blue bunker,
   44 x 52: a flat grey deck with blue-grey corner panels, blocks and studs along its sides and a dark hatch with
   the gun's blue housing lying in it; on the deck's front edge a block with rounded shoulders and sloping sides,
@@ -29,7 +26,6 @@ import math
 import os
 import sys
 
-from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_ac_kit as a  # noqa: E402
@@ -46,76 +42,6 @@ def quarters(prefix, fr, keep=None):
         mask = (lambda b=box: a.object_mask(fr, b, keep)) if keep else (lambda b=box: a.object_mask(fr, b))
         out.append((f"{prefix}_{suffix}", (cx - 12.0, cx + 12.0, cy - 14.0, cy + 14.0), (cx, cy), mask))
     return out
-
-
-# --- 7 161 163 / 199 201: the globe on its legs -------------------------------------------------------
-
-GLOBE = a.frame("SPHERE", 48, (24, 28))
-GX = -5.5             # the object's axis (the sprite's column 18)
-G_CENTRE = (GX, 12.0, 17.0)
-G_RADII = (14.6, 14.2, 13.0)
-
-
-def on_globe(direction, lift=0.0):
-    """The point of the globe's surface in a direction (x, y, z), `lift` above it."""
-    d = Vector(direction).normalized()
-    rx, ry, rz = G_RADII
-    t = 1.0 / math.sqrt((d.x / rx) ** 2 + (d.y / ry) ** 2 + (d.z / rz) ** 2)
-    return Vector(G_CENTRE) + d * (t + lift)
-
-
-def build_globe():
-    steel = pal("globe_steel", 0x0b, metallic=0.6, roughness=0.22)
-    seam = pal("globe_seam", 0x04, metallic=0.4, roughness=0.5)
-    purple = pal("globe_purple", 0x57, metallic=0.35, roughness=0.4)
-    purple_light = pal("globe_purple_light", 0x5a, metallic=0.35, roughness=0.35)
-    purple_dark = pal("globe_purple_dark", 0x54, metallic=0.3, roughness=0.45)
-    purple_deep = pal("globe_purple_deep", 0x52, metallic=0.25, roughness=0.55)
-
-    def purple_paint(obj, light_side=-1.0):
-        a.paint_faces(obj, lambda c, nrm: purple_light if nrm.z > 0.6 and nrm.x * light_side >= -0.2 else
-                      purple if nrm.z > 0.25 else purple_deep if nrm.z < -0.3 else purple_dark)
-
-    # The globe, one steel (the light shades it).
-    sphere("globe", G_CENTRE, G_RADII, steel, 40, 20)
-
-    # Its panel seams: a ring round it across the screen, two arcs up the screen on its right, a short one on
-    # its lower left.
-    def seam_arc(name, directions):
-        pts = [on_globe(d, -0.12) for d in directions]
-        a.tube(name, a.catmull(pts, 0.8), 0.24, seam, 6)
-    seam_arc("seam_ring", [(math.cos(t), -0.08, math.sin(t)) for t in [math.radians(v) for v in range(-10, 191, 15)]])
-    seam_arc("seam_right", [(0.42, math.cos(t), math.sin(t)) for t in [math.radians(v) for v in range(-20, 181, 15)]])
-    seam_arc("seam_right2", [(0.75, math.cos(t), math.sin(t) * 0.9) for t in [math.radians(v) for v in range(-30, 15, 10)]])
-    seam_arc("seam_low", [(-0.5 + 0.1 * i, -0.75, 0.3 - 0.08 * i) for i in range(5)])
-
-    for side in (-1, 1):
-        def X(v):
-            return GX + side * v
-        # The clamp at the globe's side: a curved purple bracket from the hip up to its equator.
-        clamp = a.block(f"clamp{side}", (X(15.0), 6.4), 2.9, 6.6, 18.2, purple, taper=0.8, rounding=1.4,
-                        power=3.0, segments=32)
-        purple_paint(clamp, -side)
-        a.rounded_box(f"clamp_rib{side}", (X(16.9), 6.6, 9.0), (1.2, 10.4, 1.6), purple_light if side < 0 else
-                      purple_dark, bevel=0.5, segments=1)
-        # The hip under the globe, joining the clamp to the leg.
-        hip = a.block(f"hip{side}", (X(9.6), 1.2), 6.6, 5.4, 9.0, purple, rounding=1.6, power=3.0, segments=32)
-        purple_paint(hip, -side)
-        # The leg: an armoured thigh sloping forward from under the globe, a narrower shin and a broad foot on
-        # the ice, its outer side lit (the sprite's light from the left).
-        keys = [(2.5, 7.6, 8.0, 6.0, 3.2, 3.2), (-3.0, 7.6, 7.4, 6.0, 3.2, 3.0), (-8.5, 7.2, 5.6, 5.4, 2.8, 2.6),
-                (-10.6, 6.4, 4.4, 4.2, 2.3, 2.2), (-14.6, 6.0, 2.8, 4.4, 2.0, 1.8), (-17.6, 6.0, 1.7, 4.6, 1.6, 1.6),
-                (-19.8, 6.0, 1.3, 4.2, 1.2, 1.2)]
-        secs = [(yy, X(v), zc, hw, top, bot) for yy, v, zc, hw, top, bot in keys]
-        leg = a.loft_y(f"leg{side}", a.smooth_sections(secs, 0.7), purple, segments=20, power=3.2)
-        purple_paint(leg, -side)
-        # A band at the knee.
-        a.rounded_box(f"knee{side}", (X(6.6), -10.2, 4.6), (9.4, 1.6, 4.6), purple_dark, bevel=0.6, segments=1)
-    # The dark gap between the thighs, under the globe.
-    a.rounded_box("crotch", (GX, -2.0, 4.0), (5.0, 9.0, 8.0), purple_deep, bevel=0.8, segments=1)
-
-
-a.pieced("ice_globe", build_globe, (48, 56), quarters("ice_globe", GLOBE))
 
 
 # --- 7 1 3 / 39 41: the bunker ----------------------------------------------------------------------

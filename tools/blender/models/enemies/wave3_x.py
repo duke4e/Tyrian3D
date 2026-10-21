@@ -1,13 +1,11 @@
 """Batch X of wave 3 (sheet C: DELI, New Deli, BONUS and others), modelled as their sprites look (models.cfg:
-yaw=0). DELI's tall tower and the gun on its mast are in wave3_x_tower.py, its long cannons in
-wave3_x_cannon.py; the kit is wave3_x_kit.py, the pixels wave3_x_art.py. (The glass hatch, C 1, is built by polish_glass_hatch.py.)
+yaw=0). DELI's tall tower is in wave3_x_tower.py, its long cannons in
+wave3_x_cannon.py; the kit is wave3_x_kit.py, the pixels wave3_x_art.py. (The glass hatch, C 1, is built by polish_glass_hatch.py,
+the blue helm, C 49, by polish_blue_eye_helm.py, the gun on the mast over the ball by polish_ball_mast.py.)
 
 - slit_bunker (C 39): the grey bunker with a rounded back, a raised spine down its middle with two slits in it
   (the frames 41, 43 light them red; the slits glow), a band across it and four ribs at its front reaching
   down to the floor tiles it stands on.
-- blue_eye_helm (C 49): the blue armoured helm with the red eye of DELI and HARVEST: a curved hood over its
-  upper left, a ribbed plate on its right, the eye glowing in a dark socket in the middle (the frames 51, 53
-  brighten it) and a base with two pale slats and vents.
 
 usage: Blender -b --factory-startup -P wave3_x.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
@@ -22,7 +20,7 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_x_kit as x  # noqa: E402
-from wave3_x_kit import art, k, sh, w, pal, px, py  # noqa: E402
+from wave3_x_kit import art, k, w, pal, px, py  # noqa: E402
 
 
 # --- C 39: the bunker with the slits ---------------------------------------------------------------------
@@ -111,86 +109,6 @@ def slit_bunker():
             b = (xc + side * 10.2, py(row + 2.4))
             x.q.groove(f"tier{side}{i}", [a, b], lambda xx, yy: z_of(xx, yy, 1.0), m[3], radius=0.38, sink=0.12,
                        step=1.4)
-    x.report()
-
-
-# --- C 49: the blue helm with the red eye ------------------------------------------------------------------
-
-@x.model("blue_eye_helm", [(49, True)])
-def blue_eye_helm():
-    """A blue armoured helm: a thick curved hood over its upper left with a pale crest, the face inside it
-    stepping down to a dark socket in which the red eye glows, a ribbed plate on its right with dark vents
-    under it, and a base across its bottom with two pale slats and a row of vents."""
-    g = x.grid(art.DOME, 24)
-    origin = (12, 14)
-    blue = {s_: pal(f"bh_blue{s_:x}", 0x30 | s_, metallic=0.5, roughness=0.3) for s_ in range(2, 14)}
-    outline_dark = pal("bh_edge", 0x31, metallic=0.4, roughness=0.4)
-    socket = pal("bh_socket", 0x01, metallic=0.2, roughness=0.5)
-    eye = pal("bh_eye", 0x76, metallic=0.0, roughness=0.15, glow=1.3)
-    eye_core = pal("bh_eye_core", 0x7b, metallic=0.0, roughness=0.1, glow=2.6)
-    ex, ey = px(11.2), py(13.0)        # the eye's centre
-
-    def smooth01(a, b, v):
-        return sh.smoothstep(a, b, v)
-
-    def z_of(xx, yy, e):
-        r = math.hypot(xx - ex, yy - ey)
-        ang = math.degrees(math.atan2(yy - ey, xx - ex)) % 360
-        # The face: a shallow dish round the eye.
-        z = 6.4 + 0.12 * r
-        # The hood over the upper left (angles 70-250 degrees from the eye), its crest at r 8-9.5.
-        rim = 8.8 + 1.7 * max(0.0, math.sin(math.radians(ang))) ** 2
-        hood = smooth01(rim - 2.2, rim - 0.8, r) * smooth01(55.0, 80.0, ang) * (1.0 - smooth01(235.0, 262.0, ang))
-        z += hood * 3.6
-        # The plate on the right.
-        plate = smooth01(px(16.0), px(17.2), xx) * smooth01(py(19.5), py(18.5), yy) * smooth01(py(1.0), py(4.5), yy)
-        z = max(z, 6.2 + plate * 2.2)
-        # The base across the bottom.
-        base = smooth01(py(18.0), py(19.5), yy)
-        z = z * (1 - base) + 5.0 * base
-        if py(23.6) < yy < py(21.6) or py(20.6) < yy < py(19.6):
-            z += 0.5 * base
-        return 0.35 + (z - 0.35) * math.sqrt(e * (2 - e))
-
-    polys = x.pixel_polys(g, lambda v, c, r: True, origin, smooth=2, epsilon=0.35)
-    body = x.q.heightfield("body", polys, z_of, blue[6], spacing=0.4, edge=1.6)
-    w.simplify_bottom(body)
-    x.decimate(body, 3400)
-    k.smooth(body, 40)
-    shade = x.shades(g, origin, lambda v: v >> 4 == 3, blur=1)
-
-    def paint(c, n):
-        if c.z < 0.9 or n.z < -0.2:
-            return outline_dark
-        s_ = shade(c.x, c.y) + 0.5
-        if n.z < 0.4:
-            s_ -= 1.5
-        return blue[int(min(13, max(2, round(s_))))]
-    w.paint_faces(body, paint)
-
-    # The socket and the eye.
-    zf = z_of(ex, ey, 1.0)
-    x.torus("socket_rim", (ex, ey, zf + 0.1), 3.9, 0.55, blue[4], 28, 6, squash=0.8)
-    w.sphere("socket", (ex, ey, zf - 0.2), (3.6, 3.6, 0.6), socket, 20, 6)
-    w.sphere("eye", (ex, ey, zf + 0.3), (3.0, 3.0, 1.9), eye, 20, 10)
-    w.sphere("eye_core", (ex - 0.6, ey + 0.6, zf + 1.6), (1.3, 1.3, 0.75), eye_core, 12, 6)
-    # The hood's crest: a pale rib along it.
-    pts = []
-    for i in range(15):
-        a = math.radians(78 + (248 - 78) * i / 14)
-        rr = 8.8 + 1.7 * max(0.0, math.sin(a)) ** 2
-        xx, yy = ex + rr * math.cos(a), ey + rr * math.sin(a)
-        pts.append((xx, yy, z_of(xx, yy, 1.0) + 0.05))
-    w.tube("crest", pts, 0.6, blue[11], 8, squash=0.7)
-    # The plate's ribs and the vents under it.
-    for i, xx in enumerate((px(18.5), px(20.3))):
-        w.rounded_box(f"plate_rib{i}", (xx, py(10.5), 8.45), (0.9, 12.0, 0.7), blue[8], bevel=0.3, segments=1)
-    for i, xx in enumerate((px(17.6), px(19.0), px(20.4))):
-        w.rounded_box(f"vent{i}", (xx, py(16.2), 7.8), (0.7, 2.6, 1.2), socket, bevel=0.2, segments=1)
-    # The base's vents along its bottom edge.
-    for i in range(6):
-        xx = px(7.5 + 2.0 * i)
-        w.rounded_box(f"base_vent{i}", (xx, py(26.2), 4.6), (0.8, 1.6, 1.0), socket, bevel=0.2, segments=1)
     x.report()
 
 
