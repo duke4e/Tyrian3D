@@ -1,5 +1,5 @@
 """FRUIT's boss (wave 3, batch AE; sheet ', written x27 in models.cfg), modelled as its sprites look (models.cfg:
-yaw=0); the rest of the sheet is in wave3_ae_lemon.py, wave3_ae_coral.py and polish_*.py, the kit in
+yaw=0); the rest of the sheet is in wave3_ae_lemon.py and polish_*.py, the kit in
 wave3_ae_kit.py, the pixels in wave3_ae_art.py.
 
 The level draws it from 31 sprites on the ground (enemies 1265-1295): four rows of eight (' 153-167, 191-205,

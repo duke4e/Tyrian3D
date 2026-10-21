@@ -6,7 +6,7 @@ CORAL builds the citadel from 43 custom ground enemies (events of type 49 and 52
 t5450 the rows % 39-55, 77-93, 115-131 at (54 + 24 i, -84), (54 + 24 i, -56), (54 + 24 i, -28) and % 155-167 at
 (78 + 24 i, 0); 28 ticks later the top row % 1-17 at (54 + 24 i, -84), on top of them as the ground has scrolled:
 the sheet's own layout, 216 x 140 pixels (its top is cut straight: the sprites stop there). Its two blue eggs
-(CORAL's enemies 1224 above 1225, wave3_ae_coral.py) are put into the two bays of its dome (x 92 and 210).
+(CORAL's enemies 1224 above 1225, polish_coral_worm.py) are put into the two bays of its dome (x 92 and 210).
 
 What it is: the near half of a huge round fortress on the sea floor. A stone dome laid with grey and blue-grey
 blocks rises over a dark wall; in it two dark bays, each holding two pods lying side by side (the eggs sit in

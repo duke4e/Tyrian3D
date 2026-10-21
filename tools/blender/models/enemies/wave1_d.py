@@ -3,7 +3,6 @@
 - pincer_* (sheet K 161-243): the grey pincer of FLEET and STATION, two arms with red lights and
   red coils at the jaws, which the game puts together from ten indestructible sprites. The whole
   pincer is built once and cut into the ten pieces, so they join up again in the game.
-- eye_beetle (sheet V 197): the blue armoured eye of MARKERS and TIME WAR.
 - ring_frame (sheet 3 271): the grey frame with a blue orb of BRAINIAC, DREAD-NOT and ICE EXIT.
 - mast_left, mast_right (sheet B 39 and 47, mirror images): CAMANIS' tanks with a rod and a post.
 (The tusked boss's jaw, sheet 4 128, is a piece of polish_tusk_boss.py's boss.)
@@ -21,7 +20,6 @@ import os
 import sys
 
 import bpy
-import numpy as np
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -195,67 +193,9 @@ for _sprite, _name, _left, _top in CLAW_PIECES:
     model(_name, "K", _sprite)(lambda left=_left, top=_top, name=_name: claw_piece(name, left, top))
 
 
-# --- The eye beetle (sheet V 197) ----------------------------------------------------------------
+# --- The sprites' origin -------------------------------------------------------------------------
 
 SPRITE_ORIGIN = (12, 14)
-
-
-@model("eye_beetle", "V", 197)
-def eye_beetle():
-    """MARKERS' and TIME WAR's armoured eye: a blue carapace with a big red eye in a socket at the
-    top, green tubes along the neck, purple plates at the sides and two red vents between the two
-    halves of the shell. Its animation only turns the eye's glint: a static model, the eye glows."""
-    rows = sh.art(art.BEETLE)
-    shell = k.material("beetle_shell", palette=59, metallic=0.35, roughness=0.35)
-    plate = k.material("beetle_plate", palette=89, metallic=0.3, roughness=0.4)
-    green = k.material("beetle_tube", palette=41, metallic=0.2, roughness=0.3, emission=(60, 200, 40),
-                       emission_strength=0.25)
-    eye = k.material("beetle_eye", palette=116, metallic=0.1, roughness=0.12, emission=(200, 20, 0),
-                     emission_strength=0.5)
-    iris = k.material("beetle_iris", palette=121, metallic=0.1, roughness=0.2, emission=(255, 110, 10),
-                      emission_strength=0.8)
-    pupil = k.material("beetle_pupil", palette=82, metallic=0.2, roughness=0.15)
-    vent = k.material("beetle_vent", palette=118, roughness=0.3, emission=(255, 70, 0), emission_strength=0.7)
-
-    cx = 0.5  # the sprite is symmetric about column 12
-    eye_c, eye_r = (cx, 7.0), (4.5, 4.1)
-    vents = [sh.ellipse(cx - 2.6, -8.0, 0.95, 2.2, -14), sh.ellipse(cx + 2.6, -8.0, 0.95, 2.2, 14)]
-
-    def carve(x, y, z):
-        # The eye's socket: a pit the eye sits in, with a lip round it.
-        r = math.hypot((x - eye_c[0]) / (eye_r[0] + 0.5), (y - eye_c[1]) / (eye_r[1] + 0.5))
-        floor = 2.2
-        z -= max(0.0, z - floor) * sh.smoothstep(1.2, 0.92, r)
-        z += 0.4 * math.exp(-((r - 1.12) / 0.22) ** 2)
-        # The groove between the two halves of the shell, and the seam above them.
-        if y < -1.5:
-            z -= 0.9 * math.exp(-((x - cx) / 0.5) ** 2) * min(1.0, (-1.5 - y) / 1.0)
-        z -= 0.45 * math.exp(-((y + 1.0) / 0.45) ** 2) * (abs(x - cx) < 7.5)
-        return z
-
-    body = sh.outlines(rows, "#ger", SPRITE_ORIGIN, smooth=2, epsilon=0.5)
-    shell_obj = sh.inflate("shell", body + vents, shell, sh.round_profile(0.8), bottom=0.5, sigma=1.6, z_fn=carve,
-                           spacing=0.33)
-    k.smooth(shell_obj, 85)
-    # The purple plates: the upper ones hug the head, the lower ones are fins at the sides.
-    plates = sh.grow(rows, "p", "#g")
-    for i, poly in enumerate(sh.outlines(plates, "p", SPRITE_ORIGIN, smooth=2, epsilon=0.4, min_area=1.0)):
-        k.smooth(sh.inflate(f"plate{i}", [poly], plate, sh.round_profile(1.1, max_height=2.6, min_height=1.2),
-                            bottom=0.5, base=0.6), 50)
-    # The eye, its pupil and the vents.
-    k.smooth(k.ellipsoid("eye", (eye_c[0], eye_c[1], 2.2), (eye_r[0], eye_r[1], 3.6), eye, 48, 24), 60)
-    k.smooth(k.ellipsoid("iris", (eye_c[0] + 0.3, eye_c[1] - 0.3, 5.0), (2.5, 2.6, 0.75), iris, 40, 16), 60)
-    k.smooth(k.ellipsoid("pupil", (eye_c[0] + 0.4, eye_c[1] - 0.3, 5.5), (1.1, 1.5, 0.45), pupil, 20, 10), 60)
-    for i, (dx, angle) in enumerate(((-2.6, -14), (2.6, 14))):
-        v = k.ellipsoid(f"vent{i}", (0, 0, 0), (1.1, 2.4, 1.4), vent, 16, 10)
-        v.data.transform(Matrix.Translation((cx + dx, -8.0, 0.5)) @ Matrix.Rotation(math.radians(angle), 4, "Z"))
-        k.smooth(v, 60)
-    # Green tubes along both sides of the neck, on the shell.
-    for side in (-1, 1):
-        x = cx + side * 5.0
-        path = [(x - side * 0.6 * max(0.0, (y - 3.5) / 2.1), y, None) for y in np.linspace(5.6, -2.0, 16)]
-        sh.tube_along(f"tube{side}", path, 0.45, green,
-                      z_of=lambda px, py: sh.surface_z(shell_obj, px, py, 2.0) + 0.05)
 
 
 # --- The ring frame (sheet 3 271) ---------------------------------------------------------------

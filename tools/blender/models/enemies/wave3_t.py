@@ -11,8 +11,9 @@ of GEM WAR, GRYPHON and STATION, V 89/91/93, is built by polish_arm_bridge.py, t
   and 167 and 169, side by side; DREAD-NOT adds a second barrel, 14 or 169 alone, below each). The
   frames 52 and 207 recoil the barrel by a pixel: the models keep it still (origin).
 
-The stand-alone enemies of sheet V are in wave3_t_ships.py; the shared helpers in wave3_t_kit.py, the
-pixel art in wave3_t_art.py.
+The stand-alone enemies of sheet V are polish_*.py's (polish_chevron_ship.py, polish_swirl_machine.py,
+polish_copper_car.py, polish_robot_head.py, polish_blue_torpedo.py, polish_green_beetle.py); the shared helpers are
+in wave3_t_kit.py.
 
 usage: Blender -b --factory-startup -P wave3_t.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole cannon --preview <prefix>]

@@ -1,6 +1,6 @@
-"""Enemies of wave 3, batch AN (sheet n, written n in models.cfg): GYGES' pincers and blue bubbles, modelled as their
-sprites look (models.cfg: yaw=0). The kit is wave3_an_kit.py, the pixels wave3_an_art.py; GYGES' maw boss is in
-wave3_an_boss.py.
+"""Enemies of wave 3, batch AN (sheet n, written n in models.cfg): GYGES' pincers, modelled as their sprites look
+(models.cfg: yaw=0). The kit is wave3_an_kit.py, the pixels wave3_an_art.py; GYGES' maw boss is in wave3_an_boss.py,
+its blue bubbles in polish_gyges_bubbles.py.
 
 GYGES puts the pincers at the screen's sides while the boss comes in: enemy 180 above 181 (n 163 above 201) at
 (18, -50) and (18, -22), enemy 182 above 183 (n 11 above 49) at (290, -50) and (290, -22), ground enemies, swaying
@@ -13,61 +13,15 @@ show it as most frames do (163, 11): nearly closed.
   thin, the fingers sinking towards their tips. Built whole (24 x 56), cut in two (origin); the lower piece keeps
   the fingers' tips.
 - gyges_pincer_11, gyges_pincer_49 (n 11 above 49): the right pincer, the left one's mirror image.
-- gyges_bubble_l, gyges_bubble_m, gyges_bubble_s (n 13, 15, 125; enemies 176/179, 175/178, 174/177): glossy blue
-  bubbles (eggs?) rolling in from the sides, a light swirl inside: a sphere painted by the sprite's pixels, the
-  swirl's bright crescent a little raised. Three sizes (the levels spawn the small ones first).
-
 usage: Blender -b --factory-startup -P wave3_an.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
 """
-import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_an_kit as kit  # noqa: E402
 from wave3_an_kit import k, pal, Painter, smoothstep  # noqa: E402
-
-
-# --- The bubbles ---------------------------------------------------------------------------------------------
-
-def bubble(name, art_name):
-    f = kit.frame(art_name, 24, (12, 14))
-    cells = [(c, r) for r in range(f.height) for c in range(24) if f.get(c, r) is not None]
-    cx = sum(c + 0.5 for c, _ in cells) / len(cells) - 12.0
-    cy = 14.0 - sum(r + 0.5 for _, r in cells) / len(cells)
-    radius = math.sqrt(len(cells) / math.pi)
-    paint_f = f.fill({0x01, 0x30})
-
-    @kit.model(name, mask=lambda: f.mask((0, 24, 0, 28)))
-    def build():
-        p = Painter(name, shades={3: (1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe)}, metallic=0.25,
-                    roughness=0.14, remap={0x01: 0x31, 0x30: 0x31})
-        rz = radius * 0.9
-        ball = kit.ico_ellipsoid(name, (cx, cy, rz), (radius, radius, rz), p(0x36), 5)
-        kit.delete_faces(ball, lambda c, nrm: nrm.z < -0.3)
-        # The swirl's light crescent raised a little, its dark band sunk: a glassy spiral inside the shell.
-        field = kit.brightness(paint_f, blur=1)
-        mid = sum(field(x - 12 + 0.5, 14 - r - 0.5) for x, r in cells) / len(cells)
-        kit.emboss(ball, lambda x, y: (field(x, y) - mid) * 2.2, 0.6, min_nz=0.25)
-        k.smooth(ball, 70)
-
-        def pick(c, nrm):
-            x, y = c.x, c.y
-            if nrm.z < 0.35:   # the flanks: the pixel a little inside the outline
-                x, y = cx + (x - cx) * 0.85, cy + (y - cy) * 0.85
-            val = paint_f.at(x, y)
-            if val is None:
-                return p(0x32)
-            return p(val) if nrm.z > 0.0 else p(0x31)
-        kit.paint_faces(ball, pick)
-        return ball
-    return build
-
-
-bubble("gyges_bubble_l", "ORB_13")
-bubble("gyges_bubble_m", "ORB_15")
-bubble("gyges_bubble_s", "ORB_125")
 
 
 # --- The pincers -----------------------------------------------------------------------------------------------

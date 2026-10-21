@@ -7,9 +7,6 @@ polish_coral_starlet.py, polish_coral_manta.py.)
 
 - coral_starfish (T 127): the tan starfish thrown in CORAL (enemy 1223); its frames (129, 131, 245) turn it
   clockwise 18 degrees each, two cycles apiece (models.cfg: yaw=frames:40:0).
-- coral_pylon_top, coral_pylon_mid, coral_pylon_base (T 279 above 281 above 283; events 1213-1215 at (x, y),
-  (x, y + 28), (x, y + 56)): a long grey cylinder lying up the screen, a capped end with lugs, flanged
-  collars, dark joints, a dark port with a glowing lamp and a nozzle at its near end. Cut in three (origin).
 - coral_dome_tl, coral_dome_tr, coral_dome_bl, coral_dome_br (T 15, 17 above 53, 55; events 1201-1204): a
   purple dome on the sea floor with gold bands round its foot, over its middle and down its left side, a
   window block on its right lobe and a boss on its left. The sprites draw it on a square of water, which
@@ -84,75 +81,6 @@ def starfish(prefix, centre, radius, inner, height, bumps=4):
 def coral_starfish():
     """The tan starfish CORAL's creatures throw (enemy 1223), turning as its frames do (yaw=frames)."""
     starfish("starfish", (0.0, -0.2), 12.9, 6.2, 4.4)
-
-
-# --- T 279 above 281 above 283: the segmented column --------------------------------------------------
-
-COLUMN = v.Frame(art.COLUMN, 24, (12, 42))
-
-
-def column_whole():
-    """A long grey cylinder lying up the screen, in segments: a wide cap with three lugs at its far end,
-    flanged collars along it, dark joints between the segments, and at its near end a dark port with a
-    lamp glowing in it and a rounded nozzle."""
-    f = COLUMN
-    greys = {s_: pal(f"column_grey{s_:x}", s_, metallic=0.55, roughness=0.35) for s_ in (4, 6, 8, 9, 0xa, 0xb, 0xc)}
-    seam = pal("column_seam", 0x02, metallic=0.3, roughness=0.6)
-    pit = pal("column_pit", 0x01, metallic=0.2, roughness=0.3)
-    lamp = pal("column_lamp", 0x0e, metallic=0.0, roughness=0.2, glow=1.2)
-    axis_z, squash = 6.4, 0.85
-
-    def turned(name, profile, mat, segments=32):
-        """A part turned round the column's axis: profile [(row, half width)] down the screen."""
-        pts = [(f.Y(r), hw) for r, hw in profile]
-        pts.sort()
-        obj = k.lathe(name, pts, mat, segments=segments, axis_z=axis_z, squash=squash)
-        return k.smooth(obj, 45)
-
-    def shade_paint(obj, lift=0.0):
-        """Lit along the top: the sprite's light across the cylinder, as bands."""
-        def pick(c, nrm):
-            if nrm.z < -0.2:
-                return greys[4]
-            t = nrm.z
-            value = 5.5 + 6.0 * t ** 1.5 + lift
-            return greys[min(greys, key=lambda s_: abs(s_ - value))]
-        w.paint_faces(obj, pick)
-
-    # The body: segments between the joints.
-    body = turned("body", [(1.0, 6.2), (2.0, 7.0), (71.0, 7.0), (72.5, 7.6), (78.0, 7.6), (79.0, 5.2), (82.0, 4.6),
-                           (83.4, 3.4), (84.0, 0.8)], greys[9], 40)
-    shade_paint(body)
-    # The cap at the far end and its three lugs.
-    cap = turned("cap", [(0.6, 8.6), (1.2, 10.0), (11.0, 10.0), (12.0, 8.0), (12.4, 6.0)], greys[9], 40)
-    shade_paint(cap, 0.5)
-    for x in (f.X(4.0), 0.0 - 0.0, f.X(19.0)):
-        wdt = 5.0 if x == 0.0 else 2.6
-        w.rounded_box(f"lug{x:.0f}", (x, f.Y(0.8), axis_z + (5.0 if x == 0.0 else 3.6)), (wdt, 2.4, 2.6), greys[8],
-                      bevel=0.5)
-    # The collars: a flanged ring and two plain ones.
-    for name, r0, r1, hw in (("collar_a", 19.0, 27.6, 12.0), ("collar_b", 39.0, 52.6, 10.0),
-                             ("collar_c", 66.0, 71.8, 11.0)):
-        prof = [(r0, 7.2), (r0 + 0.8, hw - 0.8), (r0 + 1.6, hw), (r1 - 1.6, hw), (r1 - 0.8, hw - 0.8), (r1, 7.2)]
-        c = turned(name, prof, greys[8], 40)
-        shade_paint(c, 0.3)
-    # The joints: dark rings round the body.
-    for r in (16.5, 36.5, 53.5, 63.5):
-        turned(f"joint{r}", [(r - 0.45, 6.9), (r - 0.3, 7.22), (r + 0.3, 7.22), (r + 0.45, 6.9)], seam, 40)
-    # The port on the near end's top: a dark round pit, a lamp glowing in it.
-    pz = axis_z + 7.6 * squash
-    w.sphere("port", (0.0, f.Y(74.6), pz - 0.6), (4.0, 3.4, 1.4), pit, 24, 10)
-    w.sphere("lamp", (0.2, f.Y(74.2), pz + 0.2), (1.3, 1.5, 0.8), lamp, 14, 7)
-
-
-def column_piece(name, row0):
-    y1 = 42 - row0
-    return (name, (-12.0, 12.0, y1 - 28.0, y1), (0.0, y1 - 14.0), lambda: COLUMN.mask((0, 24, row0, row0 + 28)))
-
-
-v.pieced("coral_pylon", column_whole, (24, 84), [column_piece("coral_pylon_top", 0),
-                                                 column_piece("coral_pylon_mid", 28),
-                                                 column_piece("coral_pylon_base", 56)])
 
 
 # --- T 15, 17 above 53, 55: the purple dome ----------------------------------------------------------
