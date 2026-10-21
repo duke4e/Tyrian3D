@@ -1,11 +1,10 @@
 """Batch F of the second wave of enemy models, facing the way their sprites do (models.cfg: yaw=0)
 (spike_star, 3 246: polish_spike_star.py; 7 51 is the squid ship turned round, polish_squid_ship.py; the mug of
-beer, coins 241: items/polish_beer_mug.py):
+beer, coins 241: items/polish_beer_mug.py; the pebble, D 133: polish_pebbles.py):
 
 - obsidian_egg (sheet M 271): MINERS' indestructible black glass egg with a smoky light inside,
   lying on the ground.
 - jet_steel (sheet F 79): the blue-grey jet of SAVARA, TORM and BOTANY A, its nose down the screen.
-- pebble (sheet D 133, 1x1): the small blue-grey rock of the asteroid levels.
 
 
 usage: blender -b --factory-startup -P wave2_f.py -- [--only name,name] [--preview <prefix>]
@@ -111,16 +110,6 @@ def jet_steel():
     for side in (-1, 1):
         w.lathe_axis(f"intake{side}", [(0.0, 0.01), (0.05, 0.75), (2.6, 0.8), (3.0, 0.6)], dark,
                      (cx + side * 1.9, py(18.5), -0.1), (0, 1, 0), 12, squash=0.8)
-
-
-# --- The pebble (sheet D 133, 1x1) -------------------------------------------------------------
-
-@model("pebble", "enemy_D", 133, large=False)
-def pebble():
-    """A glossy blue-grey rock, rounded, a little lumpy."""
-    mid = pal("pebble_mid", 103, metallic=0.45, roughness=0.22)
-    w.lumpy("rock", (px(5, 6), py(6.5, 7), 0.0), (5.4, 6.0, 3.8), mid, seed=5, amount=0.2)
-    w.sphere("shine", (px(4.6, 6), py(5.6, 7), 4.1), (1.0, 1.8, 0.45), pal("pebble_shine", 107, roughness=0.1), 14, 6)
 
 
 # --- The twin-panel ship (sheet H 284) ---------------------------------------------------------

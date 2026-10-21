@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the rocks and the stone face; modelled as
 their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py; the two big asteroids (D 1 3 / 39 41 and
-D 7 9 / 45 47) in polish_asteroids.py.
+D 7 9 / 45 47) in polish_asteroids.py; the small rocks (D 95, 114, 133, 152) in polish_pebbles.py.
 
 - crag_* (D 13, 15, 31, 34, 49, 51, 53, 88, 89, 91): the huge asteroid of ASTEROID1 and ASTEROIDS,
   72 x 84 pixels, which the game puts together from ten sprites (six 2x2, four 1x1), built whole
@@ -11,8 +11,6 @@ D 7 9 / 45 47) in polish_asteroids.py.
   the beacon: it glows).
 - rock_blue_eye (D 229): such an asteroid with a blue light set in its middle (its frames 231-235
   light it up: it glows).
-- pebble_a, pebble_b, pebble_c (D 95, 114, 152): small blue-grey rocks (1x1) like D 133 (pebble,
-  wave2_f.py).
 - stone_face_tl, stone_face_tr, stone_face_bl, stone_face_br (D 155, P 123, D 165, P 127): the stone
   face lying on the ground of ASTEROID1 and ASTEROID2, which the game puts together from two
   sprites of sheet D and two of sheet P (event 12), built whole and cut (origin).
@@ -189,50 +187,6 @@ def rock_blue_eye():
         d = Vector((math.cos(a * math.pi / 2), math.sin(a * math.pi / 2), 0))
         w.sphere(f"ray{a}", (x + d.x * 2.0, y + d.y * 2.0, z + 0.05), (0.7 + 0.5 * abs(d.x), 0.7 + 0.5 * abs(d.y), 0.5),
                  blue, 10, 5)
-
-
-# --- D 95, 114, 152: small rocks (1x1) ------------------------------------------------------------
-
-def small_rock(g, prefix, seed):
-    """A glossy blue-grey rock as pebble (D 133): a lumpy ellipsoid over the sprite's outline, a
-    shine where the sprite is brightest."""
-    # The rock's ellipse: the pixels' mean and principal axes (the dark rim included).
-    pts = [(w.px(c, 6), w.py(r, 7)) for r, row in enumerate(g) for c, v in enumerate(row) if v is not None]
-    cx = sum(p[0] for p in pts) / len(pts)
-    cy = sum(p[1] for p in pts) / len(pts)
-    sxx = sum((p[0] - cx) ** 2 for p in pts) / len(pts)
-    syy = sum((p[1] - cy) ** 2 for p in pts) / len(pts)
-    sxy = sum((p[0] - cx) * (p[1] - cy) for p in pts) / len(pts)
-    angle = 0.5 * math.atan2(2 * sxy, sxx - syy)
-    tr = sxx + syy
-    det = sxx * syy - sxy * sxy
-    l1 = tr / 2 + math.sqrt(max(0.0, tr * tr / 4 - det))
-    l2 = tr / 2 - math.sqrt(max(0.0, tr * tr / 4 - det))
-    rx, ry = 2.0 * math.sqrt(l1) + 0.1, 2.0 * math.sqrt(l2) + 0.1  # a uniform ellipse's extent is 2 sigma
-    mid = pal(f"{prefix}_mid", 103, metallic=0.45, roughness=0.22)
-    rock = w.lumpy("rock", (0.0, 0.0, 0.0), (rx, ry, min(rx, ry) * 0.7), mid, seed=seed, amount=0.2)
-    rock.data.transform(Matrix.Translation((cx, cy, 0.0)) @ Matrix.Rotation(angle, 4, "Z"))
-    best = max(((v & 15, c, r) for r, row in enumerate(g) for c, v in enumerate(row) if v is not None and v >> 4 == 6))
-    _, c, r = best
-    sx, sy = w.px(c, 6), w.py(r, 7)
-    sx, sy = cx + (sx - cx) * 0.6, cy + (sy - cy) * 0.6
-    w.sphere("shine", (sx, sy, min(rx, ry) * 0.7 - 0.15), (1.0, 1.6, 0.45), pal(f"{prefix}_shine", 107, roughness=0.1),
-             14, 6)
-
-
-@model("pebble_a", [(D, 95, False)], size=(12, 14))
-def pebble_a():
-    small_rock(w.grid(art.D95, 12), "pebble_a", 41)
-
-
-@model("pebble_b", [(D, 114, False)], size=(12, 14))
-def pebble_b():
-    small_rock(w.grid(art.D114, 12), "pebble_b", 43)
-
-
-@model("pebble_c", [(D, 152, False)], size=(12, 14))
-def pebble_c():
-    small_rock(w.grid(art.D152, 12), "pebble_c", 47)
 
 
 # --- D 155, P 123, D 165, P 127: the stone face ---------------------------------------------------

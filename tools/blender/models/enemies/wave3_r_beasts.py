@@ -2,11 +2,9 @@
 MISTAKES and SOH JIN; modelled as their sprites look (models.cfg: yaw=0). The grey machines on TORM's
 leaves are in wave3_r.py.
 (GRYPHON's blue orb tower, orb_tower (G 201), is built by polish_orb_tower.py, GEM WAR's blue chevron (G 163) by
-polish_blue_chevron.py and GYGES' violet pincer (G 121) by polish_violet_pincer.py.)
+polish_blue_chevron.py, GYGES' violet pincer (G 121) by polish_violet_pincer.py and the golden tusk beetle (G 49) by
+polish_tusk_beetle.py.)
 
-- tusk_beetle (G 49): SOH JIN's and MISTAKES' golden beetle (enemy 778): a ridged carapace, two horns
-  sweeping up and out from its shoulders, a leaf-shaped plate on each side and two long tusks curving
-  down round an open ring under it (its frames close the tusks a little).
 - violet_shell (G 55): GYGES' violet shell (custom events 51): a ribbed violet dome over a lower shell of
   two lobes, a blue gem glowing in a socket in its front and three red dots over it.
 
@@ -21,11 +19,10 @@ import math
 import os
 import sys
 
-from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_r_kit as r  # noqa: E402
-from wave3_r_kit import art, k, sh, w, pal  # noqa: E402
+from wave3_r_kit import art, sh, w, pal  # noqa: E402
 
 px, py = w.px, w.py
 
@@ -52,52 +49,6 @@ def painter(g, keep, bands, origin=(12, 14), wall_drop=2.0, under=None, blur=1, 
             s -= wall_drop
         return r.band(s, bands)
     return pick
-
-
-# --- G 201: the orb tower ---------------------------------------------------------------------------
-
-# --- G 49: the tusked beetle ----------------------------------------------------------------------------
-
-@r.model("tusk_beetle", [(49, True)])
-def tusk_beetle():
-    """A golden beetle: a ridged carapace, two horns sweeping up and out from its shoulders, a leaf-shaped
-    plate on each side and two long tusks curving down round an open ring under it."""
-    shell = pal("beetle_shell", 0x17, metallic=0.55, roughness=0.3)
-    ridge = pal("beetle_ridge", 0x1c, metallic=0.5, roughness=0.2)
-    tusk_light = pal("beetle_tusk", 0x18, metallic=0.5, roughness=0.25)
-    axis = 0.5
-
-    def pod(name, centre, radii, angle, mat, segments=20):
-        obj = w.sphere(name, (0, 0, 0), radii, mat, segments, segments // 2)
-        obj.data.transform(Matrix.Translation(centre) @ Matrix.Rotation(math.radians(angle), 4, "Z"))
-        return obj
-
-    # The carapace: a wide shield, broad at its top, narrowing to its rear, a ridge down its middle.
-    cx = -0.4
-    sections = [(py(12.8), 2.4, 2.6), (py(11.5), 3.6, 3.8), (py(9.5), 4.6, 4.8), (py(6.5), 5.2, 5.4), (py(3.5), 5.2, 5.6),
-                (py(1.5), 4.7, 5.2), (py(0.3), 3.6, 4.2), (py(-0.3), 2.0, 3.0)]
-    rings = [k.ring(y, hw, h, 32, z=0.0, x=cx, top=1.0, bottom=0.35, power=2.4) for y, hw, h in sections]
-    body = k.loft("carapace", rings, shell, start_point=(cx, sections[0][0] - 0.3, 0.8),
-                  end_point=(cx, sections[-1][0] + 0.3, 1.2))
-    k.smooth(body, 50)
-    body.data.transform(Matrix.Translation((0, 0, 0.6)))
-    w.tube("ridge", w.catmull([(cx - 0.3, py(-0.2), 3.6), (cx - 0.5, py(2.0), 5.8), (cx - 0.4, py(6.0), 6.2),
-                               (cx - 0.2, py(10.0), 5.0), (cx, py(12.4), 2.8)], 0.5), 0.8, ridge, 10, squash=0.7)
-    for s_ in (-1, 1):
-        def X(dx):
-            return axis + s_ * dx
-        # The leaf-shaped side plate, and the horn sweeping up and out of it to a point.
-        pod(f"plate{s_}", (X(5.6), py(8.0), 3.0), (3.0, 4.9, 2.0), s_ * 35, shell)
-        path = [(X(4.0), py(8.5), 3.6), (X(6.2), py(5.5), 4.6), (X(8.4), py(3.0), 5.2), (X(10.0), py(0.6), 5.2)]
-        pts = w.catmull(path, 0.45)
-        w.tube(f"horn{s_}", pts, [2.3 * (1.0 - i / (len(pts) - 1)) ** 0.9 + 0.2 for i in range(len(pts))],
-                      shell, 12)
-        # The tusk: from under the carapace, out and down, back in to its point.
-        path = [(X(2.6), py(12.3), 3.0), (X(4.4), py(15.2), 3.4), (X(6.4), py(18.6), 3.0), (X(6.6), py(22.0), 2.2),
-                (X(5.4), py(25.2), 1.4), (X(3.6), py(26.6), 0.9)]
-        pts = w.catmull(path, 0.45)
-        w.tube(f"tusk{s_}", pts, [2.2 - 1.5 * (i / (len(pts) - 1)) ** 1.4 for i in range(len(pts))], tusk_light, 12)
-    r.budget(4800, floor=600)
 
 
 # --- G 55: the violet shell -----------------------------------------------------------------------------

@@ -5,7 +5,7 @@ that frame, the game draws that model in the place and with the options of the s
 quiet_import: its output stays unchanged), posed as the frame draws it and cut exactly as the static piece is.
 
 The scripts: wave3_at_orange.py (sheet ': the bladed orange), wave3_at_m.py (sheet M: the armoured dome's gun port, the
-rig's hatch), wave3_at_manta.py (sheet T: CORAL's manta), wave3_at_g.py (sheet G: the violet pincer, the tusk beetle),
+rig's hatch), wave3_at_manta.py (sheet T: CORAL's manta),
 wave3_at_d.py (sheet D: the eye tub's iris, the shell ship), wave3_at_j.py (sheet J: the green shell's lids, the eye
 orb), wave3_at_misc.py (sheets 5, S, 7, L: the eye hatch's lids, the core in the pipe cage, the drill's arm, the tan
 creature's nub). The frames' sprites are read from the extracted sheets for --check (sheet_mask) only: the poses are

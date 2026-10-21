@@ -1,10 +1,8 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the machines; modelled as their sprites
 look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py; the cage turret (D 275), the red furnace
 (D 267) and the red medallion (D 117) are built by polish_cage_turret.py, polish_red_furnace.py and
-polish_medallion_red.py.
+polish_medallion_red.py; the eye tub (D 193 and its frames) by polish_eye_tub.py.
 
-- eye_tub (D 193): the bronze tub on the tiled floor, its iris open on a glowing red eye with a red
-  light on its front (the frames open the iris from shut to the eye, 169; the model shows it open).
 - dome_cannon_barrel, dome_cannon_dome (D 245 above D 283): the brown dome on the tiled floor with a
   red band of lights and a heavy dark cannon reaching up the screen from its ribbed bronze collar,
   in two pieces (origin); the dome's lights flash (281): they glow.
@@ -31,57 +29,6 @@ import wave3_j_kit as w  # noqa: E402
 from wave3_j_kit import art, k, sh, pal, px, py, model, whole  # noqa: E402
 
 D = "enemy_D"
-
-
-# --- D 193: the eye tub --------------------------------------------------------------------------
-
-@model("eye_tub", [(D, 193, True)])
-def eye_tub():
-    """A bronze tub of staves with two dark bands and a rolled rim, standing on the ground; its
-    iris is open (four grey petals drawn back against the rim) on a glowing red eye, and a red
-    light burns on its front."""
-    cx, cy = -0.5, 3.4
-    bronze = pal("tub_bronze", 0x15, metallic=0.55, roughness=0.4)
-    stave = pal("tub_stave", 0x13, metallic=0.5, roughness=0.45)
-    rim_mat = pal("tub_rim", 0x19, metallic=0.6, roughness=0.3)
-    band = pal("tub_band", 0x11, metallic=0.7, roughness=0.35)
-    inside = pal("tub_inside", 0x01, metallic=0.3, roughness=0.6)
-    petal = pal("tub_petal", 0x06, metallic=0.7, roughness=0.3)
-    eye = pal("tub_eye", 0x77, metallic=0.0, roughness=0.2, glow=1.2)
-    core = pal("tub_eye_core", 0x7b, metallic=0.0, roughness=0.2, glow=1.8)
-    light = pal("tub_light", 0x74, metallic=0.0, roughness=0.3, glow=1.0)
-
-    # No floor round it: the sprite's tiles are the map's ground (batch AV); the tub stands on the ground.
-    height = 8.4
-    # The tub: up the outside, over the rolled rim, down the inside to a floor.
-    profile = [(0.0, 10.2), (2.0, 10.6), (4.2, 10.8), (6.4, 10.6), (7.9, 10.3), (8.3, 10.0), (height, 9.4),
-               (height - 0.2, 8.9), (height - 0.8, 8.7), (3.2, 8.5), (3.0, 0.01)]
-    tub = w.column("tub", profile, bronze, cx, cy, segments=48, smooth_angle=40)
-    # The staves: every third face round the outside darker (the planks' seams).
-    w.paint_faces(tub, lambda c, n: inside if n.z > 0.5 and c.z < 3.5 else
-                  stave if (n.z < 0.5 and int((math.degrees(math.atan2(c.y - cy, c.x - cx)) + 360) / 7.5) % 3 == 0
-                            and math.hypot(c.x - cx, c.y - cy) > 9.6) else None)
-    w.hoop("rim", (cx, cy, height - 0.35), [(9.3, -0.2), (10.0, -0.6), (10.7, -0.3), (10.8, 0.1), (10.2, 0.45),
-                                             (9.5, 0.3)], rim_mat, 48)
-    for z in (2.0, 6.0):
-        w.hoop(f"band{z}", (cx, cy, z), [(10.5, -0.45), (11.0, -0.35), (11.05, 0.35), (10.5, 0.45)], band, 48)
-    # The iris drawn back: four grey petals leaning against the inside of the rim.
-    for i in range(4):
-        a = math.radians(45 + 90 * i)
-        d = Vector((math.cos(a), math.sin(a), 0.0))
-        side = Vector((-d.y, d.x, 0.0))
-        base = Vector((cx, cy, height - 3.4)) + d * 6.4
-        top = Vector((cx, cy, height - 0.3)) + d * 8.6
-        tip = Vector((cx, cy, height - 2.2)) + d * 4.6
-        verts = [base - side * 3.2, base + side * 3.2, top + side * 3.6, top - side * 3.6, tip]
-        p = k.mesh_object(f"petal{i}", verts, [(0, 1, 2, 3), (1, 0, 4)], petal)
-        mod = p.modifiers.new("solid", "SOLIDIFY")
-        mod.thickness = 0.5
-        k.smooth(p, 30)
-    # The eye, glowing, its hot middle; the red light on the front.
-    w.sphere("eye", (cx - 0.3, cy + 1.4, 4.6), (3.7, 3.7, 3.0), eye, 24, 12)
-    w.sphere("eye_core", (cx - 0.3, cy + 1.4, 7.2), (1.6, 1.6, 0.7), core, 16, 6)
-    w.rounded_box("front_light", (cx - 0.5, cy - 10.75, 3.9), (5.2, 1.0, 2.4), light, bevel=0.35)
 
 
 # --- D 245 above D 283: the dome cannon ----------------------------------------------------------

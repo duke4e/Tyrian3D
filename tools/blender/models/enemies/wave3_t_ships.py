@@ -1,9 +1,6 @@
 """Wave 3, batch T of the enemy models: the stand-alone enemies of sheet V (episode 2's MARKERS and MISTAKES),
-modelled as their sprites look (models.cfg: yaw=0):
+modelled as their sprites look (models.cfg: yaw=0; the green beetle, V 165: polish_green_beetle.py):
 
-- green_beetle (V 165): MARKERS' green beetle: a round body with a big faceted blue gem, two blue
-  gems low on its sides and a short tail, a head shield with a brown jewel in a dark socket, and
-  two broad horns curving up either side of the head.
 - chevron_ship (V 159): MARKERS' steel-blue ship: a rounded hood with an orange band arching over it
   and a blue gem inside the arch, a pod below it with a bulging nose in a dark groove, flared blades
   either side.
@@ -29,115 +26,12 @@ import math
 import os
 import sys
 
-import bmesh
-import bpy
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_t_art as art  # noqa: E402
 import wave3_t_kit as w  # noqa: E402
 from wave3_t_kit import sh, pal, model, grid, regions, ramp, smoothstep  # noqa: E402
-
-
-def gem(name, centre, radii, mat, sides=8, rings=4, turn=0.0, table=0.55):
-    """A faceted gem: a cut stone (sides facets round, `rings` bands) with a flat table on top
-    (table: its share of the radius), flat shaded; centre is its girdle's middle."""
-    cx, cy, cz = centre
-    rx, ry, rz = radii
-    bm = bmesh.new()
-    crown = [(1.0, 0.0), (0.82, 0.55), (table, 1.0)]
-    pavilion = [(0.7, -0.45), (0.0, -0.8)]
-    loops = []
-    for r, h in pavilion[::-1][1:] + crown:
-        loop = []
-        for i in range(sides):
-            a = 2 * math.pi * (i + 0.5 * (len(loops) % 2)) / sides + math.radians(turn)
-            loop.append(bm.verts.new((cx + rx * r * math.cos(a), cy + ry * r * math.sin(a), cz + rz * h)))
-        loops.append(loop)
-    bottom = bm.verts.new((cx, cy, cz - rz * 0.8))
-    for i in range(sides):
-        j = (i + 1) % sides
-        bm.faces.new((loops[0][j], loops[0][i], bottom))
-    for a, b in zip(loops, loops[1:]):
-        for i in range(sides):
-            j = (i + 1) % sides
-            bm.faces.new((a[i], a[j], b[j], b[i]))
-    bm.faces.new(loops[-1])
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bmesh.ops.triangulate(bm, faces=bm.faces[:])
-    mesh = bpy.data.meshes.new(name)
-    bm.to_mesh(mesh)
-    bm.free()
-    obj = bpy.data.objects.new(name, mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    obj.data.materials.append(mat)
-    return obj
-
-
-# --- V 165: the green beetle -----------------------------------------------------------------------------
-
-@model("green_beetle", [165])
-def green_beetle():
-    green = pal("btl_green", 0x25, metallic=0.35, roughness=0.32)
-    light = pal("btl_light", 0x28, metallic=0.35, roughness=0.28)
-    shine = pal("btl_shine", 0x2a, metallic=0.35, roughness=0.24)
-    dark = pal("btl_dark", 0x22, metallic=0.3, roughness=0.4)
-    blue = pal("btl_blue", 0x95, metallic=0.4, roughness=0.1, glow=0.35)
-    blue_hi = pal("btl_blue_hi", 0x9b, metallic=0.3, roughness=0.08, glow=0.8)
-    brown = pal("btl_brown", 0x13, metallic=0.3, roughness=0.25)
-    amber = pal("btl_amber", 0x17, metallic=0.3, roughness=0.18, glow=0.25)
-    tan = pal("btl_tan", 0x19, metallic=0.2, roughness=0.15, glow=0.5)
-    socket = pal("btl_socket", 0x11, metallic=0.2, roughness=0.5)
-
-    # The body: a round shell low at the back of the sprite (rows 14-26), its top rising to the gem.
-    secs = []
-    for y, hw in ((-13.0, 0.1), (-12.6, 2.2), (-12.0, 4.2), (-11.0, 5.8), (-9.5, 7.0), (-7.5, 7.8), (-5.5, 8.0),
-                  (-3.5, 7.6), (-1.8, 6.4), (-0.6, 4.6), (0.0, 2.6), (0.3, 0.1)):
-        secs.append((y, 0.0, 2.6, hw, 0.47 * hw + 0.8, 0.3 * hw + 0.4))
-    body = w.loft_y("body", secs, green, segments=32, power=2.2, start=(0.0, -13.1, 2.6), end=(0.0, 0.4, 2.6))
-    w.paint_faces(body, lambda c, n: shine if n.z > 0.75 and n.x < -0.25 and n.y > -0.2 else
-                  light if n.z > 0.55 and n.x < 0.1 else dark if n.z < 0.15 else None)
-    # The ridge round the gem (the lighter ring of rows 14-22).
-    w.hoop("gem_rim", (0.0, -3.7, 6.3), [(4.2, -0.6), (5.0, -0.3), (5.0, 0.2), (4.2, 0.5)], light, 32, scale_y=1.05)
-    # The big faceted blue gem (rows 14-21) and its glint.
-    gem("gem", (0.0, -3.6, 6.4), (4.3, 4.3, 2.0), blue, sides=8, turn=0.0)
-    w.sphere("gem_glint", (-1.0, -2.5, 8.25), (0.9, 1.0, 0.35), blue_hi, 10, 5)
-    # The blue gems low on its sides (rows 21-25), leaning in towards the tail, and the studs above.
-    for side in (-1, 1):
-        pod = w.sphere(f"side_gem{side}", (0.0, 0.0, 0.0), (1.25, 3.0, 1.0), blue, 14, 8)
-        pod.data.transform(Matrix.Translation((side * 4.3, -9.6, 4.9)) @ Matrix.Rotation(-side * math.radians(37), 4, "Z") @
-                           Matrix.Rotation(-side * math.radians(30), 4, "Y"))
-        w.sphere(f"stud{side}", (side * 5.6, -2.6, 4.7), (0.7, 0.7, 0.5), blue_hi, 10, 5)
-    # The short tail at the bottom (rows 22-26).
-    w.tube("tail", [(0.0, -9.0, 4.0), (0.0, -11.6, 3.4), (0.0, -12.9, 2.9)], [1.5, 1.2, 0.8], light, 12, squash=0.8)
-
-    # The head shield (rows 2-14) and the horns either side of it, inflated from the sprite's pixels: the
-    # shield a plate with two small points at its top, the horns broad crescents curving up to points.
-    g = grid(art.BEETLE, 24)
-
-    def label(v, c, r):
-        if r >= 14:
-            return "."
-        if ramp(v) == 1:
-            return "S"
-        if c <= 5 or c >= 18 or (r <= 4 and (c <= 6 or c >= 17)):
-            return "H"
-        return "S"
-    rows = regions(g, label)
-    head = w.lite(w.part("shield", rows, "S", green, sh.pillow_profile(1.6, 1.6, crown=0.9), base=4.0, bottom=0.25,
-                         spacing=0.4, smooth=2), 1300)
-    w.paint_faces(head, lambda c, n: dark if n.z < 0.3 else None)
-    for side, chars in ((-1, "H"), (1, "H")):
-        side_rows = ["".join(ch if (c < 12) == (side < 0) else "." for c, ch in enumerate(row)) for row in rows]
-        horn = w.lite(w.part(f"horn{side}", side_rows, chars, green, sh.round_profile(0.9, max_height=2.6), base=4.4,
-                             bottom=0.45, spacing=0.4, smooth=2,
-                             z_fn=lambda x, y, z: z + 0.9 * smoothstep(2.0, 12.0, y)), 700)
-        w.paint_faces(horn, lambda c, nn: dark if nn.z < 0.3 else None)
-    # The brown jewel, a diamond in its dark socket (rows 4-11).
-    gem("socket", (0.0, 6.0, 6.2), (3.2, 4.4, 1.0), socket, sides=4, turn=0.0, table=0.8)
-    gem("jewel", (0.0, 6.0, 6.7), (2.4, 3.4, 1.5), brown, sides=4, turn=0.0, table=0.5)
-    w.sphere("jewel_core", (0.0, 5.6, 7.9), (0.9, 1.2, 0.5), amber, 12, 6)
-    w.sphere("jewel_glint", (-0.3, 5.9, 8.25), (0.45, 0.5, 0.2), tan, 8, 4)
 
 
 # --- V 159: the steel ship with the orange chevron --------------------------------------------------------

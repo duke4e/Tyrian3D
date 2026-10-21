@@ -12,8 +12,7 @@
 - stone_plant: now built by polish_stone_plant.py.
 - pipe_arm_2 (sheet 4 269): the second of the four pieces of the brown pipe arm of TYRIAN's boss
   (4 267-273); the whole arm is built and cut (origin).
-- hatch_ship (sheet S 93): the grey shield-shaped ship of the asteroid levels, a hatch in its middle
-  opening on a red eye (frames 93, 131), red lights at its corners and a blue canopy at its tip.
+- hatch_ship: now built by polish_hatch_ship.py.
 - lava_star: now built by polish_lava_star.py.
 - pink_torpedo_front, pink_torpedo_rear: now built by polish_pink_torpedo.py.
 - horseshoe: now built by polish_horseshoe.py.
@@ -357,7 +356,7 @@ def warp_orb():
     k.smooth(under, 80)
 
 
-# --- S 93: the hatch ship -------------------------------------------------------------------------
+# --- A rectangle with rounded corners (DELI's tower) -------------------------------------------------
 
 def rounded_rect(x0, y0, x1, y1, radius, count=6):
     """A rectangle with rounded corners, counter-clockwise."""
@@ -368,63 +367,6 @@ def rounded_rect(x0, y0, x1, y1, radius, count=6):
             a = math.radians(a0 + 90 * i / count)
             out.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
     return out
-
-
-@model("hatch_ship", "S", 93)
-def hatch_ship():
-    """A grey shield-shaped hull with a raised rim, red lights in its upper corners, a ribbed hatch
-    in its middle that opens on a red eye (the frames 93 and 131 open and shut it: the model shows
-    it open), angled plates at its shoulders and a keel down to a blue canopy at its tip."""
-    g = grid(art.S93, 24)
-    rows = regions(g, lambda v, c, r: "#")
-    hull_mat = pal("hatch_hull", 0x05, metallic=0.55, roughness=0.35)
-    rim_mat = pal("hatch_rim", 0x08, metallic=0.6, roughness=0.3)
-    dark = pal("hatch_dark", 0x02, metallic=0.4, roughness=0.6)
-    plate_mat = pal("hatch_plate", 0x06, metallic=0.6, roughness=0.3)
-    red = pal("hatch_red", 0x76, metallic=0.1, roughness=0.15, glow=0.8)
-    pupil = pal("hatch_pupil", 0x7a, metallic=0.0, roughness=0.2, glow=1.0)
-    lamp = pal("hatch_lamp", 0x74, metallic=0.1, roughness=0.2, glow=0.8)
-    blue = pal("hatch_blue", 0x96, metallic=0.2, roughness=0.1, glow=0.35, color=(40, 80, 255))
-    outline = sh.outlines(rows, "#", (12, 14), smooth=1, epsilon=0.5)
-    hull = sh.inflate("hull", outline, hull_mat, sh.pillow_profile(2.7, 1.0, crown=0.15), bottom=0.0, spacing=0.5)
-    simplify_bottom(hull)
-    decimate(hull, 1200)
-    k.smooth(hull, 45)
-    # The raised frame round the upper half, the keel down the lower half.
-    frame_path = [(-8.9, -0.6), (-9.0, 4.0), (-9.0, 8.5), (-8.6, 10.2), (-7.2, 10.9), (-3.0, 11.0), (3.0, 11.0),
-                  (7.2, 10.9), (8.6, 10.2), (9.0, 8.5), (9.0, 4.0), (8.9, -0.6)]
-    path = []
-    for (x0, y0), (x1, y1) in zip(frame_path, frame_path[1:]):
-        for t in np.linspace(0, 1, 4)[:-1]:
-            path.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
-    path.append(frame_path[-1])
-    tube("frame", [(x, y, sh.surface_z(hull, x, y, 2.7) - 0.1) for x, y in path], 1.0, rim_mat, segments=8,
-         squash=0.8)
-    keel_rows = [row if 13 <= r <= 26 else "." * len(row) for r, row in enumerate(regions(
-        g, lambda v, c, r: "#" if 9 <= c <= 14 else "."))]
-    keel = part("keel", keel_rows, "#", rim_mat, sh.round_profile(0.8, max_height=1.8), base=2.2, spacing=0.5,
-                smooth=2, epsilon=0.5)
-    k.smooth(simplify_bottom(keel), 50)
-    # The hatch: a ribbed frame round the eye.
-    frame = sh.inflate("hatch", [rounded_rect(-3.1, 1.0, 3.1, 6.6, 1.4), rounded_rect(-1.9, 2.0, 1.9, 5.6, 0.9)[::-1]],
-                       rim_mat, sh.round_profile(1.0, max_height=1.1), bottom=0.0, base=2.4, spacing=0.45)
-    k.smooth(frame, 50)
-    k.smooth(k.ellipsoid("socket", (0.0, 3.8, 2.4), (2.3, 2.1, 1.0), dark, 20, 8), 60)
-    k.smooth(k.ellipsoid("eye", (0.0, 3.7, 2.7), (1.9, 1.7, 1.1), red, 20, 10), 60)
-    k.smooth(k.ellipsoid("pupil", (0.0, 3.6, 3.55), (0.8, 0.75, 0.35), pupil, 12, 6), 60)
-    # The ribs leading down to the hatch.
-    for x in (-1.5, 1.5):
-        tube(f"rib{x}", [(x, 10.0, 3.0), (x, 8.5, 3.1), (x, 7.0, 3.2)], 0.45, rim_mat, segments=8)
-    # The shoulder plates.
-    for side in (-1, 1):
-        poly = [(side * 4.4, 1.6), (side * 9.6, 0.2), (side * 9.8, -1.5), (side * 7.0, -3.4), (side * 4.0, -5.2)]
-        plate = sh.inflate(f"shoulder{side}", [poly], rim_mat, sh.pillow_profile(1.1, 0.7, crown=0.3), bottom=0.0,
-                           base=2.3, spacing=0.45)
-        k.smooth(simplify_bottom(plate), 40)
-    # The red lights in the upper corners and the blue canopy at the tip.
-    for x in (-7.5, 7.5):
-        k.smooth(k.ellipsoid(f"lamp{x}", (x, 10.9, 3.35), (1.05, 1.0, 0.6), lamp, 12, 6), 60)
-    k.smooth(k.ellipsoid("canopy", (0.0, -7.9, 4.1), (1.9, 3.3, 1.6), blue, 20, 12), 60)
 
 
 # --- 4 269: a piece of the boss's pipe arm --------------------------------------------------------

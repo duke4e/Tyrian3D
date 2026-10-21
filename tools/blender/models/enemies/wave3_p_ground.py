@@ -1,13 +1,7 @@
 """Wave 3, batch P of the enemy models, continued (the rods: polish_rod.py): sheet 2's ground sprites drawn
 on rock and dirt, modelled as their sprites look (models.cfg: yaw=0), the rock and dirt as round boulders
-and cobbles where the sprites draw them (wave3_p_kit.boulders).
+and cobbles where the sprites draw them (wave3_p_kit.boulders). (TYRIAN's panel of purple pads: polish_purple_pads.py.)
 
-- purple_pad_tl, purple_pad_t, purple_pad_tr, purple_pad_l, purple_pad_r, purple_pad_bl, purple_pad_b,
-  purple_pad_br (2 279, 281, 283, 245, 207, 273, 275, 277) and eye_block (2 169): TYRIAN's panel of
-  purple pads: the events lay them out in rows three sprites wide (279, 281, 283 above 245, 169, 207 above
-  273, 275, 277, or the corners alone as two rows of two), each a bevelled octagonal pad on a ribbed
-  purple floor that runs into grey rocks at the panel's edges; the middle one (eye_block) is a purple
-  housing with a blue glass eye, two blue capsules and a grille of teeth (origin, so the floors meet).
 - gold_domes_tl, _tr, _bl, _br (2 77, 79 above 115, 117): the dark steel housing on the dirt of TYRIAN
   and HOLES (the dirt is the map's ground, not modelled) with four golden domes (a big one with a raised plate between two slots, two at its sides
   in steel clamps fed by golden pipes, one at the bottom with a dark port); event 12 places the four
@@ -33,132 +27,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_p_kit as w  # noqa: E402
 from wave3_p_kit import art, k, sh, pal, model, whole, grid, regions, ramp, shade  # noqa: E402
-
-
-# --- TYRIAN's purple pads ----------------------------------------------------------------------------
-
-OCTAGON = w.octagon(0.0, 2.0, 9.0, 8.0, 5.0)  # the pad: columns 3-20, rows 4-19
-
-
-def purple_mats(prefix):
-    return {
-        "groove": pal(f"{prefix}_purple6", 0x56, metallic=0.25, roughness=0.45),
-        "floor": pal(f"{prefix}_purple8", 0x58, metallic=0.25, roughness=0.4),
-        "rib": pal(f"{prefix}_purple10", 0x5a, metallic=0.25, roughness=0.38),
-        "light": pal(f"{prefix}_purple11", 0x5b, metallic=0.25, roughness=0.35),
-        "dark": pal(f"{prefix}_purple5", 0x55, metallic=0.25, roughness=0.45),
-    }
-
-
-def purple_floor(name, g, keep, m, z_groove=2.25, z_floor=2.4, z_rib=2.55):
-    """The ribbed purple floor over the pixels keep(index, column, row) accepts: the light strips stand
-    proud as ribs, the dark ones sink as grooves."""
-    h, wd = len(g), len(g[0])
-    heights = np.zeros((h, wd))
-    index = np.zeros((h, wd), dtype=int)
-    kept = np.zeros((h, wd), dtype=bool)
-    for r in range(h):
-        for c in range(wd):
-            v = g[r][c]
-            if not keep(v, c, r):
-                continue
-            kept[r, c] = True
-            s = shade(v)
-            if s >= 10:
-                heights[r, c], index[r, c] = z_rib, 2
-            elif s >= 8:
-                heights[r, c], index[r, c] = z_floor, 1
-            else:
-                heights[r, c], index[r, c] = z_groove, 0
-    return w.bed(name, heights, index, [m["groove"], m["floor"], m["rib"]], (12, 14), keep=kept, dissolve=0.5)
-
-
-def octagon_pad(prefix, m, top=6.0):
-    """The bevelled octagonal pad: its top-left bevels catch the light, the right and bottom ones dark."""
-    pad = w.chamfered(prefix + "_pad", OCTAGON, 0.0, top, m["floor"], chamfer=1.3)
-
-    def paint(c, n):
-        if n.z > 0.95:
-            return None
-        if n.z < -0.5:
-            return m["dark"]
-        if n.x < -0.2 or n.y > 0.35:
-            return m["light"]
-        if n.x > 0.2:
-            return m["groove"]
-        return m["rib"]
-    w.paint_faces(pad, paint)
-    # A shallow inset panel in its top.
-    inner = w.octagon(0.0, 2.0, 6.6, 5.6, 3.6)
-    w.chamfered(prefix + "_pad_panel", inner, top - 0.5, top + 0.25, m["rib"], chamfer=0.35)
-    return pad
-
-
-def pad_tile(art_text, prefix):
-    g = grid(art_text, 24)
-    m = purple_mats(prefix)
-
-    def in_octagon(c, r):
-        x, y = c + 0.5 - 12, 14 - r - 0.5
-        return abs(x) <= 9 and -6 <= y <= 10 and abs(x) + y <= 14 and abs(x) - y <= 10
-
-    def purple(v, c, r):
-        return v is not None and ramp(v) == 5
-    # The floor runs on under the pad; the rocks fill the rest (and the odd transparent pixel).
-    purple_floor(prefix + "_floor", g, purple, m)
-    w.grey_rocks(prefix + "_rocks", g, lambda v, c, r: v is not None and ramp(v) in (0, 0xa) and not in_octagon(c, r),
-                 prefix=prefix, keep_base=lambda v, c, r: not purple(v, c, r))
-    octagon_pad(prefix, m)
-
-
-for _name, _art, _sprite in (("purple_pad_tl", "PAD_BL", 279), ("purple_pad_t", "PAD_BM", 281),
-                             ("purple_pad_tr", "PAD_BR", 283), ("purple_pad_l", "PAD_ML", 245),
-                             ("purple_pad_r", "PAD_MR", 207), ("purple_pad_bl", "PAD_TL", 273),
-                             ("purple_pad_b", "PAD_TM", 275), ("purple_pad_br", "PAD_TR", 277)):
-    def _build(a=_art, n=_name):
-        pad_tile(getattr(art, a), n)
-    model(_name, [_sprite])(_build)
-
-
-
-def PX(col, row):
-    """A pixel's centre (column, row) of a 24 x 28 sprite as (x, y)."""
-    return (col + 0.5 - 12.0, 14.0 - row - 0.5)
-
-
-@model("eye_block", [169])
-def eye_block():
-    """The middle of the panel: a raised purple housing on the ribbed floor, a dark blue glass eye
-    in a light rim, two blue capsules slanting below it like cheeks and a grille of four teeth."""
-    g = grid(art.EYE, 24)
-    m = purple_mats("eyeb")
-    glass = pal("eyeb_glass", 0x34, metallic=0.35, roughness=0.05)
-    glass_hi = pal("eyeb_glass_hi", 0x3d, metallic=0.2, roughness=0.05, glow=0.6)
-    capsule = pal("eyeb_capsule", 0x38, metallic=0.35, roughness=0.08)
-    capsule_hi = pal("eyeb_capsule_hi", 0x3c, metallic=0.25, roughness=0.06)
-    recess = pal("eyeb_recess", 0x52, metallic=0.2, roughness=0.6)
-    purple_floor("eyeb_floor", g, lambda v, c, r: v is not None, m)
-    # The housing: a rounded block over most of the sprite, its top edge lit.
-    house = w.block("eyeb_housing", (0.0, 1.0), 10.6, 11.6, 4.2, m["floor"], rounding=1.6, power=3.2, segments=32,
-                    dome=0.4)
-    w.paint_faces(house, lambda c, n: m["light"] if n.z < 0.9 and (n.x < -0.3 or n.y > 0.3) else
-                  m["groove"] if n.z < 0.9 and (n.x > 0.3 or n.y < -0.3) else None)
-    # The eye in its rim.
-    ex, ey = PX(12.0, 10.5)
-    w.hoop("eyeb_rim", (ex, ey, 4.4), [(6.3, -0.6), (7.6, -0.3), (7.7, 0.5), (6.6, 0.9), (6.0, 0.3)], m["rib"], 40)
-    w.sphere("eyeb_eye", (ex, ey, 4.0), (6.4, 5.9, 4.4), glass, 24, 12)
-    w.sphere("eyeb_glint", (ex - 2.4, ey + 2.2, 7.7), (1.6, 1.3, 0.6), glass_hi, 14, 7)
-    # The capsules, slanting in towards the grille.
-    for side, a, b in ((-1, PX(2.0, 16.8), PX(5.6, 21.2)), (1, PX(21.6, 17.2), PX(18.0, 21.4))):
-        w.tube(f"eyeb_capsule{side}", [(a[0], a[1], 4.7), (b[0], b[1], 4.7)], 1.7, capsule, 14, squash=0.8)
-        w.tube(f"eyeb_capsule_hi{side}", [(a[0] - 0.4, a[1] + 0.3, 5.9), (b[0] - 0.4, b[1] + 0.3, 5.9)], 0.45,
-               capsule_hi, 6)
-    # The grille: a dark recess, a lip over it and four teeth.
-    w.rounded_box("eyeb_recess", (PX(11.5, 20.5)[0], PX(11.5, 20.5)[1], 4.0), (9.4, 5.6, 1.4), recess, bevel=0.4)
-    w.rounded_box("eyeb_lip", (PX(11.5, 18.0)[0], PX(11.5, 18.0)[1], 4.8), (8.4, 1.4, 1.2), m["light"], bevel=0.4)
-    for col in (8, 10, 12, 14):
-        x, y = PX(col, 20.6)
-        w.rounded_box(f"eyeb_tooth{col}", (x, y, 4.6), (1.1, 4.0, 1.4), m["light"], bevel=0.35)
 
 
 # --- TYRIAN's golden machines on the dirt (48 x 56, built whole and cut into four sprites) ------------
@@ -324,7 +192,6 @@ def quarters(name, sprites, builder):
             w.piece(w.meshes(), x0, x0 + 24, y0, y0 + 28)
         model(f"{name}_{suffix}", [sprite])(build)
     whole(name, (48, 56))(builder)
-
 
 
 # --- TYRIAN's red works in the rocks (48 x 56, built whole and cut into four sprites) -----------------

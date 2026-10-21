@@ -1,34 +1,23 @@
-"""Batch Q of wave 3 (sheet A: GAUNTLET and MACES), the mace and its chain and the skull chest; modelled as their
-sprites look (models.cfg: yaw=0). (The mace's anchor, A 83, 85 above 121, 123: polish_mace_anchor.py; the chain
-rings, A 87, 125, 127: polish_chain_ring.py.) The levels place them (custom enemies, events 49-52) as the sheet
-arranges them: the mace's six sprites in three columns and two rows, the anchor's four in two by two, the chest's
-eight in four by two; the three chain rings run between the mace and its anchor, larger towards the mace (and come
-out of the chest at first).
+"""Batch Q of wave 3 (sheet A: GAUNTLET and MACES), the skull chest; modelled as its sprites look (models.cfg:
+yaw=0). (The mace, A 77, 79, 81 above 115, 117, 119: polish_mace.py; its anchor, A 83, 85 above 121, 123:
+polish_mace_anchor.py; the chain rings, A 87, 125, 127: polish_chain_ring.py.) The levels place it (custom enemies,
+events 49-52) as the sheet arranges it, its eight sprites in four by two (the mace's chain comes out of it at first).
 
-- mace_tl, mace_tc, mace_tr, mace_bl, mace_bc, mace_br (A 77, 79, 81 above 115, 117, 119): the mace head,
-  a steel ball with four long spikes in bronze collars along the screen's axes and four shorter ones
-  rising between them, a bronze eyelet with a steel bolt on its top where the chain is fixed. Built whole
-  and cut into its six pieces (origin).
 - skull_chest_t1 ... skull_chest_t4, skull_chest_b1 ... skull_chest_b4 (A 153, 155, 157, 159 above 191,
   193, 195, 197): the wooden chest with two steel straps, a skull carved in a sunken panel between them
   and a steel handle folded back over its rear edge. Built whole and cut into its eight pieces (origin).
 
 usage: Blender -b --factory-startup -P wave3_q_mace.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole mace|chest --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1] [--whole chest --preview <prefix>]
 """
 import math
 import os
 import sys
 
-from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_q_kit as q  # noqa: E402
 from wave3_q_kit import art, pal  # noqa: E402
-
-
-def steel(prefix, lo=2, hi=15, metallic=0.7, roughness=0.3):
-    return {s: pal(f"{prefix}_steel{s}", s, metallic=metallic, roughness=roughness) for s in range(lo, hi + 1)}
 
 
 def wood(prefix, lo=1, hi=14):
@@ -62,56 +51,6 @@ def place_pieces(prefix, whole_fn, pieces):
             q.cut(objects, box, centre)
             q.budget(4800)
         q.model(name, [(sprite, True)])(build)
-
-
-# --- A 77 ... 119: the mace head ---------------------------------------------------------------------
-
-MACE_ORIGIN = (36, 28)  # the art: 72 x 56
-BALL = Vector((0.5, -0.5, 12.0))
-BALL_R, BALL_RZ = 16.4, 12.6
-
-
-@q.whole("mace", (72, 56))
-def mace_whole():
-    g = q.grid(art.MACE, 72)
-    st = steel("mace", metallic=0.5, roughness=0.3)
-    bronze = pal("mace_bronze", 0xa8, metallic=0.65, roughness=0.32)
-    bronze_light = pal("mace_bronze_light", 0xab, metallic=0.65, roughness=0.28)
-    spike = pal("mace_spike", 0x0a, metallic=0.75, roughness=0.22)
-    parts = []
-    ball = q.sphere("ball", tuple(BALL), (BALL_R, BALL_R, BALL_RZ), st[9], 56, 28)
-    shade = q.shades(g, MACE_ORIGIN, keep=lambda v: v >> 4 == 0 and (v & 15) > 1, blur=3)
-    shade_paint(ball, shade, st, mid=10.0, squeeze=0.35, side=-1.0, under=5)
-    parts.append(ball)
-
-    # The long spikes along the screen's axes, in bronze collars.
-    for i, (dx, dy, length) in enumerate(((0, 1, 27.2), (0, -1, 27.2), (-1, 0, 27.6), (1, 0, 27.0))):
-        d = Vector((dx, dy, 0.0))
-        parts.append(q.cone(f"spike{i}", BALL + d * 13.0, d, length - 13.0, 3.0, spike))
-        parts.append(q.lathe_axis(f"collar{i}", [(0.0, 2.6), (0.2, 3.7), (1.5, 3.8), (1.75, 2.9)], bronze,
-                                  tuple(BALL + d * 15.6), (dx, dy, 0.0), 24))
-        parts.append(q.lathe_axis(f"collar_lip{i}", [(0.0, 3.0), (0.1, 3.95), (0.4, 3.95), (0.5, 3.0)], bronze_light,
-                                  tuple(BALL + d * 17.0), (dx, dy, 0.0), 24))
-    # The short spikes between them, rising towards the camera.
-    for i in range(4):
-        a = math.radians(45 + 90 * i)
-        e = math.radians(16)
-        d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
-        parts.append(q.cone(f"spike_d{i}", BALL + d * 12.0, d, 11.5, 2.0, spike, segments=12))
-    # The eyelet on the top: a bronze collar round a steel bolt.
-    top = BALL.z + BALL_RZ
-    parts.append(q.torus("eyelet", (BALL.x, BALL.y, top - 0.55), 3.7, 1.25, bronze_light, 36, 12, squash=0.85))
-    parts.append(q.sphere("bolt", (BALL.x, BALL.y, top - 0.35), (2.4, 2.4, 1.7), st[11], 20, 10))
-    parts.append(q.torus("bolt_eye", (BALL.x, BALL.y, top + 1.0), 1.1, 0.45, st[13], 20, 8))
-    return parts
-
-
-MACE_PIECES = []
-for _row, (_cy, _y0, _y1) in enumerate(((14.0, 0.0, 32.0), (-14.0, -32.0, 0.0))):
-    for _col, (_cx, _x0, _x1) in enumerate(((-24.0, -40.0, -12.0), (0.0, -12.0, 12.0), (24.0, 12.0, 40.0))):
-        MACE_PIECES.append((f"mace_{'tb'[_row]}{'lcr'[_col]}", (77, 79, 81, 115, 117, 119)[_row * 3 + _col],
-                            (_cx, _cy), (_x0, _x1, _y0, _y1)))
-place_pieces("mace", mace_whole, MACE_PIECES)
 
 
 # --- A 153 ... 197: the skull chest ------------------------------------------------------------------
