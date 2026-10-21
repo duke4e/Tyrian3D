@@ -53,10 +53,16 @@ Built as a ball of glass round a creature:
   in its middle). The bands glow in their own colours (look 0: 0.03-0.45; less in the later looks, none in the shut
   one); the glass' crescent 0.04-0.34. Emission stays well under 1 (the game's bloom and the glow halo add to it).
   Its underside is cut away and closed flat.
-The whole ball is then cut along the sprites' edges (x = 0, y = 0; the creature by polish_savara_boss.cut, its cuts
-capped; the glass, a single surface, cut without caps), each piece moved so that its sprite's centre is its origin;
-every mesh is triangulated before export (polish_k_pod.triangulate), each piece's parts joined into one mesh, its
-glass faces sorted far side first.
+The whole ball is then cut along the sprites' edges (x = 0, y = 0; the glass, a single surface, cut without caps),
+each piece moved so that its sprite's centre is its origin; every mesh is triangulated before export
+(polish_k_pod.triangulate), each piece's parts joined into one mesh, its glass faces sorted far side first. The
+creature's cuts are closed by caps on an even grid of triangles (cut_creature), painted in the creature's dark and
+middle bands (the picture broadly blurred where the camera sees each point, no lighter than CAP_MAX) and shaded with
+the creature's normals rather than the flat caps' own: the game draws every batch without culling and a piece that
+is fading in (its first frames in sight: render_gpu.c's state->appear) see-through, both sides and without depth
+writes, and the pieces fade in at different times, so a neighbour's flat caps (dark, flat-lit, one side catching
+the sun) showed through a fading piece as seams down and across the ball, off-centre on the screen most (the game's
+camera is a perspective one); so made they read as the creature's inside, as they do when a piece is shot away.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z up (towards the camera) from the
 layer (z = 0); the whole's origin is the picture's middle (pixel edge 24, 28): column c is x = c + 0.5 - 24, row r is
@@ -95,8 +101,8 @@ import polish_deli_boss as db  # noqa: E402  (join, drop_unused)
 from polish_ixm_dock import Shading  # noqa: E402  (normals looked up on the coplanar source triangle)
 from polish_k_pod import triangulate  # noqa: E402
 from polish_orb_red import band_split  # noqa: E402
-from polish_savara_boss import cut  # noqa: E402  (polish_arch.cut keeping the faces' winding)
 from polish_sphere_nozzle import split_along  # noqa: E402
+from mathutils.geometry import delaunay_2d_cdt  # noqa: E402
 
 # The pieces: model, the box it covers in the whole (x0, x1, y0, y1), its sprite in each of the ten frames.
 PIECES = [("glass_globe_tl", (-24.0, 0.0, 0.0, 28.0), [153, 157, 161, 165, 229, 233, 237, 241, 91, 246]),
@@ -120,6 +126,8 @@ GLASS_CUT = 0.62                 # the glass' underside (below this fraction of 
 CORE_C, CORE_R = Vector((-1.6, 1.2, 15.0)), ((19.4, 16.6), (19.9, 21.4), 13.6)
 CORE_CUT = 0.45                  # the creature's underside cut away (and closed flat)
 CORE_ROOM = 0.95                 # the creature (its relief too) stays inside this fraction of the glass
+CAP_STEP = 1.8                   # the grid the caps of its cuts are triangulated on (pixels)
+CAP_BLUR, CAP_MAX = 3.0, 7.0     # the caps' painting: the picture blurred this much, no lighter than this level
 RELIEF = (2.3, 0.42, -0.9, 1.9)  # displacement per unit of brightness over the level, its limits (pixels)
 # The glowing lobe low on the right, on the creature's steep flank (where the relief fades): a lens on its surface
 # where the camera sees the sprite's lobe (x, y), its half-axes (along the screen, across, out), how far it stands
@@ -338,10 +346,20 @@ def to_object(name, bm, mats, roles):
     return obj
 
 
+_PAINTING = []
+
+
+def painting():
+    """The picture blurred for the relief (soft), for the bands (sharp) and for the caps of the cuts (broad)."""
+    if not _PAINTING:
+        grid = art()
+        _PAINTING.extend((blurred(grid, 1.6), blurred(grid, 0.82), blurred(grid, CAP_BLUR)))
+    return _PAINTING
+
+
 def creature(mats):
     """The creature: an ellipsoid pushed out where the picture is bright, painted in its bands."""
-    grid = art()
-    soft, sharp = blurred(grid, 1.6), blurred(grid, 0.82)
+    soft, sharp, _ = painting()
     bm = ellipsoid_bm(CORE_C, CORE_R, 4, finer=lambda n: n.dot(TOWARDS_VIEW) > 0.0)
     for v in bm.verts:
         v.co = inside_glass(v.co, CORE_ROOM)
@@ -495,6 +513,166 @@ def cut_open(source, box_xy):
     return obj
 
 
+def band_of(value):
+    return max((band for band in CORE_BANDS if value >= band[0]), key=lambda band: band[0])[1]
+
+
+def fill_cap(bm, edges, axis, at, outward):
+    """Closes the hole a cut on the plane (axis 0: x = at, 1: y = at) left, bounded by edges, with an even grid of
+    triangles (a constrained Delaunay triangulation of the boundary and grid points CAP_STEP apart inside it, so the
+    painting can follow the picture across it), its faces looking along outward."""
+    verts = []
+    for e in edges:
+        for v in e.verts:
+            if v not in verts:
+                verts.append(v)
+    index = {v: i for i, v in enumerate(verts)}
+    other = 1 - axis
+
+    def uv(co):
+        return Vector((co[other], co.z))
+    pts = [uv(v.co) for v in verts]
+    segments = [(index[e.verts[0]], index[e.verts[1]]) for e in edges]
+
+    def inside(p):
+        hit = False
+        for a, b in segments:
+            pa, pb = pts[a], pts[b]
+            if (pa.y > p.y) != (pb.y > p.y) and p.x < pa.x + (p.y - pa.y) * (pb.x - pa.x) / (pb.y - pa.y):
+                hit = not hit
+        return hit
+
+    def clearance(p):
+        best = 1e9
+        for a, b in segments:
+            pa, pb = pts[a], pts[b]
+            d = pb - pa
+            f = 0.0 if d.length_squared < 1e-12 else max(0.0, min(1.0, (p - pa).dot(d) / d.length_squared))
+            best = min(best, (p - (pa + d * f)).length)
+        return best
+    lo = Vector((min(p.x for p in pts), min(p.y for p in pts)))
+    hi = Vector((max(p.x for p in pts), max(p.y for p in pts)))
+    grid = []
+    nu, nv = int((hi.x - lo.x) / CAP_STEP) + 1, int((hi.y - lo.y) / CAP_STEP) + 1
+    for j in range(nv + 1):
+        for i in range(nu + 1):
+            p = Vector((lo.x + i * CAP_STEP + (CAP_STEP / 2 if j % 2 else 0.0), lo.y + j * CAP_STEP))
+            if inside(p) and clearance(p) > CAP_STEP * 0.4:
+                grid.append(p)
+    out_co, _, out_faces, orig_verts, _, _ = delaunay_2d_cdt(pts + grid, segments, [], 0, 1e-6)
+    made = []
+    for i, co in enumerate(out_co):
+        src = orig_verts[i]
+        if src and src[0] < len(verts):
+            made.append(verts[src[0]])
+        else:
+            p3 = [0.0, 0.0, co.y]
+            p3[axis], p3[other] = at, co.x
+            made.append(bm.verts.new(p3))
+    faces = []
+    for f in out_faces:
+        centre = sum((out_co[i] for i in f), Vector((0.0, 0.0))) / len(f)
+        if not inside(centre):
+            continue
+        ring = [made[i] for i in f]
+        if len(set(ring)) < 3:
+            continue
+        try:
+            face = bm.faces.new(ring)
+        except ValueError:
+            continue
+        face.normal_update()
+        if face.normal.dot(Vector(outward)) < 0:
+            face.normal_flip()
+        faces.append(face)
+    return faces
+
+
+def split_faces_along(bm, faces, values, threshold):
+    """polish_sphere_nozzle.split_along for some faces only: cuts them along the contour where the vertex values
+    cross threshold."""
+    made = set()
+    edges, seen = [], set()
+    for f in faces:                  # in a fixed order (a set's would follow the memory addresses)
+        for e in f.edges:
+            if e not in seen:
+                seen.add(e)
+                edges.append(e)
+    for e in edges:
+        a, b = e.verts
+        fa, fb = values[a], values[b]
+        if (fa - threshold) * (fb - threshold) < 0:
+            _, v = bmesh.utils.edge_split(e, a, (threshold - fa) / (fb - fa))
+            values[v] = threshold
+            made.add(v)
+    out = []
+    for f in faces:
+        ends = [v for v in f.verts if v in made]
+        if len(ends) == 2 and not any(ends[1] in e.verts for e in ends[0].link_edges):
+            out.extend(bmesh.utils.face_split(f, ends[0], ends[1])[0:1])
+        out.append(f)
+    return out
+
+
+def cut_creature(source, box, mats, shading):
+    """The part of the creature inside box (x0, x1, y0, y1). Its cuts are closed by caps painted in the creature's
+    dark and middle bands (the picture blurred broadly where the camera sees each point, no lighter than CAP_MAX) and
+    shaded as the creature is (each point the ellipsoid's normal there, not the flat cap's): the game draws every
+    batch without culling and a piece fading in see-through, both sides and without depth writes, so a neighbour's
+    flat caps (dark, flat-lit, one side catching the sun) showed through it as seams down and across the ball (x = 0,
+    y = 0); so painted they read as the creature's inside, from any side of the screen. The surface keeps the uncut
+    one's normals (Shading)."""
+    x0, x1, y0, y1 = box
+    obj = source.copy()
+    obj.data = source.data.copy()
+    bpy.context.scene.collection.objects.link(obj)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    planes = (((x0, 0, 0), (-1, 0, 0), 0, x0), ((x1, 0, 0), (1, 0, 0), 0, x1), ((0, y0, 0), (0, -1, 0), 1, y0),
+              ((0, y1, 0), (0, 1, 0), 1, y1))
+    for co, no, axis, at in planes:
+        if not bm.faces:
+            break
+        result = bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=co,
+                                        plane_no=no, clear_outer=True)
+        edges = [e for e in result["geom_cut"] if isinstance(e, bmesh.types.BMEdge) and e.is_valid and
+                 len(e.link_faces) == 1]
+        if edges:
+            fill_cap(bm, edges, axis, at, no)
+    if not bm.faces:
+        bm.free()
+        bpy.data.objects.remove(obj)
+        return None
+    sides = [(0, x0), (0, x1), (1, y0), (1, y1)]
+    caps = [f for f in bm.faces if any(all(abs(v.co[axis] - at) < 1e-4 for v in f.verts) for axis, at in sides)]
+    broad = painting()[2]
+    values = {v: min(CAP_MAX, sample(broad, *seen_at(v.co))) for f in caps for v in f.verts}
+    for lowest, _ in CORE_BANDS[1:]:
+        caps = split_faces_along(bm, caps, values, lowest)
+    slots = {role: mk.slot_of(obj, mats[role]) for _, role in CORE_BANDS}
+    cap_set = set(caps)
+    for f in caps:
+        f.material_index = slots[band_of(sum(values[v] for v in f.verts) / len(f.verts))]
+        f.smooth = True
+    bm.normal_update()
+    bm.faces.index_update()
+    cap_ids = {f.index for f in cap_set}
+    bm.to_mesh(obj.data)
+    bm.free()
+    mesh = obj.data
+    normals = []
+    for poly in mesh.polygons:
+        for li in poly.loop_indices:
+            co = mesh.vertices[mesh.loops[li].vertex_index].co
+            if poly.index in cap_ids:
+                n = two_sided_normal(co, CORE_C, CORE_R)
+            else:
+                n = shading.normal(co, poly.normal)
+            normals.append(tuple(n if n is not None else poly.normal))
+    mesh.normals_split_custom_set(normals)
+    return obj
+
+
 def reorder(obj, key):
     """Rebuilds a mesh with its faces in the order of key(polygon) (the game draws see-through faces in their order),
     keeping its corner normals, materials and smoothing."""
@@ -526,7 +704,7 @@ def piece(whole, name, box, mats, shadings):
     its glass faces far side first."""
     creature_src, glass_src = whole
     parts = []
-    core = cut(creature_src, box, mats["k0"])
+    core = cut_creature(creature_src, box, mats, shadings["creature"])
     if core is not None:
         parts.append(core)
     shell = cut_open(glass_src, box)
@@ -607,7 +785,7 @@ def build():
         mk.export(whole, options["whole"])
     if only == ["none"]:
         return
-    shadings = {"glass": Shading(whole[1])}
+    shadings = {"glass": Shading(whole[1]), "creature": Shading(whole[0])}
     for name, box, frames in PIECES:
         names = [name] + ["%s_%d" % (name, frames[f[0]]) for f in LOOK_FRAMES[1:]]
         if only and not any(n in only for n in names):
