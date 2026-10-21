@@ -1,5 +1,5 @@
 """Batch AF of wave 3 (sheet R), the stand-alone models, modelled as their sprites look (models.cfg: yaw=0). The
-glass domes are in wave3_af_domes.py, IXMUCANE's boss (the rock heaps) in wave3_af_heap.py; the kit is
+glass domes are polish_glass_city.py's and polish_purple_dome.py's, IXMUCANE's boss (the rock heaps) in wave3_af_heap.py; the kit is
 wave3_af_kit.py, the pixels wave3_af_art.py.
 
 - flying_stone_a (R 171): the small stone flying at the player in ASSASSIN, IXMUCANE and SAWBLADES: an angular

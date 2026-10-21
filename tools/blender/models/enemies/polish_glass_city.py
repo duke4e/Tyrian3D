@@ -39,8 +39,8 @@ whole's origin is the corner where the four sprites meet: P(c, r) turns the pict
 into these coordinates (x = c - 24, y = 28 - r).
 
 Replaces wave3_af_domes.py's small dome: remove SMALL, S_CENTRE, S_RADIUS, S_HEIGHT, S_Z0, small_mask(),
-small_dome(), S_PIECES and its a.pieced("glass_city", ...) line; city(), roof_picker() and aa_lens() stay (the big
-purple dome uses them).
+small_dome(), S_PIECES and its a.pieced("glass_city", ...) line; (the big purple dome, which still used city(),
+roof_picker() and aa_lens(), is polish_purple_dome.py's now).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouettes of the
 whole and of each piece against the dome's pixels in enemy_R.png), --preview <prefix> (the whole's and each piece's
