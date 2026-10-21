@@ -4,8 +4,7 @@ flyers, modelled as their sprites look (models.cfg: yaw=0). The kit is wave3_z_k
 
 - red_mouth_lander (L 229): MINERS's grey lander (in the sky; one stands in SQUADRON): an armoured shell with
   a slatted face over a red mouth, a red glowing jet under it and two legs reaching down the screen.
-- yellow_pod_fighter (L 267): MINERS's grey fighter, nose down the screen: a slim fuselage with a gun in
-  front and a cream engine glow behind, and two pointed wing pods with yellow lights on their outer sides.
+(MINERS's fighter, L 267: polish_pod_fighter.py.)
 
 usage: Blender -b --factory-startup -P wave3_z_small.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1]
@@ -18,10 +17,9 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_z_kit as kit  # noqa: E402
-from wave3_z_kit import k, sh, w, pal, smoothstep  # noqa: E402
+from wave3_z_kit import sh, w, pal, smoothstep  # noqa: E402
 
 MECH = kit.frame("MECH", 24, (12, 14))
-SHIP = kit.frame("SHIP", 24, (12, 14))
 
 
 # --- L 229: the lander -----------------------------------------------------------------------------
@@ -76,53 +74,6 @@ def red_mouth_lander():
         w.sphere(f"knee_{side}", tuple(knee), (2.0, 2.0, 1.8), leg_lit, 16, 8)
         w.sphere(f"foot_{side}", tuple(foot + Vector((0, -0.4, -0.1))), (2.1, 1.8, 1.1), dark, 14, 7)
     sh.flat_bottom(w.meshes(), 0.0)
-
-
-# --- L 267: the fighter ----------------------------------------------------------------------------
-
-@kit.model("yellow_pod_fighter", mask=lambda: SHIP.mask())
-def yellow_pod_fighter():
-    f = SHIP
-    X, Y = f.X, f.Y
-    grey = kit.Painter("fighter", shades={6: (4, 5, 6, 7, 8, 9, 10, 11, 12)}, metallic=0.35, roughness=0.38,
-                       remap={0x30: 0x64, 0x31: 0x64, 0x33: 0x64, 0x00: 0x64, 0x03: 0x64})
-    dark = pal("fighter_dark", 0x62, metallic=0.4, roughness=0.4)
-    light = pal("fighter_light", 0x7c, metallic=0.0, roughness=0.3, glow=1.6)
-    light_deep = pal("fighter_light_deep", 0x7a, metallic=0.0, roughness=0.3, glow=1.0)
-    cream = pal("fighter_glow", 0xee, metallic=0.0, roughness=0.3, glow=1.2)
-    gun = pal("fighter_gun", 0x03, metallic=0.5, roughness=0.35)
-    z0 = 5.0  # the ship's middle (it flies)
-    # The pods (columns 0-7 and 16-23, rows 7-22): pointed lozenges, rounder at their outer sides.
-    for side, c0, c1 in (("l", 0, 7), ("r", 16, 23)):
-        polys = kit.polys_of(f, lambda v, c, r, c0=c0, c1=c1: c0 <= c <= c1 and 7 <= r <= 22, smooth=2, epsilon=0.3)
-        pod = sh.inflate(f"pod_{side}", polys, grey(0x66), sh.round_profile(0.75, max_height=3.4), bottom=0.7,
-                         base=z0, rim=0.2, spacing=0.4, sigma=1.0)
-        k.smooth(pod, 50)
-        pod_f = kit.frame("SHIP", 24, (12, 14)).fill({v for row in f.g for v in row if v is not None and v >> 4 == 7},
-                                                     edge_only=False)
-        kit.paint_sprite(pod, pod_f, grey, wall_steps=1, under=dark, blur=2)
-        # The yellow lights along the outer side: a glowing strip set into the pod's surface.
-        outer = -1 if side == "l" else 1
-        cx = X(3.5 if side == "l" else 19.5)
-        bpy.context.view_layer.update()
-        pts = []
-        for x_off, row in ((0.9, 10.5), (1.6, 13.5), (1.5, 16.5), (0.9, 18.6)):
-            x_, y_ = cx + outer * x_off, Y(row)
-            pts.append((x_, y_, sh.surface_z(pod, x_, y_, z0 + 2.0) - 0.25))
-        w.tube(f"lights_{side}", w.catmull(pts, 0.4), 0.8, light, 10, squash=0.6)
-    # The fuselage (columns 8-15, rows 8-24): wider behind, narrowing to the gun in front, joined to the pods.
-    polys = kit.polys_of(f, lambda v, c, r: 8 <= c <= 15 and 8 <= r <= 24, smooth=2, epsilon=0.3)
-    body = sh.inflate("fuselage", polys, grey(0x68), sh.round_profile(0.8, max_height=3.0), bottom=0.6, base=z0 + 0.4,
-                      rim=0.2, spacing=0.4, sigma=1.0)
-    k.smooth(body, 50)
-    body_f = kit.frame("SHIP", 24, (12, 14)).fill({0xed, 0xee, 0xef, 0xec, 0x60}, edge_only=False)
-    kit.paint_sprite(body, body_f, grey, wall_steps=1, under=dark, blur=2)
-    # The struts to the pods (rows 12-16).
-    kit.rounded_box("strut", (X(11.5) + 0.5, Y(14.0), z0 + 0.6), (17.0, 3.6, 1.6), grey(0x66), bevel=0.5)
-    # The engine glow behind (row 9, columns 10-14) and the gun in front (rows 19-23).
-    w.sphere("engine", (X(11.5) + 0.5, Y(9.2), z0 + 1.6), (2.2, 0.9, 1.1), cream, 16, 8)
-    w.lathe_axis("gun", [(0.0, 0.7), (4.0, 0.6), (4.3, 0.75), (4.6, 0.01)], gun, (X(11.5) + 0.5, Y(19.0), z0 + 1.2),
-                 (0, -1, 0), 12)
 
 
 if __name__ == "__main__":

@@ -5,10 +5,6 @@ MINERS's ground is red sand with patches of dark red rock laid with hexagonal ce
 it); the level puts these objects of the same rock on it, all on the ground layer, all at the top of the screen
 (y = -29) where the ground carries them down:
 
-- red_spire_l, red_spire_r (L 231 beside 233, enemies 1148, 1149): a tall spike of the rock standing upright
-  (the sprites draw it in the game's oblique view, its side seen from the front: modelled as drawn it leaned up
-  the screen): its round foot (about 20 x 16 pixels) on the ground at the sprites' bottom edge, its point about
-  25 pixels above the foot's middle.
 - red_mound_a_l, red_mound_a_r (L 234 beside 236, enemies 1144, 1145) and red_mound_b_l, red_mound_b_r (L 271
   beside 273, enemies 1146, 1147): low ridges of the rock along the sprites' bottom edge.
 - tan_dome_tl, tan_dome_tr, tan_dome_bl, tan_dome_br (L 161 163 above 199 201, enemies 1151-1154): a tan
@@ -22,7 +18,6 @@ Each object is built whole and cut into its sprites (origin).
 usage: Blender -b --factory-startup -P wave3_z_rock.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1] [--whole <prefix>]
 """
-import math
 import os
 import sys
 
@@ -32,7 +27,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_z_kit as kit  # noqa: E402
 from wave3_z_kit import k, sh, w, pal, smoothstep  # noqa: E402
 
-SPIRE = kit.frame("SPIRE", 48, (24, 14))
 MOUND_A = kit.frame("MOUND_A", 48, (24, 14))
 MOUND_B = kit.frame("MOUND_B", 48, (24, 14))
 DOME = kit.frame("DOME", 48, (24, 28))
@@ -57,41 +51,6 @@ def hex_rock(name, f, polys, height_of, edge, size=3.6, relief=0.45, seed=7):
 
 def halves(name, f):
     return [kit.quarter(name + "_l", f, 0, 0), kit.quarter(name + "_r", f, 24, 0)]
-
-
-# --- L 231 233: the spire --------------------------------------------------------------------------
-
-SPIRE_AXIS = (-1.0, -5.0)   # the foot's middle: under the drawn point (columns 21-23), its edge on the sprites' edge
-SPIRE_FOOT = (10.0, 8.0)    # the foot's half-sizes (the drawn base is 22 pixels wide, columns 12-33)
-SPIRE_HEIGHT = 25.0
-
-
-def spire_lobes(a):
-    """The foot's outline wobbles (a rough rock, not a cone): its radius at angle a, relative."""
-    return 1.0 + 0.07 * math.sin(3 * a + 0.6) + 0.05 * math.sin(5 * a + 2.1) + 0.04 * math.sin(8 * a + 0.3)
-
-
-def spire_whole():
-    """The spike upright on its round foot, its sides a little full, rising straight to its point, laid with the
-    rock's hex cells (painted by the sprite's shades under it)."""
-    f = SPIRE
-    ax, ay = SPIRE_AXIS
-    rx, ry = SPIRE_FOOT
-    outline = []
-    for i in range(64):
-        a = 2 * math.pi * i / 64
-        r = spire_lobes(a)
-        outline.append((ax + rx * r * math.cos(a), ay + ry * r * math.sin(a)))
-
-    def height(x, y, e):
-        a = math.atan2((y - ay) / ry, (x - ax) / rx)
-        rr = math.hypot((x - ax) / rx, (y - ay) / ry) / spire_lobes(a)
-        t = max(0.0, 1.0 - rr)
-        return 0.3 + SPIRE_HEIGHT * t * (1.0 + 0.3 * (1.0 - t))
-    hex_rock("spire", f, [outline], height, edge=2.0, size=3.0, relief=0.45)
-
-
-kit.pieced("red_spire", spire_whole, (48, 28), halves("red_spire", SPIRE))
 
 
 # --- L 234 236 and L 271 273: the mounds -----------------------------------------------------------

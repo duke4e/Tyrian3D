@@ -6,7 +6,7 @@ D 7 9 / 45 47) in polish_asteroids.py; the small rocks (D 95, 114, 133, 152) in 
   72 x 84 pixels, which the game puts together from ten sprites (six 2x2, four 1x1), built whole
   the same way and cut into the ten pieces (origin).
 - rock_a, rock_b, rock_c (D 43, 85, 123): asteroids floating in the sky, faceted like D 5's
-  (asteroid_lumpy, wave2_h.py).
+  (asteroid_lumpy, now polish_asteroid_lumpy.py).
 - rock_beacon (D 93): such an asteroid with a red beacon on its side (its frames 55 and 18 light
   the beacon: it glows).
 - rock_blue_eye (D 229): such an asteroid with a blue light set in its middle (its frames 231-235

@@ -8,8 +8,6 @@ in wave3_m_shell.py. (The grey building with the green windows, J 5, 7, 43, 45: 
   along it, raised up the screen to the left on a curved neck from a base on the ground (the sprites'
   foliage is the map's, not modelled), a red light glowing in the base (its frames brighten it as it
   fires); built whole and cut (origin).
-- lens_pad (J 77): the grey pad on the ground of TORM and BONUS, an oval puck with a green lens glowing
-  in a ringed socket in it (its frames brighten the lens).
 - eye_orb (J 83): the grey armoured orb of TORM on its brackets on the ground (the sprite's foliage is
   the map's, not modelled), open on its red eye (its frames open the shell and light the eye: the model
   shows it open, the eye glowing).
@@ -25,7 +23,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_m_kit as w  # noqa: E402
-from wave3_m_kit import art, k, sh, pal, px, py, model, whole, J  # noqa: E402
+from wave3_m_kit import art, k, sh, pal, px, py, model, whole, J  # noqa: E402,F401  (art: wave3_ap_torm.py reads ground.art)
 
 
 def greys(prefix):
@@ -136,30 +134,6 @@ def gun_piece(x0, x1, y0, y1):
 model("field_gun_barrel", [(J, 89, True)])(lambda: gun_piece(-12, 12, 0, 28))
 model("field_gun_breech", [(J, 127, True)])(lambda: gun_piece(-12, 12, -28, 0))
 model("field_gun_mount", [(J, 129, True)])(lambda: gun_piece(12, 36, -28, 0))
-
-
-# --- J 77: the lens pad -----------------------------------------------------------------------------
-
-@model("lens_pad", [(J, 77, True)])
-def lens_pad():
-    """A grey oval pad with a lip round its top and a green lens glowing in a ringed socket in it,
-    standing on the ground in the lower half of its sprite."""
-    g = w.grid(art.J77, 24)
-    m = greys("pad")
-    lens = pal("pad_lens", 0xc9, metallic=0.1, roughness=0.08, glow=1.2)
-    lens_core = pal("pad_lens_core", 0xcd, metallic=0.0, roughness=0.05, glow=1.8)
-    pad = w.block("pad", (px(11.5), py(20.6)), 8.9, 6.3, 3.9, m["grey"], taper=0.6, rounding=1.7, power=2.7,
-                  segments=48, dome=0.4)
-    w.paint_faces(pad, lambda c, n: m["dark"] if n.y < -0.5 else m["mid"] if n.z > 0.85 else
-                  m["light"] if n.y > 0.4 and n.z < 0.85 else None)
-    w.hoop("rim", (px(11.5), py(20.6), 3.4), [(6.2, -0.3), (6.9, -0.2), (6.9, 0.35), (6.3, 0.4)], m["pale"], 48,
-           scale_y=0.66)
-    cx, cy = px(10.6), py(19.2)
-    w.hoop("socket", (cx, cy, 3.9), [(3.2, -0.6), (4.6, -0.3), (4.8, 0.35), (4.1, 0.55), (3.3, 0.2)], m["pale"], 32,
-           scale_y=0.62)
-    w.sphere("socket_floor", (cx, cy, 3.6), (3.6, 2.3, 0.6), m["black"], 20, 8)
-    w.sphere("lens", (cx, cy, 3.8), (2.9, 1.8, 1.2), lens, 20, 10)
-    w.sphere("lens_core", (cx - 0.6, cy + 0.3, 4.7), (1.2, 0.7, 0.4), lens_core, 12, 6)
 
 
 # --- J 83: the eye orb -----------------------------------------------------------------------------

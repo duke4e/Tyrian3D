@@ -94,41 +94,6 @@ wkit.pieced("cargo_pod_wreck", crate_wreck, (48, 84), [
     wkit.quarter("cargo_pod_wreck_tl", CRATE_DMG, 0, 0), wkit.quarter("cargo_pod_wreck_tr", CRATE_DMG, 24, 0)])
 
 
-# --- P 121: the bronze pump's dome, wrecked -----------------------------------------------------------------
-
-PUMP = wkit.Frame(wkit.art.PUMP, 48, (24, 42))
-PUMP_DMG = kit.frame("PUMP_DMG", 48, (24, 42))
-
-
-def pump_wreck():
-    works.pump_whole()
-    w.bake()
-    fi, fd = PUMP, PUMP_DMG
-    top_piece = fi.top(28)
-    holes = kit.field(fi, fd, lambda dv, iv: dv != iv and dv is not None and (kit.is_dark(dv) or (dv >> 4 == 0xa and
-                                                                                                    (dv & 15) <= 1)),
-                      blur=1)
-    gash = kit.field(fi, fd, lambda dv, iv: kit.is_hot(dv), blur=1)
-    p = kit.hot_painter("aopump", {0xa: (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc), 0: (1, 2, 3)}, metallic=0.45,
-                        roughness=0.55, finish={0xa: (0.45, 0.55)}, ember=1.2)
-    # The dome stands upright on the shaft (batch AV): damaged laid where the sprites draw it, leaning up the
-    # screen above the house, then stood up again.
-    lay = works.pump_dome_as_drawn()
-    for obj in [o for o in kit.meshes() if o.name in ("dome", "dome_collar")]:
-        obj.data.transform(lay)
-        kit.pixelate(obj, fi, 1.0, (fi.left(0), fi.right(23), top_piece, fi.top(0)))
-        kit.sink(obj, holes, 2.4, mode="normal", seed=3.0, roughness=0.5, box=(-99, 99, top_piece + 0.3, 99))
-        kit.sink(obj, gash, 1.2, mode="normal", seed=5.0, roughness=0.4, box=(-99, 99, top_piece + 0.3, 99))
-        kit.repaint(obj, fi, fd, p, walls=1, pixel=False, blur=1, default=p(0xa3))
-        w.bake()
-        obj.data.transform(lay.inverted())
-
-
-# Cut as the intact dome's piece is (wave3_w_works.drawn_pieced): the dome on the shaft over the house.
-works.drawn_pieced("pump_dome_wreck", pump_wreck, (48, 84), [wkit.quarter("pump_dome_wreck", PUMP_DMG, 0, 0)],
-                   works.PUMP_DRAWN)
-
-
 # --- P 47 49: the drilling rig's crane, wrecked ----------------------------------------------------------
 
 RIG = wkit.Frame(wkit.art.RIG, 48, (24, 42))

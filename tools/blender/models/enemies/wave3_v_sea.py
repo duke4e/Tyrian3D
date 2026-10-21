@@ -2,16 +2,11 @@
 (models.cfg: yaw=0 unless noted). DELI's boss is polish_deli_boss.py; the kit is wave3_v_kit.py, the pixels
 wave3_v_art.py. Objects the levels put together from several sprites (the level files' enemy events say
 how) are built whole and cut into their pieces, drawn at their own origins (origin). (CORAL's bony fish, T 229
-beside T 231: polish_coral_fish.py; its seahorses, T 203 and 241: polish_coral_seahorse.py.)
+beside T 231: polish_coral_fish.py; its seahorses, T 203 and 241: polish_coral_seahorse.py; its small starfish, T 89, and its manta, T 197-237:
+polish_coral_starlet.py, polish_coral_manta.py.)
 
 - coral_starfish (T 127): the tan starfish thrown in CORAL (enemy 1223); its frames (129, 131, 245) turn it
   clockwise 18 degrees each, two cycles apiece (models.cfg: yaw=frames:40:0).
-- coral_starlet (T 89): CORAL's small starfish (enemy 1212), a little above the sprite's middle.
-- coral_manta_back, coral_manta_wing_left, coral_manta_wing_right, coral_manta_head (T 199, 197, 201, 237):
-  CORAL's manta (events 1206-1209: 197 at (x, y), 199 at (x + 24, y - 10), 237 at (x + 24, y + 18), 201 at
-  (x + 48, y)): blue-grey wings arched down to their gold-edged tips, a raised back with two dark windows,
-  a gold spike of a tail up the screen, two dark horns at its mouth (the wings' frames flap them, 237's
-  blow bubbles between the horns: the model keeps the wings spread). Built whole, cut in four (origin).
 - coral_pylon_top, coral_pylon_mid, coral_pylon_base (T 279 above 281 above 283; events 1213-1215 at (x, y),
   (x, y + 28), (x, y + 56)): a long grey cylinder lying up the screen, a capped end with lugs, flanged
   collars, dark joints, a dark port with a glowing lamp and a nozzle at its near end. Cut in three (origin).
@@ -40,7 +35,7 @@ import wave3_v_kit as v  # noqa: E402
 from wave3_v_kit import art, k, sh, w, n, pal  # noqa: E402
 
 
-# --- T 127 and T 89: the starfish --------------------------------------------------------------------
+# --- T 127: the starfish --------------------------------------------------------------------
 
 def starfish(prefix, centre, radius, inner, height, bumps=4):
     """A five-armed starfish, one arm up the screen: arms round in section, tapering to rounded tips, a
@@ -89,89 +84,6 @@ def starfish(prefix, centre, radius, inner, height, bumps=4):
 def coral_starfish():
     """The tan starfish CORAL's creatures throw (enemy 1223), turning as its frames do (yaw=frames)."""
     starfish("starfish", (0.0, -0.2), 12.9, 6.2, 4.4)
-
-
-@v.model("coral_starlet", mask=lambda: v.Frame(art.STARLET, 24, (12, 14)).mask())
-def coral_starlet():
-    """CORAL's small starfish (enemy 1212), lying a little above the sprite's middle as the sprite draws it."""
-    starfish("starlet", (0.0, 1.7), 5.8, 2.8, 2.2, bumps=2)
-
-
-
-# --- T 199, 197, 201, 237: the manta -----------------------------------------------------------------
-
-MANTA = v.Frame(art.MANTA, 72, (36, 28))
-MANTA_AXIS = -0.5  # the middle of pixel column 35
-
-
-def manta_whole():
-    """A blue-grey manta swimming down the screen, its broad wings arched down to their tips and edged with
-    gold, a raised back with two dark windows either side of a gold strip, a thin gold spike of a tail
-    up the screen, two dark horns curling in at its mouth."""
-    f = MANTA
-    paint = v.Painter("manta", shades={6: (4, 5, 6, 7, 8, 9), 8: (3, 6, 8), 0xa: (4, 7, 0xa, 0xb), 1: (1, 3, 5),
-                                       3: (1, 3, 5), 5: (4, 5, 6)}, metallic=0.35, roughness=0.32)
-    skin = paint(0x67)
-    gold = pal("manta_gold", 0xa9, metallic=0.6, roughness=0.3)
-    horn = pal("manta_horn", 0x64, metallic=0.3, roughness=0.3)
-    horn_light = pal("manta_horn_light", 0x67, metallic=0.3, roughness=0.3)
-    glass = pal("manta_glass", 0x30, metallic=0.3, roughness=0.06)
-    glass_light = pal("manta_glass_light", 0x35, metallic=0.3, roughness=0.06)
-
-    def bulge(x, y):
-        """The raised back: high along the middle from the tail's root to the mouth."""
-        return math.exp(-((x - MANTA_AXIS) / 7.5) ** 2) * v.smoothstep(f.Y(6.0), f.Y(12.0), y) * \
-            v.smoothstep(f.Y(39.0), f.Y(31.0), y)
-
-    def droop(x, y):
-        return 4.6 - 0.1 * abs(x - MANTA_AXIS)
-
-    keep = lambda i, c, r: 7 <= r <= 38 and not (r == 38 and (c <= 30 or c >= 40))
-    body = v.relief("body", v.outlines_of(f, keep, grow=0.0, smooth=1), skin,
-                    sh.round_profile(0.42, max_height=2.4, min_height=0.4), bottom=0.45,
-                    z_fn=lambda x, y, z: z + 4.2 * bulge(x, y), spacing=0.62)
-    for vt in body.data.vertices:
-        vt.co.z += droop(vt.co.x, vt.co.y)
-    v.paint_sprite(body, f, paint, wall_steps=-1, default=skin)
-
-    def top(x, y):
-        return sh.surface_z(body, x, y, 6.0)
-
-    # The windows: two dark panes set into the back.
-    for c0, c1 in ((30, 33), (36, 39)):
-        cx = (f.X(c0) + f.X(c1)) / 2
-        for r0, r1, mat, dz in ((11, 21, glass, 0.0), (11.6, 14.0, glass_light, 0.18)):
-            cy = (f.Y(r0) + f.Y(r1)) / 2
-            z = top(cx, cy)
-            hw, hd = (c1 - c0 + 1) / 2 - 0.15 - dz, (r1 - r0 + 1) / 2 - 0.1 - dz
-            w.rounded_box(f"window{c0}_{r0}", (cx, cy, z - 0.35 + dz), (2 * hw, 2 * hd, 1.2), mat, bevel=0.3)
-
-    # The tail: a thin gold spike up the screen from the back.
-    root = (MANTA_AXIS, f.Y(8.5), top(MANTA_AXIS, f.Y(8.5)) - 0.4)
-    pts = w.catmull([root, (MANTA_AXIS, f.Y(4.5), root[2] + 0.3), (MANTA_AXIS, f.Y(0.2), root[2] + 0.6)], 0.4)
-    w.tube("tail", pts, [1.25 - 0.95 * j / (len(pts) - 1) for j in range(len(pts))], gold, 10)
-
-    # The horns at the mouth, curling in at their tips.
-    for side, path in ((-1, [(28.2, 35.5), (27.6, 39.5), (27.6, 43.0), (28.4, 45.8), (29.0, 46.6)]),
-                       (1, [(42.4, 35.5), (43.2, 39.5), (43.0, 43.0), (42.2, 45.0), (41.6, 46.2)])):
-        pts = [(f.X(c), f.Y(r), 3.2 - 0.25 * j) for j, (c, r) in enumerate(path)]
-        pts = w.catmull(pts, 0.4)
-        last = len(pts) - 1
-        hn = w.tube(f"horn{side}", pts, [2.6 - 1.7 * (j / last) ** 1.6 for j in range(len(pts))], horn, 14, squash=0.8)
-        w.paint_faces(hn, lambda c, nrm, s=side: horn_light if nrm.z > 0.5 and nrm.x * s < 0.2 else None)
-    v.stats(*w.meshes())
-
-
-def manta_piece(name, box, centre, cols, rows):
-    return (name, box, centre, lambda: MANTA.mask((cols[0], cols[1], rows[0], rows[1])))
-
-
-v.pieced("coral_manta", manta_whole, (72, 56), [
-    manta_piece("coral_manta_wing_left", (-36.0, -12.0, -10.0, 18.0), (-24.0, 4.0), (0, 24), (10, 38)),
-    manta_piece("coral_manta_back", (-12.0, 12.0, 0.0, 28.0), (0.0, 14.0), (24, 48), (0, 28)),
-    manta_piece("coral_manta_wing_right", (12.0, 36.0, -10.0, 18.0), (24.0, 4.0), (48, 72), (10, 38)),
-    manta_piece("coral_manta_head", (-12.0, 12.0, -28.0, 0.0), (0.0, -14.0), (24, 48), (28, 56))])
-
 
 
 # --- T 279 above 281 above 283: the segmented column --------------------------------------------------

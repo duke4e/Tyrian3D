@@ -1,6 +1,5 @@
 """Helpers for the batch U models of wave 3 (sheet S: MINEMAZE, GAUNTLET and the asteroid levels): wave3_u.py,
-the bunker with the green lamp and the blue pipe across the mine maze; wave3_u_orb.py, the black orb in its
-bronze claws; wave3_u_carrier.py, the tracked carrier with the launcher and the robot it carries;
+the bunker with the green lamp and the blue pipe across the mine maze; wave3_u_carrier.py, the tracked carrier with the launcher and the robot it carries;
 wave3_u_hangar.py, the hangar with the numbers on its roof. The sprites' pixels are in wave3_u_art.py; the
 part builders come from the earlier batches' kits (wave3_j_kit: palette materials, turned parts, tubes, the
 tiled floor, painting faces, the build loop; wave3_o_kit: cutting a whole object into its sprites' pieces,
