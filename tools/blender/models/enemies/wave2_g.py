@@ -10,8 +10,7 @@
 - warp_orb (sheet P 85): the swirling fire orb that leads to a secret level; its frames brighten it
   (glow option).
 - stone_plant: now built by polish_stone_plant.py.
-- pipe_arm_2 (sheet 4 269): the second of the four pieces of the brown pipe arm of TYRIAN's boss
-  (4 267-273); the whole arm is built and cut (origin).
+- pipe_arm_2: gone; TYRIAN's long arms are built by polish_tusk_arms.py.
 - hatch_ship: now built by polish_hatch_ship.py.
 - lava_star: now built by polish_lava_star.py.
 - pink_torpedo_front, pink_torpedo_rear: now built by polish_pink_torpedo.py.
@@ -26,10 +25,8 @@ to keep the models light.
 
 usage: Blender -b --factory-startup -P wave2_g.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       Blender -b --factory-startup -P wave2_g.py -- --whole pipe_arm --preview <prefix>
 --preview renders <prefix><name>_top.png and _3q.png; --check prints each model's silhouette overlap
-with its sprite; --stats prints the triangles per part; --whole renders a whole object the game
-draws in pieces (the pieces are cut from it) instead of exporting.
+with its sprite; --stats prints the triangles per part.
 """
 import math
 import os
@@ -49,7 +46,6 @@ import wave2_g_art as art  # noqa: E402
 
 ROOT = os.path.join(HERE, "..", "..", "..", "..", "assets", "models")
 MODELS = []  # (name, builder, sheet, sprites, size, kind)
-WHOLES = {}  # name: (builder, size in pixels): objects the game draws in pieces, for --whole previews
 
 
 def model(name, sheet, sprite, size=(24, 28), kind="enemies", check=None):
@@ -369,71 +365,6 @@ def rounded_rect(x0, y0, x1, y1, radius, count=6):
     return out
 
 
-# --- 4 269: a piece of the boss's pipe arm --------------------------------------------------------
-
-def build_pipe_arm():
-    """The brown pipe arm of TYRIAN's boss, 96 x 28 pixels (sprites 267, 269, 271, 273 side by side),
-    centred on its middle: a pipe whose width follows the sprites' columns, narrowing and swelling
-    at a joint and thickening at its right end; a grey clamp on its left part, a rib and a
-    blue-grey bolt on the second piece. It lies on its layer (flat underneath)."""
-    g = grid(art.E4_PIPE, 96)
-    brown = pal("pipe_brown", 0x17, metallic=0.5, roughness=0.35)
-    rib_mat = pal("pipe_rib", 0x19, metallic=0.55, roughness=0.3)
-    clamp = pal("pipe_clamp", 0x6a, metallic=0.65, roughness=0.3)
-    bolt = pal("pipe_bolt", 0x6c, metallic=0.7, roughness=0.2)
-    squash = 0.7
-    spans = []
-    for c in range(96):
-        rows = [r for r in range(len(g)) if g[r][c] is not None]
-        top, bottom = rows[0], rows[-1]
-        spans.append((c + 0.5 - 48.0, 14.0 - (top + bottom + 1) / 2.0, (bottom - top + 1) / 2.0))
-    # Smoothed a little along the pipe, the ends kept.
-    smooth_spans = []
-    for i, (x, yc, r) in enumerate(spans):
-        near = spans[max(0, i - 2):i + 3]
-        smooth_spans.append((x, sum(s[1] for s in near) / len(near), sum(s[2] for s in near) / len(near)))
-    smooth_spans[0] = (-48.0, smooth_spans[0][1], smooth_spans[0][2])
-    smooth_spans[-1] = (48.0, smooth_spans[-1][1], smooth_spans[-1][2])
-    rings = [k.ring(0.0, r, r * squash, 28) for x, yc, r in smooth_spans]
-    # ring() builds in XZ at y; place each section across the pipe (along y) at its x.
-    sections = []
-    for (x, yc, r), points in zip(smooth_spans, rings):
-        sections.append([Vector((x, yc + p.x, r * squash + p.z)) for p in points])
-    pipe = k.loft("pipe", sections, brown, start_point=(smooth_spans[0][0], smooth_spans[0][1], smooth_spans[0][2] * squash),
-                  end_point=(smooth_spans[-1][0], smooth_spans[-1][1], smooth_spans[-1][2] * squash))
-    k.recalc_normals(pipe)
-    k.smooth(pipe, 50)
-
-    def band(name, x0, x1, mat, extra):
-        out = []
-        for x, yc, r in smooth_spans:
-            if x0 - 0.6 <= x <= x1 + 0.6:
-                rr = r + (extra if x0 <= x <= x1 else extra * 0.4)
-                out.append([Vector((x, yc + p.x, r * squash + p.z)) for p in k.ring(0.0, rr, rr * squash, 28)])
-        obj = k.loft(name, out, mat)
-        k.recalc_normals(obj)
-        return k.smooth(obj, 50)
-    band("clamp", -40.5, -36.0, clamp, 0.45)
-    band("rib", -16.5, -15.0, rib_mat, 0.35)
-    band("rib2", -13.5, -12.2, rib_mat, 0.3)
-    # The bolt on the side of the second piece (sprite 269's columns 13-16, rows 2-3).
-    z = sh.surface_z(pipe, -9.2, 10.4, 5.0)
-    k.smooth(k.ellipsoid("bolt", (-9.2, 10.4, z - 0.5), (1.6, 1.2, 1.0), bolt, 14, 8), 60)
-    return sh.flat_bottom(scene_objects())
-
-
-WHOLES["pipe_arm"] = (build_pipe_arm, (96, 28))
-
-
-@model("pipe_arm_2", "4", 269)
-def pipe_arm_2():
-    objects = build_pipe_arm()
-    kept = sh.cut_box(objects, -24.0, 0.0, -14.0, 14.0)
-    sh.move(kept, 12.0, 0.0)
-    for obj in kept:
-        k.smooth(obj, 50)
-
-
 # --- 8 245: the tip of a rock column -----------------------------------------------------------------
 
 @model("rock_tip", "8", 245)
@@ -501,13 +432,6 @@ def triangles(obj):
 
 def main():
     options = k.args()
-    if "whole" in options:
-        build, size = WHOLES[options["whole"]]
-        k.reset()
-        build()
-        bpy.context.scene.view_settings.view_transform = "Standard"
-        k.preview(options["preview"] + options["whole"], size, scale=8)
-        return
     only = set(options["only"].split(",")) if "only" in options else None
     for name, build, sheet, sprites, size, kind in MODELS:
         if only and name not in only:

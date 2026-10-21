@@ -1,8 +1,9 @@
 """Shared parts of the power-up models (tools/blender/models/items/powerups.py builds them).
 
-The power-ups sheet's weapon, sidekick and special pick-ups are one orb, drawn in the colour of
-its kind (ice blue: front weapons, flesh red: rear weapons, green: sidekicks, brown: the dual
-MegaLaser), with the weapon's symbol in front. Here the orb is a glossy panelled ball, slightly
+The power-ups sheet's rear weapon and sidekick pick-ups are one orb, drawn in the colour of
+its kind (flesh red: rear weapons, green: sidekicks; the front weapons' ice-blue orbs and the dual
+MegaLaser's brown one are polish_powerups_front.py's and polish_powerups_specials.py's), with the weapon's
+symbol in front. Here the orb is a glossy panelled ball, slightly
 squashed and flattened on top, and each symbol a raised emblem or small 3D object resting on it.
 
 The orb spans the sprite's columns 2-21 and rows 3-23: centre (0, 0.5), radii 10.3 by 10.5.
@@ -37,7 +38,7 @@ ORB_RX, ORB_RY, ORB_RZ = 10.3, 10.5, 6.6
 ORB_POWER = 2.5      # profile of the upper half: 2 a sphere, higher flatter on top
 GROOVE_X, GROOVE_Y = -0.5, 0.5   # the sprite's cross of grooves (column 11, row 13)
 
-RAMP_ICE, RAMP_RED, RAMP_GREEN, RAMP_BROWN = 13, 4, 2, 14
+RAMP_RED, RAMP_GREEN = 4, 2
 
 
 def px(col):
@@ -272,21 +273,6 @@ def conform(obj, lift=0.0, step=0.9, floor=0.0):
     return bend(obj, lift, floor)
 
 
-def place(obj, x, y, lift=0.0):
-    """Moves a part built round the origin to (x, y) on the orb's surface (plus lift)."""
-    obj.data.transform(Matrix.Translation((x, y, surf(x, y) + lift)))
-    return obj
-
-
-def tilt_to_orb(obj, x, y, amount=1.0):
-    """Tips a part built round the origin as the orb's surface at (x, y) is tipped (before place)."""
-    n = orb_normal(Vector((x, y, surf(x, y))))
-    up = Vector((0, 0, 1))
-    n = up.lerp(n, amount).normalized()
-    obj.data.transform(up.rotation_difference(n).to_matrix().to_4x4())
-    return obj
-
-
 # --- Outlines from the sprite's pixels -----------------------------------------------------------
 
 def _grid(icon, chars):
@@ -471,54 +457,6 @@ def emblem(name, icon, chars, z0, z1, mat, bevel=0.3, smoothing=1, on_orb=True, 
     return k.smooth(obj, smooth_angle)
 
 
-def rows_of(icon, chars):
-    """Per row of an ICON map with pixels in chars: (y, left x, right x) of the covered span
-    (pixel edges)."""
-    first, grid = _grid(icon, chars)
-    out = []
-    for r, row in enumerate(grid):
-        cols = [c for c, v in enumerate(row) if v]
-        if cols:
-            out.append((py(first + r), px(cols[0]) - 0.5, px(cols[-1]) + 0.5))
-    return out
-
-
-def body_from_rows(name, icon, chars, mat, squash=0.6, shrink=0.0, segments=24, z=0.0, on_orb=True, lift=0.0):
-    """A rounded body whose top view is the rows' spans (bottom to top); squash: its height over
-    its width. Built along Y, then set on the orb."""
-    spans = sorted(rows_of(icon, chars))  # increasing y
-    rings = []
-    for y, a, b in spans:
-        hw = max(0.2, (b - a) / 2 - shrink)
-        rings.append(k.ring(y, hw, hw * squash, segments, z=z, x=(a + b) / 2))
-    # Round the ends: half a pixel beyond the first and last rows.
-    y0, a0, b0 = spans[0]
-    y1, a1, b1 = spans[-1]
-    obj = k.loft(name, rings, mat, start_point=((a0 + b0) / 2, y0 - 0.5, z), end_point=((a1 + b1) / 2, y1 + 0.5, z))
-    k.smooth(obj, 70)
-    if on_orb:
-        conform(obj, lift)
-    return obj
-
-
-def ribbon_from_rows(name, icon, chars, mat, squash=0.55, grow=0.4, passes=2, segments=16, lift=0.0, floor=0.0):
-    """A rounded band through the rows' spans (bottom to top), its centre and width smoothed so the
-    pixel steps don't show, bent onto the orb. Returns the object and its [(y, centre x, half
-    width)]."""
-    spans = sorted(rows_of(icon, chars))
-    line = [(y, (a + b) / 2, (b - a) / 2 + grow) for y, a, b in spans]
-    for _ in range(passes):
-        line = [line[0]] + [(line[i][0], (line[i - 1][1] + 2 * line[i][1] + line[i + 1][1]) / 4,
-                             (line[i - 1][2] + 2 * line[i][2] + line[i + 1][2]) / 4)
-                            for i in range(1, len(line) - 1)] + [line[-1]]
-    rings = [k.ring(y, hw, hw * squash, segments, x=xc) for y, xc, hw in line]
-    (y0, x0, _), (y1, x1, _) = line[0], line[-1]
-    obj = k.loft(name, rings, mat, start_point=(x0, y0 - 0.6, 0), end_point=(x1, y1 + 0.6, 0))
-    conform(obj, lift, floor=floor)
-    k.smooth(obj, 70)
-    return obj, line
-
-
 def star4(name, x, y, long, short, depth, mat, turn=0.0):
     """A four-pointed star (a sparkle): points up/down/left/right of `long`, waist `short`,
     domed `depth` above and below."""
@@ -537,21 +475,6 @@ def star4(name, x, y, long, short, depth, mat, turn=0.0):
 def glow(name, rgb, strength=3.0, roughness=0.3, color=None):
     """An emissive material: rgb the emitted colour (0-255), color the surface (default rgb)."""
     return k.material(name, color or rgb, roughness=roughness, emission=rgb, emission_strength=strength)
-
-
-def badge(icon, letter_palette=0x5e, all_chars="o12457y", red_chars="7y5", glow_chars="y", letter_chars="5",
-          dark_palette=0x71, red_palette=0x76):
-    """A letter symbol (P, M, H): a dark backing in the symbol's outline, a red badge on it with
-    glowing orange studs where the sprite is brightest, and the raised light letter on top."""
-    base = k.material("badge_dark", palette=dark_palette, metallic=0.3, roughness=0.35)
-    red = k.material("badge_red", palette=red_palette, metallic=0.45, roughness=0.25)
-    letter = k.material("letter", palette=letter_palette, metallic=0.5, roughness=0.2)
-    stud = glow("badge_glow", (255, 190, 50), 2.5, color=(250, 200, 60))
-    emblem("badge", icon, all_chars, -1.6, 0.8, base, bevel=0.35)
-    emblem("badge_red", icon, red_chars, -0.6, 1.5, red, bevel=0.3)
-    if glow_chars:
-        emblem("badge_glow", icon, glow_chars, 0.0, 1.9, stud, bevel=0.3, smoothing=2)
-    emblem("letter", icon, letter_chars, 0.0, 2.4, letter, bevel=0.35)
 
 
 POD_SHAPES = {
@@ -587,31 +510,3 @@ def pod(name, x0, y0, x1, y1, radius, mat, core=None, lift=0.0, squash=0.85, sha
     for part in parts:
         part.data.transform(place_at @ turn)
     return parts
-
-
-# --- The small fighter of the special weapons' pick-ups ------------------------------------------
-
-def ship(z=0.0):
-    """The small grey fighter the special pick-ups show (columns 6-18, rows 6-19 of their sprites,
-    centred on column 12: x 0.5): a pointed fuselage with a dark canopy, swept wings with pods at
-    their tips, two red lights beside the cockpit and a glowing engine at the back. z: where its
-    wings' underside is."""
-    hull = k.material("ship_hull", palette=0x09, metallic=0.55, roughness=0.28)
-    dark = k.material("ship_dark", palette=0x04, metallic=0.5, roughness=0.35)
-    glass = k.material("ship_canopy", palette=0x02, metallic=0.3, roughness=0.1)
-    red = glow("ship_light", (255, 40, 20), 2.5, color=(200, 20, 10))
-    engine = glow("ship_engine", (255, 120, 40), 3.0, color=(230, 80, 30))
-    axis = z + 1.7
-    profile = [(-5.9, 0.0), (-5.5, 1.3), (-4.5, 1.9), (-2.0, 2.0), (1.0, 1.9), (3.5, 1.7), (5.0, 1.3), (6.0, 1.0),
-               (7.0, 0.65), (7.9, 0.0)]
-    k.smooth(k.lathe("fuselage", profile, hull, segments=24, axis_x=0.5, axis_z=axis, squash=0.75), 50)
-    wing = [(-6.0, -0.2), (-6.0, -2.0), (-5.0, -3.0), (-4.0, -5.0), (-3.0, -6.0), (4.0, -6.0), (5.0, -5.0), (6.0, -3.0),
-            (7.0, -2.0), (7.0, -0.2), (3.0, 0.6), (-2.0, 0.6)]
-    k.smooth(k.slab("wings", wing, z + 0.4, z + 1.4, hull, bevel_width=0.3), 40)
-    for x in (-4.0, 5.0):
-        pod_profile = [(-2.3, 0.0), (-2.0, 0.8), (-1.0, 1.05), (0.4, 1.0), (0.9, 0.6), (1.2, 0.0)]
-        k.smooth(k.lathe("wing_pod", pod_profile, dark, 14, axis_x=x, axis_z=z + 1.5, squash=1.0), 50)
-    for x in (-0.6, 1.6):
-        k.smooth(k.ellipsoid("light", (x, -0.5, axis + 1.15), (0.6, 0.85, 0.45), red, 10, 6), 60)
-    k.smooth(k.ellipsoid("engine", (0.5, -5.0, axis), (1.2, 0.8, 0.9), engine, 12, 8), 60)
-    k.smooth(k.ellipsoid("canopy", (0.5, 2.4, axis + 1.1), (0.85, 2.0, 0.65), glass, 14, 10), 60)

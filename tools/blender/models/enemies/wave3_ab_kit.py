@@ -1,10 +1,8 @@
-"""Helpers for the batch AB models of wave 3 (sheet 4: TYRIAN, TYRIAN X, HOLES and ASSASSIN; wave3_ab_arms.py, the
-two long arms; the tusked boss and its small copy are polish_tusk_boss*.py now): the sprites' pixels
-(wave3_ab_art.py), the pixel frames, sprite painting and shapes of batch S (wave3_s_kit), the limbs and lofts of
-batch Y (wave3_y_kit), the parts of batch J (wave3_j_kit), and the build loop of batch N (wave3_n_kit: whole
-objects cut into their sprites' pieces, silhouettes checked against pixel masks). Its own: reliefs whose height
-follows a map of the sprite's parts (each pixel labelled, the heights blurred into bevels) with the sprite's
-shading embossed on them, and copying a whole object scaled and turned (the boss's small copy).
+"""Helpers once of the batch AB models of wave 3 (sheet 4: TYRIAN, TYRIAN X, HOLES and ASSASSIN), whose models are all
+polish_*.py now (the tusked boss, its small copy and the two long arms: polish_tusk_boss*.py, polish_tusk_arms.py);
+kept for wave3_ai_gryphon.py and wave3_ai_kit.py, which use its fields over a sprite's pixels, outlines, painting
+and wall sharpening, built on the pixel frames, sprite painting and shapes of batch S (wave3_s_kit), the limbs and
+lofts of batch Y (wave3_y_kit), the parts of batch J (wave3_j_kit) and the heightfields of batch Q (wave3_q_kit).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre (or the whole object's, for objects the game draws in pieces).
@@ -29,26 +27,11 @@ import wave3_n_kit as n  # noqa: E402,F401
 import wave3_q_kit as q  # noqa: E402,F401
 import wave3_s_kit as s  # noqa: E402,F401
 import wave3_y_kit as y  # noqa: E402,F401
-import wave3_ab_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, grid, regions, paint_faces, lathe_axis, tube, catmull, sphere,  # noqa: E402,F401
                          rounded_box, meshes, bake, triangles, simplify_bottom, decimate, sampler)
 from wave3_s_kit import (Frame, Painter, paint_sprite, pixelate, merge_flat, slab, mirror_copies,  # noqa: E402,F401
                          smoothstep)
 from wave3_y_kit import loft_path, resample, loft_y, smooth_sections, interp  # noqa: E402,F401
-
-pieced = n.pieced
-run = n.run
-
-
-def frame(name, width, origin):
-    """A Frame of one of wave3_ab_art's pixel arts."""
-    return Frame(getattr(art, name), width, origin)
-
-
-def frame_mask(fr, box=None):
-    """Coverage of a frame (rows of bools); box (c0, c1, r0, r1), end exclusive."""
-    return n.art_mask(fr.g, box)
-
 
 def lowpass(poly, sigma=1.0, spacing=0.4):
     """A closed outline resampled every `spacing` and smoothed with a Gaussian of `sigma` pixels along it: the
@@ -136,54 +119,6 @@ def brightness(index):
     """A palette index's brightness (0-1), as the sprite shades it."""
     r, g, b = k.level_palette()[index]
     return (0.3 * r + 0.59 * g + 0.11 * b) / 255.0
-
-
-def relief(name, fr, keep, height, mat, edge=1.4, bevel=1.0, emboss=1.6, emboss_blur=2, spacing=0.5, smooth=2,
-           epsilon=0.35, min_area=1.0, angle=45, sigma=0.0):
-    """A plate over the frame's pixels keep(index, column, row) accepts: its top at height(x, y) (a smooth field,
-    e.g. from field()), its edge rounded down by `bevel` over `edge` pixels onto straight sides that go down to a
-    flat bottom at z = 0, and the sprite's shading embossed on it (`emboss` pixels per unit of brightness above its
-    blurred brightness), so that the sprite's panel lines and ridges stand out."""
-    polys = polys_of(fr, keep, smooth=smooth, epsilon=epsilon, min_area=min_area, sigma=sigma)
-    fine = field(fr, lambda v, c, r: brightness(v), blur=0)
-    coarse = field(fr, lambda v, c, r: brightness(v), blur=emboss_blur)
-
-    def top(x, yy, e):
-        h = height(x, yy) + emboss * max(-0.35, min(0.35, fine(x, yy) - coarse(x, yy))) * e
-        return max(0.3, h - bevel * (1.0 - e) ** 2)
-    return q.heightfield(name, polys, top, mat, spacing=spacing, smooth_angle=angle, edge=edge)
-
-
-# --- Copies ---------------------------------------------------------------------------------------------
-
-def transformed_copies(objects, matrix, suffix="_copy"):
-    """Copies of objects (modifiers applied) with matrix applied to their meshes; the originals are removed."""
-    out = []
-    for obj in objects:
-        sh.apply_modifiers(obj)
-        obj.data.transform(obj.matrix_world)
-        obj.matrix_world = Matrix.Identity(4)
-        c = obj.copy()
-        c.data = obj.data.copy()
-        c.name = obj.name + suffix
-        bpy.context.scene.collection.objects.link(c)
-        c.data.transform(matrix)
-        if matrix.determinant() < 0:
-            c.data.flip_normals()
-        out.append(c)
-    for obj in objects:
-        bpy.data.objects.remove(obj)
-    return out
-
-
-def surface(objs, x, yy, default=0.0):
-    """The highest top surface of objs at (x, y) (rays from above)."""
-    best = None
-    for obj in objs:
-        hit, loc, _n, _i = obj.ray_cast(Vector((x, yy, 500.0)), Vector((0, 0, -1)))
-        if hit and (best is None or loc.z > best):
-            best = loc.z
-    return default if best is None else best
 
 
 # --- Painting ---------------------------------------------------------------------------------------------

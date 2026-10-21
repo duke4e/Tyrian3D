@@ -1,12 +1,11 @@
-"""Power-ups: the weapon, sidekick and special pick-ups of the power-ups sheet ("twoplayer" in the
-catalogue) that enemies leave, mostly in arcade and two-player games. Each is an orb in the colour
-of its kind with the weapon's symbol in front, or for the special weapons a small fighter with
-the weapon's effect round it (powerups_parts.py has the shared parts):
+"""Power-ups: the weapon and sidekick pick-ups of the power-ups sheet ("twoplayer" in the catalogue)
+that enemies leave, mostly in arcade and two-player games. Each is an orb in the colour of its kind
+with the weapon's symbol in front (powerups_parts.py has the shared parts):
 
-- front weapons (values 30001-30031), ice-blue orbs: powerups_front.py
 - rear weapons (31009-31022), red orbs: powerups_rear.py
 - sidekicks (32001-32015) and the dragonwing (30000), green orbs: powerups_sidekicks.py
-- special weapons (32101-32106) and the dual MegaLaser's brown orb (32115): powerups_specials.py
+- (the front weapons, 30001-30031, ice-blue orbs: polish_powerups_front.py; the special weapons, 32101-32106,
+  and the dual MegaLaser's brown orb, 32115: polish_powerups_specials.py)
 
 Every model is coloured as its sprite (palette materials), so they are not recoloured
 (color=sprite); models.cfg turns them slowly (spin).
@@ -25,13 +24,11 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 import tyrkit as k  # noqa: E402
 import bpy  # noqa: E402
 import powerups_parts  # noqa: E402
-import powerups_front  # noqa: E402
 import powerups_rear  # noqa: E402
 import powerups_sidekicks  # noqa: E402
-import powerups_specials  # noqa: E402
 
 MODELS = {}
-for module in (powerups_front, powerups_rear, powerups_sidekicks, powerups_specials):
+for module in (powerups_rear, powerups_sidekicks):
     MODELS.update(module.MODELS)
 
 
