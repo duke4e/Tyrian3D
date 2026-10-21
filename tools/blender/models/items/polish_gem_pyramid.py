@@ -8,8 +8,10 @@ gem_pyramid_purple(), a flat pyramid with a square table):
   indices differ only by the ramp, but for one stray dark pixel left of the middle row: 0xd0 and 0xe0, both
   near black): the same cut, written once in each ramp. (One model with models.cfg's color=sprite could serve
   both, but its emission would not follow the sprite's colour: the glow would stay red.)
-models.cfg (unchanged): sprite coins 76 gem_pyramid spin=1.5 glow=12:0.25, sprite coins 57 gem_pyramid_purple
-spin=1.5 glow=12:0.25.
+- gem_pyramid_teal: the teal shard that ICE EXIT's blue crystals (7 53) launch, falling (coins 133, enemy 507 of
+  episode 4; added 2026-10-21): coins 76 shade for shade in ramp 13 (one stray dark pixel in ramp 6).
+models.cfg: sprite coins 76 gem_pyramid spin=1.5 glow=12:0.25, sprite coins 57 gem_pyramid_purple spin=1.5
+glow=12:0.25, sprite coins 133 gem_pyramid_teal spin=1.5 glow=12:0.25.
 
 As the sprite and its 4x upscale draw it: a diamond (rows 2-12, columns 1-11), a square pyramid seen from
 above with its corners up, down and to the sides, lit from its middle: a star glint (the brightest pixel,
@@ -68,7 +70,7 @@ SHADES = {
     "pavilion_ridge": (7, 0.3), "pavilion": (5, 0.22),
 }
 # The models: (name, sprite in coins.png, ramp).
-MODELS = [("gem_pyramid", 76, 4), ("gem_pyramid_purple", 57, 5)]
+MODELS = [("gem_pyramid", 76, 4), ("gem_pyramid_purple", 57, 5), ("gem_pyramid_teal", 133, 13)]
 
 
 def materials(name, ramp):

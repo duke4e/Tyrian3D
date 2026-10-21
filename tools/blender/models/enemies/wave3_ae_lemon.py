@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch AE (sheet ', written x27 in models.cfg): FRUIT's lemon beetle and strawberry wing,
-modelled as their sprites look (models.cfg: yaw=0); the rest of the sheet is in wave3_ae.py, wave3_ae_coral.py and
-wave3_ae_boss.py, the kit in wave3_ae_kit.py, the pixels in wave3_ae_art.py. Both are built whole and cut into the
+modelled as their sprites look (models.cfg: yaw=0); the rest of the sheet is in wave3_ae_coral.py, wave3_ae_boss.py
+and polish_*.py, the kit in wave3_ae_kit.py, the pixels in wave3_ae_art.py. Both are built whole and cut into the
 sprites the level puts them together from (origin).
 
 - lemon_beetle_tl, _tr, _ml, _mr, _bl, _br (' 16 18 above 54 56 above 92 94; enemies 1238-1243 at (x, y - 56),

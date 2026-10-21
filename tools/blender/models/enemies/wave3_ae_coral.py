@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch AE (sheet ', written x27 in models.cfg): CORAL's red sea worm and blue egg, on the sea
 floor (the ground layer), modelled as their sprites look (models.cfg: yaw=0); the rest of the sheet
-is in wave3_ae.py, wave3_ae_lemon.py and wave3_ae_boss.py, the kit in wave3_ae_kit.py, the pixels in
+is in wave3_ae_lemon.py, wave3_ae_boss.py and polish_*.py, the kit in wave3_ae_kit.py, the pixels in
 wave3_ae_art.py. Each is 24 x 56, drawn from two sprites one above the other, so each is built whole and cut in
 two (origin), lying on the floor (z = 0). (The electric eel, ' 3 above 41: polish_coral_eel.py.)
 

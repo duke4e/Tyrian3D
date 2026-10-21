@@ -1,6 +1,6 @@
 """Batch Y of wave 3 (sheet 8: IXMUCANE and SAWBLADES), the creatures and small ships, modelled as their
-sprites look (models.cfg: yaw=0). The rock wall is in wave3_y_wall.py; the red ship between its engines, the
-red pod and the big spider (objects the game draws in pieces) in wave3_y_boss.py; the kit is wave3_y_kit.py,
+sprites look (models.cfg: yaw=0). The rock wall is in wave3_y_wall.py; the big spider (an object the game draws in
+pieces) in wave3_y_boss.py; the kit is wave3_y_kit.py,
 the pixels wave3_y_art.py. (The twin tube, 8 19: polish_twin_tube.py; the small crab, 8 267:
 polish_tan_crab.py.)
 

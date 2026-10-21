@@ -2,9 +2,8 @@
 modelled as their sprites look (models.cfg: yaw=0). Objects the game draws from several sprites are
 built whole and cut into the sprites' pieces, drawn at their own origins (models.cfg: origin). (The core machine,
 UNDERDELI's mite, floor eye and brick crab: polish_core_machine.py, polish_deli_mite.py, polish_deli_floor_eye.py,
-polish_brick_crab.py.)
+polish_brick_crab.py; the blue gate of BRAINIAC and the ICE levels: polish_blue_gate.py.)
 
-- blue_gate_* (^ 16, 18 above 54, 56): the blue gate of BRAINIAC and the ICE levels.
 (UNDERDELI's blue cruiser, ^ 198-206, and EYESPY's lips, ^ 196 208: polish_cruiser.py, polish_lips.py.)
 - brick_bulb_* (^ 153, 155 above 191, 193): a red bulb under a grey hood and two rings round red
   cylinders, in UNDERDELI's brick wall.
@@ -18,7 +17,7 @@ coloured in bands of the pixels' shades, with the helpers of wave3_i_kit.py.
 
 usage: Blender -b --factory-startup -P wave3_i.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       Blender -b --factory-startup -P wave3_i.py -- --whole gate,ring,sand,hand,hand_r
+       Blender -b --factory-startup -P wave3_i.py -- --whole ring,sand,hand,hand_r
        --preview <prefix>
 """
 import math
@@ -59,66 +58,6 @@ def region(name, a, rows, chars, height, radius=1.2, base=0.0, crown=0.0, bands=
     w.paint_bands(obj, shade, bands, side=side)
     w.planar(obj, 0.8)
     return k.smooth(obj, 50)
-
-
-# --- ^ 16, 18 above 54, 56: the blue gate ---------------------------------------------------------
-
-GATE = w.Art(art.GATE, 48, (24, 28))
-
-
-def gate_whole():
-    """The blue gate of BRAINIAC and the ICE levels: two tall organic blue arms with grey brackets
-    sticking out at their middles and grey struts down their inner sides, joined at the bottom by a
-    blue bowl with a spike rising in its middle over a small glowing emitter."""
-    a = GATE
-    X, Y = a.X, a.Y
-
-    def label(v, c, r):
-        ramp, s = v >> 4, v & 15
-        if 16 <= r <= 21 and (c <= 11 or c >= 36) and (ramp != 3 or s <= 1):
-            return "b"
-        if ramp in (0, 5, 6) and s >= 2:
-            if 43 <= r <= 47 and 20 <= c <= 28:
-                return "e"
-            return "s"
-        if 36 <= r <= 44 and 20 <= c <= 27:
-            return "S"
-        if r >= 37:
-            return "U"
-        return "A"
-    rows = a.rows(label)
-    blue = w.ramp_bands("gate_blue", 3, [(0.0, 3), (3.5, 5), (5.5, 7), (7.5, 9), (9.5, 11), (11.5, 13)],
-                        metallic=0.3, roughness=0.3)
-    grey = w.ramp_bands("gate_grey", 0, GREY, metallic=0.6, roughness=0.3)
-    dark = pal("gate_dark", 0x31, metallic=0.4, roughness=0.5)
-    # A dark core under everything (the outline).
-    hull = a.rows(lambda v, c, r: "#")
-    region("core", a, hull, "#", 2.2, radius=0.8, bands=[(0.0, dark)], smooth=2, epsilon=0.5, min_area=2.0,
-           select=lambda v, c, r: True, spacing=0.6, coarse_from=1.0)
-    # The arms: tall rounded blue limbs, highest along their middles.
-    for side, cols in ((-1, range(0, 24)), (1, range(24, 48))):
-        arm_rows = ["".join(ch if (c in cols and ch == "A") else "." for c, ch in enumerate(row)) for row in rows]
-        region(f"arm{side}", a, arm_rows, "A", 9.0, radius=4.2, crown=0.6, bands=blue, smooth=2, epsilon=0.5,
-               select=lambda v, c, r: v >> 4 == 3, grow=0.3, rim=1.5, aspect=1.6, min_area=3.0, spacing=0.75,
-               target=3000)
-    region("bowl", a, rows, "U", 7.0, radius=3.6, crown=0.4, bands=blue, smooth=2, epsilon=0.5,
-           select=lambda v, c, r: v >> 4 == 3, grow=0.3, rim=1.5, aspect=1.6, spacing=0.75, target=3000)
-    region("spike", a, rows, "S", 8.5, radius=2.8, crown=0.4, bands=blue, smooth=2, epsilon=0.4, blur=1,
-           select=lambda v, c, r: v >> 4 == 3, grow=0.2, rim=1.0, aspect=2.0, target=900)
-    # The brackets, the struts and the emitter.
-    region("brackets", a, rows, "b", 9.6, radius=0.8, crown=0.2, bands=grey, smooth=1, epsilon=0.6, grow=0.1,
-           select=lambda v, c, r: rows[r][c] == "b" and v & 15 >= 3)
-    region("struts", a, rows, "s", 6.0, radius=1.0, crown=0.3, bands=grey, smooth=2, epsilon=0.5, min_area=1.0,
-           grow=0.2, rim=1.0, aspect=2.0, target=1600)
-    glow = pal("gate_emitter", 0x0c, metallic=0.2, roughness=0.2, glow=0.8, color=(200, 230, 255))
-    w.ellipsoid("emitter", (X(24.0), Y(45.6), 4.2), (2.4, 1.6, 1.4), glow, 16, 8)
-    w.sh.flat_bottom(w.meshes())
-
-
-w.WHOLES["gate"] = (gate_whole, (48, 56))
-for name, sprite, box in (("blue_gate_tl", 16, (-24, 0, 0, 28)), ("blue_gate_tr", 18, (0, 24, 0, 28)),
-                          ("blue_gate_bl", 54, (-24, 0, -28, 0)), ("blue_gate_br", 56, (0, 24, -28, 0))):
-    model(name, [(sprite, True)])(lambda box=box: (gate_whole(), w.piece(*box)))
 
 
 # --- ^ 153, 155 above 191, 193: the brick bulb ----------------------------------------------------

@@ -1,11 +1,10 @@
 """Wave 3, batch L of the enemy models: the remaining enemies of sheet 5 (episode 4), authored as their sprites
 look (models.cfg: yaw=0 unless noted; the stinger, 5 207: polish_flesh_stinger.py; HARVEST's purple machine, 5 3:
-polish_purple_beacon.py):
+polish_purple_beacon.py; the hanging pod, 5 170: polish_hanging_pod.py):
 
 - eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
   the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
-- hanging_pod (5 170): BRAINIAC's grey pod with a red eye hanging from a steel bracket.
 - arrow_left, arrow_right (5 247, 5 266): DREAD-NOT's and EYESPY's glowing green arrows (mirror images).
 
 The objects drawn from several sprites are in wave3_l_parts.py; the pixel art in wave3_l_art.py. (EYESPY's ears,
@@ -96,38 +95,6 @@ def stone_fist(mirror):
 
 model("stone_fist", 81)(lambda: stone_fist(False))
 model("stone_fist_r", 83)(lambda: stone_fist(True))
-
-
-# --- 5 170: the hanging pod (5 168, BRAINIAC's red link: polish_red_link.py) ------------------------
-
-@model("hanging_pod", 170)
-def hanging_pod():
-    """A grey pod hanging from a steel bracket (a bar across the top and posts down both sides): a
-    domed head over a darker face with a red eye glowing in a socket."""
-    metal = pal("hpod_metal", 0x68, metallic=0.65, roughness=0.3)
-    light = pal("hpod_metal_light", 0x6b, metallic=0.65, roughness=0.25)
-    grey = pal("hpod_grey", 0x08, metallic=0.55, roughness=0.3)
-    dark = pal("hpod_dark", 0x03, metallic=0.4, roughness=0.45)
-    red = pal("hpod_eye", 0x77, metallic=0.0, roughness=0.15, glow=1.6)
-    hot = pal("hpod_eye_hot", 0x7b, metallic=0.0, roughness=0.1, glow=2.2)
-    # The bracket.
-    w.rounded_box("bar", (0.0, 11.6, 5.2), (24.0, 4.2, 2.6), metal, bevel=0.6)
-    w.rounded_box("bar_light", (0.0, 12.6, 6.6), (22.0, 1.0, 0.4), light, bevel=0.15)
-    for side in (-1, 1):
-        w.rounded_box(f"post{side}", (side * 10.4, 4.6, 3.4), (3.2, 15.0, 3.0), metal, bevel=0.6)
-        w.rounded_box(f"hook{side}", (side * 8.6, -2.0, 2.6), (3.2, 2.6, 2.4), metal, bevel=0.5)
-    # The pod and its neck.
-    w.lathe_axis("neck", [(0.0, 1.6), (3.0, 1.6)], light, (0.5, 7.0, 5.4), (0, 1, 0), 14)
-    secs = []
-    for y, hw in ((9.6, 0.5), (9.4, 3.2), (8.6, 6.0), (7.2, 7.6), (4.0, 8.2), (-4.0, 8.3), (-8.0, 8.1), (-9.6, 7.2),
-                  (-10.6, 5.8), (-11.4, 3.6), (-11.8, 0.5)):
-        secs.append((y, 0.5, 3.0, hw, min(4.8, hw * 0.75 + 0.8), 2.6))
-    pod = w.loft_y("pod", secs[::-1], grey, segments=32, power=2.6)
-    w.paint(pod, lambda c, n: 1 if c.y < -2.6 else 0, [grey, dark])
-    # The eye in its socket (rows 18-22).
-    w.sphere("socket", (0.5, -6.4, 6.4), (4.2, 3.6, 1.6), dark, 24, 10)
-    w.sphere("eye", (0.5, -6.4, 7.0), (3.0, 2.6, 1.6), red, 24, 10)
-    w.sphere("eye_hot", (0.2, -6.0, 8.0), (1.2, 1.0, 0.6), hot, 12, 6)
 
 
 # --- 5 247, 5 266: the green arrows -----------------------------------------------------------------

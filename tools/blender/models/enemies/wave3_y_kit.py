@@ -1,6 +1,6 @@
 """Helpers for the batch Y models of wave 3 (sheet 8: IXMUCANE and SAWBLADES; wave3_y.py, the small
-creatures and ships; wave3_y_wall.py, the rock wall with its glowing slots; wave3_y_boss.py, the red ship
-between its two engines, the red pod and the big spider): the sprites' pixels (wave3_y_art.py), the pixel
+creatures and ships; wave3_y_wall.py, the rock wall with its glowing slots; wave3_y_boss.py, the big
+spider): the sprites' pixels (wave3_y_art.py), the pixel
 frames, sprite painting and shapes of batch S (wave3_s_kit), the parts and materials of batch J
 (wave3_j_kit), heightfield parts (wave3_q_kit), and the build loop of batch N (wave3_n_kit: stand-alone
 models and whole objects cut into their sprites' pieces, silhouettes checked against pixel masks).

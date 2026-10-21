@@ -2,11 +2,8 @@
 as their sprites look (models.cfg: yaw=0 unless noted). The rock arch is in polish_rock_arch.py, the stepped
 pyramid in polish_pyramid.py, CORE's fire in wave3_n_fire.py, SURFACE's horned pod (3 1) in polish_horned_pod.py,
 DESERTRUN's hatch bunker (3 18) in polish_hatch_bunker.py, CORE's lava bubble (3 128) in
-polish_lava_bubble.py.
+polish_lava_bubble.py, SURFACE's plank turret (3 12) in polish_plank_turret.py.
 
-- plank_turret (3 12): SURFACE's brown turret, a box of planks with two guns; its eight frames are
-  headings the level picks, so the model points up the screen (as 3 14) and aims at the player
-  (yaw=aim).
 - lamp_block_84, lamp_block_86 (3 84, 86) and lamp_block_122, lamp_block_124 (3 122, 124): SURFACE's
   two stone blocks, each drawn in two pieces side by side (origin), with a square relief on top and
   red lamps in slots at one end (glowing).
@@ -25,40 +22,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_n_kit as n  # noqa: E402
 from wave3_n_kit import art, k, sh, w, pal, px, py  # noqa: E402
-
-
-# --- 3 12: the plank turret ----------------------------------------------------------------------
-
-@n.model("plank_turret", mask=None)
-def plank_turret():
-    """A brown box of planks, two raised lids either side of a groove along its middle, iron bands
-    across them; two guns reach up the screen from its north side, their muzzles light. Centred on its
-    box (it turns to aim)."""
-    wood = pal("turret_wood", 0xa8, metallic=0.05, roughness=0.6)
-    wood_light = pal("turret_wood_light", 0xab, metallic=0.05, roughness=0.55)
-    wood_dark = pal("turret_wood_dark", 0xa4, metallic=0.05, roughness=0.65)
-    plank = pal("turret_plank", 0xa9, metallic=0.05, roughness=0.6)
-    groove = pal("turret_groove", 0xa2, metallic=0.1, roughness=0.7)
-    iron = pal("turret_iron", 0x03, metallic=0.7, roughness=0.35)
-    muzzle = pal("turret_muzzle", 0xaa, metallic=0.4, roughness=0.3)
-    bore = pal("turret_bore", 0x01, metallic=0.2, roughness=0.7)
-    body = w.block("body", (0.0, 0.0), 6.6, 6.6, 5.0, wood, taper=0.5, rounding=0.8, power=8.0, segments=40)
-    w.paint_faces(body, lambda c, nrm: wood_dark if nrm.y < -0.4 else wood_light if nrm.y > 0.4 else None)
-    for s in (-1, 1):
-        lid = w.block(f"lid{s}", (s * 3.15, -0.2), 2.6, 5.6, 1.2, wood, rounding=0.5, power=6.0, segments=28, z0=4.6)
-        # Planks: alternate faces a shade lighter.
-        w.paint_faces(lid, lambda c, nrm: plank if nrm.z > 0.8 and int((c.x + 20) / 1.3) % 2 == 0 else None)
-        for y in (-3.6, 3.2):
-            w.rounded_box(f"band{s}{y}", (s * 3.15, y, 5.75), (5.4, 0.8, 0.5), iron, bevel=0.2)
-    w.rounded_box("groove", (0.0, -0.2, 4.95), (1.2, 11.0, 0.6), groove, bevel=0.2)
-    # The guns.
-    for s in (-1, 1):
-        x = s * 4.0
-        w.lathe_axis(f"gun{s}", [(0.0, 1.5), (5.0, 1.4), (5.3, 1.55), (6.2, 1.55), (6.3, 0.01)], wood_dark,
-                     (x, 5.6, 3.0), (0, 1, 0.05), 16)
-        w.lathe_axis(f"muzzle{s}", [(5.2, 1.62), (6.4, 1.62), (6.5, 0.01)], muzzle, (x, 5.6, 3.0), (0, 1, 0.05), 16)
-        w.lathe_axis(f"bore{s}", [(6.4, 0.8), (6.6, 0.01)], bore, (x, 5.6, 3.0), (0, 1, 0.05), 12)
-        w.rounded_box(f"mount{s}", (x, 6.0, 2.6), (3.8, 1.6, 3.6), iron, bevel=0.4)
 
 
 # --- 3 84/86 and 3 122/124: the lamp blocks ------------------------------------------------------

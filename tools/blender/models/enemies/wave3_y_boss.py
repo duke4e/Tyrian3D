@@ -1,13 +1,9 @@
 """Batch Y of wave 3 (sheet 8: IXMUCANE and SAWBLADES), the objects the game draws in pieces, modelled as
 their sprites look (models.cfg: yaw=0), each built whole and cut into its sprites' pieces, drawn at their
 own origins (origin) so they meet. The level events place the pieces as the sheet arranges them. The kit is
-wave3_y_kit.py, the pixels wave3_y_art.py. (The red pod, 8 153 above 191: polish_ixm_pod.py.)
+wave3_y_kit.py, the pixels wave3_y_art.py. (The red pod, 8 153 above 191: polish_ixm_pod.py; the
+docked ship, 8 39-81: polish_ixm_dock.py.)
 
-- ixm_dock_tl, _tc, _tr, _bl, _bc, _br (8 39, 41, 43 above 77, 79, 81; event 7, all on the top layer):
-  IXMUCANE's red ship docked between two grey engines, 72 x 56: the engines are blocks with louvred vents
-  on top, red caps at their front, a red light and a glowing exhaust grille with fins at their back; between
-  them the red ship, a keel with three cross bars (the widest, its wings, joins the engines) and a spike at
-  its tail, lies over a grey dome with two grey pods under its tail.
 - ixm_spider_l, ixm_spider_r (8 229 beside 231; event 7, both on the top layer): the big tan spider:
   a red heart-shaped body with a red spike at its front and a dark head, two grey fangs under it and four
   tan legs a side, curving out and up the screen at their ends (its frames 233/235, 273/275 move the legs a
@@ -16,112 +12,12 @@ wave3_y_kit.py, the pixels wave3_y_art.py. (The red pod, 8 153 above 191: polish
 usage: Blender -b --factory-startup -P wave3_y_boss.py -- [--only names] [--preview <prefix>] [--check 1]
        [--whole <prefix>]
 """
-import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_y_kit as y  # noqa: E402
-from wave3_y_kit import k, sh, pal, tube, sphere, lathe_axis, smoothstep  # noqa: E402
-
-
-# --- 8 39 41 43 / 77 79 81: the docked ship ----------------------------------------------------------
-
-BOSS = y.frame("BOSS", 72, (36, 28))
-AX = -0.5  # the object's axis of symmetry
-
-
-def dock_mats():
-    m = {f"g{s_}": pal(f"dock_grey{s_}", s_, metallic=0.5, roughness=0.32) for s_ in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)}
-    m.update({
-        "red": pal("dock_red", 0x46, metallic=0.4, roughness=0.32),
-        "red_light": pal("dock_red_light", 0x49, metallic=0.4, roughness=0.28),
-        "red_dark": pal("dock_red_dark", 0x43, metallic=0.35, roughness=0.4),
-        "glow": pal("dock_glow", 0x77, metallic=0.0, roughness=0.3, glow=2.0),
-        "glow_hot": pal("dock_glow_hot", 0x79, metallic=0.0, roughness=0.25, glow=2.4),
-        "well": pal("dock_well", 0x01, metallic=0.2, roughness=0.7),
-    })
-    return m
-
-
-def engine(m, side):
-    """One engine (side -1 left, 1 right): x 11..33 from the axis, y -26..17."""
-    def X(v):
-        return AX + side * v
-    cx = X(22.0)
-    top = 11.0
-    body = y.block(f"engine{side}", (cx, -4.6), 10.9, 21.6, top, m["g7"], rounding=1.6, power=6.0, segments=40)
-    y.paint_faces(body, lambda c, nrm: m["g9"] if nrm.z > 0.8 else m["g5"] if nrm.z > -0.2 else m["g3"])
-    # The louvred vent: a dark recess with slats across, a lighter cover at its front.
-    y.rounded_box(f"vent_well{side}", (X(23.5), 5.4, top - 0.2), (11.2, 15.4, 1.0), m["g3"], bevel=0.3)
-    y.rounded_box(f"vent_cover{side}", (X(23.5), 11.6, top + 0.35), (10.6, 3.0, 0.9), m["g10"], bevel=0.35)
-    for i, yy in enumerate((8.5, 6.5, 4.5, 2.5, 0.5)):
-        y.prism_x(f"slat{side}_{i}", [(yy - 0.75, top - 0.2), (yy + 0.75, top - 0.2), (yy + 0.55, top + 0.75),
-                                             (yy - 0.45, top + 0.6)], X(28.6) if side < 0 else X(18.4),
-                         X(18.4) if side < 0 else X(28.6), m["g11"], bevel=0.12, segments=1)
-    # The rail along its inner side.
-    y.rounded_box(f"rail{side}", (X(15.4), 1.0, top + 0.4), (4.2, 24.0, 1.4), m["g8"], bevel=0.5)
-    # The red caps at its front.
-    y.rounded_box(f"cap_a{side}", (X(25.6), 15.9, top - 1.4), (8.4, 3.0, 3.4), m["red"], bevel=0.8)
-    y.rounded_box(f"cap_b{side}", (X(17.0), 15.9, top - 1.4), (2.8, 3.0, 3.4), m["red"], bevel=0.6)
-    # The lower panel with its red light.
-    y.rounded_box(f"panel{side}", (X(22.0), -6.4, top + 0.25), (15.0, 7.6, 0.9), m["g8"], bevel=0.35)
-    y.rounded_box(f"light{side}", (X(22.4), -5.8, top + 0.75), (7.6, 2.2, 0.8), m["red_light"], bevel=0.3)
-    # The exhaust grille at its back: a glowing well with fins.
-    y.rounded_box(f"grille_frame{side}", (X(22.0), -17.6, top - 0.6), (17.4, 13.6, 1.8), m["g4"], bevel=0.4)
-    y.rounded_box(f"grille{side}", (X(22.0), -17.6, top - 0.1), (15.6, 11.8, 1.4), m["glow"], bevel=0.3)
-    y.rounded_box(f"grille_core{side}", (X(22.0), -17.6, top + 0.15), (11.0, 7.0, 1.2), m["glow_hot"], bevel=0.4)
-    for i in range(6):
-        x = X(15.5 + 2.6 * i)
-        y.rounded_box(f"fin{side}_{i}", (x, -17.6, top + 0.35), (0.7, 12.0, 1.4), m["g5"], bevel=0.2)
-
-
-def build_dock():
-    m = dock_mats()
-    for side in (-1, 1):
-        engine(m, side)
-    # The grey dome under the ship and the two pods under its tail.
-    dome = sphere("dome", (AX, 12.6, 1.0), (10.4, 9.8, 10.0), m["g7"], 32, 16)
-    y.paint_faces(dome, lambda c, nrm: m["g9"] if nrm.z > 0.4 else m["g6"] if nrm.z > -0.2 else m["g3"])
-    for side in (-1, 1):
-        pod = sphere(f"pod{side}", (AX + side * 5.6, -17.0, 2.5), (3.0, 7.0, 4.6), m["g7"], 20, 12)
-        y.paint_faces(pod, lambda c, nrm: m["g10"] if nrm.z > 0.8 else m["g7"] if nrm.z > 0.3 else m["g4"])
-    # The ship: a keel down the middle, three cross bars, a head plate and the tail spike.
-    keys = [(-26.6, 0.15, 5.4), (-24.4, 0.8, 6.0), (-21.5, 1.2, 6.8), (-18.0, 1.6, 7.6), (-15.6, 2.4, 8.4),
-            (-13.2, 3.6, 9.0), (-10.6, 4.6, 9.8), (-7.0, 4.4, 10.6), (-3.5, 3.6, 11.2), (0.0, 3.3, 11.5),
-            (4.0, 3.2, 11.8), (7.4, 4.2, 12.0), (10.0, 3.6, 12.0), (12.0, 1.9, 11.8), (14.2, 1.4, 11.5),
-            (15.8, 0.25, 11.0)]
-    secs = [(yy, AX, zc, hw, max(0.5, 0.45 * hw + 0.9), max(0.5, 0.45 * hw + 0.9)) for yy, hw, zc in keys]
-    keel = y.loft_y("keel", y.smooth_sections(secs, 0.6), m["red"], segments=20, power=2.4)
-    y.paint_faces(keel, lambda c, nrm: m["red_light"] if nrm.z > 0.6 and c.x < AX - 0.8 else
-                  m["red"] if nrm.z > 0.3 else m["red_dark"])
-
-    def bar(name, yy, depth, half, z, height, sweep=0.0):
-        """A cross bar at yy, `half` either side of the axis, its ends swept back by `sweep`."""
-        outline = [(AX - half, yy - depth / 2 - sweep), (AX + half, yy - depth / 2 - sweep),
-                   (AX + half, yy + depth / 2 - sweep * 0.6), (AX + 1.2, yy + depth / 2 + 0.4),
-                   (AX - 1.2, yy + depth / 2 + 0.4), (AX - half, yy + depth / 2 - sweep * 0.6)]
-        obj = y.slab(name, outline, z - height / 2, z + height / 2, m["red"], bevel=0.6, segments=2)
-        y.paint_faces(obj, lambda c, nrm: m["red_light"] if nrm.z > 0.7 and c.x < AX - 2 else
-                      m["red"] if nrm.z > 0.4 else m["red_dark"])
-        return obj
-    bar("bar_top", 3.6, 2.8, 7.6, 12.2, 1.8)
-    bar("bar_mid", -3.9, 3.6, 8.2, 11.4, 1.9, sweep=0.8)
-    bar("wings", -8.3, 4.6, 12.4, 10.2, 1.9, sweep=1.4)
-    head = y.slab("head", [(AX - 5.2, 6.0), (AX + 5.2, 6.0), (AX + 5.4, 10.4), (AX + 3.6, 12.0), (AX - 3.6, 12.0),
-                           (AX - 5.4, 10.4)], 10.6, 13.0, m["red"], bevel=0.6, segments=2)
-    y.paint_faces(head, lambda c, nrm: m["red_light"] if nrm.z > 0.7 else m["red_dark"])
-    y.rounded_box("head_slot", (AX, 9.0, 13.1), (5.2, 1.2, 0.5), m["red_dark"], bevel=0.2)
-    y.cone("spike", (AX, -24.0, 5.6), (0, -1, -0.15), 4.0, 0.9, m["red_light"], segments=12)
-    y.cone("nose", (AX, 14.6, 11.2), (0, 1, -0.1), 3.0, 0.8, m["red_light"], segments=12)
-
-
-_DOCK = [("ixm_dock_tl", -24.0, 14.0, (0, 24, 0, 28)), ("ixm_dock_tc", 0.0, 14.0, (24, 48, 0, 28)),
-         ("ixm_dock_tr", 24.0, 14.0, (48, 72, 0, 28)), ("ixm_dock_bl", -24.0, -14.0, (0, 24, 28, 56)),
-         ("ixm_dock_bc", 0.0, -14.0, (24, 48, 28, 56)), ("ixm_dock_br", 24.0, -14.0, (48, 72, 28, 56))]
-y.pieced("ixm_dock", build_dock, (72, 56),
-         [(name, (cx - 12.0, cx + 12.0, cy - 14.0, cy + 14.0), (cx, cy), (lambda b=box: y.frame_mask(BOSS, b)))
-          for name, cx, cy, box in _DOCK])
+from wave3_y_kit import pal, sphere  # noqa: E402
 
 
 # --- 8 229 beside 231: the big spider ------------------------------------------------------------------

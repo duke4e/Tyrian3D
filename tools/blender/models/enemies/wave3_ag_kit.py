@@ -1,5 +1,5 @@
-"""Helpers for the batch AG models of wave 3 (sheet u: DELI, New Deli, BONUS and HARVEST; wave3_ag.py, the
-glass sphere; wave3_ag_tower.py, DELI's two towers and their damaged looks): the sprites' pixels
+"""Helpers for the batch AG models of wave 3 (sheet u: DELI, New Deli, BONUS and HARVEST; the glass
+globe is polish_glass_globe.py's; wave3_ag_tower.py, DELI's two towers and their damaged looks): the sprites' pixels
 (wave3_ag_art.py), and the frames, painting, parts and build loop of batches AA and AE (wave3_aa_kit: pixel
 frames, reliefs inflated from pixel regions, painting faces by the sprite's pixel under them, stand-alone models
 and whole objects cut into their sprites' pieces, the silhouette check; wave3_ae_kit: plates, pipes with
