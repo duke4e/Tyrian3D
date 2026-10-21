@@ -1,6 +1,6 @@
 """Batch X of wave 3 (sheet C: DELI, New Deli, BONUS and others), modelled as their sprites look (models.cfg:
-yaw=0). DELI's tall tower is in wave3_x_tower.py, its long cannons in
-polish_deli_cannon.py; the kit is wave3_x_kit.py, the pixels wave3_x_art.py. (The glass hatch, C 1, is built by polish_glass_hatch.py,
+yaw=0). DELI's tall tower is polish_red_tower.py's (its damaged look polish_red_tower_dmg.py's), its long
+cannons polish_deli_cannon.py's; the kit is wave3_x_kit.py, the pixels wave3_x_art.py. (The glass hatch, C 1, is built by polish_glass_hatch.py,
 the blue helm, C 49, by polish_blue_eye_helm.py, the gun on the mast over the ball by polish_ball_mast.py.)
 
 - slit_bunker (C 39): the grey bunker with a rounded back, a raised spine down its middle with two slits in it

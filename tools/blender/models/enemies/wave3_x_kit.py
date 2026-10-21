@@ -1,7 +1,7 @@
 """Helpers for the batch X models of wave 3 (sheet C: DELI, New Deli and BONUS, some also in TORM, SOH JIN,
 GRYPHON, BOTANY, HARVEST and SAVARA): wave3_x.py, the glass hatch with the red machine, the grey bunker with
-the glowing slits and the blue helm with the red eye; wave3_x_tower.py, DELI's tall grey tower with the red
-bands. (The helm, the gun on its mast and the long cannons are polish_*.py now.)
+the glowing slits and the blue helm with the red eye. (The helm, the gun on its mast, the long cannons and DELI's
+tall tower are polish_*.py now.)
 The sprites' pixels are in wave3_x_art.py; the part builders come from the earlier batches' kits
 (wave3_j_kit: palette materials, turned parts, tubes, painting faces, the build loop; wave3_o_kit: cutting a
 whole object into its sprites' pieces, mirroring, the triangle budget; wave3_q_kit: heightfield parts;
@@ -274,10 +274,3 @@ def report():
         return
     rows = sorted(((triangles([obj]), obj.name) for obj in meshes()), reverse=True)
     print("--- parts: " + ", ".join(f"{name} {count}" for count, name in rows[:14 if os.environ["X_PARTS"] != "all" else 99]))
-
-
-def drop_slivers(prefix="tiles", below=40):
-    """Removes what a cut leaves of the floor bed along a piece's edge (a few faces lying in the cut's plane)."""
-    for obj in meshes():
-        if obj.name.startswith(prefix) and triangles([obj]) < below:
-            bpy.data.objects.remove(obj, do_unlink=True)

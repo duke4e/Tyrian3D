@@ -1,6 +1,7 @@
-"""Batch AT of wave 3 (the second animation pass), sheet J: two machines of TORM and the botany levels whose frames
-open an eye, for frame lines. Built by batch M's own builders (wave3_m_shell.py, wave3_m_ground.py, imported as they
-are, their output unchanged) and posed as the frames draw them (models.cfg: as their first frame's models, yaw=0).
+"""Batch AT of wave 3 (the second animation pass), sheet J: the green shell of TORM and the botany levels, whose frames
+open its eye, for frame lines. Built by batch M's own builders (wave3_m_shell.py, imported as it is, its output
+unchanged) and posed as the frames draw it (models.cfg: as its first frame's models, yaw=0). (TORM's eye orb's frames:
+polish_eye_orb.py.)
 
 - green_shell_<sprite> (J 241, 243, 231, 233; enemies 774, 775, the green shell's eye housing, green_shell_241 and
   _243): the eye opens when the shell fires, 241 231 231 231 241 (and 243 233 ... 243): the sprites draw it dark in
@@ -8,11 +9,6 @@ are, their output unchanged) and posed as the frames draw them (models.cfg: as t
   under two lids; here 241 and 243 have the lids shut over it (the shell as it is most of the time, frame lines on
   241 and 243 themselves) and 231 and 233 have them drawn back into the ring, the whole eye glowing brighter. The
   whole shell is built and cut as green_shell_241 and _243 are (the eye lies across both).
-- eye_orb_83 (J 83; enemy 751 of TORM, eye_orb): the orb opens its shell on its eye when it fires, 83 121 85 123 87
-  125 ...: 83 draws it shut, a smooth grey ball (no socket, no seams); 121 ... 125 open it on the eye, which only
-  brightens (wave3_m_ground's orb, open, its eye glowing). eye_orb_83 is the orb shut (a frame line on 83 itself):
-  the socket, the eye, its rim and the seams left out, the shell whole over them.
-
 usage: Blender -b --factory-startup -P wave3_at_j.py -- [--only names] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
 """
@@ -25,7 +21,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_at_kit as kit  # noqa: E402
 
 ms = kit.quiet_import("wave3_m_shell")
-mg = kit.quiet_import("wave3_m_ground")
 kit.forget()
 w = kit.w
 sh = kit.sh
@@ -76,17 +71,6 @@ def shell_piece(i, j, open_):
 for s, i, open_ in ((241, 1, False), (243, 2, False), (231, 1, True), (233, 2, True)):
     w.model(f"green_shell_eye_{s}", [(J, s, True)])(
         lambda i=i, open_=open_: shell_piece(i, 2, open_))
-
-
-# --- The eye orb, shut ---------------------------------------------------------------------------------------------
-
-def eye_orb_shut():
-    """wave3_m_ground's orb with its shell shut: no socket, eye, rim or seams."""
-    mg.eye_orb()
-    kit.remove(["socket", "eye", "eye_core", "eye_rim", "seam_round", "seam_top"])
-
-
-w.model("eye_orb_83", [(J, 83, True)])(eye_orb_shut)
 
 
 if __name__ == "__main__":

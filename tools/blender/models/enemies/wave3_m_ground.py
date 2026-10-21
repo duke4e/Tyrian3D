@@ -1,6 +1,7 @@
 """Enemies of wave 3, batch M (sheet J: TORM, BONUS, BOTANY A), the grey machines on the foliage; modelled
 as their sprites look (models.cfg: yaw=0). The green machines are in wave3_m.py, the big green shell
-in wave3_m_shell.py. (The grey building with the green windows, J 5, 7, 43, 45: polish_window_block.py.)
+in wave3_m_shell.py. (The grey building with the green windows, J 5, 7, 43, 45: polish_window_block.py; TORM's eye orb, J 83 and its
+frames: polish_eye_orb.py.)
 
 - field_gun_barrel, field_gun_breech, field_gun_mount (J 89; J 127 and 129 below it): the heavy grey
   gun of TORM, BONUS and BOTANY A, which the events place as 89 above 127 with 129 to its right
@@ -8,14 +9,10 @@ in wave3_m_shell.py. (The grey building with the green windows, J 5, 7, 43, 45: 
   along it, raised up the screen to the left on a curved neck from a base on the ground (the sprites'
   foliage is the map's, not modelled), a red light glowing in the base (its frames brighten it as it
   fires); built whole and cut (origin).
-- eye_orb (J 83): the grey armoured orb of TORM on its brackets on the ground (the sprite's foliage is
-  the map's, not modelled), open on its red eye (its frames open the shell and light the eye: the model
-  shows it open, the eye glowing).
 
 usage: Blender -b --factory-startup -P wave3_m_ground.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole gun --preview <prefix>]
 """
-import math
 import os
 import sys
 
@@ -23,7 +20,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_m_kit as w  # noqa: E402
-from wave3_m_kit import art, k, sh, pal, px, py, model, whole, J  # noqa: E402,F401  (art: wave3_ap_torm.py reads ground.art)
+from wave3_m_kit import art, k, sh, pal, model, whole, J  # noqa: E402,F401  (art: wave3_ap_torm.py reads ground.art)
 
 
 def greys(prefix):
@@ -134,46 +131,6 @@ def gun_piece(x0, x1, y0, y1):
 model("field_gun_barrel", [(J, 89, True)])(lambda: gun_piece(-12, 12, 0, 28))
 model("field_gun_breech", [(J, 127, True)])(lambda: gun_piece(-12, 12, -28, 0))
 model("field_gun_mount", [(J, 129, True)])(lambda: gun_piece(12, 36, -28, 0))
-
-
-# --- J 83: the eye orb -----------------------------------------------------------------------------
-
-@model("eye_orb", [(J, 83, True)])
-def eye_orb():
-    """A grey armoured orb on the foliage, held in brackets at its lower right; its shell is drawn
-    back from its front, where a red eye glows in a dark socket, seams running round it."""
-    m = greys("orb")
-    eye = pal("orb_eye", 0x77, metallic=0.0, roughness=0.15, glow=1.3)
-    eye_core = pal("orb_eye_core", 0x7b, metallic=0.0, roughness=0.1, glow=1.8)
-    shell_edge = pal("orb_shell_edge", 0x0b, metallic=0.65, roughness=0.25)
-
-    # No foliage under it: the sprite's leaves are the map's ground, which the game draws under it (batch AV);
-    # the orb stands on its brackets on the ground.
-    cx, cy, rad = px(10.5), py(10.5), 8.6
-    orb = w.sphere("orb", (cx, cy, 8.4), (rad, rad, 7.6), m["mid"], 36, 18)
-    w.paint_faces(orb, lambda c, n: m["light"] if n.z > 0.75 and n.x < 0.2 else m["dark"] if n.z < 0.1 else None)
-    # The seams: one round its middle, one over its top.
-    w.tube("seam_round", [(cx + (rad + 0.05) * math.cos(a), cy + (rad + 0.05) * math.sin(a), 8.4)
-                          for a in [math.radians(t) for t in range(0, 361, 15)]], 0.35, m["darker"], 6)
-    w.tube("seam_top", [(cx + 0.0, cy + (rad + 0.02) * math.cos(a), 8.4 + 7.62 * math.sin(a))
-                        for a in [math.radians(t) for t in range(0, 181, 12)]], 0.32, m["darker"], 6)
-    # The eye: a socket in the front (down the screen and to the left), the shell's rim round it.
-    d = Vector((-0.28, 0.12, 0.95)).normalized()
-    centre = Vector((cx, cy, 8.4)) + Vector((d.x * rad, d.y * rad, d.z * 7.6)) * 0.86
-    socket = w.sphere("socket", (0, 0, 0), (3.6, 3.6, 1.2), m["black"], 20, 8)
-    lens_ = w.sphere("eye", (0, 0, 0), (2.8, 2.8, 1.5), eye, 20, 10)
-    core = w.sphere("eye_core", (0, 0, 0), (1.1, 1.1, 0.6), eye_core, 12, 6)
-    rim = w.hoop("eye_rim", (0, 0, 0), [(3.4, -0.5), (4.3, -0.2), (4.2, 0.45), (3.5, 0.5)], shell_edge, 28)
-    z = Vector((0, 0, 1))
-    rot = z.rotation_difference(d).to_matrix().to_4x4()
-    for obj, lift in ((socket, 0.0), (lens_, 0.4), (core, 1.5), (rim, 0.4)):
-        obj.data.transform(Matrix.Translation(centre) @ rot @ Matrix.Translation((0, 0, lift)))
-    core.data.transform(Matrix.Translation((-0.5, 0.4, 0.0)))
-    # The brackets at the lower right holding it, down to the foliage.
-    for i, (a, b) in enumerate((((6.5, -3.0, 4.0), (9.2, -5.2, 0.8)), ((3.0, -6.8, 4.0), (5.0, -9.6, 0.8)),
-                                ((7.6, 1.2, 4.6), (10.4, 0.6, 0.8)))):
-        w.tube(f"bracket{i}", [a, ((a[0] + b[0]) / 2 + 0.6, (a[1] + b[1]) / 2 - 0.4, a[2] - 0.6), b], 1.0, m["grey"], 10)
-        w.sphere(f"bracket_foot{i}", b, (1.5, 1.5, 0.8), m["dark"], 10, 5)
 
 
 w.run()

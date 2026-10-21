@@ -1,12 +1,11 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the rocks and the stone face; modelled as
 their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py; the two big asteroids (D 1 3 / 39 41 and
-D 7 9 / 45 47) in polish_asteroids.py; the small rocks (D 95, 114, 133, 152) in polish_pebbles.py.
+D 7 9 / 45 47) in polish_asteroids.py; the small rocks (D 95, 114, 133, 152) in polish_pebbles.py; the sky rocks D 43, 85 and 123 in
+polish_sky_rocks.py.
 
 - crag_* (D 13, 15, 31, 34, 49, 51, 53, 88, 89, 91): the huge asteroid of ASTEROID1 and ASTEROIDS,
   72 x 84 pixels, which the game puts together from ten sprites (six 2x2, four 1x1), built whole
   the same way and cut into the ten pieces (origin).
-- rock_a, rock_b, rock_c (D 43, 85, 123): asteroids floating in the sky, faceted like D 5's
-  (asteroid_lumpy, now polish_asteroid_lumpy.py).
 - rock_beacon (D 93): such an asteroid with a red beacon on its side (its frames 55 and 18 light
   the beacon: it glows).
 - rock_blue_eye (D 229): such an asteroid with a blue light set in its middle (its frames 231-235
@@ -123,7 +122,7 @@ for _name, _sprite, _large, _left, _top in CRAG_PIECES:
         lambda large=_large, left=_left, top=_top: crag_piece(large, left, top))
 
 
-# --- Asteroids in the sky (D 43, 85, 123, 93, 229) ------------------------------------------------
+# --- Asteroids in the sky (D 93, 229) ------------------------------------------------
 
 def sky_rock(g, prefix, seed, height=6.6, depth=None):
     """A faceted grey asteroid over the sprite's outline (as asteroid_lumpy)."""
@@ -138,24 +137,6 @@ def sky_rock(g, prefix, seed, height=6.6, depth=None):
         s = shade(c.x, c.y) - 4.0 + 1.5 * (-0.45 * n.x + 0.35 * n.y + 0.8 * n.z)
         return s if n.z > -0.2 else 0.5
     return w.faceted_rock("rock", poly, height, shades, seed=seed, depth=depth, shade_of=shade_of)
-
-
-@model("rock_a", [(D, 43, True)])
-def rock_a():
-    """A faceted grey asteroid (D 43)."""
-    sky_rock(w.grid(art.D43, 24), "rock_a", 7, height=6.4)
-
-
-@model("rock_b", [(D, 85, True)])
-def rock_b():
-    """A faceted grey asteroid (D 85)."""
-    sky_rock(w.grid(art.D85, 24), "rock_b", 13, height=7.0)
-
-
-@model("rock_c", [(D, 123, True)])
-def rock_c():
-    """A faceted grey asteroid (D 123)."""
-    sky_rock(w.grid(art.D123, 24), "rock_c", 21, height=6.8)
 
 
 @model("rock_beacon", [(D, 93, True)])

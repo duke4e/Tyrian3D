@@ -1,10 +1,10 @@
 """Helpers for batch AO of wave 3: the damaged looks (and wrecks) of objects earlier batches modelled, built by the
 earlier scripts' own builders and damaged as the damaged sprites show (burnt, dented, broken), cut into the same
 pieces so that each swaps in place when the game switches an enemy to its damaged sprite (the enemy data's dgr).
-The scripts: wave3_ao_works.py (sheet P: the cargo pod, the bronze pump's dome, the drilling rig's crane, the tan
-launcher, the small block; and the stone face's right half), wave3_ao_boss.py (sheet 4: the tusked boss),
-wave3_ao_deli.py (sheet C: DELI's tower, the gun on its mast, the long cannons). The damaged sprites' pixels
-are in wave3_ao_art.py. (SAVARA's airship damaged: polish_airship_damaged.py.)
+The script: wave3_ao_works.py (sheet P: the cargo pod, the drilling rig's crane, the tan launcher, the small block;
+and the stone face's right half). The damaged sprites' pixels are in wave3_ao_art.py. (SAVARA's airship damaged,
+the tusked boss's, the bronze pump's dome's and DELI's tower's, the gun on its mast's and the long cannons' damaged
+looks: polish_*.py.)
 
 The earlier scripts are imported as they are (quiet_import: their build loops, run on import by some of them,
 build nothing), so that their output stays unchanged; their registered models are then forgotten (forget) and
@@ -321,16 +321,6 @@ def removed(fi, fd):
             return fi.g[r][c] is not None and fd.g[r][c] is None
         return False
     return at
-
-
-def significant(dv, iv):
-    """A damaged pixel worth painting: a new colour (another ramp), much darker or lighter (3 shades or more),
-    an ember, or a pixel the intact sprite does not draw (small changes of shade are left: they would speckle)."""
-    if dv is None or dv == iv:
-        return False
-    if iv is None or dv >> 4 != iv >> 4 or is_hot(dv):
-        return True
-    return abs((dv & 15) - (iv & 15)) >= 3
 
 
 def wreck(objects, fi, fd, painter, box, walls=2, blur=0, keep_floor="floor", delete=True,

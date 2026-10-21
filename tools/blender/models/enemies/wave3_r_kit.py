@@ -1,5 +1,5 @@
 """Helpers for the batch R models of wave 3 (sheet G: TORM, BOTANY A and B, BONUS, GYGES, MISTAKES, SOH JIN,
-GRYPHON, GEM WAR, MARKERS; wave3_r.py, the machines on the foliage; wave3_r_beasts.py, the creatures and
+GRYPHON, GEM WAR, MARKERS; wave3_r_beasts.py, the creatures and
 ships): the sprites' pixels (wave3_r_art.py), the part builders of batch J (wave3_j_kit: palette materials,
 inflated parts, turned parts, tubes, painting faces, cutting a whole object into the pieces the game draws,
 the build loop), the foliage of batch M (wave3_m_kit: sheet G draws its ground machines on the same leaves

@@ -2,10 +2,8 @@
 look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py; the cage turret (D 275), the red furnace
 (D 267) and the red medallion (D 117) are built by polish_cage_turret.py, polish_red_furnace.py and
 polish_medallion_red.py; the eye tub (D 193 and its frames) by polish_eye_tub.py; the dome cannon (D 245 above 283)
-by polish_dome_cannon.py.
+by polish_dome_cannon.py; the vent dome (D 241 and its frames) by polish_vent_dome.py.
 
-- vent_dome (D 241): the grey armoured block on the tiled floor, reaching in from the top of its
-  sprite, a red-hot crescent vent under its rounded front (the frames 239, 243 brighten it: it glows).
 - shell_ship (D 157): the ship of two dark curved shells round a red eye (its frames close the shells;
   the model shows them open).
 - bronze_beetle (D 16): the bronze beetle with red wing cases and green hooked legs.
@@ -27,53 +25,6 @@ import wave3_j_kit as w  # noqa: E402
 from wave3_j_kit import k, sh, pal, px, model  # noqa: E402
 
 D = "enemy_D"
-
-
-# --- D 241: the vent dome ------------------------------------------------------------------------
-
-@model("vent_dome", [(D, 241, True)])
-def vent_dome():
-    """A grey armoured block reaching in from the top of the sprite, its south end rounded, panel
-    seams across and along it, and a red-hot crescent vent under its rounded front."""
-    grey = pal("vent_grey", 0x09, metallic=0.6, roughness=0.3)
-    grey_light = pal("vent_grey_light", 0x0b, metallic=0.6, roughness=0.25)
-    seam_mat = pal("vent_seam", 0x06, metallic=0.5, roughness=0.4)
-    hot = pal("vent_hot", 0x73, metallic=0.0, roughness=0.4, glow=1.0)
-    hotter = pal("vent_hotter", 0x76, metallic=0.0, roughness=0.3, glow=1.5)
-    cx, cy, half, r_end = -1.0, 2.5, 8.0, 4.6
-
-    # No floor round it: the sprite's tiles are the map's ground (batch AV); the block stands on the ground.
-    outline = [(cx + half, 18.0), (cx - half, 18.0)]
-    for i in range(25):
-        a = math.radians(180 + 180 * i / 24)
-        outline.append((cx + half * math.cos(a), cy + r_end * math.sin(a)))
-
-    def grooves(x, y, z):
-        d = 0.0
-        d += math.exp(-((y - 7.5) / 0.35) ** 2)
-        if y > 7.5:
-            d += math.exp(-((x + 4.5) / 0.35) ** 2) + math.exp(-((x - 3.5) / 0.35) ** 2)
-        else:
-            d += math.exp(-((x + 2.5) / 0.3) ** 2) + math.exp(-((x + 0.5) / 0.3) ** 2)
-        return z - 0.55 * min(1.0, d) * min(1.0, max(0.0, z - 1.5) / 2.0)
-    block = sh.inflate("block", [outline], grey, sh.pillow_profile(7.0, 3.2, crown=0.8), bottom=0.0, spacing=0.45,
-                       z_fn=grooves)
-    w.simplify_bottom(block)
-    sh.cut_planes([block], [((0, 14.0, 0), (0, 1, 0))])
-    w.decimate(block, 2200)
-    k.smooth(block, 50)
-    w.paint_faces(block, lambda c, n: seam_mat if n.z > 0.2 and (abs(c.y - 7.5) < 0.45 or
-                  (c.y > 7.5 and min(abs(c.x + 4.5), abs(c.x - 3.5)) < 0.45) or
-                  (c.y < 7.5 and min(abs(c.x + 2.5), abs(c.x + 0.5)) < 0.4)) and c.z > 2.5 else
-                  grey_light if n.z > 0.85 and c.z > 7.0 and c.y > 8.0 else None)
-    # The crescent vent under the front.
-    arc = []
-    for i in range(17):
-        a = math.radians(195 + 150 * i / 16)
-        arc.append((cx + (half + 0.4) * math.cos(a), cy + (r_end + 2.2) * math.sin(a), 1.0))
-    w.tube("vent", arc, 1.35, hot, 12, squash=0.8)
-    inner = [(x, y + 0.4, 1.7) for x, y, _ in arc[3:-3]]
-    w.tube("vent_core", inner, 0.6, hotter, 8)
 
 
 # --- D 157: the shell ship -----------------------------------------------------------------------

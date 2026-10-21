@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch R (sheet G), the creatures and ships of GRYPHON, GEM WAR, MARKERS, GYGES,
 MISTAKES and SOH JIN; modelled as their sprites look (models.cfg: yaw=0). The grey machines on TORM's
-leaves are in wave3_r.py.
+leaves are polish_mortar.py's, polish_cliff_bunker.py's and polish_jaw_gun.py's.
 (GRYPHON's blue orb tower, orb_tower (G 201), is built by polish_orb_tower.py, GEM WAR's blue chevron (G 163) by
 polish_blue_chevron.py, GYGES' violet pincer (G 121) by polish_violet_pincer.py and the golden tusk beetle (G 49) by
 polish_tusk_beetle.py.)
