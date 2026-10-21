@@ -6,8 +6,7 @@ origins (origin). (The big dark orb, E 191 193 above 229 231: polish_dark_orb.py
 
 (The tan spiked mine of MINES, ** ALE ** and ASTEROIDS, E 201, is polish_spike_mine.py's chrome mine in the sprite's
 colours: models.cfg color=sprite.)
-- bubbles_hot (E 155): BUBBLES' boiling bubbles, the cluster of E 153's bubbles (the bubbles model) glowing
-  red hot; its frames pulse from dark red to yellow and back, the model glows throughout.
+(BUBBLES' boiling bubbles, E 155: polish_bubbles_hot.py.)
 - dome_magma (E 203): ASTEROIDS' red glass dome on a grey pedestal, molten swirls inside it (its frames
   brighten them: they glow).
 - tan_crater_tl, tan_crater_tr, tan_crater_bl, tan_crater_br (E 51, 53 above 55, 93; events 1138-1141 at
@@ -27,28 +26,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_aa_kit as kit  # noqa: E402
-from wave3_aa_kit import art, k, sh, w, pal, Frame, Painter  # noqa: E402
-
-
-# --- E 155: the boiling bubbles ---------------------------------------------------------------------
-
-BUBBLES = Frame(art.BUBBLES_HOT, 24, (12, 14))
-# The bubbles of E 153's model (rounds.py: column, row, radius), which the boiling ones share.
-BUBBLE_LAYOUT = [(5.5, 7, 6.0), (18.5, 5, 4.8), (12.5, 11.5, 5.2), (20.5, 12, 3.6), (5.5, 18.5, 5.6), (13, 21, 4.6),
-                 (9.5, 14.5, 3.4)]
-
-
-@kit.model("bubbles_hot", mask=lambda: BUBBLES.mask())
-def bubbles_hot():
-    f = BUBBLES
-    painter = Painter("bubhot", shades={7: (2, 4, 6, 7, 8, 9, 0xa, 0xc, 0xe)}, metallic=0.1, roughness=0.22,
-                      glow={0x72: 0.25, 0x74: 0.45, 0x76: 0.7, 0x77: 0.85, 0x78: 1.0, 0x79: 1.2, 0x7a: 1.4,
-                            0x7c: 1.8, 0x7e: 2.2})
-    for i, (col, row, r) in enumerate(BUBBLE_LAYOUT):
-        x, y = col + 0.5 - 12, 14 - (row + 0.5)
-        b = w.sphere(f"bubble{i}", (x, y, r * 0.55), (r, r, r * 0.85), painter(0x77), 36, 18)
-        sh.cut_planes([b], [((0, 0, 0.0), (0, 0, -1))])
-        kit.paint_sprite(b, f, painter, wall_steps=-2, default=painter(0x74), blur=1, probe=-1.0)
+from wave3_aa_kit import art, k, w, pal, Frame, Painter  # noqa: E402
 
 
 # --- E 203 and E 243: the glass domes ---------------------------------------------------------------

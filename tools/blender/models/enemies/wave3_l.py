@@ -1,7 +1,7 @@
 """Wave 3, batch L of the enemy models: the remaining enemies of sheet 5 (episode 4), authored as their sprites
-look (models.cfg: yaw=0 unless noted; the stinger, 5 207: polish_flesh_stinger.py):
+look (models.cfg: yaw=0 unless noted; the stinger, 5 207: polish_flesh_stinger.py; HARVEST's purple machine, 5 3:
+polish_purple_beacon.py):
 
-- purple_beacon (5 3): HARVEST's purple machine with horned lobes and two glowing green slots.
 - eye_hatch (5 164): BRAINIAC's floor hatch with a red eye glowing between two lids (the purple octagon and
   the dark corners the sprite draws round it are the map's floor, not modelled).
 - stone_fist, stone_fist_r (5 81, 5 83): BRAINIAC's faceted grey stones at the screen's edges (mirror images).
@@ -26,61 +26,6 @@ import wave3_l_art as art  # noqa: E402
 import wave3_l_kit as w  # noqa: E402
 import wave3_l_parts as parts  # noqa: E402
 from wave3_l_kit import k, sh, pal, model  # noqa: E402
-
-
-# --- 5 3: HARVEST's purple machine -----------------------------------------------------------------
-
-@model("purple_beacon", 3)
-def purple_beacon():
-    """HARVEST's purple machine, as drawn: two horned lobes at the top curving down into a neck, a brow
-    with two dark eye pits, ribbed shoulders sweeping down to both sides, and below them a block with
-    two glowing green slots (the frames run a green bar down them; the model keeps the slots lit).
-    Each part is inflated from its region of the sprite's pixels."""
-    rows = [list(r) for r in art.BEACON.strip("\n").split("\n")]
-    for c in (9, 14):
-        rows[13][c] = "4"  # the eye pits are modelled
-    a = w.Art("\n".join("".join(r) for r in rows), (12, 14))
-    hull = pal("beacon_hull", 0x58, metallic=0.4, roughness=0.35)
-    light = pal("beacon_light", 0x5b, metallic=0.4, roughness=0.3)
-    dark = pal("beacon_dark", 0x54, metallic=0.3, roughness=0.5)
-    green = pal("beacon_green", 0xc9, metallic=0.1, roughness=0.2, glow=1.6)
-    mid = pal("beacon_mid", 0x56, metallic=0.4, roughness=0.38)
-
-    def region(name, keep, mat, aspect, max_h, z_fn=None):
-        polys = a.polys(rows=a.select(keep), smooth=2, epsilon=0.4)
-        obj = w.rounded(name, polys, mat, aspect=aspect, max_height=max_h, spacing=0.55, z_fn=z_fn)
-        return w.simplify_flat(obj)
-    # The shoulders, sloping down outwards, with folds along them.
-    shoulders = region("shoulders", lambda c, r, ch: (c <= 6 or c >= 17) and r >= 10, mid, 0.8, 4.2,
-                       z_fn=lambda x, y, z: z * (1.0 - 0.45 * w.smoothstep(6.0, 12.0, abs(x))) + 0.6)
-    for side in (-1, 1):
-        for i, x in enumerate((side * 9.5, side * 6.8)):
-            path = [(x, y) for y in (3.6, 1.0, -2.0, -5.0, -7.2 + 0.6 * i)]
-            pts = w.catmull([(px, py, sh.surface_z(shoulders, px, py, 2.0) - 0.15) for px, py in path], 0.6)
-            w.tube(f"fold{side}{i}", pts, 0.55, light, 8)
-    # The lower block with its glowing slots and a ridge down the middle.
-    block = region("block", lambda c, r, ch: 6 <= c <= 17 and r >= 15, hull, 0.9, 5.0)
-    w.paint(block, lambda c, n: 1 if abs(c.x) < 2.6 and n.z > 0.3 else 0, [hull, dark])
-    w.tube("ridge", [(0.0, -3.4, 4.6), (0.0, -7.0, 4.4), (0.0, -10.4, 3.4)], 0.6, light, 8)
-    for side in (-1, 1):
-        x = side * 4.0
-        slot = w.plate(f"slot{side}", [w.rounded_rect(x, -6.6, 1.1, 3.9)], green, 0.5, radius=0.4, base=-0.3,
-                       spacing=0.3)
-        w.on_surface(slot, block, sink=0.0)
-    # The brow across the middle, with two dark eye pits.
-    brow = region("brow", lambda c, r, ch: 4 <= c <= 19 and 10 <= r <= 15, hull, 0.9, 5.6)
-    for side in (-1, 1):
-        x, y = side * 2.5, 0.5
-        w.sphere(f"eye{side}", (x, y, sh.surface_z(brow, x, y, 4.0) - 0.5), (1.1, 0.9, 0.8), dark, 12, 6)
-    # The neck and the head, two horned lobes curving into it.
-    head = region("head", lambda c, r, ch: r <= 11 and 5 <= c <= 18, mid, 1.0, 6.4)
-    for side in (-1, 1):
-        path = [(side * 2.6, 13.4), (side * 3.4, 11.2), (side * 2.9, 8.4), (side * 1.6, 5.6), (side * 0.9, 3.4)]
-        pts = w.catmull([(x, y, sh.surface_z(head, x, y, 4.0) - 0.4) for x, y in path], 0.5)
-        radii = [1.6 - 0.7 * i / (len(pts) - 1) for i in range(len(pts))]
-        w.tube(f"horn{side}", pts, 1.0, light, 10, radii=radii)
-    for obj in w.meshes():
-        w.lift(obj, -2.5)
 
 
 # --- 5 164: BRAINIAC's hatch with a red eye ----------------------------------------------------------

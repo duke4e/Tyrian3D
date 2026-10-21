@@ -1,17 +1,13 @@
 """Batch Y of wave 3 (sheet 8: IXMUCANE and SAWBLADES), the objects the game draws in pieces, modelled as
 their sprites look (models.cfg: yaw=0), each built whole and cut into its sprites' pieces, drawn at their
 own origins (origin) so they meet. The level events place the pieces as the sheet arranges them. The kit is
-wave3_y_kit.py, the pixels wave3_y_art.py.
+wave3_y_kit.py, the pixels wave3_y_art.py. (The red pod, 8 153 above 191: polish_ixm_pod.py.)
 
 - ixm_dock_tl, _tc, _tr, _bl, _bc, _br (8 39, 41, 43 above 77, 79, 81; event 7, all on the top layer):
   IXMUCANE's red ship docked between two grey engines, 72 x 56: the engines are blocks with louvred vents
   on top, red caps at their front, a red light and a glowing exhaust grille with fins at their back; between
   them the red ship, a keel with three cross bars (the widest, its wings, joins the engines) and a spike at
   its tail, lies over a grey dome with two grey pods under its tail.
-- ixm_pod_top, ixm_pod_body (8 153 above 191; events 6 and 10, both on the ground): the red pod lying on
-  the ground, its nose up the screen: a big red sack with two glowing slits (191's frames pulse them), a
-  brown flared collar, a grey head with a dark window in a red frame and a red lamp glowing on its nose
-  (153's frames pulse it).
 - ixm_spider_l, ixm_spider_r (8 229 beside 231; event 7, both on the top layer): the big tan spider:
   a red heart-shaped body with a red spike at its front and a dark head, two grey fangs under it and four
   tan legs a side, curving out and up the screen at their ends (its frames 233/235, 273/275 move the legs a
@@ -126,69 +122,6 @@ _DOCK = [("ixm_dock_tl", -24.0, 14.0, (0, 24, 0, 28)), ("ixm_dock_tc", 0.0, 14.0
 y.pieced("ixm_dock", build_dock, (72, 56),
          [(name, (cx - 12.0, cx + 12.0, cy - 14.0, cy + 14.0), (cx, cy), (lambda b=box: y.frame_mask(BOSS, b)))
           for name, cx, cy, box in _DOCK])
-
-
-# --- 8 153 above 191: the red pod --------------------------------------------------------------------
-
-POD = y.frame("POD", 24, (12, 28))
-
-
-def build_pod():
-    ax = -0.5
-    red = pal("pod_red", 0x46, metallic=0.25, roughness=0.4)
-    red_light = pal("pod_red_light", 0x4a, metallic=0.25, roughness=0.35)
-    red_dark = pal("pod_red_dark", 0x42, metallic=0.2, roughness=0.5)
-    slit = pal("pod_slit", 0x79, metallic=0.0, roughness=0.3, glow=2.0)
-    slit_rim = pal("pod_slit_rim", 0x72, metallic=0.1, roughness=0.35, glow=0.6)
-    collar = pal("pod_collar", 0x15, metallic=0.25, roughness=0.5)
-    collar_light = pal("pod_collar_light", 0x18, metallic=0.25, roughness=0.45)
-    collar_dark = pal("pod_collar_dark", 0x12, metallic=0.2, roughness=0.55)
-    grey = pal("pod_grey", 0x08, metallic=0.5, roughness=0.3)
-    grey_light = pal("pod_grey_light", 0x0b, metallic=0.5, roughness=0.28)
-    grey_dark = pal("pod_grey_dark", 0x04, metallic=0.45, roughness=0.4)
-    window = pal("pod_window", 0x11, metallic=0.3, roughness=0.2)
-    lamp = pal("pod_lamp", 0x78, metallic=0.0, roughness=0.3, glow=2.0)
-    lamp_hot = pal("pod_lamp_hot", 0x7c, metallic=0.0, roughness=0.25, glow=2.6)
-    lamp_rim = pal("pod_lamp_rim", 0x45, metallic=0.35, roughness=0.35)
-
-    # The sack: an egg lying down the screen, fullest low.
-    keys = [(0.0, 0.01), (0.6, 2.6), (1.6, 4.8), (3.5, 6.6), (6.0, 8.0), (9.0, 9.0), (12.0, 9.5), (15.0, 9.5),
-            (18.0, 8.9), (21.0, 7.6), (23.6, 5.6), (25.6, 3.4), (27.0, 1.2), (27.5, 0.01)]
-    sack = lathe_axis("sack", k.profile(keys, 0.5), red, (ax, 4.0, 6.6), (0, -1, 0), segments=32, squash=0.72)
-    y.paint_faces(sack, lambda c, nrm: red_light if nrm.z > 0.75 and nrm.x < 0.1 else red if nrm.z > 0.3 else red_dark)
-    # The two glowing slits across its back.
-    for i, yy in enumerate((-5.6, -7.6)):
-        z = 6.6 + 0.72 * 9.4 - 0.25
-        y.rounded_box(f"slit_rim{i}", (ax - 0.5, yy, z), (7.4, 1.6, 1.0), slit_rim, bevel=0.4)
-        y.rounded_box(f"slit{i}", (ax - 0.5, yy, z + 0.3), (6.0, 0.9, 0.8), slit, bevel=0.3)
-    # A few folds down the sack.
-    prof = k.profile(keys, 0.5)
-
-    def sack_z(x, yy):
-        r = y.interp(prof, 4.0 - yy)
-        return 6.6 + 0.72 * math.sqrt(max(0.0, r * r - (x - ax) ** 2))
-    for side in (-1, 1):
-        path = [(ax + side * 3.4, 1.0), (ax + side * 4.9, -6.0), (ax + side * 5.2, -13.0), (ax + side * 3.8, -19.6)]
-        pts = [(p.x, p.y, sack_z(p.x, p.y) - 0.2) for p in y.catmull([(px, py, 0.0) for px, py in path], 0.6)]
-        tube(f"fold{side}", pts, 0.5, red_dark, 8)
-    # The collar: a flared brown skirt round the head's foot.
-    lathe_axis("collar", [(0.0, 9.4), (0.5, 10.5), (1.5, 10.9), (2.8, 10.2), (4.2, 8.8), (5.8, 7.4), (7.2, 6.6)],
-               collar, (ax, 2.4, 6.6), (0, 1, 0), segments=32, squash=0.74)
-    # The head: a grey drum along the axis, the dark window in a red frame on top.
-    head = lathe_axis("head", [(0.0, 6.4), (0.4, 6.6), (6.6, 6.4), (7.2, 6.0), (7.6, 5.0)], grey, (ax, 9.6, 6.6),
-                      (0, 1, 0), segments=32, squash=0.9)
-    y.paint_faces(head, lambda c, nrm: grey_light if nrm.z > 0.8 and c.x < ax - 1 else grey if nrm.z > 0.3 else grey_dark)
-    y.rounded_box("frame", (ax - 0.5, 13.8, 12.3), (6.4, 7.8, 1.2), red, bevel=0.45)
-    y.rounded_box("window", (ax - 0.5, 13.8, 12.75), (4.0, 5.6, 0.8), window, bevel=0.35)
-    # The lamp on its nose.
-    sphere("lamp", (ax + 0.4, 18.4, 6.8), (4.8, 5.2, 4.4), lamp, 24, 12)
-    sphere("lamp_core", (ax + 0.4, 20.2, 8.4), (2.4, 2.4, 2.0), lamp_hot, 16, 8)
-    y.torus("lamp_rim", (ax + 0.2, 17.6, 6.6), 5.0, 0.7, lamp_rim, 32, 10, scale_y=0.5)
-
-
-y.pieced("ixm_pod", build_pod, (24, 56),
-         [("ixm_pod_top", (-12.0, 12.0, 0.0, 28.0), (0.0, 14.0), lambda: y.frame_mask(POD, (0, 24, 0, 28))),
-          ("ixm_pod_body", (-12.0, 12.0, -28.0, 0.0), (0.0, -14.0), lambda: y.frame_mask(POD, (0, 24, 28, 56)))])
 
 
 # --- 8 229 beside 231: the big spider ------------------------------------------------------------------

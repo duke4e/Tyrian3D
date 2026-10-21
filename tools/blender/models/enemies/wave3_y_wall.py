@@ -5,10 +5,6 @@ The levels build the wall from 2x2 sprites, one column of three (top, middle, bo
 a left end (8 169 / 207 / 245), a slot (277 / 203 / 241), one or three rock columns (167 / 205 / 243),
 a slot again and a right end (161 / 199 / 237), all on one layer (events 6, 7, 10 or 15).
 
-- ixm_wall_slot_top, _mid, _low (8 277, 203, 241): a red machine set into the wall between rocks: a
-  housing with a lip at the back and a glowing window on top (277's frames brighten it: it glows), a
-  smaller lit panel, two bars at the top's front edge and, down the cliff, a grille of red bars over a
-  dark well, ending in a red foot.
 - ixm_wall_end_l_top, _mid, _low (8 169, 207, 245) and ixm_wall_end_r_top, _mid, _low (8 161, 199, 237):
   the wall's ends, the rock rounding off.
 
@@ -16,7 +12,8 @@ Each column's left and right edges have the same section (the ridge, its boulder
 so the columns meet whatever their neighbours; every piece is cut from its column and drawn at its own
 origin (origin). ixm_wall_end_l_low replaces rock_tip (8 245, wave2_g.py), a low tip made alone.
 The rock column (8 167, 205, 243) stays in the whole, so that its neighbours keep their overlap with it, but its
-pieces, ixm_wall_rock_top, _mid and _low, are polish_ixm_wall_rock.py's.
+pieces, ixm_wall_rock_top, _mid and _low, are polish_ixm_wall_rock.py's; the slot column stays as rock too (the
+ends overlap it), its pieces and machine are polish_ixm_wall_slot.py's.
 
 The wall stands upright. The sprites draw it in the game's oblique view: its top of boulders (rows 0-44) and,
 below it, its face of rock ribs (rows 44-69) seen from the front. Modelled as drawn, the face was a long ramp
@@ -36,10 +33,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_y_kit as y  # noqa: E402
-from wave3_y_kit import k, sh, pal, tube, smoothstep  # noqa: E402
+from wave3_y_kit import sh, pal, smoothstep  # noqa: E402
 
 WALL = y.frame("WALL", 96, (48, 42))  # whole coordinates: x -48..48, y -42..42
-SLOT_HOT = y.frame("SLOT_HOT", 24, (12, 14))
 CREST = 15.0        # the height of the ridge's top
 FRONT = 6.0         # where the ridge starts falling (y)
 FOOT = -28.5        # where it reaches the ground (y)
@@ -176,59 +172,6 @@ def build_column(name, c0, mats, ends=None):
     return obj
 
 
-# --- The slot's machine ------------------------------------------------------------------------------
-
-def slot_machine(cx):
-    """The red machine of the slot column whose centre is at x = cx (its axis 1 pixel left of it)."""
-    ax = cx - 1.0
-    red = pal("slot_red", 0x73, metallic=0.5, roughness=0.3)
-    red_light = pal("slot_red_light", 0x76, metallic=0.5, roughness=0.25)
-    red_dark = pal("slot_red_dark", 0x70, metallic=0.45, roughness=0.4)
-    well = pal("slot_well", 0x01, metallic=0.2, roughness=0.7)
-    lip = pal("slot_lip", 0x7b, metallic=0.2, roughness=0.25, glow=0.7)
-    window = pal("slot_window", 0x7a, metallic=0.0, roughness=0.2, glow=2.4)
-    window_core = pal("slot_window_core", 0x7e, metallic=0.0, roughness=0.2, glow=3.0)
-    panel_light = pal("slot_panel_light", 0x77, metallic=0.0, roughness=0.3, glow=1.2)
-
-    def surf(yy):
-        return ridge(yy)
-
-    # The housing: a block level with the ridge's top from the back edge to y 9.5.
-    top = CREST + 0.4
-    house = y.slab("house", [(ax - 6.0, 9.5), (ax + 6.0, 9.5), (ax + 6.0, 37.6), (ax - 6.0, 37.6)], 0.0, top, red,
-                   bevel=0.7, segments=2)
-    y.paint_faces(house, lambda c, nrm: red_dark if nrm.z < 0.5 else None)
-    # The lip at its back edge, catching the light.
-    tube("lip", [(ax - 5.6, 35.6, top + 0.1), (ax + 5.6, 35.6, top + 0.1)], 1.1, lip, 12)
-    # The window's frame and the glowing pane in it.
-    y.rounded_box("window_frame", (ax, 23.4, top), (7.6, 12.0, 1.0), red_dark, bevel=0.4)
-    y.rounded_box("window", (ax + 0.1, 23.4, top + 0.25), (5.2, 9.6, 0.9), window, bevel=0.35)
-    y.rounded_box("window_core", (ax + 0.1, 23.2, top + 0.55), (3.4, 6.6, 0.6), window_core, bevel=0.25)
-    # A band across under it and the small lit panel.
-    y.rounded_box("band", (ax, 16.8, top + 0.05), (11.0, 1.6, 0.8), red_dark, bevel=0.3)
-    y.rounded_box("panel", (ax + 0.5, 12.2, top + 0.1), (6.0, 2.8, 0.7), panel_light, bevel=0.3)
-    y.rounded_box("panel_frame", (ax + 0.5, 12.2, top - 0.15), (8.2, 4.2, 0.8), red_light, bevel=0.35)
-
-    # Down the front slope: two bars, then a grille over a dark well, then a red foot.
-    def slope_block(name, x0, x1, ya, yb, lift, mat, depth=2.0, bevel=0.35):
-        pts = []
-        steps = max(2, int(abs(ya - yb) / 0.8))
-        for i in range(steps + 1):
-            yy = ya + (yb - ya) * i / steps
-            pts.append((yy, surf(yy) + lift))
-        outline = [(yy, z) for yy, z in pts] + [(yy, z - depth) for yy, z in reversed(pts)]
-        return y.prism_x(name, outline, x0, x1, mat, bevel=bevel, segments=1)
-    slope_block("bar_l", ax - 3.8, ax - 1.1, 10.0, -1.5, 0.5, red_light, depth=3.0)
-    slope_block("bar_r", ax + 0.0, ax + 3.6, 10.0, -1.5, 0.5, red, depth=3.0)
-    slope_block("well", ax - 5.0, ax + 4.5, -1.0, -18.8, -0.4, well, depth=3.0)
-    for i, yy in enumerate((-3.5, -5.5, -7.5, -9.5)):
-        half = 4.6 - 0.2 * i
-        z = surf(yy) + 0.2
-        tube(f"grille{i}", [(ax - half, yy, z), (ax + half, yy, z)], 0.6, red_light if i % 2 == 0 else red, 10)
-    slope_block("foot", ax - 4.2, ax + 4.0, -11.2, -18.0, 0.5, red, depth=3.0)
-    slope_block("foot_rim", ax - 4.7, ax + 4.5, -17.6, -19.6, 0.1, red_dark, depth=2.0)
-
-
 # --- The whole and its pieces ----------------------------------------------------------------------------
 
 def build_wall(stand=True):
@@ -238,7 +181,6 @@ def build_wall(stand=True):
         c0 = int(cx - 12 + 48)
         build_column(f"rock_{name}", c0, mats)
         build_backing(f"rock_back_{name}", c0, mats[3])
-    slot_machine(-12.0)
     if stand:
         y.bake()
         upright(y.meshes())
@@ -246,7 +188,7 @@ def build_wall(stand=True):
 
 PIECES = []
 for _name, _cx, _sprites in COLUMNS:
-    if _name == "rock":  # (its pieces: polish_ixm_wall_rock.py)
+    if _name in ("rock", "slot"):  # (their pieces: polish_ixm_wall_rock.py, polish_ixm_wall_slot.py)
         continue
     for _row, (_suffix, _y0) in enumerate((("top", 14.0), ("mid", -14.0), ("low", -42.0))):
         _sprite = _sprites[_row]

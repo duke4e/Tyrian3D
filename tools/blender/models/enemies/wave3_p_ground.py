@@ -1,80 +1,28 @@
 """Wave 3, batch P of the enemy models, continued (the rods: polish_rod.py): sheet 2's ground sprites drawn
 on rock and dirt, modelled as their sprites look (models.cfg: yaw=0), the rock and dirt as round boulders
-and cobbles where the sprites draw them (wave3_p_kit.boulders). (TYRIAN's panel of purple pads: polish_purple_pads.py.)
+and cobbles where the sprites draw them (wave3_p_kit.boulders). (TYRIAN's panel of purple pads: polish_purple_pads.py;
+its golden machines, 2 77-121: polish_gold_machines.py.)
 
-- gold_domes_tl, _tr, _bl, _br (2 77, 79 above 115, 117): the dark steel housing on the dirt of TYRIAN
-  and HOLES (the dirt is the map's ground, not modelled) with four golden domes (a big one with a raised plate between two slots, two at its sides
-  in steel clamps fed by golden pipes, one at the bottom with a dark port); event 12 places the four
-  sprites as the sheet arranges them. Built whole and cut (origin).
-- gold_pyramid_tl, _tr, _bl, _br (2 81, 83 above 119, 121): its neighbour: a dark steel capsule with
-  two fangs, a golden pyramid lying on it pointing up the screen, a golden rod down from it and golden
-  horns curling out to the ground (the sprites' dirt is the map's, not modelled). Built whole and cut (origin).
 - red_works_tl, _tr, _bl, _br (2 15, 17 above 53, 55): TYRIAN's red works in the rocks: a steel deck
   crowded with red blocks and pipes, a column of two glowing yellow grilles, a tan box with a red
   button, a dark recess with a tan floor and tan rails. Built whole and cut (origin).
 
 usage: Blender -b --factory-startup -P wave3_p_ground.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       [--whole gold_domes,gold_pyramid,red_works --preview <prefix>]
+       [--whole red_works --preview <prefix>]
 """
-import math
 import os
 import sys
 
 import numpy as np
-from mathutils import Matrix, Vector
+
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_p_kit as w  # noqa: E402
-from wave3_p_kit import art, k, sh, pal, model, whole, grid, regions, ramp, shade  # noqa: E402
+from wave3_p_kit import art, pal, model, whole, grid, ramp, shade  # noqa: E402
 
 
-# --- TYRIAN's golden machines on the dirt (48 x 56, built whole and cut into four sprites) ------------
-
-def XY(col, row):
-    """A pixel's centre of a 48 x 56 object as (x, y)."""
-    return (col + 0.5 - 24.0, 28.0 - row - 0.5)
-
-
-def dirtish(v, c=0, r=0):
-    """The dirt's pixels: the dark browns (ramp 1, shades 0-4)."""
-    return v is not None and ramp(v) in (1, 0xa) and shade(v) <= 4
-
-
-def machine_mask(g):
-    """The machine's pixels: the largest region not reachable through the dirt from the border, its
-    holes filled."""
-    dirt = w.flood(g, dirtish)
-    rest = [[not dirt[r][c] and g[r][c] is not None for c in range(len(g[0]))] for r in range(len(g))]
-    return w.fill_holes(w.largest_component(rest))
-
-
-def gold_mats(prefix):
-    return {
-        "gold": pal(f"{prefix}_gold9", 0x19, metallic=0.75, roughness=0.3),
-        "light": pal(f"{prefix}_gold12", 0x1c, metallic=0.75, roughness=0.25),
-        "dark": pal(f"{prefix}_gold5", 0x15, metallic=0.7, roughness=0.35),
-        "deep": pal(f"{prefix}_gold2", 0x12, metallic=0.4, roughness=0.5),
-        "steel": pal(f"{prefix}_steel", 0x05, metallic=0.6, roughness=0.35),
-        "steel_light": pal(f"{prefix}_steel_light", 0x09, metallic=0.6, roughness=0.3),
-        "steel_dark": pal(f"{prefix}_steel_dark", 0x02, metallic=0.5, roughness=0.45),
-    }
-
-
-def housing(name, outline, m, height, radius=1.4, crown=0.6):
-    """The dark steel housing: a plate over an outline (pixel corners (column, row) of the 48 x 56
-    object), its corners rounded."""
-    poly = [(c - 24.0, 28.0 - r) for c, r in outline]
-    area = sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
-               for i in range(len(poly)))
-    if area < 0:
-        poly = poly[::-1]
-    poly = sh._chaikin(poly, 2)
-    obj = sh.inflate(name, [poly], m["steel"], sh.pillow_profile(height, radius, crown=crown), bottom=0.0, base=0.0,
-                     rim=0.2, spacing=0.8)
-    k.smooth(w.simplify_bottom(obj), 45)
-    return k.smooth(w.planar(obj, 2.5), 45)
-
+# --- Helpers for the pieces cut in four ------------
 
 def inside_outline(outline, col, row):
     """Whether a pixel's centre lies inside an outline of pixel corners."""
@@ -85,100 +33,6 @@ def inside_outline(outline, col, row):
         if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
             inside = not inside
     return inside
-
-
-DOMES_HOUSING = [(5, 8), (9, 5), (31, 5), (34.5, 8), (37.5, 13), (37.5, 37), (35, 41), (34, 46), (29.5, 50.5),
-                 (16, 51), (10.5, 46.5), (7.5, 44), (7, 40), (3, 38.5), (2, 35), (2, 14)]
-PYRAMID_HOUSING = [(15, 3), (26, 3), (29, 4.5), (31, 7.5), (31.5, 12), (31.5, 41), (31, 44), (29.5, 48), (28, 51),
-                   (26.5, 50.5), (23, 46), (21.5, 46), (21, 48), (19.5, 51.5), (17.5, 51), (14, 47), (10.5, 44),
-                   (9, 41), (9, 12), (9.5, 7.5), (11.5, 4.5)]
-
-
-def domes_whole():
-    """A dark steel housing on the dirt carrying four golden domes: a big one at the top with a raised
-    plate between two dark slots, two at its sides held by steel clamps and fed by golden pipes from
-    the big one, and one at the bottom with a dark port."""
-    m = gold_mats("gdome")
-    # No dirt round it: the sprites' dirt is the map's ground, which the game draws under it (batch AV).
-    housing("housing", DOMES_HOUSING, m, 2.6)
-    domes = {"big": ((-4.5, 16.4, 1.6), (12.2, 10.9, 8.2)), "left": ((-16.0, -3.0, 1.4), (7.2, 5.4, 4.8)),
-             "right": ((7.0, -3.0, 1.4), (6.8, 5.4, 4.8)), "bottom": ((-4.5, -12.6, 1.4), (6.8, 5.8, 5.0))}
-    for key, (c, r) in domes.items():
-        w.sphere(f"dome_{key}", c, r, m["gold"], 32 if key == "big" else 24, 14 if key == "big" else 10)
-    # The big dome's face: a raised plate (an arch over a block) between two dark slots.
-    bc, br = domes["big"]
-    for i, (x0, x1, y0, y1, grow) in enumerate(((-9.6, 0.6, 16.5, 22.5, 0.7), (-7.6, -1.4, 8.6, 17.0, 1.1))):
-        cap = w.sphere(f"plate{i}", bc, (br[0] + grow, br[1] + grow, br[2] + grow), m["light"], 32, 16)
-        sh.cut_box([cap], x0, x1, y0, y1)
-    for x in (-11.0, 2.0):
-        pts = [(x, y, w.on_ellipsoid(bc, br, x, y, -0.15)) for y in (19.5, 17.0, 14.5, 12.0)]
-        w.tube(f"slot{x:.0f}", pts, 0.9, m["deep"], 8, squash=0.7)
-    # The pipes from the big dome down into the side domes.
-    for side, pts in ((-1, [(-12.0, 8.6, 5.6), (-14.2, 5.6, 5.4), (-15.4, 2.6, 5.0)]),
-                      (1, [(3.0, 8.6, 5.6), (5.3, 5.6, 5.4), (6.4, 2.6, 5.0)])):
-        w.tube(f"pipe{side}", w.catmull(pts, 0.5), 1.15, m["gold"], 10)
-    # Steel clamps on the side domes, a dark port in the bottom one.
-    for key, x in (("left", -15.5), ("right", 6.5)):
-        c, r = domes[key]
-        for dx in (-1.1, 1.1):
-            xx = x + dx
-            pts = [(xx, y, w.on_ellipsoid(c, r, xx, y, 0.1)) for y in (-1.0, -3.0, -5.0, -6.8)]
-            w.tube(f"clamp_{key}{dx:.0f}", pts, 0.75, m["steel_light"], 8, squash=0.8)
-    c, r = domes["bottom"]
-    w.sphere("port", (-5.0, -13.6, w.on_ellipsoid(c, r, -5.0, -13.6, -0.5)), (1.5, 1.3, 0.8), m["steel_dark"], 12, 6)
-
-
-def pyramid_whole():
-    """A dark steel capsule on the dirt, rounded at the top, two fangs at the bottom with a dark slot
-    between them, panels on its upper part; a golden pyramid lies on it pointing up the screen, its left
-    face lit and its right one dark, a golden rod running down from it; golden horns curl out over the
-    dirt either side."""
-    m = gold_mats("gpyr")
-    # No dirt round it: the sprites' dirt is the map's ground, which the game draws under it (batch AV).
-    body = housing("housing", PYRAMID_HOUSING, m, 5.0, radius=1.8, crown=0.8)
-    top = lambda x, y: sh.surface_z(body, x, y, 5.0)  # noqa: E731
-    # Panels on the upper part, a slot between the fangs below.
-    for x0, x1 in ((-11.5, -7.5), (-0.5, 3.5)):
-        cx = (x0 + x1) / 2
-        w.rounded_box(f"panel{x0:.0f}", (cx, 18.5, top(cx, 18.5) - 0.3), (x1 - x0, 10.0, 1.2), m["steel_light"],
-                      bevel=0.45)
-    w.tube("slot", [(-2.5, y, top(-2.5, y) - 0.15) for y in (-9.0, -12.0, -15.0, -18.0, -20.5)], 0.85,
-           m["steel_dark"], 8, squash=0.45)
-    # The pyramid: its point up the screen, its ridge rising to its front edge.
-    zb = top(-3.5, 6.0) - 0.4
-    apex, left, right, front = (-3.5, 15.2, zb + 0.6), (-18.6, -0.6, zb), (11.6, -0.6, zb), (-3.5, 0.4, zb + 9.0)
-    import bmesh
-    import bpy
-    bm = bmesh.new()
-    vs = [bm.verts.new(p) for p in (apex, left, right, front)]
-    for face in ((vs[0], vs[1], vs[3]), (vs[0], vs[3], vs[2]), (vs[1], vs[2], vs[3]), (vs[0], vs[2], vs[1])):
-        bm.faces.new(face)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    mesh = bpy.data.meshes.new("pyramid")
-    bm.to_mesh(mesh)
-    bm.free()
-    pyr = bpy.data.objects.new("pyramid", mesh)
-    bpy.context.scene.collection.objects.link(pyr)
-    pyr.data.materials.append(m["gold"])
-    k.bevel(pyr, 0.45, 2)
-    w.paint_faces(w.sh.apply_modifiers(pyr), lambda c, n: m["light"] if n.x < -0.25 and n.z > 0.2 else
-                  m["dark"] if n.x > 0.25 and n.z > 0.2 else m["deep"] if n.z <= 0.2 and n.y < -0.5 else None)
-    # The rod down from its front edge, a collar where it leaves.
-    w.tube("rod", [(-3.5, 0.0, zb + 1.6), (-3.5, -3.5, top(-3.5, -3.5) + 0.5), (-3.5, -7.5, top(-3.5, -7.5) + 0.3)],
-           1.1, m["gold"], 10)
-    w.rounded_box("rod_collar", (-3.5, -0.9, zb + 1.2), (3.4, 1.4, 2.4), m["dark"], bevel=0.5)
-    # The horns curling out and down to the ground.
-    for i, pts in enumerate((((10.0, 8.6), (7.0, 10.5), (5.0, 12.6), (4.2, 15.0)),
-                             ((10.0, 14.6), (7.5, 16.5), (5.5, 18.6), (4.6, 21.2)),
-                             ((30.6, 9.5), (33.0, 11.5), (35.0, 13.5), (36.4, 15.6)),
-                             ((31.4, 15.5), (33.6, 17.5), (35.4, 19.5), (36.4, 21.2)))):
-        path = []
-        for j, (c, r) in enumerate(pts):
-            x, y = XY(c, r)
-            path.append((x, y, 3.4 - 2.8 * j / (len(pts) - 1)))
-        path = w.catmull(path, 0.5)
-        radii = [1.0 - 0.35 * j / (len(path) - 1) for j in range(len(path))]
-        w.tube(f"horn{i}", path, radii, m["gold"], 8)
 
 
 def quarters(name, sprites, builder):
@@ -278,8 +132,6 @@ def works_whole():
     box("tan_rail", 15.0, 3.6, 28.0, 5.0, 1.5, 3.4, tan_light, 0.5)
     box("tan_rod", 31.0, 7.0, 33.0, 15.8, 1.5, 5.6, tan_light, 0.6)
 
-quarters("gold_domes", (77, 79, 115, 117), domes_whole)
-quarters("gold_pyramid", (81, 83, 119, 121), pyramid_whole)
 quarters("red_works", (15, 17, 53, 55), works_whole)
 
 w.run()

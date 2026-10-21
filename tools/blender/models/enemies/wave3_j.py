@@ -1,11 +1,9 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the machines; modelled as their sprites
 look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py; the cage turret (D 275), the red furnace
 (D 267) and the red medallion (D 117) are built by polish_cage_turret.py, polish_red_furnace.py and
-polish_medallion_red.py; the eye tub (D 193 and its frames) by polish_eye_tub.py.
+polish_medallion_red.py; the eye tub (D 193 and its frames) by polish_eye_tub.py; the dome cannon (D 245 above 283)
+by polish_dome_cannon.py.
 
-- dome_cannon_barrel, dome_cannon_dome (D 245 above D 283): the brown dome on the tiled floor with a
-  red band of lights and a heavy dark cannon reaching up the screen from its ribbed bronze collar,
-  in two pieces (origin); the dome's lights flash (281): they glow.
 - vent_dome (D 241): the grey armoured block on the tiled floor, reaching in from the top of its
   sprite, a red-hot crescent vent under its rounded front (the frames 239, 243 brighten it: it glows).
 - shell_ship (D 157): the ship of two dark curved shells round a red eye (its frames close the shells;
@@ -16,81 +14,19 @@ The ground machines stand directly on the ground: the tiled floor the sprites dr
 draws it under them), so the models have none (batch AV); their parts that stood on it reach down to z 0.
 
 usage: Blender -b --factory-startup -P wave3_j.py -- [--only name,name] [--preview <prefix>]
-       [--check <directory of the extracted sheets>] [--stats 1] [--whole dome_cannon --preview <prefix>]
+       [--check <directory of the extracted sheets>] [--stats 1]
 """
 import math
 import os
 import sys
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_j_kit as w  # noqa: E402
-from wave3_j_kit import art, k, sh, pal, px, py, model, whole  # noqa: E402
+from wave3_j_kit import k, sh, pal, px, model  # noqa: E402
 
 D = "enemy_D"
-
-
-# --- D 245 above D 283: the dome cannon ----------------------------------------------------------
-
-@whole("dome_cannon", (24, 56))
-def dome_cannon_whole():
-    """A brown dome on the ground: its north half ribbed bronze, a red band across it with two
-    lights in a tan frame, a seam down its south side; from its top a heavy dark cannon reaches up
-    the screen through a grey, a tan and a red collar, its muzzle open. Built whole and cut in two at
-    y = 0; the tiled floor both sprites draw round it is the map's ground (batch AV): not modelled."""
-    brown = pal("cannon_brown", 0x14, metallic=0.5, roughness=0.4)
-    rib_light = pal("cannon_rib", 0x18, metallic=0.55, roughness=0.35)
-    rib_dark = pal("cannon_rib_dark", 0x15, metallic=0.5, roughness=0.4)
-    seam = pal("cannon_seam", 0x1a, metallic=0.6, roughness=0.3)
-    red = pal("cannon_red", 0x46, metallic=0.4, roughness=0.35)
-    lamp = pal("cannon_lamp", 0x4c, metallic=0.1, roughness=0.2, glow=0.9)
-    tan = pal("cannon_tan", 0xa4, metallic=0.5, roughness=0.4)
-    black = pal("cannon_black", 0x02, metallic=0.75, roughness=0.25)
-    grey = pal("cannon_grey", 0x09, metallic=0.7, roughness=0.3)
-    bore = pal("cannon_bore", 0x01, metallic=0.2, roughness=0.7)
-
-    # The dome.
-    dcx, dcy = -1.5, -4.6
-    dome = k.ellipsoid("dome", (dcx, dcy, 0.0), (9.8, 12.2, 9.0), brown, 40, 20)
-    sh.flat_bottom([dome])
-    k.smooth(dome, 50)
-
-    def paint(c, n):
-        if n.z < -0.5:
-            return None
-        if -3.8 < c.y < 0.4:
-            return red
-        if c.y >= 0.4:
-            return rib_light if int((c.x - dcx + 20.0) / 1.6) % 2 == 0 else rib_dark
-        return None
-    w.paint_faces(dome, paint)
-    # The lights on the band, in a tan frame, and the seam down the south side.
-    for y in (-1.0, -5.4):
-        z = sh.surface_z(dome, -1.8, y, 8.0)
-        w.rounded_box(f"lamp_frame{y}", (-1.8, y, z - 0.4), (4.6, 3.2, 1.6), tan, bevel=0.4)
-        w.sphere(f"lamp{y}", (-1.8, y, z + 0.3), (1.8, 1.25, 0.8), lamp, 16, 8)
-    path = [(-1.5, y, sh.surface_z(dome, -1.5, y, 4.0) + 0.05) for y in (-8.0, -10.5, -13.0, -15.0, -16.2)]
-    w.tube("seam", path, 0.5, seam, 8)
-    # The cannon.
-    start, direction = Vector((-1.2, 4.5, 5.6)), Vector((0.0, 1.0, 0.12))
-    w.lathe_axis("cannon_neck", [(0.0, 4.2), (6.0, 4.4), (6.2, 4.6)], black, start, direction, 32)
-    w.lathe_axis("collar_grey", [(5.6, 4.9), (5.9, 5.5), (7.6, 5.5), (7.9, 5.0)], grey, start, direction, 32)
-    w.lathe_axis("collar_tan", [(7.8, 5.0), (8.0, 5.3), (8.9, 5.3), (9.1, 5.0)], tan, start, direction, 32)
-    w.lathe_axis("collar_red", [(9.0, 5.0), (9.2, 5.4), (10.1, 5.4), (10.3, 5.0)], red, start, direction, 32)
-    barrel = [(10.0, 5.2), (10.4, 5.7), (19.6, 5.7), (20.6, 5.5), (21.2, 5.0), (21.3, 4.0), (20.4, 3.4), (20.3, 0.01)]
-    w.lathe_axis("barrel", barrel, black, start, direction, 32, smooth_angle=40)
-    w.lathe_axis("bore", [(20.0, 3.45), (20.45, 3.45), (20.5, 0.01)], bore, start, direction, 24)
-
-
-def dome_cannon_piece(y0, y1):
-    dome_cannon_whole()
-    w.bake()
-    w.piece(w.meshes(), -12, 12, y0, y1)
-
-
-model("dome_cannon_barrel", [(D, 245, True)])(lambda: dome_cannon_piece(0, 28))
-model("dome_cannon_dome", [(D, 283, True)])(lambda: dome_cannon_piece(-28, 0))
 
 
 # --- D 241: the vent dome ------------------------------------------------------------------------

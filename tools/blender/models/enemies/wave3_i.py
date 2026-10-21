@@ -5,10 +5,7 @@ UNDERDELI's mite, floor eye and brick crab: polish_core_machine.py, polish_deli_
 polish_brick_crab.py.)
 
 - blue_gate_* (^ 16, 18 above 54, 56): the blue gate of BRAINIAC and the ICE levels.
-- cruiser_rear, _mid, _nose (^ 198, 200, 201) and cruiser_rear_l, _mid_l, _nose_l (^ 206, 204, 203):
-  UNDERDELI's blue cruiser flying sideways, to the right and (mirrored) to the left. 201 overlaps 200
-  by 12 pixels (203 overlaps 204): each piece is the part of the ship its sprite shows.
-- eyespy_lips_left, eyespy_lips_right (^ 196, 208): EYESPY's lips.
+(UNDERDELI's blue cruiser, ^ 198-206, and EYESPY's lips, ^ 196 208: polish_cruiser.py, polish_lips.py.)
 - brick_bulb_* (^ 153, 155 above 191, 193): a red bulb under a grey hood and two rings round red
   cylinders, in UNDERDELI's brick wall.
 - rock_machine_* (^ 77, 79, 81 above 115, 117, 119): SURFACE's grey machine half buried in tan rock.
@@ -21,7 +18,7 @@ coloured in bands of the pixels' shades, with the helpers of wave3_i_kit.py.
 
 usage: Blender -b --factory-startup -P wave3_i.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       Blender -b --factory-startup -P wave3_i.py -- --whole gate,ring,cruiser,sand,hand,hand_r
+       Blender -b --factory-startup -P wave3_i.py -- --whole gate,ring,sand,hand,hand_r
        --preview <prefix>
 """
 import math
@@ -122,111 +119,6 @@ w.WHOLES["gate"] = (gate_whole, (48, 56))
 for name, sprite, box in (("blue_gate_tl", 16, (-24, 0, 0, 28)), ("blue_gate_tr", 18, (0, 24, 0, 28)),
                           ("blue_gate_bl", 54, (-24, 0, -28, 0)), ("blue_gate_br", 56, (0, 24, -28, 0))):
     model(name, [(sprite, True)])(lambda box=box: (gate_whole(), w.piece(*box)))
-
-
-# --- ^ 198, 200, 201 and 206, 204, 203: the blue cruiser ------------------------------------------
-
-def cruiser_whole(mirror=False):
-    """UNDERDELI's blue cruiser flying sideways, its nose to the right (the mirror image to the left):
-    a round engine at the rear, a ribbed waist with bulges above and below, the long hull with a big
-    swept wing on each side, a second smaller pair of wings at the front and a long pointed nose."""
-    a = w.Art(art.SHIP, 60, (30, 14))
-    X, Y = a.X, a.Y
-    cy, cz = 0.5, 5.0
-    hull = pal("cruiser_hull", 0x37, metallic=0.55, roughness=0.3)
-    hull_light = pal("cruiser_light", 0x3a, metallic=0.55, roughness=0.25)
-    deep = pal("cruiser_deep", 0x34, metallic=0.5, roughness=0.35)
-    teal = pal("cruiser_teal", 0xd9, metallic=0.5, roughness=0.25)
-    pale = pal("cruiser_pale", 0xdc, metallic=0.5, roughness=0.2)
-    dark = pal("cruiser_dark", 0x32, metallic=0.4, roughness=0.5)
-    glow = pal("cruiser_glow", 0xdd, metallic=0.0, roughness=0.2, glow=1.2, color=(150, 230, 255))
-    # The engine: a ball at the rear with a glowing core, a collar in front of it.
-    w.ellipsoid("engine", (X(5.0), cy, cz), (4.4, 4.7, 4.0), hull, 28, 14)
-    w.ellipsoid("engine_glow", (X(1.2), cy, cz), (1.3, 2.4, 2.1), glow, 14, 8)
-    w.lathe("collar", [(X(8.5), 3.0), (X(9.0), 4.3), (X(11.0), 4.3), (X(11.5), 3.0)], deep, axis="x", at=(cy, cz),
-            segments=24, squash=0.85)
-    # The waist: rings and two bulges above and below.
-    w.lathe("waist", [(X(10.0), 3.3), (X(12.0), 3.7), (X(14.0), 3.2), (X(16.0), 3.8), (X(18.0), 3.3), (X(20.5), 4.0)],
-            hull, axis="x", at=(cy, cz), segments=24, squash=0.85)
-    for side in (-1, 1):
-        w.ellipsoid(f"bulge{side}", (X(12.6), cy + side * 5.8, cz - 0.6), (3.3, 2.9, 2.4), hull_light, 18, 9)
-        w.ellipsoid(f"bump{side}", (X(17.2), cy + side * 6.4, cz - 0.9), (2.0, 1.9, 1.6), hull, 14, 7)
-    # The hull.
-    w.lathe("hull", [(X(19.5), 3.8), (X(22.0), 4.6), (X(30.0), 4.9), (X(38.0), 4.9), (X(42.0), 4.7), (X(46.0), 4.4),
-                     (X(49.0), 3.8), (X(51.0), 2.9), (X(52.5), 1.6), (X(53.2), 0.5)], hull, axis="x", at=(cy, cz),
-            segments=28, squash=0.8)
-    w.lathe("hull_band", [(X(24.0), 4.85), (X(25.0), 5.0), (X(26.0), 4.85)], deep, axis="x", at=(cy, cz), segments=28,
-            squash=0.8)
-    # The ridge along the hull's top and the nose spike.
-    w.tube("ridge", [(X(26.0), cy, cz + 3.6), (X(36.0), cy, cz + 3.7), (X(44.0), cy, cz + 2.8)], 0.8, hull_light, 10)
-    w.tube("nose", [(X(44.0), cy, cz + 0.4), (X(50.0), cy, cz + 0.3), (X(55.6), cy, cz + 0.2)], [1.2, 1.0, 0.25], pale,
-           12)
-    # The wings: the big swept pair along the hull and the small pair at the front.
-
-    def wing(name, outline, z0, z1, mat):
-        for side in (-1, 1):
-            pts = [(X(c), cy + side * h) for c, h in outline]
-            if side < 0:
-                pts = pts[::-1]
-            obj = k.slab(f"{name}{side}", pts, z0, z1, mat, bevel_width=0.35)
-            w.sh.apply_modifiers(obj)
-            k.smooth(obj, 35)
-    wing("wing", [(19.3, 4.0), (19.8, 8.0), (24.0, 9.2), (26.6, 12.6), (39.4, 12.6), (40.2, 10.5), (37.5, 4.0)],
-         cz - 0.9, cz + 0.5, teal)
-    wing("wing_top", [(21.0, 4.6), (21.6, 7.4), (25.2, 8.4), (27.6, 11.6), (37.6, 11.6), (38.0, 10.0), (35.5, 4.6)],
-         cz + 0.5, cz + 1.1, deep)
-    wing("fin", [(37.5, 4.0), (40.5, 8.5), (44.4, 12.4), (48.6, 12.4), (51.6, 10.0), (54.0, 7.0), (53.0, 4.0)],
-         cz - 0.7, cz + 0.6, hull_light)
-    wing("fin_top", [(39.5, 4.4), (42.0, 8.2), (45.0, 11.2), (48.2, 11.3), (50.8, 9.4), (52.4, 7.0), (51.4, 4.4)],
-         cz + 0.6, cz + 1.1, hull)
-    # A glowing slit along the hull's side, under the ridge.
-    for side in (-1, 1):
-        w.tube(f"slit{side}", [(X(28.0), cy + side * 2.6, cz + 3.0), (X(40.0), cy + side * 2.4, cz + 2.7)], 0.45,
-               dark, 8)
-    if mirror:
-        w.mirror_all()
-
-
-w.WHOLES["cruiser"] = (cruiser_whole, (60, 28))
-for name, sprite, box, mirror in (("cruiser_rear", 198, (-30, -6, -14, 14), False),
-                                  ("cruiser_mid", 200, (-6, 18, -14, 14), False),
-                                  ("cruiser_nose", 201, (6, 30, -14, 14), False),
-                                  ("cruiser_rear_l", 206, (6, 30, -14, 14), True),
-                                  ("cruiser_mid_l", 204, (-18, 6, -14, 14), True),
-                                  ("cruiser_nose_l", 203, (-30, -6, -14, 14), True)):
-    model(name, [(sprite, True)])(lambda box=box, mirror=mirror: (cruiser_whole(mirror), w.piece(*box)))
-
-
-# --- ^ 196, 208: the lips --------------------------------------------------------------------------
-
-def lips(mirror=False):
-    """EYESPY's lips, the corner of a mouth pointing left (208: right): a full upper and lower lip,
-    parted along a dark line, glossy."""
-    a = w.Art(art.LIPS, 24, (12, 14))
-
-    def label(v, c, r):
-        if v >> 4 == 1 or (v & 15) <= 1:
-            return ","
-        return "u" if r <= 12 - (0 if c > 14 else 0) and not (r == 12 and c >= 14) else "l"
-    rows = a.rows(label)
-    red = w.ramp_bands("lips", 4, [(0.0, 3), (3.6, 4), (4.6, 5), (5.6, 6), (6.6, 7), (7.6, 8), (8.6, 9), (9.6, 10),
-                                    (10.6, 11), (11.6, 12)], metallic=0.0, roughness=0.18)
-    dark = pal("lips_dark", 0x41, metallic=0.0, roughness=0.5)
-    whole = a.rows(lambda v, c, r: "#")
-    region("lips_base", a, whole, "#", 2.0, radius=1.0, bands=[(0.0, dark)], smooth=2, epsilon=0.4,
-           select=lambda v, c, r: True, coarse_from=1.2)
-    region("upper", a, rows, "u", 6.0, radius=3.6, crown=0.5, bands=red, smooth=2, epsilon=0.4, min_area=2.0,
-           select=lambda v, c, r: rows[r][c] == "u", blur=1, grow=0.55, rim=0.8, aspect=1.4, target=1400)
-    region("lower", a, rows, "l", 6.8, radius=3.8, crown=0.6, bands=red, smooth=2, epsilon=0.4, min_area=2.0,
-           select=lambda v, c, r: rows[r][c] == "l", blur=1, grow=0.55, rim=0.8, aspect=1.4, target=1400)
-    w.sh.flat_bottom(w.meshes())
-    w.sh.cut_planes(w.meshes(), [((12.0, 0, 0), (1, 0, 0))])  # the sprite's edge: the mouth goes on beyond it
-    if mirror:
-        w.mirror_all()
-
-
-model("eyespy_lips_left", [(196, True)])(lambda: lips(False))
-model("eyespy_lips_right", [(208, True)])(lambda: lips(True))
 
 
 # --- ^ 153, 155 above 191, 193: the brick bulb ----------------------------------------------------
