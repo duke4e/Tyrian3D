@@ -1,11 +1,9 @@
 """Enemies of wave 1, batch C, facing the way their sprites do (models.cfg: yaw=0 unless noted; the claw gate
 is polish_claw_gate.py):
 
-- deli_arm_left / deli_arm_right (sheet T 39 / 49): the gun arms hanging from DELI's boss, ribbed red
-  arms ending in pods with a glowing eye.
 - purple_pod (sheet 5 47): a purple pod with a red strap and a golden clasp (HARVEST, LAVA RUN).
 (The teal spiked mine, A 167, is polish_spike_mine.py's chrome mine in the sprite's colours: models.cfg color=sprite.)
-(The crimson orb, K 195: polish_orb_crimson.py.)
+(The crimson orb, K 195: polish_orb_crimson.py; DELI's gun arms, T 39 and 49: polish_deli_boss.py.)
 - savara_fin_left / savara_fin_right (sheet F 153 / 163): the outer glowing fins of SAVARA's boss
   (their lower ends continue into the boss's next sprites).
 
@@ -21,7 +19,7 @@ import os
 import sys
 
 import bpy
-from mathutils import Matrix, Vector, geometry
+from mathutils import Vector, geometry
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
@@ -192,158 +190,6 @@ def relief(name, polygon, top, mats, bottom=0.0, spacing=0.55, cut=None, mat_fn=
         poly.material_index = mi
     k.recalc_normals(obj)
     return k.smooth(obj, smooth)
-
-
-def frame_rings(path, radii, segments=12, squash=1.0, up=(0, 0, 1)):
-    """Cross-section rings along a path of points (tube, hose, claw): circles of the given radii
-    perpendicular to the path, squash scaling them towards the up direction."""
-    path = [Vector(p) for p in path]
-    radii = radii if isinstance(radii, (list, tuple)) else [radii] * len(path)
-    rings = []
-    up = Vector(up)
-    for i, p in enumerate(path):
-        t = (path[min(i + 1, len(path) - 1)] - path[max(i - 1, 0)]).normalized()
-        u = up if abs(t.dot(up)) < 0.95 else Vector((1, 0, 0))
-        side = t.cross(u).normalized()
-        upv = side.cross(t).normalized()
-        r = radii[i]
-        rings.append([p + side * math.cos(2 * math.pi * j / segments) * r +
-                      upv * math.sin(2 * math.pi * j / segments) * r * squash for j in range(segments)])
-    return rings
-
-
-def tube(name, path, radii, mat, segments=12, squash=1.0, smooth=60):
-    """A tube along a path (see frame_rings), its ends closed."""
-    obj = k.loft(name, frame_rings(path, radii, segments, squash), mat)
-    return k.smooth(obj, smooth)
-
-
-def catmull(points, step=0.5):
-    """A smooth path through points (3D), sampled about every step."""
-    pts = [Vector(p) for p in points]
-    out = []
-    for i in range(len(pts) - 1):
-        p0, p1, p2, p3 = pts[max(i - 1, 0)], pts[i], pts[i + 1], pts[min(i + 2, len(pts) - 1)]
-        count = max(1, int(math.ceil((p2 - p1).length / step)))
-        for j in range(count):
-            t = j / count
-            t2, t3 = t * t, t * t * t
-            out.append(0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-                              (-p0 + 3 * p1 - 3 * p2 + p3) * t3))
-    out.append(pts[-1])
-    return out
-
-
-def cone(name, base, tip, radius, mat, vertices=10, tip_radius=0.0):
-    base, tip = Vector(base), Vector(tip)
-    axis = tip - base
-    bpy.ops.mesh.primitive_cone_add(vertices=vertices, radius1=radius, radius2=tip_radius, depth=axis.length,
-                                    location=(base + tip) / 2)
-    obj = bpy.context.active_object
-    obj.name = name
-    obj.rotation_euler = axis.to_track_quat("Z", "Y").to_euler()
-    obj.data.materials.append(mat)
-    return obj
-
-
-def bake_transforms():
-    for obj in bpy.context.scene.objects:
-        if obj.type == "MESH":
-            obj.data.transform(obj.matrix_world)
-            obj.matrix_world = Matrix.Identity(4)
-
-
-def mirror_scene(offset=0.0):
-    """Mirrors every mesh across x = 0, then moves it by offset along x (a model's mirror twin)."""
-    bake_transforms()
-    flip = Matrix.Translation((offset, 0, 0)) @ Matrix.Scale(-1, 4, (1, 0, 0))
-    for obj in bpy.context.scene.objects:
-        if obj.type == "MESH":
-            obj.data.transform(flip)
-            obj.data.flip_normals()
-
-
-# --- DELI's gun arms (sheet T 39 and 49) ----------------------------------------------------------
-# The left arm comes down from the boss (the sprite's top edge), bends at a cuff to the right and
-# ends in a pod with a glowing eye; the right arm (T 49) is its mirror one pixel to the left.
-
-ARM_POD = art("""
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-........................
-.....################...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......##############...
-.......#############....
-........###########.....
-.........#########......
-..........######........
-""")
-
-
-def deli_arm(side):
-    k.reset()
-    shell = k.material("arm_shell", palette=72, metallic=0.35, roughness=0.35)
-    pale = k.material("arm_pale", palette=74, metallic=0.35, roughness=0.3)
-    black = k.material("arm_black", palette=2, metallic=0.4, roughness=0.25)
-    grey = k.material("arm_grey", palette=6, metallic=0.6, roughness=0.3)
-    eye = k.material("arm_eye", palette=124, roughness=0.15, emission=(255, 200, 60), emission_strength=2.5)
-    iris = k.material("arm_iris", palette=117, roughness=0.2, emission=(220, 20, 0), emission_strength=1.6)
-    # The upper arm: a pleated tube from above the sprite's top down to the cuff.
-    axis_x, axis_z, radius = px(9), 1.6, 6.4
-    rings = []
-    for i in range(13):
-        y = 14.6 - i * 0.9
-        ring = []
-        for j in range(48):
-            a = 2 * math.pi * j / 48
-            pleat = 1 + 0.045 * math.cos(18 * a) if math.sin(a) > -0.2 else 1
-            ring.append(Vector((axis_x + math.cos(a) * radius * pleat, y,
-                                axis_z + math.sin(a) * radius * 0.72 * pleat)))
-        rings.append(ring)
-    k.smooth(k.loft("upper_arm", rings[::-1], shell), 70)
-    # The cuff: the elbow, across to the pod.
-    tube("cuff", catmull([(px(3.6), py(9.0), 2.6), (px(8), py(9.2), 4.6), (px(14), py(9.2), 4.8),
-                          (px(18.2), py(9.6), 3.6)]), 2.3, pale, segments=20, squash=0.9)
-    # The pod: rounded, a bright brow over the eye socket, a grey nozzle beside it.
-    relief("pod", outline(ARM_POD), lambda x, y, d: round_edge(d, 1.2, 7.4, 4.6), shell,
-           bottom=lambda x, y, d: -round_edge(d, 0.0, 3.0, 3.0), smooth=60, spacing=0.7, band=1.5, coarse=2)
-    tube("brow", catmull([(px(8.2), py(13.4), 4.6), (px(10.5), py(13.2), 7.0), (px(13.5), py(13.0), 7.6),
-                          (px(16.5), py(13.2), 7.0), (px(18.8), py(13.6), 4.8)]), 1.3, pale, segments=16, squash=0.75)
-    ex, ey = px(13.8), py(18.8)
-    k.smooth(k.ellipsoid("socket", (ex, ey, 6.6), (3.4, 2.9, 1.5), black, 24, 10), 60)
-    k.smooth(k.ellipsoid("iris", (ex + 0.1, ey + 0.1, 7.3), (2.4, 2.1, 1.1), iris, 20, 10), 60)
-    k.smooth(k.ellipsoid("eye", (ex - 0.3, ey + 0.5, 7.9), (1.1, 0.95, 0.75), eye, 16, 8), 60)
-    tube("nozzle", [(px(10.8), py(19.6), 6.6), (px(8.2), py(19.8), 6.2)], 0.95, grey, segments=12)
-    # The black hose beside the upper arm, from the boss down into the cuff.
-    tube("hose", catmull([(px(19.0), 14.8, 2.2), (px(18.0), py(2.0), 2.8), (px(17.2), py(5.0), 3.2),
-                          (px(16.4), py(8.0), 3.4)]), 1.75, black, segments=14, squash=0.8)
-    if side < 0:
-        mirror_scene(-1.0)
-
-
-def deli_arm_left():
-    deli_arm(1)
-
-
-def deli_arm_right():
-    deli_arm(-1)
 
 
 # --- Round ones ------------------------------------------------------------------------------------
@@ -525,8 +371,6 @@ def savara_fin_right():
 
 # name: (builder, sheet, sprite used for the silhouette check)
 MODELS = {
-    "deli_arm_left": (deli_arm_left, "T", 39),
-    "deli_arm_right": (deli_arm_right, "T", 49),
     "purple_pod": (purple_pod, "5", 47),
     "savara_fin_left": (savara_fin_left, "F", 153),
     "savara_fin_right": (savara_fin_right, "F", 163),

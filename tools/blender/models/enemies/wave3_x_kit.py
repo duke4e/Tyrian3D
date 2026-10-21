@@ -1,7 +1,7 @@
 """Helpers for the batch X models of wave 3 (sheet C: DELI, New Deli and BONUS, some also in TORM, SOH JIN,
 GRYPHON, BOTANY, HARVEST and SAVARA): wave3_x.py, the glass hatch with the red machine, the grey bunker with
 the glowing slits and the blue helm with the red eye; wave3_x_tower.py, DELI's tall grey tower with the red
-bands and the gun on its mast over a ball; wave3_x_cannon.py, DELI's long blue cannon and its mirror image.
+bands. (The helm, the gun on its mast and the long cannons are polish_*.py now.)
 The sprites' pixels are in wave3_x_art.py; the part builders come from the earlier batches' kits
 (wave3_j_kit: palette materials, turned parts, tubes, painting faces, the build loop; wave3_o_kit: cutting a
 whole object into its sprites' pieces, mirroring, the triangle budget; wave3_q_kit: heightfield parts;

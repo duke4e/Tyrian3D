@@ -33,7 +33,8 @@ Origin at the sprite's centre (pixel 12, 14): the stone's middle is pixel (12, 1
 up from the ground (z = 0).
 
 Replaces wave3_ai.py's botany_stone() (its @kit.model("botany_stone", ...) function, STONE and SC, the botany_stone
-lines of its docstring; steel(), shade_by_slope() and botany_beetle() stay) and wave3_ai_art.py's STONE and STONE_157
+lines of its docstring; steel(), shade_by_slope() and botany_beetle() stayed, until polish_botany_beetle.py
+replaced them with the rest of wave3_ai.py) and wave3_ai_art.py's STONE and STONE_157
 (nothing else reads them).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouette against

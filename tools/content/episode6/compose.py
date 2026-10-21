@@ -120,7 +120,43 @@ def expand(level):
         placed += events
     head = [e for e in level["events"] if e["t"] == 0]
     rest = [e for e in level["events"] if e["t"] > 0]
-    return head + sorted(rest + placed, key=lambda e: e["t"])
+    return with_small_adjust(head + sorted(rest + placed, key=lambda e: e["t"]))
+
+
+def with_small_adjust(events):
+    """The events with the small enemies' adjustment (26) set before every 1x1 enemy as its
+    original made it ("adjust", waves.Source: on; off for the rest), and set again at every
+    jump's target as it stands there, so a loop finds it as the level first came there. A level
+    whose 1x1 enemies were all made without it is left as it is."""
+    if not any(e.get("adjust") for e in events):
+        return events
+    enemies = {}
+
+    def small(e):
+        if "ep" not in e:
+            return False
+        data = enemies.setdefault(e["ep"], W.tyrdata.load_items(e["ep"])["enemies"])
+        parts = [e["d1"] + k for k in range(4 if e["type"] == 12 else 1)]
+        return any(data.get(n, {}).get("esize") == 0 for n in parts)
+
+    out, state = [], 0
+    for e in events:
+        if e["type"] == 26:
+            state = e["d1"]
+        elif e["type"] in W.SPAWNS and small(e) and e.get("adjust", 0) != state:
+            state = e.get("adjust", 0)
+            out.append(event(e["t"], 26, d1=state))
+        out.append(e)
+    if len(out) == len(events):
+        return events
+    targets = sorted({e["d1"] for e in out if e["type"] in W.JUMPS and e["d1"] > 0})
+    for target in reversed(targets):
+        at = next((i for i, e in enumerate(out) if e["t"] >= target), None)
+        if at is None or out[at]["type"] == 26:
+            continue
+        state = next((e["d1"] for e in reversed(out[:at]) if e["type"] == 26), 0)
+        out.insert(at, event(out[at]["t"], 26, d1=state))
+    return out
 
 
 # --- Gimmicks (docs/plans/2026-10-09-epizoda-6.md, 7) --------------------------------------------

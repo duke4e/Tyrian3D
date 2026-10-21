@@ -1,5 +1,6 @@
-"""Batch AO of wave 3, sheet C (DELI, New Deli, BONUS, STATION): the damaged looks of DELI's tower and its long
-cannons (wave3_x_tower.py, wave3_x_cannon.py; the burnt gun on its mast: polish_ball_mast_dmg.py), built by those scripts' own builders (imported as
+"""Batch AO of wave 3, sheet C (DELI, New Deli, BONUS, STATION): the damaged look of DELI's tower
+(wave3_x_tower.py; the burnt gun on its mast and the cracked cannons: polish_ball_mast_dmg.py, polish_deli_cannon_dmg.py),
+built by that script's own builders (imported as
 they are, their output unchanged) and damaged as the damaged sprites show (the enemy data's dgr), cut into the same
 pieces so that each swaps in place (models.cfg: origin, yaw=0, as the intact pieces). The kit is wave3_ao_kit.py,
 the pixels wave3_ao_art.py. (The green twin-tank ship's damaged halves, C 45 47: polish_tank_pod_dmg.py.)
@@ -8,9 +9,6 @@ the pixels wave3_ao_art.py. (The green twin-tank ship's damaged halves, C 45 47:
   115, 17, 55, enemies 240, 239, 238, 237): the tower with its head blown off: the dome and the red skirt gone,
   the cup above the crown torn away to a jagged black stump rising to a point, the crown's vents dead,
   dark holes and cracks in the shaft and the bulbs, soot down its front.
-- deli_cannon_dmg_breech, _mount, _barrel, _muzzle (C 231, 233, 235, 237: of 269, 271, 273, 275, enemies
-  228-231) and deli_cannon_l_dmg_muzzle, _barrel, _mount, _breech (C 276, 277, 279, 281: of 238, 239, 241, 243,
-  enemies 232-235): the long cannons cracked and holed, red embers in the cracks, the muzzle's glow out.
 
 usage: Blender -b --factory-startup -P wave3_ao_deli.py -- [--only names] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole <name> --preview <prefix>]
@@ -26,7 +24,6 @@ import wave3_ao_kit as kit  # noqa: E402
 from wave3_ao_kit import k, sh, w  # noqa: E402
 
 tower = kit.quiet_import("wave3_x_tower")
-cannon = kit.quiet_import("wave3_x_cannon")
 x = tower.x  # wave3_x_kit
 kit.forget()
 
@@ -115,52 +112,6 @@ def tower_damaged_piece(cy):
 for _name, _sprite, _cy in (("red_tower_dmg_head", 91, 42.0), ("red_tower_dmg_vents", 129, 14.0),
                             ("red_tower_dmg_shaft", 93, -14.0), ("red_tower_dmg_base", 131, -42.0)):
     x.model(_name, [(_sprite, True)])(lambda cy=_cy: tower_damaged_piece(cy))
-
-
-# --- C 231 233 235 237 / 276 277 279 281: the long cannons, cracked ----------------------------------------------
-
-C_FRAMES = {False: (kit.Frame(x.art.CANNON, 84, (42, 14)), kit.frame("CANNON_DMG", 84, (42, 14))),
-            True: (kit.Frame(x.art.CANNON_L, 84, (42, 14)), kit.frame("CANNON_L_DMG", 84, (42, 14)))}
-
-
-def cannon_damaged_whole(mirror):
-    cannon.cannon_whole(mirror)
-    x.bake()
-    p = deli_painter("aocannon")
-    fi, fd = C_FRAMES[mirror]
-    holes = holes_of(fi, fd)
-    for obj in kit.meshes():
-        kit.sink(obj, holes, 0.8, mode="normal", seed=4.0)
-    kit.wreck(kit.meshes(), fi, fd, p, (fi.left(0), fi.right(83), fi.bottom(27), fi.top(0)), keep_floor=None,
-              delete=False, test=kit.significant)
-    # The muzzle's glow is out: a dim ember in the port.
-    for obj in kit.meshes():
-        if obj.name.startswith(("port_glow", "port_core")):
-            kit.paint_faces(obj, lambda c, nrm: p(0x72) if obj.name.startswith("port_core") else p(0x02))
-
-
-x.whole("cannon_damaged", (84, 28))(lambda: cannon_damaged_whole(False))
-x.whole("cannon_l_damaged", (84, 28))(lambda: cannon_damaged_whole(True))
-
-DMG_NAMES = {"deli_cannon_breech": ("deli_cannon_dmg_breech", 231), "deli_cannon_mount": ("deli_cannon_dmg_mount", 233),
-             "deli_cannon_barrel": ("deli_cannon_dmg_barrel", 235), "deli_cannon_muzzle": ("deli_cannon_dmg_muzzle", 237),
-             "deli_cannon_l_muzzle": ("deli_cannon_l_dmg_muzzle", 276),
-             "deli_cannon_l_barrel": ("deli_cannon_l_dmg_barrel", 277),
-             "deli_cannon_l_mount": ("deli_cannon_l_dmg_mount", 279),
-             "deli_cannon_l_breech": ("deli_cannon_l_dmg_breech", 281)}
-
-
-def cannon_damaged_piece(mirror, box, centre):
-    cannon_damaged_whole(mirror)
-    x.bake()
-    x.cut(x.meshes(), box, centre)
-    x.budget(4800)
-
-
-for _name, _sprite, _large, _mirror, _box, _centre in cannon.PIECES:
-    _dname, _dsprite = DMG_NAMES[_name]
-    x.model(_dname, [(_dsprite, _large)], (24, 28) if _large else (12, 14))(
-        lambda m=_mirror, b=_box, c=_centre: cannon_damaged_piece(m, b, c))
 
 
 if __name__ == "__main__":

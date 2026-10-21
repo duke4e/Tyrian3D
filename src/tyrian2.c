@@ -998,6 +998,7 @@ static void draw_coming_enemies(int enemy_offset)
 	const float carried = enemy_offset == 0 ? 0 : enemy_offset == 50 ? backMove3 : ground_rate;
 	const int map_x_ofs = enemy_offset == 0 ? mapX2Ofs : enemy_offset == 50 ? (background3x1 == 0 ? oldMapX3Ofs : mapXOfs) : mapXOfs;
 
+	bool adjust = smallEnemyAdjust;  // (as it will be at each event: event 26 sets it)
 	for (int e = eventLoc - 1; e >= 0 && e < maxEvent; ++e)
 	{
 		const struct JE_EventRecType *ev = &eventRec[e];
@@ -1007,6 +1008,11 @@ static void draw_coming_enemies(int enemy_offset)
 		const float ticks = 1 + ticks_until(ev->eventtime, slow, event_step);
 		if (ticks > 400)
 			break;
+		if (ev->eventtype == 26)
+		{
+			adjust = ev->eventdat != 0;
+			continue;
+		}
 
 		// The slots the event's enemies take, how many (a 2x2 group), and where they appear.
 		int parts, bottom_y;
@@ -1040,7 +1046,7 @@ static void draw_coming_enemies(int enemy_offset)
 				ex -= 6;
 				ey += 4;
 			}
-			if (smallEnemyAdjust && dat->esize == 0)
+			if (adjust && dat->esize == 0)
 			{
 				ex -= 10;
 				ey -= 7;

@@ -29,7 +29,8 @@ The pod is built about u = 0 and moved to the sprite's column 12 (x 0.5). Origin
 14); +Y up the screen, +Z towards the camera, the pod standing on z = 0.
 
 Replaces wave3_ai.py's botany_eye_pod() (its @kit.model("botany_eye_pod", ...) function, EYE_POD, EYE_POD_PAINT and
-AX_POD, the botany_eye_pod lines of its docstring; steel() and shade_by_slope() stay, botany_beetle() uses them) and
+AX_POD, the botany_eye_pod lines of its docstring; steel() and shade_by_slope() stayed for botany_beetle(), which polish_botany_beetle.py replaced with the rest
+of wave3_ai.py) and
 wave3_ai_art.py's EYE_POD and EYE_POD_131 (nothing else reads them): remove them so that they don't overwrite these
 models.
 

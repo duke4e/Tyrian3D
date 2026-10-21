@@ -2,13 +2,8 @@
 boulders in the pit of TYRIAN and HOLES are in wave3_aa_rocks.py, STARGATE's lava grubs in wave3_aa_grub.py;
 the kit is wave3_aa_kit.py, the pixels wave3_aa_art.py. Objects the levels put together from several sprites
 (the level files' enemy events say how) are built whole and cut into their pieces, drawn at their own
-origins (origin).
+origins (origin). (The big dark orb, E 191 193 above 229 231: polish_dark_orb.py.)
 
-- dark_orb_tl, dark_orb_tr, dark_orb_bl, dark_orb_br (E 191, 193 above 229, 231; events 682-685 at (x, y),
-  (x + 24, y), (x, y + 28), (x + 24, y + 28), on the ground, in the sky or on top): the big dark glass orb
-  of FLEET, MISTAKES and STARGATE, the big brother of the small orbs E 195 and E 233: black glass over a
-  fiery red shell that glows brighter round its lower right, a white-hot eye in its upper left with a
-  smaller one beside it and two dim embers. Built whole and cut in four (origin).
 (The tan spiked mine of MINES, ** ALE ** and ASTEROIDS, E 201, is polish_spike_mine.py's chrome mine in the sprite's
 colours: models.cfg color=sprite.)
 - bubbles_hot (E 155): BUBBLES' boiling bubbles, the cluster of E 153's bubbles (the bubbles model) glowing
@@ -29,46 +24,10 @@ import math
 import os
 import sys
 
-from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_aa_kit as kit  # noqa: E402
 from wave3_aa_kit import art, k, sh, w, pal, Frame, Painter  # noqa: E402
-
-
-# --- E 191 193 / 229 231: the big dark orb ------------------------------------------------------------
-
-ORB = Frame(art.ORB, 48, (24, 28))
-ORB_CENTRE = (0.0, 0.5)
-ORB_RADII = (17.0, 15.5, 12.5)
-
-
-def orb_whole():
-    f = ORB
-    cx, cy = ORB_CENTRE
-    rx, ry, rz = ORB_RADII
-    painter = Painter("orb", shades={0: (0, 1, 2, 4), 4: (2, 4, 6), 7: (1, 3, 5, 7, 9, 0xb, 0xd, 0xf)},
-                      metallic=0.3, roughness=0.18,
-                      glow={0x77: 0.2, 0x79: 0.5, 0x7b: 0.9, 0x7d: 1.3, 0x7f: 1.8},
-                      finish={0: (0.4, 0.08), 4: (0.25, 0.3)})
-    shell = w.sphere("orb_shell", (cx, cy, rz), (rx, ry, rz), painter(0x01), 96, 48)
-    # Painted by the sprite's shades, smoothed (no pixel steps on the glass); the sides take the colour a
-    # little inside the outline.
-    kit.paint_sprite(shell, f, painter, wall_steps=-1, blur=1, probe=-1.5, default=painter(0x73))
-    # The eyes: white-hot lenses set in the glass, a smaller one beside the big one, and two dim embers.
-    hot = pal("orb_eye", 0x7f, metallic=0.0, roughness=0.2, glow=2.6)
-    warm = pal("orb_eye_rim", 0x7c, metallic=0.0, roughness=0.25, glow=1.6)
-    ember = pal("orb_ember", 0x78, metallic=0.1, roughness=0.3, glow=0.9)
-    dim = pal("orb_ember_dim", 0x46, metallic=0.1, roughness=0.3, glow=0.4)
-    for name, (x, y), r, mat, rim in (("eye", (-4.0, 6.0), 4.3, hot, warm), ("eye2", (3.0, -0.6), 2.2, hot, warm),
-                                      ("ember", (6.4, 7.6), 1.6, ember, None), ("ember2", (3.0, 11.0), 1.1, dim, None)):
-        at, nrm = kit.ellipsoid_point((cx, cy, rz), (rx, ry, rz), x, y)
-        if rim is not None:
-            kit.lens(f"orb_{name}_rim", at, nrm, (r + 0.7, r + 0.6, 0.6), rim, sink=0.35)
-        kit.lens(f"orb_{name}", at, nrm, (r, r * 0.95, 0.5 + 0.05 * r), mat, sink=0.2)
-
-
-kit.pieced("dark_orb", orb_whole, (48, 56), kit.grid_pieces("dark_orb_", ORB, ["tl", "tr", "bl", "br"], 2, 2))
 
 
 # --- E 155: the boiling bubbles ---------------------------------------------------------------------

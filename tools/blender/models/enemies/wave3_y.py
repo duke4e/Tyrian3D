@@ -1,14 +1,13 @@
 """Batch Y of wave 3 (sheet 8: IXMUCANE and SAWBLADES), the creatures and small ships, modelled as their
 sprites look (models.cfg: yaw=0). The rock wall is in wave3_y_wall.py; the red ship between its engines, the
 red pod and the big spider (objects the game draws in pieces) in wave3_y_boss.py; the kit is wave3_y_kit.py,
-the pixels wave3_y_art.py. (The twin tube, 8 19: polish_twin_tube.py.)
+the pixels wave3_y_art.py. (The twin tube, 8 19: polish_twin_tube.py; the small crab, 8 267:
+polish_tan_crab.py.)
 
 - prong_ship (8 1): the red ship with two long prongs: a pod with a glowing core in the middle, a grey
   crossbar and two long red prongs tipped with grey (its frames pulse the core: it glows).
 - claw_dome (8 115): the grey dome with a glowing red eye at its front and a red lamp on top, on two
   brown claws curling under it (its frames pulse the eye: it glows).
-- tan_crab (8 267): the small crab with four tan legs curving down at its sides, a dark body with a red
-  back and a glowing slot (its frames move the slot's light).
 - sawblades_carrot (8 129): SAWBLADES' carrot: an orange root with rings and a dark hollow at its middle, its green
   leaves on top.
 
@@ -19,11 +18,11 @@ import math
 import os
 import sys
 
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_y_kit as y  # noqa: E402
-from wave3_y_kit import k, sh, pal, tube, sphere, lathe_axis, catmull, smoothstep  # noqa: E402
+from wave3_y_kit import k, pal, tube, sphere, lathe_axis, smoothstep  # noqa: E402
 
 
 # --- 8 1: the red ship with two prongs ---------------------------------------------------------------
@@ -165,60 +164,6 @@ def claw_dome():
             secs.append((max(0.4, hw), max(0.4, hw * 0.7)))
         claw = y.loft_path(f"claw{side}", pts, secs, tan, segments=12)
         y.paint_faces(claw, lambda c, nrm: tan_light if nrm.z > 0.75 else tan if nrm.z > 0.2 else tan_dark)
-
-
-# --- 8 267: the small crab -----------------------------------------------------------------------------
-
-CRAB = y.frame("CRAB", 24, (12, 14))
-
-
-@y.model("tan_crab", lambda: y.frame_mask(CRAB))
-def tan_crab():
-    """A dark grey body (the sprite is symmetric about x = 0.5), a red crest glowing down the middle of
-    its back from a wide top, a glowing slot at its front over two small grey fangs; on each side two
-    broad tan legs that rise from its shoulders, arch outwards and droop down the screen, the outer one
-    longer."""
-    ax = 0.5
-    body_m = pal("crab_body", 0x06, metallic=0.45, roughness=0.35)
-    body_dark = pal("crab_body_dark", 0x03, metallic=0.4, roughness=0.45)
-    plate = pal("crab_plate", 0x0a, metallic=0.5, roughness=0.3)
-    crest = pal("crab_crest", 0x75, metallic=0.0, roughness=0.3, glow=1.4)
-    crest_hot = pal("crab_crest_hot", 0x7a, metallic=0.0, roughness=0.25, glow=2.0)
-    slot = pal("crab_slot", 0x7b, metallic=0.0, roughness=0.25, glow=2.2)
-    slot_rim = pal("crab_slot_rim", 0x72, metallic=0.1, roughness=0.35, glow=0.6)
-    fang = pal("crab_fang", 0x0b, metallic=0.6, roughness=0.25)
-    tan = pal("crab_tan", 0x17, metallic=0.25, roughness=0.5)
-    tan_light = pal("crab_tan_light", 0x1b, metallic=0.25, roughness=0.45)
-    tan_dark = pal("crab_tan_dark", 0x13, metallic=0.2, roughness=0.55)
-
-    body = sphere("body", (ax, 0.8, 3.0), (3.7, 6.4, 3.3), body_m, 24, 12)
-    y.paint_faces(body, lambda c, nrm: body_dark if nrm.z < 0.2 else plate if -3.6 < c.y < -0.4 and nrm.z > 0.5 else None)
-    # The crest: wide and hot at the top, narrowing down the back.
-    secs = [(0.2, ax, 5.7, 0.3, 0.3, 0.3), (1.2, ax, 6.0, 0.55, 0.5, 0.5), (3.0, ax, 6.2, 0.8, 0.6, 0.6),
-            (5.0, ax, 5.9, 1.4, 0.75, 0.7), (6.6, ax, 5.3, 2.6, 0.9, 0.9), (7.6, ax, 4.6, 3.1, 0.9, 0.9),
-            (8.3, ax, 4.0, 1.6, 0.5, 0.5)]
-    y.loft_y("crest", y.smooth_sections(secs, 0.4), crest, segments=16)
-    sphere("crest_core", (ax, 6.9, 5.6), (1.6, 0.7, 0.5), crest_hot, 14, 6)
-    # The glowing slot at its front, over the fangs.
-    y.rounded_box("slot_rim", (ax, -2.2, 5.3), (5.0, 2.8, 1.4), slot_rim, bevel=0.5)
-    y.rounded_box("slot", (ax, -2.2, 5.85), (3.9, 1.6, 0.7), slot, bevel=0.28)
-    for side in (-1, 1):
-        y.cone(f"fang{side}", (ax + side * 2.0, -4.6, 1.8), (side * 0.15, -1.0, -0.35), 2.2, 0.55, fang, segments=10)
-    # The legs.
-    for side in (-1, 1):
-        sx = lambda v: ax + side * v
-        outer = [(sx(2.8), 4.4, 5.0), (sx(5.4), 2.8, 5.6), (sx(8.1), 0.4, 4.8), (sx(8.6), -2.6, 3.6),
-                 (sx(7.4), -6.4, 2.3), (sx(6.9), -9.6, 1.2)]
-        inner = [(sx(2.5), 2.8, 5.3), (sx(4.2), 0.8, 5.5), (sx(4.9), -1.6, 4.3), (sx(4.8), -4.2, 2.9)]
-        for name, path, wide in (("outer", outer, 2.0), ("inner", inner, 1.9)):
-            pts = y.resample(path, 20)
-            secs = []
-            for i in range(len(pts)):
-                t = i / (len(pts) - 1)
-                hw = wide * (0.75 + 0.25 * math.sin(math.pi * min(1.0, t / 0.6))) * (1.0 - 0.3 * max(0.0, t - 0.8) / 0.2)
-                secs.append((max(0.5, hw), max(0.45, hw * 0.5)))
-            leg = y.loft_path(f"{name}{side}", pts, secs, tan, segments=12)
-            y.paint_faces(leg, lambda c, nrm: tan_light if nrm.z > 0.8 else tan if nrm.z > 0.25 else tan_dark)
 
 
 # --- 8 129: the carrot -------------------------------------------------------------------------------

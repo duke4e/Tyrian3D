@@ -1,5 +1,5 @@
 """Enemies of wave 3, batch V (sheet T), CORAL's sea creatures and machines; modelled as their sprites look
-(models.cfg: yaw=0 unless noted). DELI's boss is in wave3_v.py; the kit is wave3_v_kit.py, the pixels
+(models.cfg: yaw=0 unless noted). DELI's boss is polish_deli_boss.py; the kit is wave3_v_kit.py, the pixels
 wave3_v_art.py. Objects the levels put together from several sprites (the level files' enemy events say
 how) are built whole and cut into their pieces, drawn at their own origins (origin). (CORAL's bony fish, T 229
 beside T 231: polish_coral_fish.py; its seahorses, T 203 and 241: polish_coral_seahorse.py.)

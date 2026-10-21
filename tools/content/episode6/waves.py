@@ -77,6 +77,16 @@ class Source:
         self.level = tyrevents.Level(data, pos[(number - 1) * 2])
         self.events = self.level.events
         self.enemies = self.items["enemies"]
+        # The small enemies' adjustment each spawn is made under (event 26: DELIANI, DELI and New Deli
+        # turn it on for their first part, BONUS for all of it: their 1x1 enemies 10 px left and 7
+        # up, as the multi-sprite cannons' muzzle pieces need), so that a new level makes them so too
+        # (compose.with_small_adjust).
+        adjust = 0
+        for e in self.events:
+            if e["type"] == 26:
+                adjust = e["d1"]
+            elif adjust and e["type"] in SPAWNS:
+                e["adjust"] = adjust
 
     def boss_links(self):
         """The links of the last boss bar (the level's boss; earlier bars are mid-bosses)."""

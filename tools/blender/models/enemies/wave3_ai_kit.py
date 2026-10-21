@@ -1,5 +1,5 @@
-"""Helpers for the batch AI models of wave 3 (sheet 0: GRYPHON's boss and BOTANY's ground creatures,
-wave3_ai.py and wave3_ai_gryphon.py; the coins sheet's remaining items, items/wave3_ai_items.py): the sprites'
+"""Helpers for the batch AI models of wave 3 (sheet 0: GRYPHON's boss,
+wave3_ai_gryphon.py; the coins sheet's remaining items, items/wave3_ai_items.py): the sprites'
 pixels (wave3_ai_art.py), and the frames, painting, parts and build loop of batch AE (wave3_ae_kit: pixel
 frames, reliefs inflated from pixel regions, painting faces by the sprite's pixel under them, limbs, lenses,
 bumpy peel, stand-alone models and whole objects cut into their sprites' pieces, the silhouette check). Its own:

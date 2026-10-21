@@ -1,4 +1,4 @@
-"""Helpers for the batch V models of wave 3 (sheet T: DELI's boss in DELI, New Deli and HARVEST, wave3_v.py;
+"""Helpers for the batch V models of wave 3 (sheet T: DELI's boss was wave3_v.py, now polish_deli_boss.py;
 CORAL's sea creatures and machines, wave3_v_sea.py): the sprites' pixels (wave3_v_art.py), pixel frames
 for objects the game draws in pieces, reliefs inflated from pixel regions, painting faces with the colour
 of the sprite's pixel under them, mirroring, and the build loop of batch N (wave3_n_kit: stand-alone
