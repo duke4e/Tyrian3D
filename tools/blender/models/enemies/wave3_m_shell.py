@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch M (sheet J), the big green shell of ?TUNNEL? (on the ground) and of TORM,
 BOTANY A and BOTANY B (on the top layer); modelled as its sprites look (models.cfg: yaw=0). The other
-models of sheet J are in wave3_m.py and wave3_m_ground.py.
+models of sheet J are in wave3_m.py and polish_*.py.
 
 - green_shell_153 ... green_shell_271: the shell, 96 x 112 pixels, which the level events put
   together from fifteen 2x2 sprites: 153, 155, 157, 159 / 191, 193, 195, 197 / 229, 241, 243, 235

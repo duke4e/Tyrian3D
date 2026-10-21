@@ -39,8 +39,8 @@ ground models of TORM do: the window block, the jaw guns); the frames sink into 
 Replaces wave3_m_ground.py's lens_pad(): its section ("# --- J 77: the lens pad", the @model("lens_pad", [(J, 77, True)])
 registration and lens_pad()) and lens_pad's paragraph in its docstring; and wave3_ap_torm.py's lens pad: its section
 ("# --- J 77 -> 41: the lens pad": the @w.model("lens_pad_damaged", [(J, 41, True)]) registration and
-lens_pad_damaged()) and its docstring paragraph (the gun's damaged look stays: it uses ground.gun_whole and
-ground.GUN_ORIGIN); and the pixels only those read: wave3_m_art.py's J77 (wave3_ap_torm.py reads ground.art.J77 for the
+lens_pad_damaged()) and its docstring paragraph (the gun's damaged look stayed there until polish_field_gun.py
+replaced it); and the pixels only those read: wave3_m_art.py's J77 (wave3_ap_torm.py reads ground.art.J77 for the
 pad only) and wave3_ap_art.py's J77_DMG. wave3_at_j.py (quiet_import("wave3_m_ground")) uses the eye orb only.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each frame's silhouette

@@ -8,9 +8,8 @@ with dark slots beside them (rows 20-25), and two small lugs stand on its rim ab
 (row 1). A grey metal lens with a dark vertical slit, the pupil, bulges out of the dome's front
 (columns 8-16, rows 9-15), looking down the screen. Origin at the sprite's centre (pixel 12, 14).
 
-The damaged look (eye_turret_damaged, wave3_ap_ast.py) is built from misc.py's older eye turret:
-this one keeps close to its footprint (22 x 25 there, 22.4 x 26.1 here) and height (10.1 there,
-10.0 here), so the turret doesn't change size when it is hit.
+The damaged look (eye_turret_damaged) is polish_eye_turret_dmg.py's, built from this turret's own
+parts with the same bounds, so the turret doesn't change size when it is hit.
 
 Polish (2026-10-18): replaces misc.py's eye_turret (three ellipsoids).
 """

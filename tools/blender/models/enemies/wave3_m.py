@@ -1,6 +1,6 @@
 """Enemies of wave 3, batch M (sheet J: TORM, BOTANY A, BONUS), the green machines; modelled as their
-sprites look (models.cfg: yaw=0). The building, the field gun and the small ground machines are in
-wave3_m_ground.py, the big green shell of ?TUNNEL? in wave3_m_shell.py.
+sprites look (models.cfg: yaw=0). The big green shell of ?TUNNEL? is in wave3_m_shell.py (the grey
+machines on the foliage: polish_window_block.py, polish_field_gun.py, polish_lens_pad.py, polish_eye_orb.py).
 (The small green machine of TORM and BONUS, green_scarab (J 131), is built by polish_green_scarab.py, the green
 tower, J 13 15 / 51 53, by polish_green_tower.py, the green skiff, J 169 207 / 245 283, by polish_green_skiff.py.)
 

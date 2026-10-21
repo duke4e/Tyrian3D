@@ -1,6 +1,6 @@
 """Batch AD of wave 3 (sheet H: GYGES, TORM, BONUS), GYGES' bronze worm and its small flying things, modelled
 as the sprites look (models.cfg: yaw=0). GYGES' creatures in their pieces of tube wall are in wave3_ad_wall.py,
-TORM's beetle in wave3_ad_torm.py, the waterfall of TORM and BONUS in wave3_ad_fall.py; the kit is
+TORM's beetle in polish_torm_beetle.py, the waterfall of TORM and BONUS in wave3_ad_fall.py; the kit is
 wave3_ad_kit.py, the pixels wave3_ad_art.py.
 
 - gyges_worm_head_tip, gyges_worm_head_base (H 17 above 55; enemies 422 at (x, y - 28) and 423 at (x, y),

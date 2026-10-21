@@ -1,10 +1,9 @@
 """Helpers for the batch AD models of wave 3 (sheet H: GYGES, TORM and BONUS; wave3_ad.py, GYGES' bronze worm
-and its small flying parts; wave3_ad_wall.py, GYGES' creatures in their pieces of tube wall; wave3_ad_torm.py,
-TORM's beetle; wave3_ad_fall.py, the waterfall of TORM and BONUS): the sprites' pixels (wave3_ad_art.py),
+and its small flying parts; wave3_ad_wall.py, GYGES' creatures in their pieces of tube wall; wave3_ad_fall.py,
+the waterfall of TORM and BONUS; TORM's beetle is polish_torm_beetle.py's): the sprites' pixels (wave3_ad_art.py),
 and the parts, painting and build loop of batch AA (wave3_aa_kit: pixel frames, reliefs, painting faces by
 the sprite's pixel under them, stand-alone models and whole objects cut into their sprites' pieces), with a
-few of its own: heightfield slabs over a box, and objects whose sprites overlap (each piece keeps the parts
-its sprite shows, cut to its box), for TORM's beetle, whose segments the events stack over each other.
+few of its own: heightfield slabs over a box, lofted paths and GYGES' tube wall.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre (or the whole object's, for objects the game draws in pieces).
@@ -113,82 +112,10 @@ def loft_path(name, path, radii, mat, segments=14, squash=1.0, up=(0, 0, 1), smo
     return k.smooth(obj, smooth_angle)
 
 
-# --- Objects whose sprites overlap -------------------------------------------------------------------
-
-GROUPS = []  # (object name, whole builder, size, [(piece name, part prefixes or None, box, centre, mask)])
-
-
-def grouped(name, builder, size, pieces):
-    """Registers an object built whole whose sprites overlap: each piece keeps only the parts whose names
-    start with one of its prefixes (None: all), cut to its box (x0, x1, y0, y1) in the whole's
-    coordinates, and is moved so that its sprite's centre is the origin."""
-    GROUPS.append((name, builder, size, pieces))
-
-
-def _render_whole(prefix, name, size):
-    pts = [vt.co for o in meshes() for vt in o.data.vertices]
-    cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
-    cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
-    sh.move(meshes(), -cx, -cy)
-    bpy.context.scene.view_settings.view_transform = "Standard"
-    k.preview(prefix + name, size, scale=max(4, int(640 / max(size))))
-    n.render_3q(prefix + name, size, max(size) / 40.0)
-
-
 def run():
-    """wave3_v_kit.run (stand-alone models, objects cut into pieces), then the grouped objects. Options as
-    there: --only a,b  --preview <prefix>  --check 1  --stats 1  --whole <prefix>."""
+    """wave3_v_kit.run: the stand-alone models and the objects cut into pieces. Options as there: --only a,b
+    --preview <prefix>  --check 1  --stats 1  --whole <prefix>."""
     v.run()
-    options = k.args()
-    only = set(options["only"].split(",")) if "only" in options else None
-    for name, build, size, pieces in GROUPS:
-        if "whole" in options:
-            if only and name not in only:
-                continue
-            k.reset()
-            build()
-            bake()
-            print(f"== whole {name}: {triangles()} triangles")
-            _render_whole(options["whole"], name, size)
-            continue
-        wanted = [p for p in pieces if not only or name in only or p[0] in only]
-        if not wanted:
-            continue
-        k.reset()
-        build()
-        bake()
-        whole_objects = meshes()
-        if "stats" in options:
-            for obj in whole_objects:
-                print(f"   {obj.name}: {sum(len(p.vertices) - 2 for p in obj.data.polygons)}")
-        for piece_name, parts, (x0, x1, y0, y1), (cx, cy), mask in wanted:
-            chosen = [o for o in whole_objects if parts is None or any(o.name.startswith(p) for p in parts)]
-            copies = []
-            for obj in chosen:
-                c = obj.copy()
-                c.data = obj.data.copy()
-                c.name = f"{piece_name}_{obj.name}"
-                bpy.context.scene.collection.objects.link(c)
-                copies.append(c)
-            for obj in whole_objects:
-                obj.hide_render = True
-            kept = sh.cut_box(copies, x0, x1, y0, y1)
-            sh.move(kept, -cx, -cy)
-            for obj in kept:
-                k.smooth(obj, 40)
-            count = v.budget(4800, kept)
-            print(f"== {piece_name}: {count} triangles, {len(kept)} parts")
-            if "check" in options and mask is not None:
-                n.check_mask(mask(), piece_name)
-            n.export_objects(kept, os.path.join(n.ENEMIES, piece_name + ".glb"))
-            if "preview" in options:
-                bpy.context.scene.view_settings.view_transform = "Standard"
-                k.preview(options["preview"] + piece_name, (24, 28))
-                n.clear_views()
-            for obj in kept:
-                bpy.data.objects.remove(obj)
-            for obj in whole_objects:
-                obj.hide_render = False
 
 
 # --- GYGES' tube wall --------------------------------------------------------------------------------

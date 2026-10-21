@@ -1,7 +1,7 @@
 """Batch AP of wave 3 (sheet S): the damaged look of the asteroid levels' hangar (wave3_u_hangar.py), modelled as the
 sprites look (models.cfg: yaw=0). The kit is wave3_ap_kit.py, the pixels wave3_ap_art.py (HANGAR_DMG). (The carrier's
-launcher and robot damaged, S 273 and 237, are polish_carrier_turrets.py's; the eye turret's damaged look, S 275, keeps
-its GLB: its builder, misc.py's old turret, is gone.)
+launcher and robot damaged, S 273 and 237, are polish_carrier_turrets.py's; the eye turret's damaged look, S 275,
+polish_eye_turret_dmg.py's.)
 
 - roof_hangar_tl_damaged, roof_hangar_tr_damaged (S 17, 55; the dgr of 13 and 15, enemies 326, 327, dlevel -1: they
   stay so): wave3_u_hangar's whole hangar (hangar_whole) with its prow broken open, a black gash down the right
