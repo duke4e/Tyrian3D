@@ -37,7 +37,9 @@ where the surface is textured, a forest's canopy as opposed to the smooth floor 
 Backgrounds 2 and 3 (their maps' entries with "solid": true) become solids: their plane on top,
 rounded off over "bevel" pixels at the edges, walls down to the ground where they are clear or
 where ground enemies are under them (the game only makes them solid where they are drawn over the
-ground's enemies, and keeps their tops below what flies).
+ground's enemies, and keeps their tops below what flies). A background 2 that the game draws under
+the ground's enemies and that covers the whole map (ICESECRET's ice, over a ground that never shows)
+is the ground instead: its entry has "ground": true, and its terrain is made as the ground's is.
 """
 import json
 import os
@@ -254,7 +256,7 @@ def material_heights(rgb, labels, s):
 
 def heights(name, rgb, opaque, info, s):
     """The heights (game pixels) and where there is nothing (holes)."""
-    if info["background"] > 1:
+    if info["background"] > 1 and not s.get("ground"):
         h, hole = solid_heights(rgb, opaque, s)
         # Clear where ground enemies are under it (in the game hidden under the background): they
         # stand or move in notches and trenches rather than inside the rock.

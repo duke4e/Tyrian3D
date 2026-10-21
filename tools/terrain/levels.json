@@ -681,5 +681,17 @@
    "#162330": "~"
   },
   "level": "VAULT"
+ },
+ "0f43f5f0bf5bd42f": {
+  "classes": 6,
+  "heights": {
+   "0": 12,
+   "4": 12,
+   "2": "~",
+   "5": "~"
+  },
+  "level": "ICESECRET",
+  "background": 2,
+  "ground": true
  }
 }

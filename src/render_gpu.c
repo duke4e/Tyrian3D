@@ -1502,6 +1502,8 @@ static bool relief_frame(const L3DFrame *frame, const bool *composed);
 static bool terrain_background(const L3DFrame *frame, const L3DBackground *background);
 static float solid_top(int set);
 static const B3DTerrain *frame_terrains[B3D_SETS + 1];
+static const L3DBackground *lift_ground = NULL;  // this frame's ground when it is terrain (present_3d)
+static const B3DTerrain *lift_terrain = NULL;    // and its terrain
 static float terrain_lift(float x, float y);
 static float object_lifts[L3D_MAX_OBJECTS];  // the frame's objects' terrain_lift (compute_object_lifts)
 
@@ -3890,15 +3892,21 @@ static float relief_height(void)
 }
 
 // Whether a frame's ground is shown as terrain: background 1 not composed (filters), no starfield.
-// Background 2 drawn under the ground enemies and opaque all over (APPROACH's sea) hides the ground:
-// the ground stays flat under it (no terrain, no relief), and its enemies stand on background 2.
-static bool ground_covered(const L3DFrame *frame)
+// Background 2 drawn under the ground enemies and opaque all over (APPROACH's sea, ICESECRET's ice)
+// hides the ground: the ground stays flat under it (no terrain, no relief), and its enemies stand on
+// background 2, which is the ground then (its own terrain, where its map has one: ICESECRET).
+static const L3DBackground *covering_ground(const L3DFrame *frame)
 {
 	for (int i = 0; i < frame->background_count; ++i)
 		if (frame->backgrounds[i].set >= 2 && !frame->backgrounds[i].blend &&
 		    frame->layers[frame->backgrounds[i].layer].type == L3D_BG2_LOW && b3d_map_opaque(frame->backgrounds[i].set))
-			return true;
-	return false;
+			return &frame->backgrounds[i];
+	return NULL;
+}
+
+static bool ground_covered(const L3DFrame *frame)
+{
+	return covering_ground(frame) != NULL;
 }
 
 static bool relief_frame(const L3DFrame *frame, const bool *composed)
@@ -3923,7 +3931,11 @@ static void log_ground(const L3DFrame *frame, const bool *composed)
 			g = i;
 	const unsigned long long map = g >= 0 ? (unsigned long long)b3d_map_hash(1) : 0;
 	const B3DTerrain *t = g >= 0 ? b3d_terrain(1) : NULL;
-	if (g < 0)
+	const L3DBackground *cover = covering_ground(frame);
+	if (cover != NULL && cover == lift_ground)
+		SDL_snprintf(now, sizeof(now), "terrain %016llx of background %d %d..%d", (unsigned long long)b3d_map_hash(cover->set),
+		             cover->set, lift_terrain->lowest, lift_terrain->highest);
+	else if (g < 0)
 		SDL_snprintf(now, sizeof(now), "none");
 	else if (frame_terrains[1] != NULL)
 		SDL_snprintf(now, sizeof(now), "terrain %016llx %d..%d%s", map, t->lowest, t->highest, t->hole_count > 0 ? " holes" : "");
@@ -4145,10 +4157,12 @@ static bool terrain_batch[MAX_BATCHES];  // batches of terrain (they cast shadow
 static bool terrain_background(const L3DFrame *frame, const L3DBackground *background)
 {
 	// Backgrounds 2 and 3 as solids only when drawn over the ground's enemies (under them, a
-	// solid would bury them); solid, they aren't blended.
+	// solid would bury them); solid, they aren't blended. Background 2 covering the ground is the
+	// ground: its terrain is the ground's (covering_ground).
 	if (background->set < 1 || background->set > B3D_SETS || frame_terrains[background->set] == NULL)
 		return false;
-	return background->set == 1 || frame->layers[background->layer].type != L3D_BG2_LOW;
+	return background->set == 1 || frame->layers[background->layer].type != L3D_BG2_LOW ||
+	       background == covering_ground(frame);
 }
 
 // Solids stand below what flies (sky enemies and above) so nothing flies through them: background 3's
@@ -4167,14 +4181,12 @@ static float solid_top(int set)
 	return SOLID_EXTRUDE * (set == 3 ? top : top - SOLID_BG2_BELOW_BG3);
 }
 
-static const L3DBackground *lift_ground = NULL;  // this frame's ground when it is terrain (present_3d)
-
 // What stands on the ground (its enemies, their explosions) stands on the terrain: the terrain's
 // height at a game position, 0 over a hole or off the map. Their game positions stay as they are
 // (aligned scales by height).
 static float terrain_lift(float x, float y)
 {
-	const B3DTerrain *t = frame_terrains[1];
+	const B3DTerrain *t = lift_terrain;
 	int mx, my;
 	if (t == NULL || lift_ground == NULL || !b3d_map_point(lift_ground, x, y, &mx, &my))
 		return 0.0f;
@@ -5381,7 +5393,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
 		// go on beyond it, a little below so that the composed image wins where it is.
 		float height = heights[background->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
-		if (background->set > 1 && terrain_background(frame, background))
+		const bool solid = background->set > 1 && terrain_background(frame, background) && background != lift_ground;
+		if (solid)
 			height = SDL_min(height, solid_top(background->set));
 		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
@@ -5389,7 +5402,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		// Ground of terrain below its plane (sunken ground, chasms) shows further up the level at the
 		// window's top edge. Its rows are drawn aligned at the plane's height (aligned(): x, y and z
 		// scaled about the plane), so its lowest ground is that much lower in the world.
-		const B3DTerrain *ground = background->set == 1 && terrain_background(frame, background) ? frame_terrains[1] : NULL;
+		const B3DTerrain *ground = background == lift_ground ? lift_terrain : NULL;
 		const float deepest = ground == NULL ? 0.0f
 		                                     : SDL_max(ground->hole_count > 0 ? TERRAIN_HOLE_DEPTH : 0.0f, (float)-ground->lowest);
 		if (deepest > 0)
@@ -5419,7 +5432,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		// Tiles take the colours the game gives them through blending and the level's filters.
 		Uint8 remap[256];
 		Uint32 page_colors[256];
-		if (background->set > 1 && terrain_background(frame, background))
+		if (solid)
 			b3d_effect_remap(background, remap);
 		else
 			b3d_tile_remap(background, remap);
@@ -5469,7 +5482,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			TerrainRing *ring = terrain_ring(terrain, background->set, page_colors, ground_zero);
 			// Holes: in the ground, chasms; in backgrounds 2 and 3, the walls of their solids go
 			// down to below the ground.
-			const float hole_depth = background->set == 1 ? TERRAIN_HOLE_DEPTH : height * 1.5f + 8.0f;
+			const float hole_depth = solid ? height * 1.5f + 8.0f : TERRAIN_HOLE_DEPTH;
 			const int columns = (terrain->width - 1) / (B3D_TILE_W / terrain->sample);
 			int kept = first;
 			for (int t = first; t < tile_count; ++t)
@@ -6508,15 +6521,16 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			frame_terrains[1] = NULL;
 		b3d_terrain_ground = frame_terrains[1] != NULL;
 		lift_ground = NULL;
+		lift_terrain = NULL;
 		for (int i = 0; i < frame->background_count && frame_terrains[1] != NULL; ++i)
 			if (frame->backgrounds[i].set == 1)
+			{
 				lift_ground = &frame->backgrounds[i];
-		compute_object_lifts(frame);
+				lift_terrain = frame_terrains[1];
+			}
 		b3d_solids = m3d_enabled;
 		bool composed_now[L3D_MAX_BACKGROUNDS];
 		b3d_composed_backgrounds(frame, composed_now);
-		if (SDL_getenv("TYR3D_LOG_GROUND_MODE") != NULL)
-			log_ground(frame, composed_now);
 		bool ok[B3D_SETS + 1] = { false, true, m3d_enabled, m3d_enabled };
 		for (int i = 0; i < frame->background_count; ++i)
 		{
@@ -6530,6 +6544,16 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			frame_terrains[set] = ok[set] ? b3d_terrain(set) : NULL;
 			any |= frame_terrains[set] != NULL;
 		}
+		// Background 2 covering the ground with a terrain of its own is the ground (ICESECRET's ice).
+		const L3DBackground *cover = covering_ground(frame);
+		if (cover != NULL && frame_terrains[cover->set] != NULL)
+		{
+			lift_ground = cover;
+			lift_terrain = frame_terrains[cover->set];
+		}
+		compute_object_lifts(frame);
+		if (SDL_getenv("TYR3D_LOG_GROUND_MODE") != NULL)
+			log_ground(frame, composed_now);
 		l3d_terrain_headroom = any ? TERRAIN_HEADROOM : 0.0f;
 		if (SDL_getenv("TYR3D_DEBUG_TERRAIN") != NULL)
 		{
