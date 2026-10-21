@@ -10,11 +10,9 @@ red lamp on two long legs, and a slotted block with legs or clawed fins under it
   sleeves (the arms' gun tubes plug into the sleeves, at the same height), the cradle and a glowing
   neck down to the crossbar with its lamp and its two long legs. Built whole and cut in two (origin).
   Its frames heat the core (153-159) and flash the lamp (191, 193): both glow.
-- k_pod (K 276): the round grey pod: two helmets back to back round a belt with a glowing slot.
-- k_turret (K 281): the red core ball on its sleeves, its glowing neck pointing up the screen like a
-  barrel, on a slotted grey block (the frames launch its shots; the ball glows).
 - k_lampgun (K 278): the crossbar with its lamp (lit) on two short legs pointing up the screen, on a
   block with tan windows and a salmon grille (the gun that drops K 171's red bombs).
+(The round pod, K 276, and the turret, K 281: polish_k_pod.py, polish_k_turret.py.)
 
 usage: Blender -b --factory-startup -P wave3_o_machines.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1] [--whole pincer_core --preview <prefix>]
@@ -244,48 +242,6 @@ def core_piece(box, cy):
 
 for _name, _sprite, _box, _cy in CORE_PIECES:
     o.model(_name, [(_sprite, True)])(lambda box=_box, cy=_cy: core_piece(box, cy))
-
-
-# --- K 276: the round pod --------------------------------------------------------------------------
-
-@o.model("k_pod", [(276, True)])
-def k_pod():
-    """Two helmets back to back (the machine's top, mirrored), a dark belt round their seam with a
-    glowing slot in its middle, and two small lugs at each end where the machine has its cap."""
-    g = o.grid(art.K276, 24)
-    m = mats()
-    helmet(g, SPRITE, 2, 12, m, height=5.4, prefix="top", rail_rows=(5, 13))
-    bottom = helmet(g, SPRITE, 2, 12, m, height=5.4, prefix="bottom", rail_rows=(5, 13))
-    o.mirror_y(bottom)
-    belt = [(-11.4, -1.4), (11.4, -1.4), (11.4, 1.4), (-11.4, 1.4)]
-    o.k.smooth(sh.inflate("belt", [belt], m["steel_dark"], sh.pillow_profile(3.4, 1.0), base=0.0, bottom=0.55,
-                          spacing=0.4), 45)
-    o.rounded_box("slot_frame", (0.5, 0.0, 3.6), (8.6, 3.6, 1.2), m["steel_light"], bevel=0.4)
-    o.sphere("slot_light", (0.5, 0.0, 4.0), (3.6, 1.6, 0.9), m["lamp"], 20, 10)
-    for sy in (1, -1):
-        for x in (-4.5, 5.5):
-            o.rounded_box(f"lug{sy}{x}", (x, sy * 12.7, 2.4), (2.6, 2.4, 2.2), m["steel_light"], bevel=0.6)
-    o.budget()
-
-
-# --- K 281: the turret -------------------------------------------------------------------------------
-
-@o.model("k_turret", [(281, True)])
-def k_turret():
-    """The core ball on its sleeves (the machine's, upside down: the glowing neck points up the screen
-    like a barrel), set on the slotted block (K 283's, upside down)."""
-    m = mats()
-    unit = core_unit(m, neck_end=0.8)
-    # The machine's y to K 281's: y' = 14 - y (rows 27..14 of the machine are rows 0..13 here).
-    o.mirror_y(unit, 7.0)
-    o.move(unit, dz=1.6)
-    barrel_tip = o.lathe_axis("muzzle", [(0.0, 1.25), (0.6, 1.5), (1.3, 1.5), (1.5, 1.1), (1.55, 0.01)],
-                              m["lamp"], (0.5, 12.4, 2.2), (0, 1, 0), 16)
-    g = o.grid(art.K283, 24)
-    base = slot_block(g, SPRITE, m, prefix="base")
-    o.mirror_y(base)
-    o.move(base, dz=-0.8)
-    o.budget()
 
 
 # --- K 278: the lamp gun -----------------------------------------------------------------------------

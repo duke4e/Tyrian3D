@@ -3,10 +3,9 @@ is polish_claw_gate.py):
 
 - deli_arm_left / deli_arm_right (sheet T 39 / 49): the gun arms hanging from DELI's boss, ribbed red
   arms ending in pods with a glowing eye.
-- orb_crimson (sheet K 195): a dark red glass orb with an ember glowing inside where the sprite has its
-  bright spot (FLEET, STATION).
 - purple_pod (sheet 5 47): a purple pod with a red strap and a golden clasp (HARVEST, LAVA RUN).
 (The teal spiked mine, A 167, is polish_spike_mine.py's chrome mine in the sprite's colours: models.cfg color=sprite.)
+(The crimson orb, K 195: polish_orb_crimson.py.)
 - savara_fin_left / savara_fin_right (sheet F 153 / 163): the outer glowing fins of SAVARA's boss
   (their lower ends continue into the boss's next sprites).
 
@@ -349,21 +348,6 @@ def deli_arm_right():
 
 # --- Round ones ------------------------------------------------------------------------------------
 
-def orb_crimson():
-    """A dark red glass orb with an ember glowing inside (K 195), where the sprite has its bright spot."""
-    k.reset()
-    glass = k.material("orb_crimson_glass", palette=114, metallic=0.1, roughness=0.05, alpha=0.72)
-    core = k.material("orb_crimson_core", palette=113, roughness=0.4, emission=(130, 8, 0), emission_strength=0.7)
-    halo = k.material("orb_crimson_halo", palette=120, roughness=0.3, emission=(255, 90, 10), emission_strength=2.4)
-    ember = k.material("orb_crimson_ember", palette=125, roughness=0.3, emission=(255, 230, 130),
-                       emission_strength=4.0)
-    c = (0.5, 1.5, 0.0)
-    k.smooth(k.ellipsoid("core", c, (9.2, 9.2, 8.8), core, 32, 16), 70)
-    k.smooth(k.ellipsoid("halo", (c[0] - 3.2, c[1] + 2.8, 5.9), (3.2, 3.2, 2.4), halo, 20, 10), 70)
-    k.smooth(k.ellipsoid("ember", (c[0] - 3.3, c[1] + 2.9, 7.2), (1.6, 1.6, 1.2), ember, 16, 8), 70)
-    k.smooth(k.ellipsoid("orb", c, (10.4, 10.4, 10.0), glass, 40, 20), 70)
-
-
 def ellipsoid_part(name, centre, radii, mat, y0, y1, segments=40, rings_count=14):
     """The part of an ellipsoid between y0 and y1 (absolute), closed at the cut."""
     cx, cy, cz = centre
@@ -543,7 +527,6 @@ def savara_fin_right():
 MODELS = {
     "deli_arm_left": (deli_arm_left, "T", 39),
     "deli_arm_right": (deli_arm_right, "T", 49),
-    "orb_crimson": (orb_crimson, "K", 195),
     "purple_pod": (purple_pod, "5", 47),
     "savara_fin_left": (savara_fin_left, "F", 153),
     "savara_fin_right": (savara_fin_right, "F", 163),
