@@ -9,7 +9,8 @@
  *                              i+19 and i+20.
  *   <dir>/sheets/<name>.idx    the sheet's palette indices, a byte per pixel, row by row.
  *   <dir>/palette.txt          the levels' palette: a line of "r g b" per index.
- *   <dir>/catalog.json         enemy types used by each episode's levels, with sheet, frames, size,
+ *   <dir>/catalog.json         enemy types used by each episode's levels (and what they leave, launch
+ *                              or turn into when damaged), with sheet, frames, size,
  *                              how often and where they appear; the player ships; the shots'
  *                              sprites with the weapons that fire them (p: the player's, e: enemies').
  *
@@ -170,7 +171,8 @@ static const char *slot_layer(int slot)
 typedef struct
 {
 	unsigned int count;
-	unsigned int layer_mask;  // 1 sky, 2 ground, 4 top, 8 any, 16 dropped by another enemy
+	unsigned int layer_mask;  // 1 sky, 2 ground, 4 top, 8 any, 16 dropped by another enemy, 32 launched by another enemy
+	                          // (64: ground 2, not written)
 	char levels[256];
 } EnemyUse;
 
@@ -223,6 +225,7 @@ static void note_use(int id, int slot, const char *level_name)
 	EnemyUse *use = &uses[id];
 	use->count += 1;
 	const char *layer = slot_layer(slot);
+	use->layer_mask |= slot == 75 ? 64 : 0;
 	use->layer_mask |= strcmp(layer, "sky") == 0 ? 1 : strcmp(layer, "ground") == 0 ? 2 : strcmp(layer, "top") == 0 ? 4 :
 	                   strcmp(layer, "drop") == 0 ? 16 : 8;
 	if (strstr(use->levels, level_name) == NULL && strlen(use->levels) + strlen(level_name) + 2 < sizeof(use->levels))
@@ -358,16 +361,32 @@ static void scan_episode_levels(void)
 	}
 	fclose(f);
 
-	// What the used enemies leave when destroyed (and what that leaves, and so on).
+	// What the used enemies leave when destroyed and what they launch (and what those leave or launch, and so on). A
+	// launched enemy is made on its launcher's layer (JE_drawEnemy: a ground launcher's on ground 2) and shows at least
+	// as often as its launchers.
+	static bool launched_only[ENEMY_NUM + 1], credited[ENEMY_NUM + 1];
 	for (bool changed = true; changed; )
 	{
 		changed = false;
 		for (int id = 1; id <= ENEMY_NUM; ++id)
 		{
+			if (uses[id].count == 0)
+				continue;
 			const int drop = enemyDat[id].eenemydie;
-			if (uses[id].count > 0 && drop > 0 && drop <= ENEMY_NUM && uses[drop].count == 0)
+			if (drop > 0 && drop <= ENEMY_NUM && uses[drop].count == 0)
 			{
 				note_drop(drop, uses[id].levels);
+				changed = true;
+			}
+			// (as JE_makeEnemy takes it: the second bank's types whole)
+			const int launch = enemyDat[id].elaunchfreq == 0 ? 0 : id > 1000 ? enemyDat[id].elaunchtype : enemyDat[id].elaunchtype % 1000;
+			if (launch > 0 && launch <= ENEMY_NUM && !credited[id] && (uses[launch].count == 0 || launched_only[launch]))
+			{
+				const unsigned int mask = uses[id].layer_mask;
+				note_use(launch, (mask & 1) ? 0 : (mask & 2) ? 75 : 50, uses[id].levels);
+				uses[launch].count += uses[id].count - 1;
+				uses[launch].layer_mask |= (mask & (1 | 2 | 4 | 64)) | 32;
+				launched_only[launch] = credited[id] = true;
 				changed = true;
 			}
 		}
@@ -443,9 +462,9 @@ static void write_use(FILE *json, bool *first, int id, int bank, const EnemyUse 
 		fprintf(json, ", \"large\": %s, \"ani\": %d, \"animate\": %d, \"armor\": %d, \"value\": %d, \"count\": %u, \"layers\": [",
 		        large ? "true" : "false", id ? enemyDat[id].ani : 1, id ? enemyDat[id].animate : 0,
 		        enemyDat[id].armor, enemyDat[id].value, use->count);
-		const char *layer_names[5] = { "sky", "ground", "top", "any", "drop" };
+		const char *layer_names[6] = { "sky", "ground", "top", "any", "drop", "launched" };
 		bool first_layer = true;
-		for (int l = 0; l < 5; ++l)
+		for (int l = 0; l < 6; ++l)
 			if (use->layer_mask & (1u << l))
 			{
 				fprintf(json, "%s\"%s\"", first_layer ? "" : ", ", layer_names[l]);
