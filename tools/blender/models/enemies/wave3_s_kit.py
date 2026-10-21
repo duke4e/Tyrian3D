@@ -1,5 +1,5 @@
 """Helpers for the batch S models of wave 3 (sheet F: SAVARA, SAVARA IV, SAVARA V, SAVARA Y and TORM;
-wave3_s.py, the gun silo and the two green jets; wave3_s_boss.py, SAVARA's boss): the sprites' pixels
+wave3_s.py, the gun silo and the two green jets; SAVARA's boss was wave3_s_boss.py's): the sprites' pixels
 (wave3_s_art.py), pixel frames for objects the game draws in pieces, bevelled slabs and prisms, painting
 faces with the colour of the sprite's pixel under them, mirroring, and the build loop of batch N
 (wave3_n_kit: stand-alone models and whole objects cut into their sprites' pieces, the silhouette

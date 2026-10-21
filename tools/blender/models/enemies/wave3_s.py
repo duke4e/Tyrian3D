@@ -1,5 +1,5 @@
 """Enemies of wave 3, batch S (sheet F: SAVARA, SAVARA IV, SAVARA Y), modelled as their sprites look
-(models.cfg: yaw=0). SAVARA's boss is in wave3_s_boss.py; the kit is wave3_s_kit.py, the pixels
+(models.cfg: yaw=0). SAVARA's boss is polish_savara_boss.py's; the kit is wave3_s_kit.py, the pixels
 wave3_s_art.py. (The gun silo, F 43 / 81 / 119, is built by polish_gun_silo.py, the jet with twin tails, F 55,
 by polish_jet_twin_tail.py.)
 
