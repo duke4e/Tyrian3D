@@ -1247,6 +1247,7 @@ static struct
 {
 	unsigned int made_for;  // b3d_map_generation + 1, or 0
 	Uint8 water[B3D_TILES_PER_SET];  // WATER_* below
+	bool plain;  // only its plainly blue pixels are water (terrain.cfg "plain")
 } waters[B3D_SETS];
 
 enum
@@ -1287,17 +1288,22 @@ bool b3d_water_pixel(int set, int tile, Uint8 index)
 	if (index == 0)
 		return false;
 	const int water = water_class(set, tile);
-	return water == WATER_TILE ? water_like(index) : water == WATER_SHORE && water_pixel(index);
+	if (water == WATER_TILE && !waters[set - 1].plain)
+		return water_like(index);
+	return water != WATER_NONE && water_pixel(index);
 }
 
 /*
- * Which levels have water, and in which background (assets/models/terrain.cfg: "water <set> <level
- * name or its beginning>"): colours alone can't tell water from blue metal or blue rock.
+ * Which levels have water, and in which background (assets/models/terrain.cfg: "water <set> [plain]
+ * <level name or its beginning>"): colours alone can't tell water from blue metal or blue rock.
+ * "plain": only the plainly blue pixels are water, also in the tiles that are water in good part (in
+ * CORAL the grey-blue rocks painted into the water tiles stay rock).
  */
 static struct
 {
 	char name[16];
 	int set;
+	bool plain;
 } water_sets[64];
 static int water_set_count = -1;
 
@@ -1317,22 +1323,28 @@ static void load_terrain_config(void)
 		int set;
 		if (sscanf(line, " water %d %15[^\r\n]", &set, name) == 2 && water_set_count < (int)COUNTOF(water_sets))
 		{
-			SDL_strlcpy(water_sets[water_set_count].name, name, sizeof(water_sets[0].name));
+			const bool plain = SDL_strncmp(name, "plain ", 6) == 0;
+			SDL_strlcpy(water_sets[water_set_count].name, plain ? name + 6 : name, sizeof(water_sets[0].name));
 			water_sets[water_set_count].set = set;
+			water_sets[water_set_count].plain = plain;
 			++water_set_count;
 		}
 	}
 	fclose(f);
 }
 
-static bool set_has_water(int set)
+static bool set_has_water(int set, bool *plain)
 {
 	if (water_set_count < 0)
 		load_terrain_config();
 	for (int i = 0; i < water_set_count; ++i)
 		if (water_sets[i].set == set &&
 		    SDL_strncasecmp(levelName, water_sets[i].name, SDL_strlen(water_sets[i].name)) == 0)
+		{
+			*plain = water_sets[i].plain;
 			return true;
+		}
+	*plain = false;
 	return false;
 }
 
@@ -1353,25 +1365,28 @@ static int water_class(int set, int tile)
 	if (waters[set - 1].made_for != b3d_map_generation + 1)
 	{
 		const MapSet m = map_set(set);
-		const bool water_set = set_has_water(set);
+		const bool water_set = set_has_water(set, &waters[set - 1].plain);
 		for (int t = 0; t < B3D_TILES_PER_SET; ++t)
 		{
 			waters[set - 1].water[t] = WATER_NONE;
 			if (!water_set || t >= m.tile_count)
 				continue;
 			const Uint8 *data = m.first_tile + t * m.tile_stride;
-			int opaque = 0, water = 0, cool = 0;
+			int opaque = 0, water = 0, cool = 0, light = 0;
 			for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
 				if (data[p] != 0)
 				{
+					const Uint8 *c = (const Uint8 *)&rgb_palette[data[p]];
 					++opaque;
 					water += water_pixel(data[p]);
 					cool += water_like(data[p]);
+					light += SDL_max(c[0], SDL_max(c[1], c[2]));
 				}
 			// Tiles with water in good part, or drawn all in the water's cool colours (the sun's
 			// glare); shores, with a little of it (their plainly blue pixels only, so the land's
-			// shadows stay land). Their water pixels are water (b3d_water_pixel). Clouds are not water.
-			if (opaque == 0 || b3d_tile_is_cloud(set, t))
+			// shadows stay land). Their water pixels are water (b3d_water_pixel). Clouds are not water,
+			// nor, in the plain sets, the dark tiles (CORAL's dark blue cliffs under its shelves).
+			if (opaque == 0 || b3d_tile_is_cloud(set, t) || (waters[set - 1].plain && light < opaque * 78))
 				continue;
 			if (water * 100 >= opaque * 40 || cool * 100 >= opaque * 90)
 				waters[set - 1].water[t] = WATER_TILE;

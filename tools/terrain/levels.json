@@ -89,9 +89,16 @@
  },
  "2ff0cd9f3b388afd": {
   "classes": 6,
-  "heights": {},
+  "heights": {
+   "3": 10,
+   "0": "~",
+   "4": "~",
+   "5": "~"
+  },
   "level": "CORAL",
-  "void": "hole"
+  "void": "hole",
+  "detail": 6,
+  "softness": 4
  },
  "33fc79a5b8f29c38": {
   "classes": 6,
