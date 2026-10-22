@@ -41,7 +41,7 @@ sprite's centre: the pixel corner (c, r) is (c - 12, 14 - r). Drawn at their ori
 height=-4 sets the train on the terrain (the game lifts the three cars, moving alike on the sprites' grid, together).
 
 Replaces wave3_z_train.py (all of it: the head and the wagon were all it built) and the pixels only it reads
-(wave3_z_art.py's TRAIN_HEAD and TRAIN_WAGON).
+(wave3_z_art.py's LOCO and WAGON; its WAGON_FIRE, L 279, was read by nothing).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each car's silhouette as the
 camera sees it against its sprite's pixels), --preview <prefix>, --only <name,...>, --train <prefix> (the three cars

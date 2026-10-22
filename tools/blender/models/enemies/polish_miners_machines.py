@@ -43,9 +43,9 @@ its picture's middle (where the two sprites meet, half way down): the pixel corn
 pieces' centres: (-12, 0) and (12, 0). Drawn at their origins (origin) on the ground layer: height=-4 sets them on the
 terrain (the game lifts two pieces side by side moving alike to the terrain under their middle).
 
-Replaces wave3_ah.py's roller and tank: its sections "M 155, 157: the roller" (roller_whole() and its
-kit.pieced("miners_roller", ...) registration) and "M 159, 161: the tank" (tank_whole() and kit.pieced("miners_tank",
-...)), pixel_paint() and the ROLLER and TANK frames; the pixels only they read (wave3_ah_art.py's ROLLER and TANK).
+Replaces wave3_ah.py's roller and tank (its sections "M 155, 157: the roller" and "M 159, 161: the tank"); with its
+broken blocks (polish_block_rubble.py) they were all wave3_ah.py still built, so it goes (and with wave3_ah_rock.py and
+wave3_ah_rig.py gone too, its kit wave3_ah_kit.py and its pixels wave3_ah_art.py, ROLLER and TANK among them).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's silhouette as the
 game's camera sees it against its sprite's own pixels, the sand left out), --preview <prefix>, --whole <prefix> (the

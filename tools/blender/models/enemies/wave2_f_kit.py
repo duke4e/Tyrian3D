@@ -1,6 +1,6 @@
-"""Helpers for the batch F models of wave 2 (wave2_f.py): parts traced from pixel
-art and given volume (wave1_d_shapes), turned parts along any axis, tubes, palette materials,
-painting by position, and a registry that builds, checks, exports and previews the models.
+"""Helpers for the batch F models of wave 2 (wave2_f.py is gone: its last model, MINERS's egg, is
+polish_miners_rig.py's; wave3_l_kit.py uses these helpers): parts traced from pixel art and given volume
+(wave1_d_shapes), turned parts along any axis, tubes, palette materials, painting by position.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera).
 Pixel art is rows of letters, row 0 at the top; (ox, oy) is the art's origin in pixels (a 2x2
@@ -20,16 +20,8 @@ sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import wave1_d_shapes as sh  # noqa: E402
 
-ROOT = os.path.join(HERE, "..", "..", "..", "..")
-ENEMIES = os.path.join(ROOT, "assets", "models", "enemies")
-ITEMS = os.path.join(ROOT, "assets", "models", "items")
-
 
 # --- Art ---------------------------------------------------------------------------------------
-
-def art(text):
-    return [line for line in text.strip("\n").split("\n")]
-
 
 def relabel(rows, boxes):
     """The art with pixels relabelled: boxes are (from chars, to char, c0, c1, r0, r1), inclusive."""
@@ -261,38 +253,3 @@ def piece(objects, x0, x1, y0, y1):
     for obj in kept:
         k.smooth(obj, 50)
     return kept
-
-
-# --- Registry ----------------------------------------------------------------------------------
-
-MODELS = []  # (name, builder, sheet file, sprite(s), large, size, out dir)
-
-
-def model(name, sheet, sprite, large=True, out=ENEMIES, size=None):
-    """Registers a builder for a model; sheet: the extracted sheet's file name (enemy_X, coins)."""
-    def register(fn):
-        MODELS.append((name, fn, sheet, sprite, large, size or ((24, 28) if large else (12, 14)), out))
-        return fn
-    return register
-
-
-def main():
-    """Options: --only a,b  --preview <prefix>  --check <extracted sheets dir>  --stats 1"""
-    options = k.args()
-    only = set(options["only"].split(",")) if "only" in options else None
-    for name, build, sheet, sprite, large, size, out in MODELS:
-        if only and name not in only:
-            continue
-        k.reset()
-        build()
-        bake()
-        if "stats" in options:
-            print(f"--- {name}: {triangles()} triangles")
-        if "check" in options:
-            print(f"--- {name} ({sheet} {sprite})")
-            k.check_silhouette(os.path.join(options["check"], sheet + ".png"),
-                               sprite if isinstance(sprite, list) else [sprite], large)
-        k.export(os.path.join(out, name + ".glb"))
-        if "preview" in options:
-            bpy.context.scene.view_settings.view_transform = "Standard"
-            k.preview(options["preview"] + name, size)

@@ -37,12 +37,13 @@ narrowing to the nub), so the camera sees its bottom edge as the arc the sprites
 and its head where they draw it; under its foot ring its sides go straight down to the ground (unseen by the camera).
 The arms are round tubes (ARM: points and radii) from inside its shoulders out to the elbows, held up, and down to the
 paws, flattened balls on the ground. The nub is a red ball in a dark collar at the tip, glowing a little (0x75, 0.3); in
-the frames a ball of fire swells over it (165/167: 0x76 glowing 0.4 round a core 0x79, 0.5; 203/205: 0x77 0.45 round
-0x7b 0.55 and a white-hot core 0x7e 0.65). It is a signed distance field on a grid H pixels apart (polish_rock_arch.py's
-surface nets), the parts joined smoothly; its colours are the picture's own shades under each face (the faces' points
-taken back into the picture's plane): the broad shading kept in part round MID (KEEP: the game's sun shades it), the
-fine kept; the undersides dark. After the shear the creature stands about 15 pixels high, its head leaning back up the
-screen over its torso, its arms propping it up.
+the frames a ball of fire swells over it, in bands by how squarely its faces look at the camera (165/167: 0x75 glowing
+0.35 at its rim, 0x77 0.42, a core 0x79 0.5; 203/205: 0x76 0.4, 0x78 0.48, 0x7b 0.56, a white-hot core 0x7e 0.65), the
+nub inside it glowing in the fire's outer red. It is a signed distance field on a grid H pixels apart
+(polish_rock_arch.py's surface nets), the parts joined smoothly; its colours are the picture's own shades under each
+face (the faces' points taken back into the picture's plane): the broad shading kept in part round MID (KEEP: the
+game's sun shades it), the fine kept; the undersides dark. After the shear the creature stands about 15 pixels high,
+its head leaning back up the screen over its torso, its arms propping it up.
 
 The whole is cut along the planes the camera sees as the sprites' edges (x = 0; y + tan 20 z = 0, leaning back up the
 screen: polish_stone_face.view_cut's planes), so that each piece holds what the camera sees in its sprite, the cuts
@@ -59,7 +60,7 @@ moving alike to the terrain under their middle).
 
 Replaces wave3_z_rock.py (all of it: the creature was all it still built), wave3_at_misc.py (all of it: the creature's
 fire-ball frames were all it built) and wave3_ap_miners.py (all of it: the damaged look), and the pixels only they
-read: wave3_z_art.py's DOME, wave3_ap_art.py's TAN_DOME_DMG.
+read: wave3_z_art.py's DOME (and DOME_FIRE, read by nothing), wave3_ap_art.py's TAN_DOME_DMG.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's silhouette as the
 camera sees it against its sprite's own pixels, the rock and the shadow they paint left out), --preview <prefix>,
@@ -540,17 +541,23 @@ def build():
         if not fspecs and "whole" not in options:
             continue
         fire = fire_parts(spec)
+        # The fire ball engulfs the nub: in these frames the nub glows in the fire's outer red (a material fewer).
+        fnub = [o.copy() for o in nub]
+        for o, src in zip(fnub, nub):
+            o.data = src.data.copy()
+            bpy.context.scene.collection.objects.link(o)
+        fnub[0].data.materials[0] = fire[0].data.materials[0]
         if "whole" in options:
-            view = [o.copy() for o in [whole] + nub + fire]
-            for o, src in zip(view, [whole] + nub + fire):
+            view = [o.copy() for o in [whole] + fnub + fire]
+            for o, src in zip(view, [whole] + fnub + fire):
                 o.data = src.data.copy()
                 bpy.context.scene.collection.objects.link(o)
             triangulate(view)
             mk.export(view, options["whole"] + "tan_dome_%d.glb" % tl)
             for o in view:
                 bpy.data.objects.remove(o)
-        pieces_of(whole, nub + fire, fspecs, m, options, out, fl, check, sheets)
-        for o in fire:
+        pieces_of(whole, fnub + fire, fspecs, m, options, out, fl, check, sheets)
+        for o in fnub + fire:
             bpy.data.objects.remove(o)
     name, sprite, centre = DAMAGED
     if not only or name in only:

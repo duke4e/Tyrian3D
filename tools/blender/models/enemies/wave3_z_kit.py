@@ -1,7 +1,7 @@
-"""Helpers for the batch Z models of wave 3 (sheet L: MINERS, SQUADRON, TIME WAR, STATION; wave3_z_small.py, the small creatures and ships of SQUADRON,
-TIME WAR and MINERS; wave3_z_rock.py, MINERS's tan dome creature in its
-pool; wave3_z_train.py, MINERS's crawler train; wave3_z_station.py, the station of STATION and TIME WAR and TIME
-WAR's grey capsule). The sprites' pixels are in wave3_z_art.py; the parts come from the earlier batches' kits
+"""Helpers for the batch Z models of wave 3 (sheet L: STATION and TIME WAR; wave3_z_station.py, the station of
+STATION and TIME WAR and TIME WAR's grey capsule; MINERS's lander, tan creature and crawler train are now
+polish_lander.py's, polish_tan_dome.py's and polish_crawler.py's). The sprites' pixels are in wave3_z_art.py; the
+parts come from the earlier batches' kits
 (wave3_s_kit: pixel frames, painting by the sprite, slabs and prisms; wave3_q_kit: heightfield parts, rings;
 wave3_j_kit: palette materials, turned parts, tubes, spheres; wave3_n_kit: stand-alone models and whole objects
 cut into their sprites' pieces, the silhouette check, the triangle budget, the build loop).
@@ -11,15 +11,11 @@ the origin is the sprite's centre (or the whole object's, for objects the game d
 Pixel (column c, row r) of an art with origin (ox, oy) covers x = c - ox .. c + 1 - ox,
 y = oy - r - 1 .. oy - r.
 """
-import math
 import os
-import random
 import sys
 
-import bmesh
 import bpy
-import numpy as np
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
@@ -37,11 +33,11 @@ from wave3_s_kit import (Frame, Painter, paint_sprite, paint_pixels, pixelate, m
                          prism_y, lathe_y, lift, mirror_copies, smoothstep)
 
 L = "enemy_L"
-model = n.model
 pieced = n.pieced
 check_mask = n.check_mask
 torus = q.torus
 cone = q.cone
+run = n.run
 
 
 def frame(name, width, origin):
@@ -71,140 +67,6 @@ def quarter(name, f, c0, r0, width=24, height=28, check=True):
     e = 0.01  # faces lying on a piece's edge stay with neither piece
     return (name, (x0 + e, x0 + width - e, y1 - height + e, y1 - e), (x0 + width / 2, y1 - height / 2),
             (lambda: f.mask((c0, c0 + width, r0, r0 + height))) if check else None)
-
-
-def move(objects, dx=0.0, dy=0.0, dz=0.0):
-    for obj in objects:
-        sh.apply_modifiers(obj)
-        obj.data.transform(Matrix.Translation((dx, dy, dz)))
-    return objects
-
-
-def rotate_about(objects, axis, angle, pivot):
-    """Turns objects by angle (radians) about an axis ('X', 'Y', 'Z') through pivot."""
-    m = Matrix.Translation(pivot) @ Matrix.Rotation(angle, 4, axis) @ Matrix.Translation(-Vector(pivot))
-    for obj in objects:
-        sh.apply_modifiers(obj)
-        obj.data.transform(m)
-    return objects
-
-
-def field(fr, value, keep, blur=1):
-    """A numpy field over the frame's pixels: value(index) where keep(index) holds, NaN elsewhere, blurred
-    `blur` times among the kept pixels."""
-    h, wd = len(fr.g), fr.width
-    f = np.full((h, wd), np.nan)
-    for r in range(h):
-        for c in range(wd):
-            v = fr.g[r][c]
-            if v is not None and keep(v):
-                f[r, c] = value(v)
-    for _ in range(blur):
-        out = f.copy()
-        for r in range(h):
-            for c in range(wd):
-                if np.isnan(f[r, c]):
-                    continue
-                vals, wts = [], []
-                for dr in (-1, 0, 1):
-                    for dc in (-1, 0, 1):
-                        rr, cc = r + dr, c + dc
-                        if 0 <= rr < h and 0 <= cc < wd and not np.isnan(f[rr, cc]):
-                            vals.append(f[rr, cc])
-                            wts.append(2.0 if dr == dc == 0 else 1.0 if dr == 0 or dc == 0 else 0.5)
-                out[r, c] = np.average(vals, weights=wts)
-        f = out
-    return f
-
-
-def field_sampler(fr, f):
-    """(x, y) -> the field bilinear between pixel centres (the nearest known value outside)."""
-    h, wd = f.shape
-    known = np.argwhere(~np.isnan(f))
-
-    def at(x, y):
-        c, r = x + fr.ox - 0.5, fr.oy - y - 0.5
-        c0, r0 = math.floor(c), math.floor(r)
-        total = weight = 0.0
-        for rr, cc, wt in ((r0, c0, (1 - (r - r0)) * (1 - (c - c0))), (r0, c0 + 1, (1 - (r - r0)) * (c - c0)),
-                           (r0 + 1, c0, (r - r0) * (1 - (c - c0))), (r0 + 1, c0 + 1, (r - r0) * (c - c0))):
-            if 0 <= rr < h and 0 <= cc < wd and not np.isnan(f[rr, cc]):
-                total += f[rr, cc] * wt
-                weight += wt
-        if weight > 0.05:
-            return total / weight
-        i = int(np.argmin((known[:, 0] - r) ** 2 + (known[:, 1] - c) ** 2))
-        return f[known[i, 0], known[i, 1]]
-    return at
-
-
-def bands(prefix, ramp, shades, metallic=0.1, roughness=0.7, glow=None):
-    """Materials of one ramp's shades, dark to light: [(shade, material)]."""
-    return [(sh_, pal(f"{prefix}_{ramp * 16 + sh_:02x}", ramp * 16 + sh_, metallic=metallic, roughness=roughness,
-                      glow=glow(sh_) if callable(glow) else glow)) for sh_ in shades]
-
-
-def nearest_band(bands_, value):
-    return min(bands_, key=lambda b: abs(b[0] - value))[1]
-
-
-def paint_by(obj, value_at, bands_, wall_drop=1.5, under=None, wall_z=0.4):
-    """Paints faces by value_at(x, y) (a shade), the nearest band's material; steep faces wall_drop darker,
-    faces looking down `under` (default: the darkest band)."""
-    def pick(c, nrm):
-        if nrm.z < -0.5:
-            return under or bands_[0][1]
-        v = value_at(c.x, c.y)
-        if abs(nrm.z) < wall_z:
-            v -= wall_drop
-        return nearest_band(bands_, v)
-    return paint_faces(obj, pick)
-
-
-def jitter(obj, amount, seed=1, scale=1.6, min_z=0.15):
-    """Moves the vertices above min_z by smooth noise (rocks, crusts)."""
-    rng = random.Random(seed)
-    waves = [(Vector([rng.uniform(-1, 1) for _ in range(3)]).normalized() / scale, rng.uniform(0, 6.3))
-             for _ in range(8)]
-    for v in obj.data.vertices:
-        if v.co.z <= min_z:
-            continue
-        d = sum(math.sin(wv.dot(v.co) + ph) for wv, ph in waves) / math.sqrt(len(waves))
-        v.co += Vector((d * amount * 0.5, d * amount * 0.5, d * amount))
-    return obj
-
-
-# --- Previews of objects drawn from several separate models ----------------------------------------
-
-ASSEMBLIES = {}  # name: (size, [(builder, (dx, dy))])
-
-
-def assembly(name, size, parts):
-    """Registers an assembly for --assembly previews: builders (each building one object in its own
-    coordinates) and where its origin lies in the assembly."""
-    ASSEMBLIES[name] = (size, parts)
-
-
-def run():
-    """wave3_n_kit.run; --assembly <prefix> [--only names] renders the registered assemblies instead."""
-    options = k.args()
-    if "assembly" not in options:
-        return n.run()
-    only = set(options["only"].split(",")) if "only" in options else None
-    for name, (size, parts) in ASSEMBLIES.items():
-        if only and name not in only:
-            continue
-        k.reset()
-        for build, (dx, dy) in parts:
-            before = set(meshes())
-            build()
-            bake()
-            move([o for o in meshes() if o not in before], dx, dy)
-        print(f"== assembly {name}: {triangles()} triangles")
-        bpy.context.scene.view_settings.view_transform = "Standard"
-        prefix = options["assembly"] + name
-        k.preview(prefix, size, scale=max(6, 640 // max(size)))
-        n.render_3q(prefix, size, max(size) / 34.0)
 
 
 def mirror_y_copies(objects, axis_y=0.0, suffix="_y"):

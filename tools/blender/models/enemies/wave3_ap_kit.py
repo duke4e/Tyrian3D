@@ -324,24 +324,6 @@ def budget(target=4800, objects=None):
     return n.budget(target, objects)
 
 
-def cut_plane(obj, point, normal):
-    """Cuts away what lies on the side of a plane its normal points to, closing the cut (wave3_ah_kit.cut_plane)."""
-    import wave3_ah_kit as ah
-    return ah.cut_plane(obj, point, normal)
-
-
-def split(obj, point, normal, suffix="_part"):
-    """Splits obj by a plane into two closed objects: obj keeps the side against the normal, the copy (returned) the
-    side it points to."""
-    other = obj.copy()
-    other.data = obj.data.copy()
-    other.name = obj.name + suffix
-    bpy.context.scene.collection.objects.link(other)
-    cut_plane(obj, point, normal)
-    cut_plane(other, point, tuple(-c for c in normal))
-    return other
-
-
 def named(prefix):
     return [o for o in meshes() if o.name.startswith(prefix)]
 

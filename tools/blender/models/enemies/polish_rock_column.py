@@ -63,8 +63,9 @@ row r is y = 41.5 - r. The pieces' centres: 163 (-12, 28), 165 (12, 28), 201 (-1
 241 (12, -28). Drawn at their origins (origin) on the ground layers: height=-4 sets the column on the terrain (the game
 lifts pieces side by side moving alike together, to the terrain under their middle; MINERS's ground is level there).
 
-Replaces wave3_ah_rock.py (all of it: the column and its broken look were all it built) and the pixels only it reads
-(wave3_ah_art.py's COLUMN and COLUMN_DMG).
+Replaces wave3_ah_rock.py (all of it: the column and its broken look were all it built). With wave3_ah.py
+(polish_miners_machines.py, polish_block_rubble.py) and wave3_ah_rig.py (polish_miners_rig.py) gone too, nothing
+imports wave3_ah_kit.py or its pixels, wave3_ah_art.py (the column's ROCK and ROCK_WRECK among them): both go.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the whole's and each piece's
 silhouette as the camera sees it against the sprites' own pixels, the ground they paint left out), --preview <prefix>,
