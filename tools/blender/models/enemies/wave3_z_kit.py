@@ -1,5 +1,5 @@
 """Helpers for the batch Z models of wave 3 (sheet L: MINERS, SQUADRON, TIME WAR, STATION; wave3_z_small.py, the small creatures and ships of SQUADRON,
-TIME WAR and MINERS; wave3_z_rock.py, MINERS's red rock: the spire, the mounds and the tan dome creature in its
+TIME WAR and MINERS; wave3_z_rock.py, MINERS's tan dome creature in its
 pool; wave3_z_train.py, MINERS's crawler train; wave3_z_station.py, the station of STATION and TIME WAR and TIME
 WAR's grey capsule). The sprites' pixels are in wave3_z_art.py; the parts come from the earlier batches' kits
 (wave3_s_kit: pixel frames, painting by the sprite, slabs and prisms; wave3_q_kit: heightfield parts, rings;
@@ -205,57 +205,6 @@ def run():
         prefix = options["assembly"] + name
         k.preview(prefix, size, scale=max(6, 640 // max(size)))
         n.render_3q(prefix, size, max(size) / 34.0)
-
-
-# --- MINERS's hex rock -------------------------------------------------------------------------------
-
-SQRT3 = math.sqrt(3.0)
-
-
-def hex_cell(x, y, size=3.6):
-    """The hexagonal cell of a lattice of `size` pixels round a point (MINERS's dark red rock is laid with
-    such cells): (its bump, 1 in the cell's middle falling to 0 at its rim, and the cell's id)."""
-    row_h = size * SQRT3 / 2
-    j0 = int(math.floor(y / row_h))
-    best = None
-    for j in (j0 - 1, j0, j0 + 1, j0 + 2):
-        off = (size / 2) if j % 2 else 0.0
-        i0 = int(math.floor((x - off) / size))
-        for i in (i0 - 1, i0, i0 + 1, i0 + 2):
-            cx, cy = i * size + off, j * row_h
-            d = math.hypot(x - cx, y - cy)
-            if best is None or d < best[0]:
-                best = (d, (i, j))
-    d, cell = best
-    bump = max(0.0, 1.0 - (d / (size * 0.62)) ** 2)
-    return bump, cell
-
-
-def cell_jitter(cell, seed=7):
-    """A steady pseudo-random number in -1..1 for a cell."""
-    h = (cell[0] * 73856093) ^ (cell[1] * 19349663) ^ (seed * 83492791)
-    return ((h & 0xffff) / 0xffff) * 2.0 - 1.0
-
-
-def hex_rock_paint(obj, shade_at, mats, size=3.6, seed=7, groove_drop=1.6, wall_drop=1.0):
-    """Paints a hex rock part: each face the band of shade_at(x, y), moved by its cell's jitter, darker in the
-    grooves between the cells and on steep faces; mats [(shade, material)] dark to light."""
-    def pick(c, nrm):
-        if nrm.z < -0.5:
-            return mats[0][1]
-        bump, cell = hex_cell(c.x, c.y, size)
-        v = shade_at(c.x, c.y) + 0.8 * cell_jitter(cell, seed)
-        if bump < 0.25:
-            v -= groove_drop
-        if abs(nrm.z) < 0.4:
-            v -= wall_drop
-        return nearest_band(mats, v)
-    return paint_faces(obj, pick)
-
-
-def lava_rock_mats(prefix):
-    """The dark red rock's shades (ramp 7, dull: it does not glow)."""
-    return bands(prefix, 7, (1, 2, 3, 4, 5, 6, 7), metallic=0.05, roughness=0.75)
 
 
 def mirror_y_copies(objects, axis_y=0.0, suffix="_y"):

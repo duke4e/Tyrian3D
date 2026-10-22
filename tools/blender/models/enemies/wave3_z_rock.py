@@ -1,12 +1,11 @@
-"""Enemies of wave 3, batch Z, continued (sheet L): MINERS's dark red rock, modelled as the sprites look (models.cfg:
-yaw=0). The kit is wave3_z_kit.py, the pixels wave3_z_art.py.
+"""Enemies of wave 3, batch Z, continued (sheet L): MINERS's tan dome creature in its patch of dark red rock,
+modelled as the sprites look (models.cfg: yaw=0). The kit is wave3_z_kit.py, the pixels wave3_z_art.py. (MINERS's
+rock spire is polish_red_spire.py's, its two horns polish_red_mound.py's.)
 
 MINERS's ground is red sand with patches of dark red rock laid with hexagonal cells (ramp 7, as the map draws
-it); the level puts these objects of the same rock on it, all on the ground layer, all at the top of the screen
-(y = -29) where the ground carries them down:
+it); the level puts the creature on it, on the ground layer, at the top of the screen (y = -29) where the ground
+carries it down:
 
-- red_mound_a_l, red_mound_a_r (L 234 beside 236, enemies 1144, 1145) and red_mound_b_l, red_mound_b_r (L 271
-  beside 273, enemies 1146, 1147): low ridges of the rock along the sprites' bottom edge.
 - tan_dome_tl, tan_dome_tr, tan_dome_bl, tan_dome_br (L 161 163 above 199 201, enemies 1151-1154): a tan
   creature standing on the ground: a fat body rising to a head up the screen with a red glowing nub on top, a
   thick leg on each side reaching out and down to the ground. The patch of rock the lower sprites draw round
@@ -27,41 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_z_kit as kit  # noqa: E402
 from wave3_z_kit import k, sh, w, pal, smoothstep  # noqa: E402
 
-MOUND_A = kit.frame("MOUND_A", 48, (24, 14))
-MOUND_B = kit.frame("MOUND_B", 48, (24, 14))
 DOME = kit.frame("DOME", 48, (24, 28))
-
-
-def rock_shade(f, ramps=(7, 0xf)):
-    """The rock pixels' shades (the dull red ramp; the brown 0xf6 speckles as shade 3), blurred once."""
-    value = lambda v: 3.0 if v >> 4 == 0xf else (v & 15) if v >> 4 == 7 else 2.0
-    return kit.field_sampler(f, kit.field(f, value, lambda v: v >> 4 in ramps or v >> 4 == 4, blur=1))
-
-
-def hex_rock(name, f, polys, height_of, edge, size=3.6, relief=0.45, seed=7):
-    """A part of the hex rock over the polygons: its top at height_of(x, y, e) (e: 0 on the outline, 1 `edge`
-    pixels in) with the cells bulging `relief` out of it, painted by the sprite's shades."""
-    def z_of(x, y, e):
-        bump, _ = kit.hex_cell(x, y, size)
-        return height_of(x, y, e) + relief * (bump - 0.5) * min(1.0, 2.0 * e)
-    obj = kit.heightfield(name, polys, z_of, None, spacing=0.45, smooth_angle=40, edge=edge)
-    kit.hex_rock_paint(obj, rock_shade(f), kit.lava_rock_mats("hexrock"), size=size, seed=seed)
-    return obj
-
-
-def halves(name, f):
-    return [kit.quarter(name + "_l", f, 0, 0), kit.quarter(name + "_r", f, 24, 0)]
-
-
-# --- L 234 236 and L 271 273: the mounds -----------------------------------------------------------
-
-def mound(name, f, seed):
-    polys = kit.polys_of(f, lambda v, c, r: True, smooth=2, epsilon=0.3)
-    hex_rock(name, f, polys, lambda x, y, e: 0.3 + 5.6 * e, edge=3.4, size=3.4, relief=0.5, seed=seed)
-
-
-kit.pieced("red_mound_a", lambda: mound("mound_a", MOUND_A, 11), (48, 28), halves("red_mound_a", MOUND_A))
-kit.pieced("red_mound_b", lambda: mound("mound_b", MOUND_B, 23), (48, 28), halves("red_mound_b", MOUND_B))
 
 
 # --- L 161 163 / 199 201: the tan dome creature in its rock ----------------------------------------
