@@ -1,6 +1,6 @@
 """The eye sphere of LAVA RUN (in the sky) and EYESPY (on the top layer): sheet 9 sprites 153 155 157 / 191 193 195 /
-210 212 214 (2x2 each), one 72 x 70 picture; polished (2026-10-22, round 36). It replaces wave3_aj_eye.py (a
-heightfield ball painted pixel by pixel, 32.4 pixels tall, its eye a pixelated shell over it).
+210 212 214 (2x2 each), one 72 x 70 picture; polished (2026-10-22, round 36), rebuilt from solids (2026-10-23, round 38:
+round 36's was one heightfield painted from the sprite's pixels, its iris pixel blocks). It replaced wave3_aj_eye.py.
 
 Where the levels put it (the enemy events): nine pieces as the sheet lays them out, 153 155 157 at (x, y - 56), (x + 24,
 y - 56), (x + 48, y - 56), 191 193 195 28 pixels lower, 210 212 214 14 pixels lower still (their boxes overlap 191-195's
@@ -8,327 +8,562 @@ lower half): episode 4's enemies 327-335, LAVA RUN t2800 (event 15, the sky) and
 layer). One frame each, no damaged look, nothing launched; 333 and 335 (210, 214) have armour 0 (shots pass through),
 the rest 255; 334 (212) fires. The overlapping rows 42-55 are kept by 210-214 (191-195 keep rows 28-41). No other
 sprite of any sheet is these pixels mirrored, turned or in other ramps (the ball is round, 97.5 % its own mirror image
-in outline, but its plates and lighting are not); no other enemy shows them.
+in outline, but its plates and lighting are not); no other enemy shows them; episode 6's EYESPY and LAVA RUN waves
+(DELI RUIN, GLACIER, ROOST) don't hold it.
 
 As the sprites and their 4x upscales draw it (the picture's columns and rows; lit from the upper left): a big steel ball
-(columns 0-71, rows 0-68) of grey armour plates (ramp 0) with dark seams; on its upper left a raised silver plate
-(bright greys, columns 14-37 of rows 8-30), on its upper right a curved strip of light blue glass set into it (ramp 8,
-columns 36-49 of rows 10-25); a piston lying on each side above the eye (columns 5-15 of rows 29-37 and 57-67 of rows
-29-41: dark sleeves, light rods); on its lower front a great glass eye bulging from the ball (columns 15-56 of rows
-36-64): a light blue iris (ramps 8 and 9) shading to deep blue at its rim (ramp 3), a black pupil (columns 29-38 of rows
-46-57) and black crosshairs through it, in a dark steel rim.
+(columns 0-71, rows 0-68) of grey armour plates (ramp 0) with dark seams: a seam round its waist above the eye (rows
+27-29), seams from its top down to it (columns 24-38 and 50-54), one across its upper right (to column 70 at row 24); on
+its upper left a raised silver plate (bright greys, columns 14-37 of rows 8-28) with rounded bosses, on its upper right
+a curved strip of light blue glass set into it (ramp 8, columns 36-50 of rows 9-26); a piston on each side above the eye
+(columns 5-17 of rows 28-42 and 55-67 of rows 28-42: a grey sleeve, a bright rod, its end on the eye's rim); on its
+lower front a great glass eye (columns 15-57 of rows 36-65) in a dark steel rim: a light blue iris (ramps 8 and 9) with
+radial fibres, deep blue (ramp 3) at its rim, a black pupil (columns 29-39 of rows 46-57, left of the middle) and dark
+crosshairs through it (column 36, row 51).
 
-Built for the game's camera, with polish_sheet9_kit: the ball a flattened sphere (BALL) rolling over at its outline,
-the silver plate a plate of its bright pixels raised over it, the strip a glass inlay a little proud of it, the eye a
-cap bulging from the ball (EYE) in a raised rim; the sprite's dark seams creased, its fine shading a little relief.
-Solids: the pistons (a dark sleeve and a light rod each, lying on the ball). The eye is glass: glossy, glowing a
-little in its own blues (0.12-0.35; the ball's round shape reads dark from the slanted camera otherwise). Heights: z 0
-to 13.6 (the eye's crown; the old ball rose 32 pixels, through the player's plane on the top layer).
+Built from solids (polish_sheet9_solids): the core a dark ball (an ellipsoid lofted from explicit rings); over it nine
+armour plates (shell plates over smooth outlines traced from the sprite's seams, each 1.8 over the ball with a 0.9
+quarter-round bevel, 0.84 apart: the core shows in the seams and as the dark outline); the silver plate a thicker plate
+over the upper left one with two machined bosses and a knob; the glass strip a glass slab sunk in a hole of its plate
+(a dark gasket round it); the eye's rim a lofted ring standing proud of the plates with sixteen rivets; the eye a glass
+cap bulging from the ball, meshed round its pupil (rings out to the rim, so its bands are clean curves: a pale wavy
+collarette, the teal iris with bright blue fibres and navy crypts curling a little, a navy outer band, the limbus sunk
+in a groove under the rim, the pupil sunk and glossy black), two thin dark wires across it (the crosshairs); the
+pistons turned parts (a sleeve with a collar, a chrome rod down to the eye's rim, pins across both ends) on machined
+mounts; rivets along the waist seam. Materials by part (palette indices of the sprite's ramps): the plates 0x08, the
+core, seams and cuts 0x02, the silver plate 0x0c and its bosses 0x0b, the rim 0x04, rivets and pins 0x0a, sleeves
+0x07, rods 0x0e, the strip's glass 0x85 (glowing 0.2), the iris 0x84 / fibres 0x9d / collarette 0x9e (glowing
+0.16-0.26), crypts 0x36, the outer band 0x37 (0.1), the limbus 0x34, the pupil 0x61, the wires 0x02.
+
+Built TALL (30) high, as round as the sprite paints it, and flattened to FLAT of that with its built normals kept
+(turned ROUNDER times rounder still; polish_sheet9_solids.flatten): the game's camera sees it shaded as a ball while it
+stays as low as round 36's (z 0 to 13.3; the old ball of round 35 rose 32 pixels, through the player's plane on the top
+layer). Then cut along the sprites' edges (the cuts capped in the core's colour), sheared along the camera's line of
+sight, each piece moved to its origin.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: the base, its
-layer's plane). The whole's origin is the picture's middle (column 36, row 35): column c is x = c + 0.5 - 36, row r is
-y = 34.5 - r; a piece whose sprite's top left pixel is (c0, r0) has its origin at (c0 - 24, 21 - r0) (models.cfg
-origin).
+layer's plane). The whole's origin is the picture's middle (column 36, row 35): column c's left edge is x = c - 36, row
+r's top edge y = 35 - r; a piece whose sprite's top left pixel is (c0, r0) has its origin at (c0 - 24, 21 - r0)
+(models.cfg origin).
 
 models.cfg: the nine model and sprite lines stay as they are (eye_sphere_<sprite> ... origin; yaw=0).
 
-Replaces wave3_aj_eye.py (all of it: delete it).
+Replaces round 36's version of this script (its heightfield, polish_sheet9_kit's Plate and Painter); wave3_aj_eye.py is
+already gone.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline as the
-camera sees it against its sprite's pixels), --preview <prefix>, --only <name,...>.
+camera sees it against its sprite's pixels), --preview <prefix> (the whole: top and 3/4 views; --pieces 1: each piece),
+--only <name,...>, --dump <file.json> (the plates' outlines, for a look over the sprite).
 """
+import json
+import math
 import os
 import sys
 
-import bpy
-import numpy as np
+from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smoothstep, smax, Region, Zone, Painter, round_rise  # noqa: E402
+import polish_sheet9_solids as ss  # noqa: E402
 
 LEFT, TOP = -36.0, 35.0
-W, H = 72, 70
+BALL_C = (36.1, 34.7)              # the ball's middle (column, row) and radii
+BALL_R = (35.9, 34.3)
+TALL = 30.0                        # its height as built
+FLAT = 0.39                        # ... flattened to this of it
+KEEP = 1.0                         # how much of the built normals the flattened ball keeps
+ROUNDER = 1.4                      # ... turned as if it were this much taller still (rounder than a sphere)
+CORE_SINK = 1.0                    # the core under the plates' foot
+THICK, BEVEL, GAP = 1.8, 0.9, 0.42 # the plates: over the ball, their edge's rounding, half the seam
+RIM_INSET = 0.38                   # the plates stop this far inside the ball's outline (the core's dark rim)
+CORNER = 1.3                       # the plates' corners rounded over this (more than their bevel)
+SILVER = (1.7, 0.85)               # the silver plate over its plate: thickness, rounding
+GLASS_UP, GLASS_GAP = 0.8, 0.6     # the glass strip's top over the ball, its gap in the plate
+EYE_C = (36.5, 50.5)               # the eye (column, row), its glass's radii, the rim's outer radii
+EYE_R = (20.4, 13.8)
+BEZEL_R = (22.5, 15.7)
+EYE_LIFT, BULGE = 0.6, 4.6         # the eye's rim over the ball, its crown over that
+PUPIL = ((34.4, 51.4), 4.9, 1.3)   # middle (column, row), radius, how deep it is sunk
+GROOVE = (0.9, 1.0, 0.9)           # the limbus groove: from, to (t of the glass's mesh), depth
+COLLARETTE = (0.16, 0.02, 12)     # the pale ring round the pupil: its edge (t), how far it waves, how many waves
+OUTER = (0.76, 0.025, 15)          # the iris's dark outer band from here (waving likewise)
+LIMBUS = 0.93                      # the navy limbus from here to the rim
+FIBRES = 48                        # radial fibres round the iris (light ones, every fourth a dark crypt)
+TWIST = 9.0                        # degrees the fibres curl from the pupil to the rim
+WIRES = (36.6, 50.9, 0.42, 0.45)   # the crosshairs: column, row, half width, over the glass
+PISTONS = [((7.9, 29.9), (16.9, 41.3)), ((64.3, 30.3), (56.1, 41.7))]   # upper and lower pivots (column, row)
+SLEEVE_R, ROD_R = 2.35, 1.0
 
-BALL = ((36.0, 34.4), (36.1, 34.7), 11.4)      # the ball: middle (column, row), radii, height
-EDGE_ROLL = 2.0
-EYE = ((35.6, 50.4), (21.2, 14.6), 2.2)       # the eye: middle, radii, how far its crown bulges over the ball
-EYE_RIM = (1.1, 0.55)                         # its rim: width, height over the ball
-PLATE_T = 1.1                                 # the silver plate stands this high over the ball
-STRIP_T = 0.45                                # the glass strip
-CREASE = 0.8
-DETAIL = (0.1, 0.3)
-PISTONS = [((7.6, 29.6), (15.6, 39.4), 1.9, 1.15), ((64.4, 30.0), (57.0, 40.2), 1.9, 1.15)]  # from, to, radii
+# The seams (column, row), from end to end; * ends lie on the ball's outline (o) or the rim's (b).
+SEAMS = {
+    "eq1": [("o", 0.3, 29.2), (6.0, 28.4), (13.6, 28.0)],
+    "eq2": [(13.6, 28.0), (19.0, 28.05)],
+    "eq3": [(19.0, 28.05), (27.0, 28.25), (38.0, 28.45)],
+    "eq4": [(38.0, 28.45), (46.0, 28.5), (53.6, 28.55)],
+    "eq5": [(53.6, 28.55), (60.0, 29.1), (66.0, 29.9), ("o", 72.0, 30.8)],
+    "sa": [("o", 25.0, 1.9), (29.0, 5.0), (33.0, 8.6), (36.4, 12.0), (37.8, 17.0), (38.0, 22.0), (38.0, 28.45)],
+    "sb": [("o", 2.8, 21.0), (7.5, 21.9), (11.4, 24.0), (13.6, 28.0)],
+    "sc1": [("o", 50.0, 2.9), (51.3, 8.0), (52.0, 13.0)],
+    "sc2": [(52.0, 13.0), (52.5, 19.0), (52.9, 24.0), (53.6, 28.55)],
+    "sd": [(52.0, 13.0), (57.0, 14.6), (62.0, 17.6), (66.2, 21.4), ("o", 70.8, 24.5)],
+    "sl": [(19.0, 28.05), (20.3, 33.4), ("b", 21.6, 38.6)],
+    "sr": [(53.6, 28.55), (52.6, 33.8), ("b", 51.4, 38.8)],
+    "sbl": [("b", 23.6, 63.3), ("o", 20.5, 65.8)],
+    "sbr": [("b", 49.4, 63.3), ("o", 52.5, 65.6)],
+}
+# The plates: their outlines as seams (+ forwards, - backwards) and arcs of the outline (o) or the rim (b) between them,
+# counter-clockwise (ccw) or clockwise (cw) on the screen.
+PLATES = {
+    "top_left": [("o", "ccw"), "+sb", "+eq2", "+eq3", "-sa"],
+    "low_left": [("o", "ccw"), "+eq1", "-sb"],
+    "top": [("o", "ccw"), "+sa", "+eq4", "-sc2", "-sc1"],
+    "top_right": [("o", "ccw"), "+sc1", "+sd"],
+    "right": [("o", "ccw"), "-sd", "+sc2", "+eq5"],
+    "brow": ["+eq3", "+eq4", "+sr", ("b", "ccw"), "-sl"],
+    "cheek_left": ["-eq2", "-eq1", ("o", "ccw"), "-sbl", ("b", "cw"), "-sl"],
+    "cheek_right": ["+eq5", ("o", "cw"), "-sbr", ("b", "ccw"), "-sr"],
+    "chin": ["+sbl", ("o", "ccw"), "-sbr", ("b", "cw")],
+}
+SILVER_PLATE = [(15.8, 11.8), (18.6, 9.6), (23.0, 8.7), (28.6, 8.8), (32.6, 10.0), (35.2, 12.6), (36.4, 16.6),
+                (36.5, 21.6), (35.2, 25.2), (31.2, 27.0), (25.0, 27.2), (19.5, 26.6), (16.4, 24.6), (14.9, 20.8),
+                (14.8, 15.6)]
+# The silver plate's bosses: middle (column, row), radius, height (turned: a collar, a chamfer, a low crown).
+BOSSES = [((26.8, 16.8), 3.4, 1.5), ((32.2, 21.4), 2.3, 1.2), ((33.9, 13.4), 1.6, 1.3)]
+WINDOW = [(38.6, 10.4), (41.0, 9.4), (44.6, 10.4), (47.8, 12.8), (49.8, 16.6), (50.4, 21.6), (49.6, 25.8),
+          (46.6, 26.6), (45.0, 25.4), (44.6, 21.6), (43.4, 17.6), (41.2, 14.2), (39.0, 12.4)]
+RIVETS = [(3.6, 26.6), (8.6, 26.6), (58.4, 27.5), (63.6, 28.3), (68.6, 29.2),
+          (3.6, 30.6), (13.6, 29.7), (24.0, 29.9), (30.0, 30.0), (36.0, 30.1), (42.0, 30.1), (48.0, 30.1),
+          (58.6, 30.9), (68.4, 32.0),
+          (17.4, 12.9), (16.9, 22.8), (34.8, 23.9)]
+RIVET = (0.62, 0.75)               # radius, height
+BEZEL_RIVETS = 16
+
+
+def P(c, r):
+    return (c + LEFT, TOP - r)
+
+
+def ball_c():
+    return P(*BALL_C)
+
+
+def ball_z(x, y):
+    (cx, cy), (rx, ry) = ball_c(), BALL_R
+    q = 1.0 - ((x - cx) / rx) ** 2 - ((y - cy) / ry) ** 2
+    return TALL * math.sqrt(max(0.0, q))
+
+
+def ball_normal(x, y):
+    (cx, cy), (rx, ry) = ball_c(), BALL_R
+    z = max(ball_z(x, y), 0.3)
+    return Vector(((x - cx) / rx ** 2, (y - cy) / ry ** 2, z / TALL ** 2)).normalized()
+
+
+def eye_c():
+    return P(*EYE_C)
+
+
+def eye_rho(x, y):
+    (ex, ey), (a, b) = eye_c(), EYE_R
+    return math.hypot((x - ex) / a, (y - ey) / b)
+
+
+def eye_z(x, y):
+    """The eye's glass over the ball (its crown at the middle, its rim EYE_LIFT over the ball)."""
+    rho = eye_rho(x, y)
+    return ball_z(x, y) + EYE_LIFT + BULGE * math.sqrt(max(0.0, 1.0 - rho * rho))
+
+
+def plate_top(x, y):
+    return ball_z(x, y) + THICK
+
+
+# --- Materials ------------------------------------------------------------------------------------------------------
+
+def materials():
+    p = ss.pal
+    return {
+        "plate": p("eyes_plate", 0x08, 0.25, 0.36), "core": p("eyes_core", 0x02, 0.3, 0.55),
+        "silver": p("eyes_silver", 0x0c, 0.45, 0.26), "boss": p("eyes_boss", 0x0b, 0.45, 0.34),
+        "rivet": p("eyes_rivet", 0x0a, 0.45, 0.3), "bezel": p("eyes_bezel", 0x04, 0.4, 0.3),
+        "sleeve": p("eyes_sleeve", 0x07, 0.35, 0.32), "rod": p("eyes_rod", 0x0e, 0.6, 0.12),
+        "glass": p("eyes_glass", 0x85, 0.0, 0.06, 0.2),
+        "collar": p("eyes_icollar", 0x9e, 0.0, 0.08, 0.26), "iris": p("eyes_iris", 0x84, 0.0, 0.08, 0.16),
+        "fibre": p("eyes_ifibre", 0x9d, 0.0, 0.08, 0.24), "crypt": p("eyes_icrypt", 0x36, 0.0, 0.1, 0.06),
+        "outer": p("eyes_iouter", 0x37, 0.0, 0.1, 0.1),
+        "limbus": p("eyes_limbus", 0x34, 0.0, 0.2), "pupil": p("eyes_pupil", 0x61, 0.1, 0.05),
+        "wire": p("eyes_wire", 0x02, 0.5, 0.25),
+    }
+
+
+# --- Outlines -------------------------------------------------------------------------------------------------------
+
+def snapped(item):
+    """A seam point in the plane, snapped onto the outline (o) or the rim (b)."""
+    if len(item) == 3:
+        which, c, r = item
+        p = P(c, r)
+        if which == "o":
+            return ss.on_ellipse(ball_c(), BALL_R, p)
+        return ss.on_ellipse(eye_c(), BEZEL_R, p)
+    return P(*item)
+
+
+def seam(name):
+    return ss.chaikin_open([snapped(it) for it in SEAMS[name]], 2)
+
+
+def arc_between(which, p0, p1, sense):
+    centre, radii = (ball_c(), BALL_R) if which == "o" else (eye_c(), BEZEL_R)
+    a0, a1 = ss.angle_on(centre, radii, p0), ss.angle_on(centre, radii, p1)
+    if sense == "ccw":
+        while a1 <= a0:
+            a1 += 360.0
+    else:
+        while a1 >= a0:
+            a1 -= 360.0
+    return ss.ellipse_arc(centre, radii, a0, a1, 0.4)
+
+
+def plate_outline(spec):
+    """A plate's outline: its seams in order, the arcs between them."""
+    parts = []
+    for item in spec:
+        if isinstance(item, str):
+            pts = seam(item[1:])
+            parts.append(pts if item[0] == "+" else pts[::-1])
+        else:
+            parts.append(item)
+    out = []
+    n = len(parts)
+    for i, part in enumerate(parts):
+        if isinstance(part, tuple):
+            prev = parts[i - 1]
+            nxt = parts[(i + 1) % n]
+            out += arc_between(part[0], prev[-1], nxt[0], part[1])[1:-1]
+        else:
+            out += part
+    return ss.dedupe(out)
+
+
+def outlines():
+    """Every plate's outline (inset from its seams), the silver plate's, the window's and its hole."""
+    shapes = {}
+    for name, spec in PLATES.items():
+        poly = ss.inset(plate_outline(spec), GAP)
+        # (the plates stop RIM_INSET inside the ball's outline; corners rounded so their bevels offset cleanly)
+        shapes[name] = ss.round_corners([clip_to_ball(p) for p in poly], CORNER)
+    shapes["silver"] = ss.round_corners(mk.chaikin([P(c, r) for c, r in SILVER_PLATE], 2), CORNER)
+    shapes["window"] = ss.round_corners(mk.chaikin([P(c, r) for c, r in WINDOW], 2), CORNER)
+    shapes["window_hole"] = ss.round_corners(ss.inset(shapes["window"], -GLASS_GAP), CORNER)
+    return shapes
+
+
+def clip_to_ball(p):
+    """A point pulled inside the ball's outline by RIM_INSET at least."""
+    (cx, cy), (rx, ry) = ball_c(), BALL_R
+    dx, dy = p[0] - cx, p[1] - cy
+    q = math.hypot(dx / rx, dy / ry)
+    lim = 1.0 - RIM_INSET / (0.5 * (rx + ry))
+    if q <= lim:
+        return p
+    return (cx + dx * lim / q, cy + dy * lim / q)
+
+
+# --- Parts ----------------------------------------------------------------------------------------------------------
+
+def core(m, rings=18, around=96):
+    """The dark ball under the plates (lofted from explicit rings: the same mesh every run)."""
+    (cx, cy), (rx, ry) = ball_c(), BALL_R
+    h = TALL - CORE_SINK
+    stations = []
+    for i in range(rings):
+        a = (math.pi / 2) * i / rings
+        s, z = math.cos(a), h * math.sin(a)
+        stations.append([Vector((cx + s * rx * math.cos(2 * math.pi * j / around),
+                                 cy + s * ry * math.sin(2 * math.pi * j / around), z)) for j in range(around)])
+    obj = k.loft("eye_core", stations, m["core"], start_point=(cx, cy, 0.0), end_point=(cx, cy, h))
+    return k.smooth(obj, 60)
+
+
+def plates(m, shapes):
+    out = []
+    for name in PLATES:
+        polys = [shapes[name]]
+        if name == "top":
+            polys.append(shapes["window_hole"])
+        out.append(ss.shell_plate("eye_plate_" + name, polys[0], polys[1:], ball_z, ball_normal, THICK, BEVEL,
+                                  m["plate"], m["core"]))
+    return out
+
+
+def boss_profile(rad, h):
+    """A machined boss: a collar, a chamfer, a low crown (radius, z from its foot, sunk 0.6)."""
+    return [(rad, -0.6), (rad, 0.45 * h), (0.9 * rad, 0.62 * h), (0.8 * rad, 0.7 * h), (0.6 * rad, 0.86 * h),
+            (0.3 * rad, 0.97 * h), (0.001, h)]
+
+
+def silver(m, shapes):
+    t, b = SILVER
+    obj = ss.shell_plate("eye_silver", shapes["silver"], [], plate_top, ball_normal, t, b, m["silver"], m["bezel"])
+    parts = [obj]
+    for i, ((c, r), rad, h) in enumerate(BOSSES):
+        x, y = P(c, r)
+        z = plate_top(x, y) + t
+        parts.append(ss.turned_on("eye_boss%d" % i, (x, y, z), ball_normal(x, y), boss_profile(rad, h), m["boss"],
+                                  segments=22, smooth=40.0))
+    return parts
+
+
+def window(m, shapes):
+    return ss.shell_plate("eye_window", shapes["window"], [], ball_z, ball_normal, GLASS_UP, 0.5, m["glass"],
+                          m["core"], edge=0.45, inner=0.9)
+
+
+def rivets(m):
+    out = []
+    for i, (c, r) in enumerate(RIVETS):
+        x, y = P(c, r)
+        top = plate_top(x, y) + (SILVER[0] if i >= 14 else 0.0)
+        out.append(ss.dome_on("eye_rivet%d" % i, (x, y, top), ball_normal(x, y), RIVET[0], RIVET[1], m["rivet"],
+                              segments=10, steps=3, sink=0.5))
+    return out
+
+
+def bezel_point(phi, u):
+    """A point of the rim's band at angle phi (degrees), u from its inner edge (0: over the glass's rim) out (1)."""
+    (ex, ey), (a, b), (A, B) = eye_c(), EYE_R, BEZEL_R
+    c, s = math.cos(math.radians(phi)), math.sin(math.radians(phi))
+    x0, y0 = ex + 0.975 * a * c, ey + 0.975 * b * s
+    x1, y1 = ex + A * c, ey + B * s
+    return x0 + (x1 - x0) * u, y0 + (y1 - y0) * u
+
+
+# The rim's section: (u from its inner to its outer edge, height over the ball).
+BEZEL_SECTION = [(0.0, 0.2), (0.0, 2.2), (0.04, 2.65), (0.14, 2.95), (0.3, 3.1), (0.55, 2.95), (0.78, 2.45),
+                 (0.93, 1.8), (1.0, 1.35), (1.0, -0.8)]
+
+
+def bezel(m, count=128):
+    sections = []
+    for i in range(count):
+        phi = 360.0 * i / count
+        sec = []
+        for u, dz in BEZEL_SECTION:
+            x, y = bezel_point(phi, u)
+            sec.append(Vector((x, y, ball_z(x, y) + dz)))
+        sections.append(sec)
+    ring = ss.loop_loft("eye_bezel", sections, m["bezel"], smooth=40.0)
+    out = [ring]
+    for i in range(BEZEL_RIVETS):
+        phi = 360.0 * (i + 0.5) / BEZEL_RIVETS
+        x, y = bezel_point(phi, 0.4)
+        out.append(ss.dome_on("eye_brivet%d" % i, (x, y, ball_z(x, y) + 3.05), ball_normal(x, y), 0.55, 0.62,
+                              m["rivet"], segments=10, steps=3, sink=0.5))
+    return out
+
+
+def ring_point(t, phi):
+    """The eye's mesh round its pupil: t 0 on the pupil's edge, 1 on the glass's rim (beyond: under the rim); the
+    radial lines curl TWIST degrees from the pupil to the rim."""
+    (ex, ey), (a, b) = eye_c(), EYE_R
+    (pc, pr), prad, _ = PUPIL
+    px, py = P(pc, pr)
+    f = math.radians(phi + TWIST * min(t, 1.0))
+    c, s = math.cos(f), math.sin(f)
+    x0, y0 = px + prad * c, py + prad * s
+    x1, y1 = ex + a * c, ey + b * s
+    return x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+
+
+def eye_height(x, y, t):
+    """The glass's height at a point of its mesh (t as ring_point's): the limbus sunk in a groove under the rim."""
+    z = eye_z(x, y)
+    g0, g1, gd = GROOVE
+    if t > 1.0:
+        return ball_z(x, y) + EYE_LIFT - gd - 0.9 * min(1.0, (t - 1.0) / 0.04)
+    if t > g0:
+        z -= gd * math.sin(math.pi * 0.5 * min(1.0, (t - g0) / (g1 - g0)))
+    return z
+
+
+def eye_rings():
+    """The glass's rings: (t, wave amplitude, waves round) and the band of the faces out from each to the next."""
+    c0, ca, cn = COLLARETTE
+    o0, oa, on = OUTER
+    rings = [((0.0, 0, 0), "collar"), ((0.05, 0, 0), "collar"), ((0.11, 0, 0), "collar"), ((c0, ca, cn), "iris"),
+             ((0.25, 0, 0), "iris"), ((0.34, 0, 0), "iris"), ((0.44, 0, 0), "iris"), ((0.54, 0, 0), "iris"),
+             ((0.64, 0, 0), "iris"), ((o0, oa, on), "outer"), ((0.8, 0, 0), "outer"), ((0.87, 0, 0), "outer"),
+             ((LIMBUS, 0, 0), "limbus"), ((0.97, 0, 0), "limbus"), ((1.0, 0, 0), "limbus"), ((1.03, 0, 0), "limbus"),
+             ((1.06, 0, 0), None)]
+    return rings
+
+
+def iris_key(band, j, t, around):
+    """The iris's paint of the cell between angles j and j+1 starting at ring t: FIBRES fibres round it, one cell
+    wide, three light (of two lengths) and a dark crypt in every four (the same every run)."""
+    if band not in ("iris", "outer"):
+        return band
+    per = around // FIBRES
+    n, at = j // per, j % per
+    if at != 0:
+        return band
+    kind = n % 4
+    if kind == 0:
+        return "crypt" if 0.3 <= t < 0.85 else band
+    end = 0.7 if kind != 2 else 0.5
+    return "fibre" if t < end else band
+
+
+def eye_mesh(m, around=144):
+    """The eye's glass: rings round the pupil from its sunk floor out under the rim, faces painted by band."""
+    (pc, pr), prad, sink = PUPIL
+    px, py = P(pc, pr)
+    verts, faces, keys = [], [], []
+    floor = [1.0, 0.72, 0.42, 0.18]
+    rows = []
+    for f in floor:
+        row = []
+        for j in range(around):
+            phi = math.radians(360.0 * j / around)
+            x, y = px + prad * f * math.cos(phi), py + prad * f * math.sin(phi)
+            row.append(len(verts))
+            verts.append((x, y, eye_z(x, y) - sink))
+        rows.append(row)
+    centre = len(verts)
+    verts.append((px, py, eye_z(px, py) - sink))
+    rings = eye_rings()
+    iris_rows = []
+    for (t0, amp, waves), _ in rings:
+        row = []
+        for j in range(around):
+            phi = 360.0 * j / around
+            t = t0 + amp * math.sin(math.radians(waves * phi + 37.0 * t0))
+            x, y = ring_point(t, phi)
+            row.append(len(verts))
+            verts.append((x, y, eye_height(x, y, t)))
+        iris_rows.append(row)
+
+    def quad(r0, r1, key):
+        for j in range(around):
+            j2 = (j + 1) % around
+            faces.append((r0[j], r0[j2], r1[j2], r1[j]))
+            keys.append(key(j))
+    for j in range(around):
+        faces.append((centre, rows[-1][j], rows[-1][(j + 1) % around]))
+        keys.append("pupil")
+    for r0, r1 in zip(rows[::-1][:-1], rows[::-1][1:]):
+        quad(r0, r1, lambda j: "pupil")
+    quad(rows[0], iris_rows[0], lambda j: "pupil")
+    for i in range(len(rings) - 1):
+        (t0, _, _), band = rings[i]
+        quad(iris_rows[i], iris_rows[i + 1], lambda j, band=band, t0=t0: iris_key(band, j, t0, around))
+    obj = k.mesh_object("eye_glass", verts, faces)
+    names = []
+    for key in keys:
+        if key not in names:
+            names.append(key)
+    for key in names:
+        obj.data.materials.append(m[key])
+    obj.data.polygons.foreach_set("material_index", [names.index(key) for key in keys])
+    obj.data.update()
+    k.recalc_normals(obj)
+    return k.smooth(obj, 45)
+
+
+def wires(m):
+    """The crosshairs: two thin dark wires over the glass, their ends under the rim."""
+    c, r, hw, up = WIRES
+    x0, y0 = P(c, r)
+    (ex, ey), (a, b) = eye_c(), EYE_R
+    out = []
+    ys = [ey - b * 1.04 + i * (2.08 * b) / 48 for i in range(49)]
+    xs = [ex - a * 1.04 + i * (2.08 * a) / 64 for i in range(65)]
+    for name, pts in (("v", [(x0, y) for y in ys]), ("h", [(x, y0) for x in xs])):
+        path = []
+        for x, y in pts:
+            rho = eye_rho(x, y)
+            z = eye_z(x, y) if rho < 1.0 else ball_z(x, y) + EYE_LIFT
+            path.append((x, y, z + up * 0.4))
+        out.append(ss.tube_along("eye_wire_" + name, path, [hw] * len(path), m["wire"], around=10, squash=0.9))
+    return out
+
+
+def pistons(m):
+    """Each piston: a sleeve with a collar on a mount at the waist seam, a chrome rod down to the eye's rim, pins
+    across both ends."""
+    out = []
+    for i, ((c0, r0), (c1, r1)) in enumerate(PISTONS):
+        x0, y0 = P(c0, r0)
+        x1, y1 = P(c1, r1)
+        z0 = plate_top(x0, y0) + SLEEVE_R * 0.95
+        z1 = max(plate_top(x1, y1), ball_z(x1, y1) + 1.9) + ROD_R + 0.5
+        p0, p1 = Vector((x0, y0, z0)), Vector((x1, y1, z1))
+        L = (p1 - p0).length
+        axis = (p1 - p0).normalized()
+        up = ball_normal(x0, y0)
+        R = SLEEVE_R
+        sleeve = [(-1.0, 0.7), (-0.8, 0.75 * R), (-0.35, 0.92 * R), (0.3, R), (L * 0.42, R), (L * 0.43, R + 0.3),
+                  (L * 0.49, R + 0.3), (L * 0.5, R), (L * 0.6, R), (L * 0.62, 0.72 * R), (L * 0.63, 1.2 * ROD_R)]
+        out.append(ss.lathe_between("eye_sleeve%d" % i, sleeve, p0, p1, m["sleeve"], around=20, smooth=35.0, roll=up))
+        rod = [(L * 0.58, ROD_R), (L - 1.0, ROD_R), (L - 0.8, 0.7 * ROD_R), (L - 0.6, 0.3)]
+        out.append(ss.lathe_between("eye_rod%d" % i, rod, p0, p1, m["rod"], around=14, smooth=40.0))
+        side = axis.cross(up).normalized()
+        for j, (p, rad, length) in enumerate(((p0, 1.0, 5.0), (p1, 0.85, 3.2))):
+            a = p - side * (length / 2)
+            b = p + side * (length / 2)
+            pin = [(0.0, rad * 0.6), (0.15, rad), (length - 0.15, rad), (length, rad * 0.6)]
+            out.append(ss.lathe_between("eye_pin%d_%d" % (i, j), pin, a, b, m["rivet"], around=12, smooth=40.0))
+        bx, by = x0 - axis.x * 0.4, y0 - axis.y * 0.4
+        out.append(ss.turned_on("eye_mount%d" % i, (bx, by, plate_top(bx, by)), ball_normal(bx, by),
+                                boss_profile(2.9, 1.2), m["bezel"], segments=18, smooth=40.0))
+    return out
+
+
+def whole(m):
+    shapes = outlines()
+    parts = [core(m)]
+    parts += plates(m, shapes)
+    parts += silver(m, shapes)
+    parts.append(window(m, shapes))
+    parts += rivets(m)
+    parts += bezel(m)
+    parts.append(eye_mesh(m))
+    parts += wires(m)
+    parts += pistons(m)
+    return parts, shapes
+
 
 PIECES = {153: ((0, 0), None), 155: ((24, 0), None), 157: ((48, 0), None),
-          191: ((0, 28), (0, 24, 28, 42)), 193: ((24, 28), (24, 48, 28, 42)), 195: ((48, 28), (48, 72, 28, 42)),
+          191: ((0, 28), (0, 14)), 193: ((24, 28), (0, 14)), 195: ((48, 28), (0, 14)),
           210: ((0, 42), None), 212: ((24, 42), None), 214: ((48, 42), None)}
 
-GREY = [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e]
-CYAN = [0x81, 0x82, 0x83, 0x85, 0x87, 0x89, 0x8b, 0x8d]
-BLUE = [0x9b, 0x9d, 0x9f]
-DEEP = [0x33, 0x35, 0x36, 0x38]
-FINISH = {"grey": (0.32, 0.34), "plate": (0.4, 0.26), "cyan": (0.1, 0.08), "blue": (0.1, 0.08), "deep": (0.1, 0.1),
-          "dark": (0.2, 0.45), "pupil": (0.1, 0.06), "rod": (0.6, 0.18)}
-GLOW_CYAN = {0x81: 0.12, 0x82: 0.14, 0x83: 0.16, 0x85: 0.2, 0x87: 0.24, 0x89: 0.28, 0x8b: 0.32, 0x8d: 0.35}
-GLOW_BLUE = {0x9b: 0.25, 0x9d: 0.3, 0x9f: 0.35}
 
-EYE_ART = """
-    ............................................................010101010101010101010101............................................................
-    ....................................................01010101030304030405050504020101............................................................
-    ..............................................0101010304040505050606060605030202030301010101....................................................
-    ........................................010101010406070707070707070606060204040404030303030301010101............................................
-    ....................................01010406060604070808080808080808080405050506060605050505030303030101........................................
-    ................................0101040507070708080509080808080808080604060607070606060605050505050404030101....................................
-    ..............................0104050707080808080807040909080808080804040607070707070606060605050505040404030101................................
-    ..........................0101050707070808080808080806050a09090909070405060707070807070706060605050505040404030301..............................
-    ........................01050607070708080808080808080806080a09090805030606070708080807070706060605050505040404030301............................
-    ......................010506070708080909080706060505050606090b0a090501020102040505070807070706060605050505040404030301..........................
-    ....................010506070708090a0a0907080b0d0e0e0e0c090a0a0c0a090706058080808005050707070706060605050504040403030301........................
-    ..................0104060707090a0a0a0a060c0d0e0d0c0c0c0c090a0a0b0d0b090782828383838381060607070706060605050504040403030301......................
-    ................010406060708090a0a0a070c0e0c0c0c0c0b0b0b090a0a0b0b0e0a090782828484848382070507070606060505050504040303030201....................
-    ..............0104050607070809080908080f0d0c0c0b0b0b0b0907090a0b0b0c0e0b080782838484848383070407060606060505050403020101020101010101............
-    ............0103050607070808090909060e0d0c0b0b0b0a09080705090a0b0b0d080808090507828484848383800506060606050503020203030303020202010101..........
-    ..........010304060607080808080807070d0c0b0b0b0a08080b0b0708090b0e06070a0b0a050506838585848383800406060605030305040404030303020201010101........
-    ..........010405060707080808080806090d0b0b0a0a09080d0e0e0b07070a0d06090a0b09050807078485858383828104060504040605040404030303020202010101........
-    ........010304050607070808080808060b0c0a0a0a0a080b0e0f0f0e0705090a040404060507080806828585848383800405040607070504040403030302020201010101......
-    ......01030304050607070808080807060b0c0a0a0a0a090c0e0e0e0c0906090708070608080908080805848684848381040406080605050404040303030202020101010101....
-    ......01020304050607070708080707060b0b0a0a0a0a0a0c0d0d0c0c0a08080c0e0d0b0b0b0b09080804838786848583800407070505050404040303030302020101010101....
-    ....0101020304050606070707070707060b0a0a0a0a0a0a0b0c0c0b0908070c0f0f0e0a090a0b09070805828987858584040908060505050404040303030302020101010101....
-    ....0103050204050506060707070706060b090a0a0a0a0a0b0b0b0909080a0f0f0e0a0a080a0b09070807058b86868586030a07060505050404040303030302020101010101....
-    ..010204050303040506060606060606050b09090a0a0a0a0b0b0b0b0908080c0e0b0c0b0b0b0b09070808048c87868687040a0606050505040404030303030202010101010101..
-    ..010304050505030404050606060605050c080909090a0a0a0a0a0909090807080c0f0b0b0b0a07070908018c8786868704090606050505040404030303030202010101010101..
-    ..0104040505060607060505050505050c0a0809090909090909090909090906080f0c0b0b0a0807070909038d8c8d8a8805070708080807050404030303030202010101010101..
-    ..020404050506060607070808090a0b090808080909090909090909090908090d0a0a0a09080707090a0a03868485838304050403020202020304030303030202010101010101..
-    0102040405050606060707070808080808080808080808080808080808080a0b0907070707070709090a0b01050302020504090a0a070705030101010303030202010101010101..
-    01030404050506060607070708080808080808090909090909090a0a0a0a0a0807060606070809090a0a0b0306050706060409070806070605040301010103020201010101010101
-    01030404050505060506060707080808070707070706060706050505050606060706060809090a0a0a0b0b0507070707060408060505050504050503020101010201010101010101
-    020304040505050503020305070706050505050505060706060606060707070709090909090a0a0b0b0c0a0507070706060307050505050504040404040302010101010101010101
-    02030404050504020403040102040405060606070707070707070708080808080b0a0a0a0a0b0b0b0c0a040607070606060307050505050404040401030404010101010101010101
-    0203040404040203060b050402060606070707070707070708080808080808080e0b0b0b0b0c0c0c0a05060707060606060306050505050404040201040505030101010101010101
-    02030404040401030501070503050707070707070707070808080808080808080e0d0d0c0c0b0b070506070706060606050105060505040404040102040702020201010101010101
-    0203030403020103050e0a07050305060606060607070708080808080808090a0b0a0a0a0a0a09050808070606060606030205060505040404030104060702010101010101010101
-    020303020203010304090a070604050606060606070707080808090b0b0b0b0a0a0a0a0a090909050909080808070605020205050504040403010207070302010101010101010101
-    020301010303020104050a0b0605030506060606060707090c0c0c0b0b0807070706040404060706080808080808070504020304040403020203040b030301010101010101010101
-    02010102030403020304050c090604030606060606070a0b0b0a09080706839d9e9e9e89819e9d9d9d09080808070707070605020203020206080c07030101020101010101010101
-    0102020303040302030405050c07070403040606080a0a09090707829e9e898989898989829f9e9d9e9d9d9c09070707070706050302010104060a04020102020101010101010101
-    010102030304030405030405080d0a05030307090908080982839e8b8a89899d81818389829f9c39849c849d9d9c9c08070606060505030304050605010202020101010101010101
-    010102030303040507010405070b030204060908080882819c8e8b8b9e9d828382829c89839f9e829c83849c9d9d9d9c820505060605050803020303020202010101010101010101
-    ..010203030306070501010306030307070608080883389d8e8b9e83839c82839b9d9f8e839f9c839c839c84849c9d9c9b8104050504060703010102020202010101010101010101
-    ..01010203040604030102010402050b0705070783389d8c8a9c9d9e9d9f9d829b9e8b8f818e828381829c82839c9c9c839c82040306070301010102020201010101010101010102
-    ....01020406040204040301010202080a060682389c9f9d9c9e8b8b8b9f9f839b9d8c8f829f83823883813882848383838282810503040202030101020101010101010101010101
-    ....0101020502020304040301020405070881379c9c9c849c8b8d8f8c8b9f9e9c9d9f9f348e9c383838368282818283838182838104030404030201010101010101010101020201
-    ....01010504020303030404040506050481349c9c849c839d8b8b8f8e8b9f9e9c9d9b9f349f823536363881818182828182828383810503040403010101010101010101010202..
-    ....01010402010303030304040506068138839c838283839c9f8b8d8c8b8b9f9f9e9f8b618b813536388138388238818282828383848203030402010101010101010101020202..
-    ....010303010102030303030406060681368482818283839c9d9f8b8b8b9f9d9c9f8382019d333338813881383638828282828382828005030302020101010101010102020202..
-    ....0102010102020203030304050681368184818182839c9e9e9e9e9f9f9e83833835350182010101353836363838388181813882828281010303020101010101010102020201..
-    ....01020101020202020203040505383581823881829c9d9e9f9f9e9e9f9c810101010101380101013335363836363682828181828282380103030201010101010102020302....
-    ....01010101020202020202040505383581388181829d9e3e3e9f9e9e9f9e360101010101356161616133819c9d9d9c83828181828281800103030201010101010102030301....
-    ......0101010101020202020304053661388181389c9e9f3e3e3e9f9e9c82010101010101010161610101613533333536353535363533910103030201010101010204040101....
-    ........0101010101010202030404360133353336363535353535353501010101010101619e84849d9f9c9e9d9d9d9d9c838586888a893a01030302010101020203040201......
-    ..........010101010101020304043661368383839c9d9e9f9f9e9d8385010101010101619c803836350161363637373881388181818335020303020101020203040301........
-    ..........01010101010101030304366135828283839c9e9e9f9e9c83840101010101010181360134336133363636373738818181829d35020303010202020405040101........
-    ............01010101010101030404016181813838388182828282828335010101010101363534346101363636373738388181839d39030304030202030405050201..........
-    ..............0101010101010202036133818281383838818383823838386101010101013635336133333636353781828382818483350303040101030405060201............
-    ................0101010101020203023535388181818282813838388282386101010101366101016135383838373881839c9e9e360304040301030505060201..............
-    ..................0101010101020203033535388138383838383835388138813301010136610133383681388181828281819e820305040302040506060301................
-    ....................010101010102020303333636813838363638828138818238363501823636353538358138819c9d9d9f840405050603040507060301..................
-    ......................010101010202020303333336363881828281388182823836380182363638368181819c8282859f3a0405050508020406050101....................
-    ........................010101010202020304333536818181813881828281818181018238358181389c82819d9f8b3b05050606060a0106040101......................
-    ..........................0101010102020202043333363838353881838282818281618283819c9c819c9d869f8b820506060606080d02010101........................
-    ..............................0101010102020204033335333881819c828281833861819c81839c9d839f86820506060706060708080101............................
-    ................................0101010102020202040302333636818183819d3835829e839c9d9f8306050606070507070707040201..............................
-    ....................................010101010303030404040404353581819d82389c9e9c9c0605060607060606060604010101..................................
-    ........................................010101010202020204040405050506060404050505070607070707060504010101......................................
-    ..............................................010101020202020304040505050606060606060505040101010101............................................
-    ....................................................010101010202010202020202020202010101010101..................................................
-    ............................................................01010101010101010101010101..........................................................
-"""
-
-
-def picture():
-    return Pic(parse(EYE_ART), LEFT, TOP)
-
-
-def CR(X, Y):
-    return np.asarray(X, float) - LEFT, TOP - np.asarray(Y, float)
-
-
-def XY(c, r):
-    return c + LEFT, TOP - r
-
-
-class Sphere:
-    def __init__(self, pic):
-        self.pic = pic
-        a = pic.a
-        own = a >= 0
-        rows = np.arange(pic.h)[:, None] * np.ones((1, pic.w))
-        cols = np.ones((pic.h, 1)) * np.arange(pic.w)[None, :]
-        self.own = own
-        self.region = Region(pic, own, sigma=0.5)
-        grey = own & (a >> 4 == 0)
-        shade = np.where(own, a & 15, 0)
-        self.plate_mask = grey & (shade >= 10) & (rows >= 8) & (rows <= 31) & (cols >= 13) & (cols <= 38)
-        self.plate_mask = nk.erode(nk.dilate(self.plate_mask, 2), 1) & own
-        self.plate_region = Region(pic, self.plate_mask, sigma=0.7)
-        self.strip = own & (a >> 4 == 8) & (rows < 30)
-        self.strip_region = Region(pic, self.strip, sigma=0.5)
-        dark = own & (a >> 4 == 0) & (shade <= 1)
-        h, w = a.shape
-        p = np.pad(own, 1)
-        surrounded = np.ones_like(own)
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            surrounded &= p[1 + dr:1 + dr + h, 1 + dc:1 + dc + w]
-        self.crease = blur((dark & surrounded & ~self.eye_mask_px(rows, cols)).astype(float), 0.45)
-        self.soft = blur(nk.fill(shade.astype(float), grey), 0.6)
-        self.broad = blur(nk.fill(shade.astype(float), grey), 2.0)
-
-    def eye_mask_px(self, rows, cols):
-        (ec, er), (rx, ry), _ = EYE
-        return ((cols + 0.5 - ec) / (rx + 1.6)) ** 2 + ((rows + 0.5 - er) / (ry + 1.6)) ** 2 < 1.0
-
-    def ball(self, X, Y):
-        C, R = CR(X, Y)
-        (bc, br), (rx, ry), hh = BALL
-        q = np.clip(1.0 - ((C - bc) / rx) ** 2 - ((R - br) / ry) ** 2, 0.0, 1.0)
-        return hh * np.sqrt(q)
-
-    def eye_q(self, X, Y):
-        C, R = CR(X, Y)
-        (ec, er), (rx, ry), _ = EYE
-        return ((C - ec) / rx) ** 2 + ((R - er) / ry) ** 2
-
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        pic = self.pic
-        d = self.region.depth(X, Y)
-        z = self.ball(X, Y)
-        z = z - CREASE * pic.sample(self.crease, X, Y) * np.clip(z / 4.0, 0.0, 1.0)
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        q = self.eye_q(X, Y)
-        z = z + np.clip(DETAIL[0] * fine, -DETAIL[1], DETAIL[1]) * (q > 1.15)
-        pd = self.plate_region.depth(X, Y)
-        z = z + PLATE_T * round_rise(np.maximum(pd, 0.0), 1.0) * (pd > 0)
-        sd = self.strip_region.depth(X, Y)
-        z = z + STRIP_T * round_rise(np.maximum(sd, 0.0), 0.8) * (sd > 0)
-        # The eye: a cap bulging over the ball, in a rim.
-        rimw, rimh = EYE_RIM
-        r = np.sqrt(q)
-        (ec, er), (rx, ry), bulge = EYE
-        cap = bulge * np.sqrt(np.clip(1.0 - q, 0.0, 1.0)) + 0.35
-        rim = rimh * np.clip(1.0 - np.abs(r - 1.0) * min(rx, ry) / rimw, 0.0, 1.0) ** 0.6
-        z = z + np.where(q < 1.0, cap, 0.0) + rim
-        z = z * round_rise(d, EDGE_ROLL)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-
-    def cells(self, X, Y):
-        return self.region.inside(X, Y)
-
-
-def zones(pic, sph):
-    a = pic.a
-    own = a >= 0
-    grey = own & (a >> 4 == 0)
-    return [Zone("grey", grey, GREY, FINISH["grey"]),
-            Zone("plate", grey, GREY, FINISH["plate"], lift=1.6, pick=False),
-            Zone("cyan", own & (a >> 4 == 8), CYAN, FINISH["cyan"], glow=GLOW_CYAN, sigma=0.6, lift=0.8, comp=1.2),
-            Zone("blue", own & (a >> 4 == 9), BLUE, FINISH["blue"], glow=GLOW_BLUE, sigma=0.5, lift=0.4, comp=0.8),
-            Zone("deep", own & np.isin(a >> 4, [3, 6]), DEEP, FINISH["deep"], sigma=0.5, lift=0.6, comp=1.0),
-            Zone("pupil", own & ((a & 15) <= 1), [0x01, 0x02], FINISH["pupil"], lift=0.0, comp=0.0, pick=False),
-            Zone("dark", grey, [0x01, 0x02], FINISH["dark"], lift=0.0, comp=0.0, pick=False)]
-
-
-def plate_keys(sph, painter):
-    def keys(obj, kinds, wall_z):
-        centres, normals = nk.face_data(obj)
-        X, Y = centres[:, 0], centres[:, 1]
-        q = sph.eye_q(X, Y)
-        pic = sph.pic
-        px = pic.pixel(X, Y)
-        inside_eye = q < 1.0
-        rim = (q >= 1.0) & (q < 1.16)
-        pd = sph.plate_region.depth(X, Y)
-        names = []
-        near = painter.zone_at(X, Y)
-        for i in range(len(X)):
-            if kinds[i] != 0:
-                names.append("dark")
-            elif inside_eye[i]:
-                v = px[i]
-                if v >= 0 and (v & 15) <= 1 and v >> 4 in (0, 6):
-                    names.append("pupil")
-                elif near[i] in ("cyan", "blue", "deep"):
-                    names.append(near[i])
-                else:
-                    names.append("deep")
-            elif rim[i]:
-                names.append("dark")
-            elif near[i] == "cyan":
-                names.append("cyan")
-            elif pd[i] > 0.3:
-                names.append("plate")
-            else:
-                names.append("grey")
-        out = painter.keys(obj, zones=names)
-        return [("dark", 0x02) if (kinds[i] != 0 or (rim[i] and kinds[i] == 0)) else key for i, key in enumerate(out)]
-    return keys
-
-
-def solids(sph, painter):
+def pieces():
     out = []
-    for i, ((c0, r0), (c1, r1), rs, rr) in enumerate(PISTONS):
-        x0, y0 = XY(c0, r0)
-        x1, y1 = XY(c1, r1)
-        z0 = float(sph.ball(np.array([x0]), np.array([y0]))[0]) + rs * 0.35
-        z1 = float(sph.ball(np.array([x1]), np.array([y1]))[0]) + rs * 0.35
-        n = 6
-        pts = [(x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n, z0 + (z1 - z0) * j / n) for j in range(n + 1)]
-        m = 4
-        sleeve = nk.loft_path("piston_sleeve%d" % i, pts[:m + 1], [rs] * (m + 1), around=16, squash=0.9)
-        nk.assign(sleeve, painter.keys(sleeve, zone="grey", offset=-1.5), painter)
-        rod = nk.loft_path("piston_rod%d" % i, pts[m - 1:], [rr] * (len(pts) - m + 1), around=14, squash=0.9)
-        nk.assign(rod, painter.keys(rod, zone="plate", offset=1.5), painter)
-        out += [sleeve, rod]
+    for sprite, ((c0, r0), rows) in PIECES.items():
+        x0, x1 = LEFT + c0, LEFT + c0 + 24
+        y1 = TOP - r0
+        y0 = y1 - (14 if rows is not None else 28)
+        out.append(("eye_sphere_%d" % sprite, sprite, (x0, x1, y0, y1), (c0 - 24, 21 - r0), rows))
     return out
 
 
 def build():
     options = k.args()
-    out = mk.outdir(options)
-    only = set(options["only"].split(",")) if "only" in options else None
     k.reset()
-    pic = picture()
-    sph = Sphere(pic)
-    plate = nk.gw.Plate((LEFT, LEFT + W, TOP - H, TOP), sph.heights, cells=sph.cells)
-    painter = Painter(pic, zones(pic, sph), "eye_sphere")
-    parts = solids(sph, painter)
-    for p in parts:
-        p.hide_render = True
-    keys = plate_keys(sph, painter)
-    for sprite, ((c0, r0), keep) in PIECES.items():
-        name = "eye_sphere_%d" % sprite
-        if only is not None and name not in only:
-            continue
-        box = nk.own_box(pic, c0, r0, keep)
-        pieces = nk.piece_parts(plate, keys, parts, box, nk.box_owner(box), name, painter, ("dark", 0x02))
-        for p in pieces:
-            p.hide_render = False
-        mask = None
-        if "check" in options:
-            m = np.array(nk.sprite_mask(pic, c0, r0))
-            if keep is not None:
-                kc0, kc1, kr0, kr1 = keep
-                sub = np.zeros_like(m)
-                sub[max(0, kr0 - r0):kr1 - r0, max(0, kc0 - c0):kc1 - c0] = True
-                m = m & sub
-            mask = m.tolist()
-        piece = nk.finish(name, pieces, box, out, options, painter, mask=mask, origin=(LEFT + c0 + 12, TOP - r0 - 14))
-        bpy.data.objects.remove(piece)
+    m = materials()
+    parts, shapes = whole(m)
+    if "dump" in options:
+        json.dump({n: [list(p) for p in poly] for n, poly in shapes.items()}, open(options["dump"], "w"))
+    ss.flatten(parts, FLAT, KEEP, ROUNDER)
+    if "preview" in options:
+        ss.whole_preview(options["preview"] + "eye_sphere", parts, (76, 74))
+    sheet = os.path.join(options["check"], "enemy_9.png") if "check" in options else None
+    ss.export_pieces(parts, pieces(), m["core"], options, sheet)
 
 
 if __name__ == "__main__":

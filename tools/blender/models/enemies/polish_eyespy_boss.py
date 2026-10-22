@@ -1,279 +1,232 @@
-"""EYESPY's robot, two armoured halves on the top layer (sheet 9: the left half 1 3 above 39, the right one 5 7 above 45,
-2x2 each; 48 x 56 pictures without their lower right / lower left quarter); polished (2026-10-22, round 36). It
-replaces wave2_e_parts.py's robot (robot_half(): an inflated armour plate with a roll, a housing, arm parts and a lens).
+"""EYESPY's robot, two armoured halves on the top layer (sheet 9: the left half 1 3 above 39, the right one 5 7 above
+45, 2x2 each; 48 x 56 pictures without their lower right / lower left quarter); polished (2026-10-22, round 36), rebuilt
+from machined solids (2026-10-23, round 38: round 36's was one heightfield a half painted from the sprites' pixels, its
+arms shapeless blobs). It replaced wave2_e_parts.py's robot.
 
 Where the level puts them (EYESPY t4500, event 7, the top layer; episode 4's enemies 351-356): the left half 351 (1) at
 (64, -56), 352 (3) at (88, -56), 353 (39) at (64, -28), link 1; the right half 354 (5) at (240, -56), 355 (7) at (264,
 -56), 356 (45) at (264, -28), link 2: far apart, each moving on its own. Armour 255; 353 and 356 (the arms) fire (tur
 119, 120); one frame each, no damaged look, nothing launched. The right half is the left one's pixels mirrored a pixel
-over, exactly (5 is 3 mirrored, 7 is 1, 45 is 39), so it is the left one's solids mirrored (painted by its own pixels);
-no other sprite is their pixels mirrored, turned or in other ramps; no other enemy shows them. (The blue lens pods
-beside them on the sheet, 9 41 and 43, are polish_lens_pod.py's.)
+over, exactly (5 is 3 mirrored, 7 is 1, 45 is 39), so it is the left one's solids mirrored about x = 0.5; no other
+sprite is their pixels mirrored, turned or in other ramps; no other enemy shows them; episode 6's EYESPY waves (DELI
+RUIN, GLACIER) don't hold them. (The blue lens pods beside them on the sheet, 9 41 and 43, are polish_lens_pod.py's.)
 
 As the sprites and their 4x upscales draw the left half (its picture's columns and rows; grey armour, ramp 0, lit from
-the upper left): at the top a roll (columns 18-46 of rows 2-11), bright bands round its outer end; under it the
-shoulder's housing (columns 15-46 of rows 11-28), its lit face at the right, a dark hollow at its lower left where the
-arm joins (columns 24-30 of rows 22-29); the upper arm, a broad plate down to the left (columns 8-27 of rows 18-31);
-the elbow (columns 15-23 of rows 28-39); the forearm hooked over and curving down (columns 5-14 of rows 30-46) to the gun,
-a blue lens (ramp 9, columns 3-9 of rows 47-50) pointing down and out.
+the upper left): an arm hanging from a shoulder at the top right. The shoulder's axle (the roll) lies across the top
+(columns 19-47 of rows 2-11), two bright bands round its outer end (columns 36-39 and 41-44); under it the shoulder
+block (columns 25-46 of rows 11-28), its top lit, its front falling away, a dark pocket in its left part (columns 26-34
+of rows 13-27) where the arm hinges; the upper arm a broad beam down to the left (columns 8-28 of rows 8-31) with a lit
+band down it (columns 17-27); the elbow a rounded drum (columns 14-22 of rows 29-38); the forearm a fork hooked over
+the gun's back end (columns 5-14 of rows 31-39: its legs either side of a dark gap); the gun's barrel down and out to a
+blue lens (ramp 9, columns 3-10 of rows 46-50).
 
-Built for the game's camera, with polish_sheet9_kit: one heightfield a half (a plate of its outline, the roll a lying
-tube, the housing a block, the upper arm a plate, the elbow and forearm lying tubes, joined by smooth maxima; the dark
-lines creased, the fine shading a little relief); the lens a blue glass ellipsoid glowing in its own blues (0.2-0.45).
-Heights: z 0 to 10.9 (the roll; under the player's plane by 5 on the top layer).
+Built from machined solids (polish_sheet9_solids): the axle a turned part with two chrome bands and a domed end; the
+block an armour plate with a flat top and its front chamfered down, the pocket a hole through it over a dark floor,
+a chrome hinge pin across it; the upper arm a bevelled beam with a raised cover plate along the lit band and bolts;
+the elbow a turned drum with a chrome cap; the fork a bent tube whose legs end on the gun's breech; the gun a turned
+barrel with a chrome muzzle ring; the lens a turned glass dome glowing in its own blue. Materials by part
+(palette indices of ramp 0 and the lens's ramp 9): the beam 0x06, the block and the cover plate 0x08, the joints
+0x07, chrome 0x0b, the pocket's floor and the cuts 0x02, the barrel 0x05, the lens 0x9c (glowing 0.4). Heights: z 0
+to 10.4 (the axle's bands; round 36's 10.9).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: the top
-layer's plane). Each half's origin is its picture's middle (column 24, row 28): column c is x = c + 0.5 - 24, row r is
-y = 27.5 - r; the pieces' origins (-12, 14), (12, 14), (-12, -14) on the left (1, 3, 39), (-12, 14), (12, 14), (12, -14)
-on the right (5, 7, 45) (models.cfg origin).
+layer's plane). Each half's origin is its picture's middle (column 24, row 28): column c's left edge is x = c - 24, row
+r's top edge y = 28 - r; the pieces' origins (-12, 14), (12, 14), (-12, -14) on the left (1, 3, 39), (-12, 14),
+(12, 14), (12, -14) on the right (5, 7, 45) (models.cfg origin).
 
 models.cfg: the six model and sprite lines stay as they are (eyespy_l_shoulder ... origin; yaw=0).
 
-Replaces wave2_e_parts.py's robot (ROBOT_ORIGIN, ROBOT_PIECES, robot_materials(), tube() and plate() if nothing else
-uses them, robot_half(), build_robot(), their PIECES and ASSEMBLED entries) and wave2_e_art.py's ROBOT.
+Replaces round 36's version of this script (its heightfield, polish_sheet9_kit's Plate and Painter); wave2_e_parts.py's
+robot is already gone.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline as the
-camera sees it against its sprite's pixels), --preview <prefix>, --only <name,...>.
+camera sees it against its sprite's pixels), --preview <prefix> (each half: top and 3/4 views; --pieces 1: each
+piece), --only <name,...>.
 """
 import os
 import sys
 
-import bpy
-import numpy as np
+from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smoothstep, smax, Region, Zone, Painter, round_rise  # noqa: E402
+import polish_sheet9_solids as ss  # noqa: E402
 
-PLATE = (4.6, 1.8)                # the armour under it all: height, how far in it rounds over
-TUBES = [  # lying tubes (column, row, half width, height) of the left half
-    [(24.0, 8.6, 3.8, 8.6), (30.0, 7.4, 4.4, 9.6), (36.0, 7.0, 4.7, 10.2), (40.5, 7.0, 4.6, 10.2), (43.6, 7.4, 4.0, 9.4)],
-    [(20.0, 23.0, 5.6, 7.0), (14.5, 26.0, 5.4, 6.6), (10.6, 27.8, 3.6, 6.0)],
-    [(18.6, 28.0, 3.4, 6.6), (18.4, 33.0, 3.4, 6.4), (17.8, 37.0, 3.0, 5.8)],
-    [(14.4, 33.4, 2.4, 6.0), (11.8, 31.6, 3.0, 6.4), (8.8, 32.6, 3.2, 6.3), (7.6, 36.0, 3.2, 6.0), (7.6, 41.0, 3.1, 5.4),
-     (7.0, 45.6, 2.8, 4.6)],
-]
-HOUSING = ((31.0, 45.6), (11.5, 27.6), 8.4, 2.0)  # columns, rows, height, rounding
-HOLLOW = ((29.2, 25.0), (3.6, 4.6), 3.0)           # the hollow where the arm joins: middle, radii, depth
-LENS = ((6.2, 48.8), (2.7, 1.9, 2.2), 2.6, 40.0)   # the lens: middle, radii, its middle's height, its turn (degrees)
-CREASE = 0.9
-DETAIL = (0.14, 0.35)
-GREY = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d]
-BLUE = [0x97, 0x98, 0x99, 0x9b, 0x9c, 0x9e]
-BLUE_GLOW = {0x97: 0.2, 0x98: 0.24, 0x99: 0.28, 0x9b: 0.34, 0x9c: 0.4, 0x9e: 0.45}
-FINISH = {"grey": (0.36, 0.32), "blue": (0.1, 0.08), "dark": (0.2, 0.5)}
-HALVES = {"l": ("EYESPY_L_ART", None, [("eyespy_l_shoulder", (0, 0)), ("eyespy_l_dome", (24, 0)), ("eyespy_l_arm", (0, 28))]),
-          "r": ("EYESPY_R_ART", 49.0, [("eyespy_r_dome", (0, 0)), ("eyespy_r_shoulder", (24, 0)), ("eyespy_r_arm", (24, 28))])}
+LEFT, TOP = -24.0, 28.0
+MIRROR = 0.5                       # the right half is the left one mirrored about x = MIRROR
 
-EYESPY_L_ART = """
-    ................................................................................................
-    ................................................................................................
-    ..................................................................010101010101..................
-    ..............................................................01010204050706040101010101........
-    ......................................................01010101030306070809090a060708080701......
-    ....................................................010203040605070708080a0b0c07080a08080601....
-    ..................................................01020305060606070708090a0c0b07090c0908080501..
-    ................................................0102030405060606070708090a0a09070a0d0a08070601..
-    ........................................0101010104030304050606060607080808080707090a0907070501..
-    ......................................01030405070707060505050606060607070707060506070707040301..
-    ....................................01040505070808080807070505060606060707070706050605050301....
-    ..................................01030506080909090909090908070706060505050503020201010101......
-    ................................01030406080909090909090a0a0b0b0908070705070903090601............
-    ..............................01030304060809090909090a0a0b0b0c0c0a0a09050404040301010101........
-    ..............................010303040607090909090907040404040a0d0a0a0a090909080709090901......
-    ..............................0103030305060809090908040404040304090b090a090909090909090901......
-    ..............................0104030303040708090908040404030303040b0b09090909090909090801......
-    ............................01040404030303050707080704040403030302040a0a090909090909090701......
-    ..........................010404040404030303020606050404040303030102040a0a0a09090909090701......
-    ........................010405050505050505050509090604040403030302020204040809090909090701......
-    ......................01040505050505050505080c0e0b0604040504030302010104030508080908080601......
-    ....................01040505050505050505090b0a09090604060706040301020105020104080706050501......
-    ..................01040405050505050505080a090909090204040507050403010106010102020202020301......
-    ..................010405050505050505060a090909090901010101060705040101070201030303030301........
-    ................010203040405050505050809090909090901......0106090504020802020404040401..........
-    ................010201030304040405050a09090909090901........010609060407010404040401............
-    ................010202020303030404080909090909090901..........01050807070304040401..............
-    ................0102020202020303020809090909090901..............0104050601010101................
-    ................01020202020202020206090909090901................................................
-    ................010102020202020103050507090801..................................................
-    ..............01010101010102020204060604040101..................................................
-    ............0105050505050101020306060707060101..................................................
-    ..........0105050607090b0601020506070707060301..................................................
-    ..........0105060706060a0b06010607070707060401..................................................
-    ..........010406050505060a09010607070707060401..................................................
-    ..........01030404010101090a010607070707060501..................................................
-    ..........01030301010101080a010607070707050501..................................................
-    ..........01020301020302080b0103070707070401....................................................
-    ..........01020102020404090a01010406050401......................................................
-    ..........010101030304060a06020101010101........................................................
-    ..........0101010304050709060301................................................................
-    ..........0101040305050908050301................................................................
-    ..........01040403040609050401..................................................................
-    ..........01030102050906040401..................................................................
-    ........01060704010308040401....................................................................
-    ........01040608080604040401....................................................................
-    ......01040301040c0a010301......................................................................
-    ......01989999010508030101......................................................................
-    ......0198999e9c02010501........................................................................
-    ......010198989b97010201........................................................................
-    ........01010198970201..........................................................................
-    ..........0101010101............................................................................
-    ................................................................................................
-    ................................................................................................
-    ................................................................................................
-    ................................................................................................
-"""
-EYESPY_R_ART = """
-    ................................................................................................
-    ................................................................................................
-    ....................010101010101................................................................
-    ..........01010101010406070504020101............................................................
-    ........0107080807060a0909080706030301010101....................................................
-    ......010608080a08070c0b0a08080707050604030201..................................................
-    ....01050808090c09070b0c0a0908070706060605030201................................................
-    ....010607080a0d0a07090a0a090807070606060504030201..............................................
-    ....01050707090a090707080808080706060606050403030401010101......................................
-    ....01030407070706050607070707060606060505050607070705040301....................................
-    ......01030505060506070707070606060605050707080808080705050401..................................
-    ........01010101020203050505050606070708090909090909090806050301................................
-    ..............01060903090705070708090b0b0a0a0909090909090806040301..............................
-    ..........010101010304040405090a0a0c0c0b0b0a0a0909090909080604030301............................
-    ........0109090907080909090a0a0a0d0a04040404070909090909070604030301............................
-    ........0109090909090909090a090b090403040404040809090908060503030301............................
-    ........010809090909090909090b0b040303030404040809090807040303030401............................
-    ........0107090909090909090a0a0402030303040404070807070503030304040401..........................
-    ........010709090909090a0a0a04020103030304040405060602030303040404040401........................
-    ........010709090909090804040202020303030404040609090505050505050505050401......................
-    ........01060808090808050304010102030304050404060b0e0c0805050505050505050401....................
-    ........010505060708040102050102010304060706040609090a0b0905050505050505050401..................
-    ........0103020202020201010601010304050705040402090909090a0805050505050505040401................
-    ..........0103030303030102070101040507060101010109090909090a06050505050505050401................
-    ............0104040404020208020405090601......010909090909090805050505050404030201..............
-    ..............010404040401070406090601........010909090909090a05050404040303010201..............
-    ................01040404030707080501..........010909090909090908040403030302020201..............
-    ..................0101010106050401..............0109090909090908020303020202020201..............
-    ..................................................01090909090906020202020202020201..............
-    ....................................................010809070505030102020202020101..............
-    ....................................................01010404060604020202010101010101............
-    ....................................................0101060707060603020101050505050501..........
-    ....................................................01030607070706050201060b090706050501........
-    ....................................................010406070707070601060b0a060607060501........
-    ....................................................010406070707070601090a06050505060401........
-    ....................................................0105060707070706010a0901010104040301........
-    ....................................................0105050707070706010a0801010101030301........
-    ......................................................01040707070703010b0802030201030201........
-    ........................................................010405060401010a0904040202010201........
-    ..........................................................010101010102060a06040303010101........
-    ..................................................................0103060907050403010101........
-    ..................................................................0103050809050503040101........
-    ....................................................................01040509060403040401........
-    ....................................................................01040406090502010301........
-    ......................................................................01040408030104070601......
-    ......................................................................01040404060808060401......
-    ........................................................................0103010a0c0401030401....
-    ........................................................................01010308050199999801....
-    ..........................................................................010501029c9e999801....
-    ..........................................................................010201979b98980101....
-    ............................................................................01029798010101......
-    ..............................................................................0101010101........
-    ................................................................................................
-    ................................................................................................
-    ................................................................................................
-    ................................................................................................
-"""
+# The axle: from, to (column, row), its axis's height; its profile (along it, radius); its chrome bands (from, to).
+AXLE = ((21.2, 9.7), (46.9, 5.6), 5.7)
+AXLE_PROFILE = [(0.0, 2.0), (0.8, 3.1), (2.4, 3.9), (5.0, 4.2), (14.0, 4.3), (22.6, 4.2), (23.9, 3.8), (24.9, 3.0),
+                (25.5, 1.9), (25.75, 0.4)]
+AXLE_BANDS = [(15.2, 17.2), (19.9, 21.9)]
+BAND_R = 4.65
+# The shoulder block: its outline, its top, where its front starts falling and how low it falls; the pocket; its pin.
+BLOCK = [(25.8, 11.8), (44.6, 11.0), (45.0, 12.6), (44.6, 20.8), (40.4, 27.8), (31.6, 27.8), (26.4, 22.0),
+         (25.6, 19.6)]
+BLOCK_TOP, BLOCK_FRONT, BLOCK_LOW = 7.4, 20.0, 4.4   # its top; the row its front starts falling from, to this height
+POCKET = [(27.0, 13.6), (33.4, 13.2), (34.0, 21.0), (28.4, 21.6)]
+POCKET_FLOOR = 2.0
+PIN = ((26.4, 17.4), (34.8, 17.2), 4.2, 1.8)          # from, to (column, row), height, radius
+# The upper arm: the beam's outline and top; the cover plate over its lit band; bolts.
+BEAM = [(20.6, 8.6), (27.4, 10.8), (26.4, 15.0), (25.6, 22.0), (24.6, 27.4), (21.4, 29.0), (15.0, 29.6), (12.8, 31.0),
+        (8.2, 30.4), (7.9, 26.0), (8.6, 22.2), (11.8, 18.8), (15.0, 13.0)]
+BEAM_TOP, BEAM_BEVEL = 6.0, 1.1
+COVER = [(21.0, 10.6), (26.0, 11.8), (24.9, 16.0), (24.4, 26.4), (22.6, 28.2), (18.4, 28.0), (17.2, 25.4), (18.8, 20.8),
+         (19.8, 14.8)]
+COVER_T, COVER_BEVEL = 1.0, 0.6
+BOLTS = [(22.8, 13.4), (21.6, 20.2), (20.6, 25.8), (11.0, 27.4), (13.8, 20.4)]
+# The elbow drum: middle (column, row), radii, its top; the fork (a bent tube: column, row), its radius and height.
+ELBOW = ((18.2, 33.9), (4.3, 5.1), 6.3)
+FORK = [(12.6, 39.2), (13.2, 35.8), (12.6, 33.0), (10.4, 31.6), (7.8, 32.0), (6.2, 34.0), (5.9, 36.8), (6.8, 39.6)]
+FORK_R, FORK_Z = 2.3, 4.0
+# The gun: its barrel's back and muzzle (column, row), its axis's height; the trunnion pin through the fork's legs.
+GUN = ((10.5, 37.8), (5.7, 48.8), 4.5)
+CORNER = 1.2
 
 
-class Half:
-    def __init__(self, text, mirror):
-        self.pic = Pic(parse(text), -24.0, 28.0)
-        self.mirror = mirror
-        a = self.pic.a
-        own = a >= 0
-        self.region = Region(self.pic, own, sigma=0.5)
-        shade = np.where(own, a & 15, 0).astype(float)
-        grey = own & (a >> 4 == 0)
-        dark = grey & (shade <= 1)
-        h, w = a.shape
-        p = np.pad(own, 1)
-        surrounded = np.ones_like(own)
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            surrounded &= p[1 + dr:1 + dr + h, 1 + dc:1 + dc + w]
-        self.crease = blur((dark & surrounded).astype(float), 0.45)
-        self.soft = blur(nk.fill(shade, grey), 0.6)
-        self.broad = blur(nk.fill(shade, grey), 2.0)
+def P(c, r):
+    return (c + LEFT, TOP - r)
 
-    def uv(self, X, Y):
-        u = np.asarray(X, float) + 24.0
-        return (self.mirror - u if self.mirror is not None else u), 28.0 - np.asarray(Y, float)
 
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        u, v = self.uv(X, Y)
-        d = self.region.depth(X, Y)
-        z = PLATE[0] * round_rise(d, PLATE[1])
-        for pts in TUBES:
-            z = smax(z, nk.tube(u, -v, [(c, -r, hw, hh) for c, r, hw, hh in pts]), 0.7)
-        (c0, c1), (r0, r1), hh, rr = HOUSING
-        uu = np.minimum(u - c0, c1 - u)
-        vv = np.minimum(v - r0, r1 - v)
-        housing = hh * round_rise(np.minimum(uu, vv), rr) * (uu > 0) * (vv > 0) * (1.0 - 0.12 * smoothstep(14.0, 27.0, v))
-        z = smax(z, housing, 0.8)
-        (hc, hr), (hrx, hry), hd = HOLLOW
-        q = ((u - hc) / hrx) ** 2 + ((v - hr) / hry) ** 2
-        z = z - hd * (1.0 - smoothstep(0.4, 1.0, q))
-        pic = self.pic
-        z = z - CREASE * pic.sample(self.crease, X, Y) * np.clip(z / 4.0, 0.0, 1.0)
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        z = z + np.clip(DETAIL[0] * fine, -DETAIL[1], DETAIL[1]) * smoothstep(1.0, 3.0, z)
-        z = z * round_rise(d, 0.9)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
+def P3(c, r, z):
+    x, y = P(c, r)
+    return Vector((x, y, z))
+
+
+def materials():
+    p = ss.pal
+    return {
+        "beam": p("espy_beam", 0x06, 0.3, 0.38), "plate": p("espy_plate", 0x08, 0.3, 0.34),
+        "joint": p("espy_joint", 0x07, 0.4, 0.3), "chrome": p("espy_chrome", 0x0b, 0.55, 0.2),
+        "dark": p("espy_dark", 0x02, 0.2, 0.6), "gun": p("espy_gun", 0x05, 0.45, 0.3),
+        "lens": p("espy_lens", 0x9c, 0.0, 0.05, 0.4),
+    }
+
+
+def outline(points):
+    return ss.round_corners([P(c, r) for c, r in points], CORNER)
+
+
+def axle(m):
+    (c0, r0), (c1, r1), z = AXLE
+    a, b = P3(c0, r0, z), P3(c1, r1, z)
+    out = [ss.lathe_between("espy_axle", AXLE_PROFILE, a, b, m["joint"], around=28, smooth=40.0)]
+    for i, (t0, t1) in enumerate(AXLE_BANDS):
+        prof = [(t0, 3.9), (t0 + 0.25, BAND_R), (t1 - 0.25, BAND_R), (t1, 3.9)]
+        out.append(ss.lathe_between("espy_band%d" % i, prof, a, b, m["chrome"], around=28, smooth=40.0))
+    return out
+
+
+def block_top(x, y):
+    yf = TOP - BLOCK_FRONT
+    if y >= yf:
+        return BLOCK_TOP
+    yl = TOP - max(r for _, r in BLOCK)
+    return BLOCK_TOP - (BLOCK_TOP - BLOCK_LOW) * min(1.0, (yf - y) / (yf - yl))
+
+
+def block_normal(x, y):
+    if y >= TOP - BLOCK_FRONT:
+        return (0.0, 0.0, 1.0)
+    slope = (BLOCK_TOP - BLOCK_LOW) / (max(r for _, r in BLOCK) - BLOCK_FRONT)   # dz/dy: it rises up the screen
+    return tuple(Vector((0.0, -slope, 1.0)).normalized())
+
+
+def block(m):
+    """The shoulder block: an armour plate standing on the layer, its front chamfered down, the pocket a hole in it
+    over a dark floor, the hinge pin across the pocket."""
+    shape = outline(BLOCK)
+    pocket = outline(POCKET)
+    obj = ss.shell_plate("espy_block", shape, [pocket], lambda x, y: block_top(x, y) - 1.0, block_normal, 1.0, 0.9,
+                         m["plate"], m["dark"], drop=20.0)
+    floor = ss.shell_plate("espy_pocket_floor", ss.inset(pocket, -0.6), [], *ss.flat(POCKET_FLOOR - 1.0), 1.0, 0.4,
+                           m["dark"], m["dark"], drop=20.0)
+    (c0, r0), (c1, r1), z, rad = PIN
+    prof = [(0.0, rad * 0.7), (0.3, rad), (abs(c1 - c0) - 0.3, rad), (abs(c1 - c0), rad * 0.7)]
+    pin = ss.lathe_between("espy_pin", prof, P3(c0, r0, z), P3(c1, r1, z), m["chrome"], around=18, smooth=40.0)
+    return [obj, floor, pin]
+
+
+def upper_arm(m):
+    beam = ss.shell_plate("espy_beam", outline(BEAM), [], *ss.flat(BEAM_TOP - 1.2), 1.2, BEAM_BEVEL, m["beam"],
+                          m["dark"], drop=20.0)
+    cover = ss.shell_plate("espy_cover", outline(COVER), [], *ss.flat(BEAM_TOP), COVER_T, COVER_BEVEL, m["plate"],
+                           m["beam"])
+    out = [beam, cover]
+    for i, (c, r) in enumerate(BOLTS):
+        x, y = P(c, r)
+        on_cover = i < 3
+        z = BEAM_TOP + (COVER_T if on_cover else 0.0)
+        out.append(ss.dome_on("espy_bolt%d" % i, (x, y, z), (0.0, 0.0, 1.0), 0.65, 0.55, m["chrome"], segments=12,
+                              steps=3, sink=0.4))
+    return out
+
+
+def elbow(m):
+    (c, r), (rx, ry), top = ELBOW
+    x, y = P(c, r)
+    prof = [(rx, 0.02), (rx, top - 1.0), (rx - 0.25, top - 0.35), (rx - 0.7, top), (0.001, top)]
+    drum = mk.lathe("espy_elbow", prof, (x, y), m["joint"], segments=40, squash=(1.0, ry / rx))
+    k.recalc_normals(drum)
+    k.smooth(drum, 40)
+    cap = ss.turned_on("espy_elbow_cap", (x, y, top), (0.0, 0.0, 1.0),
+                       [(1.7, -0.3), (1.7, 0.35), (1.45, 0.6), (0.9, 0.78), (0.001, 0.82)], m["chrome"], segments=20)
+    return [drum, cap]
+
+
+def fork(m):
+    pts = ss.chaikin_open([tuple(P3(c, r, FORK_Z)) for c, r in FORK], 2)
+    return [ss.tube_along("espy_fork", pts, [FORK_R] * len(pts), m["joint"], around=16, squash=1.0)]
+
+
+def gun(m):
+    (c0, r0), (c1, r1), z = GUN
+    a, b = P3(c0, r0, z), P3(c1, r1, z)
+    L = (b - a).length
+    breech = [(-0.6, 3.0), (-0.3, 4.1), (0.2, 4.4), (2.2, 4.4), (2.6, 3.8), (2.8, 3.4)]
+    barrel = [(2.0, 3.9), (2.4, 4.0), (L - 3.4, 3.9), (L - 3.2, 3.6), (L - 1.0, 3.6), (L - 0.8, 3.2)]
+    ring = [(L - 3.3, 3.8), (L - 3.1, 4.3), (L - 1.3, 4.3), (L - 1.05, 3.8)]
+    lens = [(L - 1.2, 3.3), (L - 0.6, 3.28), (L + 0.2, 2.9), (L + 0.9, 2.2), (L + 1.5, 1.2), (L + 1.75, 0.01)]
+    return [ss.lathe_between("espy_breech", breech, a, b, m["joint"], around=26, smooth=40.0),
+            ss.lathe_between("espy_barrel", barrel, a, b, m["gun"], around=26, smooth=40.0),
+            ss.lathe_between("espy_muzzle", ring, a, b, m["chrome"], around=26, smooth=40.0),
+            ss.lathe_between("espy_lens", lens, a, b, m["lens"], around=26, smooth=70.0)]
+
+
+def left_half(m):
+    parts = axle(m) + block(m) + upper_arm(m) + elbow(m) + fork(m) + gun(m)
+    return parts
+
+
+HALVES = {"l": [("eyespy_l_shoulder", 1, (-24.0, 0.0, 0.0, 28.0), (-12.0, 14.0)),
+                ("eyespy_l_dome", 3, (0.0, 24.0, 0.0, 28.0), (12.0, 14.0)),
+                ("eyespy_l_arm", 39, (-24.0, 0.0, -28.0, 0.0), (-12.0, -14.0))],
+          "r": [("eyespy_r_dome", 5, (-24.0, 0.0, 0.0, 28.0), (-12.0, 14.0)),
+                ("eyespy_r_shoulder", 7, (0.0, 24.0, 0.0, 28.0), (12.0, 14.0)),
+                ("eyespy_r_arm", 45, (0.0, 24.0, -28.0, 0.0), (12.0, -14.0))]}
 
 
 def build():
     options = k.args()
-    out = mk.outdir(options)
     only = set(options["only"].split(",")) if "only" in options else None
-    for side, (var, mirror, pieces) in HALVES.items():
-        if only is not None and not any(n in only for n, _ in pieces):
+    sheet = os.path.join(options["check"], "enemy_9.png") if "check" in options else None
+    for side, pieces in HALVES.items():
+        if only is not None and not any(name in only for name, *_ in pieces):
             continue
         k.reset()
-        half = Half(globals()[var], mirror)
-        pic = half.pic
-        a = pic.a
-        own = a >= 0
-        painter = Painter(pic, [Zone("grey", own & (a >> 4 == 0), GREY, FINISH["grey"]),
-                                Zone("blue", own & (a >> 4 == 9), BLUE, FINISH["blue"], glow=BLUE_GLOW, sigma=0.5,
-                                     lift=1.0, comp=0.8),
-                                Zone("dark", own, [0x01, 0x02], FINISH["dark"], lift=0.0, comp=0.0, pick=False)],
-                          "eyespy")
-        plate = nk.gw.Plate((-24.0, 24.0, -28.0, 28.0), half.heights, cells=half.region.inside)
-        (lc, lr), radii, lz, turn = LENS
-        u = lc if mirror is None else mirror - lc
-        lens = nk.ellipsoid("eyespy_lens_%s" % side, (u - 24.0, 28.0 - lr, lz), radii, count=10, around=24,
-                            angle=turn if mirror is None else -turn, cut_below=0.3)
-        nk.assign(lens, painter.keys(lens, zone="blue", offset=1.0), painter)
-        lens.hide_render = True
-
-        def keys(obj, kinds, wall_z):
-            centres, normals = nk.face_data(obj)
-            near = painter.zone_at(centres[:, 0], centres[:, 1])
-            out_ = painter.keys(obj, zones=["dark" if kinds[i] != 0 else near[i] for i in range(len(kinds))])
-            return [("dark", 0x01) if kinds[i] != 0 else key for i, key in enumerate(out_)]
-        for name, (c0, r0) in pieces:
-            if only is not None and name not in only:
-                continue
-            box = nk.sprite_box(pic, c0, r0)
-            parts = nk.piece_parts(plate, keys, [lens], box, nk.box_owner(box), name, painter, ("dark", 0x01))
-            for p in parts:
-                p.hide_render = False
-            mask = nk.sprite_mask(pic, c0, r0) if "check" in options else None
-            piece = nk.finish(name, parts, box, out, options, painter, mask=mask,
-                              origin=(pic.left + c0 + 12, pic.top - r0 - 14))
-            bpy.data.objects.remove(piece)
+        m = materials()
+        parts = left_half(m)
+        if side == "r":
+            mirrored = [ss.mirror_copy(o, MIRROR, o.name + "_r") for o in parts]
+            ss.remove(parts)
+            parts = mirrored
+        if "preview" in options:
+            ss.whole_preview(options["preview"] + "eyespy_" + side, parts, (52, 60))
+        ss.export_pieces(parts, [(n, s, box, o, None) for n, s, box, o in pieces], m["dark"], options, sheet)
 
 
 if __name__ == "__main__":
