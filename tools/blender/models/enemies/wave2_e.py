@@ -8,12 +8,6 @@
   yaw=aim turns them after the player (the sprite looks down the screen).
 - nose_bridge (sheet 5 154): the bridge of NOSE DRIP's nose; nose_tip_left / nose_tip_right (5 191 / 193)
   are the tip below it, cut from the same nose.
-- deli_capsule (sheet 9 123): UNDERDELI's lilac capsule on the ground, its light band glowing (the
-  frames sweep a light over it).
-- eyespy_* (sheet 9 1, 3, 5, 7, 39, 45): the two armoured halves of EYESPY's robot (a domed shoulder and
-  an arm ending in a gun with a blue lens), cut into the six sprites the game puts together.
-- anchor_* (sheet 9 235, 236, 254, 274 and 238, 239, 258, 276): DREAD-NOT's two anchors on the ground, a
-  hooded body with a gun and four struts, which the game draws from four overlapping sprites each.
 
 The pieces of larger objects are built whole (wave2_e_parts.py, from the pixel art in wave2_e_art.py)
 and cut along the sprites' edges, so they meet again in the game (models.cfg: origin).
@@ -174,94 +168,6 @@ def face_eye():
     cap("iris", iris_angle * 0.88, 0.2, iris)
     cap("iris_inner", iris_angle * 0.55, 0.28, inner)
     cap("pupil", iris_angle * 0.33, 0.36, pupil)
-
-
-# --- UNDERDELI's capsule (sheet 9 123) --------------------------------------------------------------
-
-@model("deli_capsule", "9", 123)
-def deli_capsule():
-    """A lilac capsule standing on the ground: a rounded body (columns 3-21, rows 5-26) with raised
-    rails along its sides, a glowing band across its middle (rows 13-17, where the frames sweep a
-    light), a seam down its lower half and two small feet."""
-    body = k.material("capsule_body", palette=87, metallic=0.35, roughness=0.35)
-    rail = k.material("capsule_rail", palette=90, metallic=0.4, roughness=0.3)
-    dark = k.material("capsule_dark", palette=84, metallic=0.3, roughness=0.5)
-    glow = k.material("capsule_glow", palette=92, metallic=0.1, roughness=0.2, emission=(230, 190, 250),
-                      emission_strength=0.45)
-    rows = sh.art("""
-.....###############
-.....###############
-...###################
-...###################
-...###################
-...###################
-...###################
-...###################
-...###################
-...###################
-...###################
-....#################
-....#################
-....#################
-....#################
-....#################
-....#################
-....#################
-....#################
-....#################
-.....###############
-......#############
-""")
-    origin = (12, 14 - 5)  # the art starts at the sprite's row 5
-    outline = sh.outlines(rows, "#", origin, smooth=2, epsilon=0.5)
-    height = 7.0
-    shell = sh.inflate("body", outline, body, sh.pillow_profile(height, 3.0, crown=1.0), bottom=0.0, spacing=0.4)
-    k.smooth(shell, 45)
-    cx = 0.5
-
-    def top(x, y):
-        return sh.surface_z(shell, x, y, height)
-
-    # The glowing band across the middle (rows 14-17): a rounded light bar following the body, sunk
-    # into it at its edges.
-    xs = [cx - 8.3 + 16.6 * j / 40 for j in range(41)]
-    ys = [-3.9 + 3.9 * i / 8 for i in range(9)]
-    verts, faces = [], []
-    for y in ys:
-        t = (y + 3.9) / 3.9
-        lift = 0.55 * math.sin(math.pi * t) - 0.15
-        verts += [(x, y, top(x, y) + lift) for x in xs]
-    n, m = len(xs), len(ys)
-    verts += [(x, y, top(x, y) - 1.5) for y in (ys[0], ys[-1]) for x in xs]
-    for i in range(m - 1):
-        for j in range(n - 1):
-            faces.append((i * n + j, i * n + j + 1, (i + 1) * n + j + 1, (i + 1) * n + j))
-    low, high = m * n, m * n + n
-    for j in range(n - 1):
-        faces.append((low + j, low + j + 1, j + 1, j))                                     # the lower side
-        faces.append(((m - 1) * n + j, (m - 1) * n + j + 1, high + j + 1, high + j))       # the upper side
-        faces.append((low + j, high + j, high + j + 1, low + j + 1))                       # underneath
-    for j in (0, n - 1):  # the ends
-        faces.append(tuple([i * n + j for i in range(m)] + [high + j, low + j]))
-    band = k.mesh_object("band", verts, faces, glow)
-    k.recalc_normals(band)
-    k.smooth(band, 50)
-    # Raised rails along both sides, from the top to the bottom.
-    for side in (-1, 1):
-        x = cx + side * 7.3
-        path = [(x, y, None) for y in [8.0 - 19.2 * j / 24 for j in range(25)]]
-        sh.tube_along(f"rail{side}", path, 0.6, rail, z_of=lambda px, py: top(px, py) - 0.1)
-    # The seam down the lower half and the grooves above and below the band.
-    seam = [(cx, y, None) for y in [-4.6 - 6.6 * j / 12 for j in range(13)]]
-    sh.tube_along("seam", seam, 0.35, dark, z_of=lambda px, py: top(px, py) - 0.2)
-    for y in (0.5, -5.4):
-        groove = [(cx - 6.4 + 12.8 * j / 16, y, None) for j in range(17)]
-        sh.tube_along(f"groove{y}", groove, 0.3, dark, z_of=lambda px, py: top(px, py) - 0.15)
-    # The feet under the bottom (row 27).
-    for x in (cx - 5.0, cx + 5.0):
-        foot = k.slab("foot", [(x - 0.9, -14.0), (x + 0.9, -14.0), (x + 0.9, -11.0), (x - 0.9, -11.0)], 0.0, 1.4,
-                      dark, bevel_width=0.25)
-        k.smooth(foot, 40)
 
 
 # --- The assembled objects (wave2_e_parts.py) -------------------------------------------------------
