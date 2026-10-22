@@ -659,8 +659,8 @@ def loft_axis(name, base, tip, profile, mat, segments=14):
 def paint_by_light(obj, bands, m, key=None, lift=0.0):
     """band_split by the light the faces get once sheared (vertex normals from the mesh's smooth shading)."""
     mesh = obj.data
-    nn = np.array([tuple(v.normal) for v in mesh.vertices])
-    lv = light(sheared(nn)) + lift
+    nn = np.round(np.array([tuple(v.normal) for v in mesh.vertices]), 4)
+    lv = light(sheared(nn)) + 0.0137 + lift
     band_split(obj, lv, [(lo, m[(key, i)] if key else m[i]) for lo, i in bands])
     k.smooth(obj, 70)
     return obj
@@ -679,8 +679,8 @@ def spikes(m, fields):
             obj = loft_axis("spike%d_%d" % (side, n), base, tip, prof, m[("spike", 0x08)], 14)
             k.smooth(obj, 80)
             mesh = obj.data
-            nn = np.array([tuple(v.normal) for v in mesh.vertices])
-            lv = light(sheared(nn))
+            nn = np.round(np.array([tuple(v.normal) for v in mesh.vertices]), 4)
+            lv = light(sheared(nn)) + 0.0137
             tz = np.array([v.co.z for v in mesh.vertices])
             hi = Z_FLOOR + SPIKE_RISE * length
             lv = np.where(tz > Z_FLOOR + 0.82 * (hi - Z_FLOOR), 99.0, lv)
@@ -697,8 +697,8 @@ def spikes(m, fields):
             obj = loft_axis("wspike%d_%d" % (side, n), base, tip, prof, m[("spike", 0x08)], 10)
             k.smooth(obj, 80)
             mesh = obj.data
-            nn = np.array([tuple(v.normal) for v in mesh.vertices])
-            lv = light(sheared(nn))
+            nn = np.round(np.array([tuple(v.normal) for v in mesh.vertices]), 4)
+            lv = light(sheared(nn)) + 0.0137
             ty = np.array([v.co.y for v in mesh.vertices])
             lv = np.where(ty < yt + 0.2 * (yb - yt), 99.0, lv)
             band_split(obj, lv, [(lo, m[("spike", i)]) for lo, i in SPIKE_BANDS] + [(98.0, m[("spike", SPIKE_TIP)])])

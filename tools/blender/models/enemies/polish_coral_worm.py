@@ -21,7 +21,7 @@ a glossy highlight on it (0x4d-0x4e, rows 48-50).
 
 The egg (enemies 1224 and 1225, ' 14 above ' 52, armour 254 each, value 300): CORAL's boss. 1225 at t5462 and 1224 at
 t5490 (28 ticks, 28 pixels above it), at x 92 and 210 (links 10 and 11), into the two dark bays of the domed citadel
-(sheet %, models.cfg coral_citadel_*, wave3_al_citadel.py: BAYS x -58 and 60), the boss bar following them, event 31
+(sheet %, models.cfg coral_citadel_*, polish_coral_citadel.py: BAY_U, x -58 and 60), the boss bar following them, event 31
 making them fire by turns, the level ending when both are dead. As its sprites draw it: a glossy blue egg (ramp 3)
 24 x 48 (rows 3-50: full width over rows 12-41, its ends round), half sunk, darker round its edge (0x35-0x37) and at
 its lower corners (0x34-0x36), lighter over its top (0x38-0x39), faint paler veins in a chevron over its middle
@@ -53,10 +53,9 @@ middle of T 281): the worm's sprites lie 14 pixels down the column's.
 models.cfg (model lines unchanged: coral_worm_t / _b, coral_egg_t / _b enemies/coral_*.glb origin): sprite x27 1
 coral_worm_t yaw=0 height=-4 and sprite x27 39 coral_worm_b yaw=0 height=-4 (on the sea floor with its column: drawn
 at their origin, ground pieces otherwise float 4 pixels over the terrain); the egg's lines (sprite x27 14 coral_egg_t
-yaw=0, sprite x27 52 coral_egg_b yaw=0) take the citadel's height, whose bays they sit in: its pieces (old,
-wave3_al_citadel.py) have no height=-4 and their bays' floors lie at their z 0.4, so the eggs keep none either (with
-height=-4 they would sit 4 pixels down into the bays and the citadel's dark pods would show beside them); give the
-eggs height=-4 when the citadel gets it. Replaces wave3_ae_coral.py (all of it: its worm, its egg and halves()) and
+yaw=0, sprite x27 52 coral_egg_b yaw=0) keep no height option: they stand 4 pixels over the floor, on the floors of
+the citadel's bays (polish_coral_citadel.py: the citadel on the floor with height=-4, its bays' floors at its z 4,
+Z_BAY), over the dark pods there. Replaces wave3_ae_coral.py (all of it: its worm, its egg and halves()) and
 wave3_ae_art.py's WORM and EGG (read only by it).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouettes of each whole
