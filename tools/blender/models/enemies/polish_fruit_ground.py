@@ -1,8 +1,84 @@
-"""FRUIT's machines on its honeycomb floor (sheet %, written x25 in models.cfg; 2x2 sprites of episode 5, ground
-enemies), polished (2026-10-22, round 35; they replace wave3_al.py and wave3_al_ball.py: the geodesic ball, the
-pillars, the orb in its cup, the glyph tree and hook, the ice crystal and the glass capsule).
+"""FRUIT's machines on its honeycomb floor (sheet %, written x25 in models.cfg; 2x2 sprites of episode 5, ground enemies),
+polished (2026-10-22, round 35; they replace wave3_al.py and wave3_al_ball.py): the geodesic ball, the grey pillars,
+the orb in its cup, the glyph tree and the glyph hook, the ice crystal and the glass capsule.
 
-(Full description: DOC below.)
+FRUIT's ground is a honeycomb of blue hexagonal sockets (its map 194753bd5ac5f6cc, ramp 3's blues), and every one of
+these stands in such a socket or on that floor: the levels put them on the map's tiles (FRUIT's events 6, "col n.00
+row n.00" in tools/content/tyrevents.py), and the socket the sprites draw round their foot (columns 4-19, rows 14-27 of
+a sprite, rows 41-55 of the lower one of a pair) is the map's own: not modelled, the models stand on the floor (models.cfg
+origin and height=-4: z 0 is the terrain; FRUIT's map has no heights). No other enemy (launched ones included) shows
+these sprites; none is another sprite's pixels mirrored, turned or in other ramps (the two pillars are each other's
+drums mirrored, but not their pillars' shading: built as one pillar with its drum on either side).
+
+- fruit_geoball_tl/_tr/_bl/_br (% 191 193 above 229 231; enemies 1246-1249, armour 30, 6 times at t 412-3268, the four
+  with one link: (x - 30, y - 29), (x - 6, y - 29), (x - 30, y - 1), (x - 6, y - 1)): a ball 47 across (columns 1-47, rows
+  4-50 of the 48 x 56 picture) of blue glass panels in a light frame, stitched like a football (twelve pentagons among
+  twenty hexagons), a pentagon on its top a little up the screen (4.5 pixels over the disc's middle), a seam running down
+  from its lowest corner. Built as a truncated icosahedron turned for the game camera (the pentagon's middle 9 degrees
+  from straight up, down the screen: where the camera, 20 degrees off straight down, sees it 11 degrees up from the
+  ball's middle, as the sprites draw it; the angles from it stretched 1.22 times, as the sprites draw the panels large):
+  domed panels inset from the frame (0x38-0x3c by the light they get, glowing a little: 0.08-0.14), a white glint
+  where the game's sun shines back, raised ribs along every edge (0x3b, 0x3d), a dark core under them; its middle 3.5
+  over the floor, cut flat at it. Not sheared (a ball looks a ball to the camera): cut in four along the sprites' edges.
+- fruit_pillar_r, fruit_pillar_l (% 205, 243; enemies 1259, 1260, armour 25, placed on their own at t 2456-3156; each
+  launches FRUIT's electric bolt (% 279, polish_launched_fruit.py) sideways out of its drum every 5 ticks): a square slate
+  pillar (ramp 6, columns 8-15) standing in the socket, its front face drawn from row 22 up past row 3 (its lit top
+  edge), a light grey drum clamped to its right (205) or left (243) side (columns 16-23 / 0-7 of rows 2-13). Built
+  upright, 22 high (a rounded square prism bevelled, collars at its foot and under its end, a cap on its top), the drum a
+  lathed barrel with a seam round its middle on a short arm, an electrode at its outer end; then sheared up the screen
+  as the sprites draw it (oblique: y + 0.92 z, so that its front face rises 20 pixels, 29 degrees from upright after the
+  camera's own shear). Faces turned down the screen are painted lighter (paint_front: the game's sun only grazes them,
+  the sprites draw them in full); its slates glow a little (0.05-0.08).
+- fruit_hex_eye (% 233; enemy 1251, armour 10, 4 times; frames 235 237 as it launches FRUIT's ember (' 77,
+  polish_launched_last.py) every 30 ticks: animate 2): a thick grey metal bowl in the socket (columns 7-16 of rows
+  15-24), its rim sloping in to a dark hole, a glowing orb sitting in it (rows 16-19) in ramp 15's reds, its hot spot
+  at its upper right. Its frames 235 and 237 (fruit_hex_eye_235, _237: frame models; the same mesh) heat the orb to
+  orange and gold (0xf5-0xf8 at 0.3-0.48, 0xf7-0xfb, 0xf9-0xfd at up to 0.6).
+- fruit_glyph_tree, fruit_glyph_hook (% 269, 275; enemies 1252, 1253, armour 0: they can't be shot; 4 and 3 times;
+  animate 1: 269 x5 267 x5 153 x5 267 x5, and 275 273 271 273 the same way, all the time): glyphs drawn in single
+  pixels in the socket's floor, a green branching sign and a red hook. Built as polish_fruit_pods.py builds the swirl:
+  flattened tubes along the glyph's pixels (polish_fruit_pods.stations), lying in the floor (0.16 up), dark in 269
+  and 275 (0x22, 0x71), glowing in the lit frames (267: 0x26 at 0.32, 153: 0x2c at 0.5; 273: 0x76 at 0.36, 271: 0x7c at
+  0.5) with the swirl's halo of see-through light-blue ribbons on the floor under them (frame models fruit_glyph_tree_267,
+  _153, fruit_glyph_hook_273, _271).
+- fruit_crystal_t, fruit_crystal_b (% 201 above 239; enemies 1255 (armour 0) at (x, y - 29) above 1256 (armour 20) at
+  (x, y - 1), 3 times): a slender pale six-sided ice crystal standing in the lower sprite's socket (columns 9-14 of
+  rows 19-51 of the 24 x 56 picture), its point at row 19, a lit ridge down its front. Built upright, 28 high (a ridge at
+  its front, the faces either side of it lit differently, a pointed end, two small shards at its foot), sheared up the
+  screen (y + 1.13 z: 37 degrees from upright after the camera's shear) so its point is where the sprites draw it; ramp
+  8's ice blues glowing a little (0.12-0.4).
+- fruit_capsule_t, fruit_capsule_b (% 169 above 207; enemies 1257 (armour 0) at (x, y - 29) above 1258 (armour 10) at
+  (x, y - 1), 3 times): a six-sided glass capsule standing in the lower sprite's socket (columns 4-19 of rows 19-55),
+  its blue lid drawn from above (rows 19-35) with a green light in its middle, glass with white glints and rods up its
+  sides under it. Built upright, 20 high: a bevelled base, an open six-sided tube of see-through glass (0x3c, alpha 0.4)
+  round a dark glowing core, rods up its left and right corners, slanted white glints on its front faces, a bevelled
+  lid with a raised plate and the glowing green light on it; sheared up the screen (y + 1.1 z) so its lid lies where the
+  sprites draw it, seen from above.
+Upright things are cut into the pair's pieces in the picture's plane along the sprites' seam (y 0), then sheared along
+the game camera's line of sight (polish_lemon_beetle.shear_to_camera), so each piece holds what its sprite draws and
+the camera sees each point where the sprites draw it (the single sprites the same, uncut). Every mesh triangulated
+(polish_k_pod.triangulate). Deterministic (md5 identical over runs, with and without --check): no random numbers, no
+booleans.
+
+Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z up from the floor (z 0); a single
+sprite's origin is its middle (pixel 12, 14): column c is x = c + 0.5 - 12, row r is y = 13.5 - r; the pairs' wholes
+(24 x 56, the ball's 48 x 56) have their origin at their middle, their pieces' origins at their sprites' middles (the
+ball's (+-12, +-14), the others' (0, +-14)).
+
+models.cfg: origin on the model lines (model fruit_hex_eye / fruit_glyph_tree / fruit_glyph_hook / fruit_pillar_r /
+fruit_pillar_l enemies/<name>.glb origin; the pairs' and the ball's have it), the frame models' lines (model
+fruit_hex_eye_235 / _237, fruit_glyph_tree_267 / _153, fruit_glyph_hook_273 / _271 enemies/<name>.glb origin) and frame
+lines (frame x25 235 fruit_hex_eye_235, frame x25 237 fruit_hex_eye_237, frame x25 267 fruit_glyph_tree_267, frame x25
+153 fruit_glyph_tree_153, frame x25 273 fruit_glyph_hook_273, frame x25 271 fruit_glyph_hook_271); every sprite line
+gets height=-4, the orb a glow (glow=8:0.22:248:0:4), the capsule's light one (sprite x25 169: glow=6:0.2:42:0:12).
+
+Replaces wave3_al.py (all of it: the orb, the glyph tree and hook, the pillars, the crystal and the capsule are all it
+still builds; nothing imports it), wave3_al_ball.py (all of it) and wave3_al_art.py's BALL, EYE, EYE_2, EYE_3, CRYSTAL,
+CAPSULE, PIPE_A, PIPE_B, GLYPH_G1-G3 and GLYPH_R1-R3 (read only by those two; DOME stays for wave3_al_citadel.py).
+
+Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each model's silhouette, and
+each pair's whole's, against enemy_x25.png, as the camera sees it; the socket's blues left out but where they are the
+capsule's or the ball's own), --preview <prefix>, --only <name,...>.
 """
 import itertools
 import math
@@ -101,15 +177,27 @@ def axis_lathe(name, profile, start, direction, mtl, segments=24):
     return obj
 
 
+def paint_front(obj, m, bands, base, boost=2.6):
+    """paint_light for parts the camera sees from the front: faces turned down the screen (away from the game's sun,
+    which lights them only dimly, but the sprites draw them in full) get `boost` more light value."""
+    from polish_orb_red import band_split
+    values = []
+    for v in obj.data.vertices:
+        n = Vector(v.normal)
+        values.append(light_value(n, base) + boost * max(0.0, -n.y))
+    band_split(obj, values, [(lo, m[key]) for lo, key in bands])
+    return obj
+
+
 # --- The geodesic ball (% 191 193 above 229 231) --------------------------------------------------------------------
 BALL_C = Vector((0.5, 0.5, 3.5))  # its middle (columns 1-47, rows 4-50 of the 48 x 56 picture), sunk into the ground
 BALL_R = 23.5
 PATTERN_AT = -9.0                 # the top pentagon's middle: degrees from straight up, up the screen (+) or down
 STRETCH = 1.22                    # the sprites draw the panels larger than a football's: angles from it stretched
 PHI = (1 + 5 ** 0.5) / 2
-FRAME_HW = 0.62                   # the frame's ribs: half-width of the gap they fill, their radius
-RIB_R = 0.66
-PANEL_DOME = 0.6
+FRAME_HW = 0.8                    # the frame's ribs: half-width of the gap they fill, their radius
+RIB_R = 0.88
+PANEL_DOME = 0.75
 
 
 def pattern_top():
@@ -239,10 +327,10 @@ def clip_below(obj, z=0.0):
 
 def geoball(m):
     faces, edges = truncated_icosahedron()
-    glass = [mat(m, f"ball{i:x}", 0x30 + i, 0.35, 0.12, 0.06 + 0.012 * (i - 7)) for i in (7, 9, 10, 11, 12)]
-    glint = mat(m, "ball_glint", 0x3e, 0.2, 0.08, 0.3)
-    frame = mat(m, "ball_frame", 0x3c, 0.55, 0.22, 0.05)
-    frame_dark = mat(m, "ball_frame_dark", 0x39, 0.5, 0.3)
+    glass = [mat(m, f"ball{i:x}", 0x30 + i, 0.3, 0.24, 0.08 + 0.014 * (i - 8)) for i in (8, 9, 10, 11, 12)]
+    glint = mat(m, "ball_glint", 0x3f, 0.1, 0.1, 0.4)
+    frame = mat(m, "ball_frame", 0x3d, 0.4, 0.24, 0.14)
+    frame_dark = mat(m, "ball_frame_dark", 0x3b, 0.4, 0.3, 0.08)
     core = mat(m, "ball_core", 0x33, 0.3, 0.5)
     sun = LIGHT
     half = (sun + TOWARDS_VIEW).normalized()       # where the sun's glints sit (the mirror direction)
@@ -263,7 +351,7 @@ def geoball(m):
             values.append(light_value(n, 6.3 + (0.5 if kind == "pent" else 0.0), 3.4, 1.4))
         from polish_orb_red import band_split
         band_split(obj, values, [(-99, glass[0]), (5.0, glass[1]), (5.9, glass[2]), (6.7, glass[3]), (7.4, glass[4])])
-        mk.paint(obj, lambda cc, nn: glint if (cc - BALL_C).normalized().dot(half) > 0.985 else None)
+        mk.paint(obj, lambda cc, nn: glint if (cc - BALL_C).normalized().dot(half) > 0.992 else None)
         parts.append(clip_below(obj))
     for i, (a, b) in enumerate(edges):
         pa, pb = ball_point(a, BALL_R + 0.05), ball_point(b, BALL_R + 0.05)
@@ -286,33 +374,33 @@ DRUM = (13.0, 4.4, 3.7, 11.6)     # the drum: its axis' height, radius, from x t
 
 
 def pillar(m, side):
-    steel = {key: mat(m, key, idx, 0.45, rough) for key, idx, rough in
-             (("p5", 0x65, 0.4), ("p7", 0x67, 0.36), ("p9", 0x69, 0.32), ("pb", 0x6b, 0.3))}
-    grey = {key: mat(m, key, idx, 0.55, rough) for key, idx, rough in
-            (("g6", 0x06, 0.36), ("g8", 0x08, 0.32), ("ga", 0x0a, 0.28), ("gc", 0x0c, 0.24))}
+    steel = {key: mat(m, key, idx, 0.35, rough, glow) for key, idx, rough, glow in
+             (("p7", 0x67, 0.38, 0.05), ("p9", 0x69, 0.34, 0.06), ("pb", 0x6b, 0.3, 0.07), ("pd", 0x6d, 0.28, 0.08))}
+    grey = {key: mat(m, key, idx, 0.5, rough) for key, idx, rough in
+            (("g8", 0x08, 0.34), ("ga", 0x0a, 0.3), ("gc", 0x0c, 0.26), ("ge", 0x0e, 0.22))}
     cx, cy = PILLAR_C
     hw, h = PILLAR_HW, PILLAR_H
     parts = []
-    body = mk.prism("pillar", rounded_square(cx, cy, hw, hw, 0.9, 3), 0.0, h, steel["p7"])
+    body = mk.prism("pillar", rounded_square(cx, cy, hw, hw, 0.9, 3), 0.0, h, steel["p9"])
     mk.bevel(body, 0.35, 2, 40)
     parts.append(body)
     # collars at its foot and under its end, a cap on its top
     for z0, z1, grow in ((0.0, 1.7, 0.6), (h - 3.4, h - 2.0, 0.45)):
-        c = mk.prism(f"collar{z0:.0f}", rounded_square(cx, cy, hw + grow, hw + grow, 1.1, 3), z0, z1, steel["p5"])
+        c = mk.prism(f"collar{z0:.0f}", rounded_square(cx, cy, hw + grow, hw + grow, 1.1, 3), z0, z1, steel["p7"])
         mk.bevel(c, 0.3, 2, 40)
         parts.append(c)
-    cap = mk.prism("cap", rounded_square(cx, cy, hw - 0.8, hw - 0.8, 0.8, 3), h - 0.1, h + 0.6, steel["p9"])
+    cap = mk.prism("cap", rounded_square(cx, cy, hw - 0.8, hw - 0.8, 0.8, 3), h - 0.1, h + 0.6, steel["pb"])
     mk.bevel(cap, 0.25, 2, 40)
     parts.append(cap)
     for p in parts:
         k.smooth(p, 35)
-        paint_light(p, steel, [(-99, "p5"), (5.6, "p7"), (6.6, "p9"), (7.4, "pb")], 6.5)
+        paint_front(p, steel, [(-99, "p7"), (5.4, "p9"), (6.4, "pb"), (7.6, "pd")], 6.8, 5.3)
     # the drum: a grey barrel on a short arm, its axis across the screen, a seam round its middle, an electrode at
     # its outer end (the bolts leave from it)
     zd, rd, x0, x1 = DRUM
     sx = side
     arm = axis_lathe("arm", [(0.0, 0.01), (0.02, 2.0), (1.4, 2.0), (1.9, 1.6), (2.0, 0.01)],
-                     Vector((sx * (hw - 0.4), cy, zd)), (sx, 0, 0), grey["g6"], 16)
+                     Vector((sx * (hw - 0.4), cy, zd)), (sx, 0, 0), grey["g8"], 16)
     length = x1 - x0
     prof = [(0.0, 0.01), (0.02, rd - 1.2), (0.35, rd - 0.35), (0.9, rd), (length / 2 - 0.5, rd), (length / 2 - 0.15, rd - 0.55),
             (length / 2 + 0.15, rd - 0.55), (length / 2 + 0.5, rd), (length - 0.9, rd), (length - 0.35, rd - 0.35),
@@ -322,13 +410,15 @@ def pillar(m, side):
                      Vector((sx * (x1 - 0.1), cy, zd)), (sx, 0, 0), grey["gc"], 14)
     for p in (arm, drum, tip):
         k.smooth(p, 45)
-        paint_light(p, grey, [(-99, "g6"), (5.6, "g8"), (6.7, "ga"), (7.5, "gc")], 6.8)
+        paint_front(p, grey, [(-99, "g8"), (5.6, "ga"), (6.7, "gc"), (7.5, "ge")], 6.8, 5.2)
         parts.append(p)
     return parts
 
 
 # --- The orb in its cup (% 233; frames 235 237) ---------------------------------------------------------------------------
 CUP = (5.0, 3.0)                  # its radius, its rim's height
+CUP_C = (0.0, -6.3)               # its middle (the sprites' cup: columns 7-16 of rows 15-24)
+HOLE = 2.9                        # the dark hole in it the orb sits in
 ORB_R = 2.35
 ORB_AT = (0.0, -4.2, 2.7)         # the orb's middle in the picture's plane (the sprites' rows 16-19)
 # per frame: the orb's body, its hot side, its hot spot (palette indices of ramp 15, its reds to golds) and glows
@@ -337,17 +427,18 @@ ORB_FRAMES = {233: ((0xf5, 0.3), (0xf7, 0.4), (0xf8, 0.48)), 235: ((0xf7, 0.36),
 
 
 def hex_eye(m, frame):
-    cx, cy = SOCKET_C
+    cx, cy = CUP_C
     r, hgt = CUP
     grey = {key: mat(m, key, idx, 0.6, rough) for key, idx, rough in
             (("g3", 0x03, 0.4), ("g6", 0x06, 0.36), ("g8", 0x08, 0.32), ("ga", 0x0a, 0.28), ("gc", 0x0c, 0.24))}
     dark = mat(m, "cup_inside", 0x01, 0.2, 0.6)
-    prof = [(r + 0.2, -0.3), (r + 0.25, 0.4), (r, hgt - 0.7), (r - 0.15, hgt - 0.1), (r - 0.55, hgt + 0.08),
-            (r - 0.95, hgt - 0.15), (r - 1.05, hgt - 0.8), (r - 1.4, 0.9), (r - 2.4, 0.6), (0.01, 0.5)]
+    # a thick metal bowl (the sprites' grey ring, 10 pixels across), its rim sloping in to a dark hole round the orb
+    prof = [(r + 0.2, -0.3), (r + 0.25, 0.4), (r, hgt - 0.8), (r - 0.2, hgt - 0.15), (r - 0.7, hgt + 0.05),
+            (r - 1.4, hgt - 0.15), (HOLE + 0.25, hgt - 0.9), (HOLE, hgt - 1.3), (HOLE - 0.2, 0.9), (0.01, 0.7)]
     cup = lathe_z("cup", prof, (cx, cy), grey["g8"], 40)
     k.smooth(cup, 45)
-    paint_light(cup, grey, [(-99, "g3"), (5.2, "g6"), (6.2, "g8"), (7.0, "ga"), (7.6, "gc")], 6.6)
-    mk.paint(cup, lambda c, n: dark if math.hypot(c.x - cx, c.y - cy) < r - 0.9 and c.z < hgt - 0.4 else None)
+    paint_front(cup, grey, [(-99, "g6"), (5.6, "g8"), (6.6, "ga"), (7.4, "gc")], 6.8, 5.0)
+    mk.paint(cup, lambda c, n: dark if math.hypot(c.x - cx, c.y - cy) < HOLE + 0.1 and c.z < hgt - 1.2 else None)
     (b, bg), (s, sg), (h, hg) = ORB_FRAMES[frame]
     body = mat(m, f"orb{frame}", b, 0.0, 0.18, bg)
     side = mat(m, f"orb_side{frame}", s, 0.0, 0.14, sg)
@@ -403,8 +494,8 @@ def glyph(m, strokes, dots, frame):
 # --- The ice crystal (% 201 above 239) and the glass capsule (% 169 above 207) -----------------------------------------
 # Each stands in the map's socket in the lower sprite (its middle (0, -21) of the 24 x 56 picture: the pieces' origins
 # (0, 14) and (0, -14)), upright, and leans up the screen as the sprites draw it (oblique: its top RISE pixels further up).
-CRYSTAL = dict(foot=(0.0, -21.0), r=3.1, h=28.0, rise=29.5, point=6.2)
-CAPSULE = dict(foot=(0.0, -20.5), r=8.0, h=20.0, rise=21.0)
+CRYSTAL = dict(foot=(0.0, -21.5), r=3.1, h=28.0, rise=31.6, point=6.2)
+CAPSULE = dict(foot=(0.0, -20.5), r=8.0, h=20.0, rise=21.9)
 
 
 def crystal(m):
@@ -415,13 +506,13 @@ def crystal(m):
     r, h, pt = CRYSTAL["r"], CRYSTAL["h"], CRYSTAL["point"]
     parts = []
     # six faces, corners left and right; a pointed end
-    hexa = hexagon(fx, fy, r, 0.0)
+    hexa = hexagon(fx, fy, r, 90.0)
     rings = [[Vector((x, y, z)) for x, y in hexa] for z in (-0.3, h - pt)]
     body = k.loft("crystal", rings, ice["i9"], start_point=(fx, fy, -0.3), end_point=(fx, fy, h))
     parts.append(body)
     # two small shards at its foot, leaning out
-    for i, (dx, lean, ln, rr) in enumerate(((-2.4, -26.0, 8.0, 1.25), (2.3, 22.0, 6.5, 1.05))):
-        hx = hexagon(0.0, 0.0, rr, 0.0)
+    for i, (dx, lean, ln, rr) in enumerate(((-2.0, -22.0, 6.5, 1.1), (2.0, 18.0, 5.5, 0.95))):
+        hx = hexagon(0.0, 0.0, rr, 90.0)
         rings = [[Vector((x, y, z)) for x, y in hx] for z in (-1.0, ln - 2.0)]
         shard = k.loft(f"shard{i}", rings, ice["i9"], start_point=(0, 0, -1.0), end_point=(0, 0, ln))
         shard.data.transform(Matrix.Translation((fx + dx, fy - 0.6, 0.0)) @ Matrix.Rotation(math.radians(lean), 4, "Y") @
@@ -430,16 +521,17 @@ def crystal(m):
     for p in parts:
         k.recalc_normals(p)
         k.smooth(p, 20)
-        paint_light(p, ice, [(-99, "i7"), (5.5, "i9"), (6.5, "ib"), (7.3, "id"), (7.9, "if")], 6.6)
+        paint_front(p, ice, [(-99, "i7"), (5.6, "i9"), (6.5, "ib"), (7.2, "id"), (7.8, "if")], 6.6, 5.0)
         clip_below(p, 0.0)
     return parts
 
 
 def capsule(m):
-    blue = {key: mat(m, key, idx, 0.45, rough) for key, idx, rough in
-            (("b5", 0x35, 0.38), ("b6", 0x36, 0.36), ("b8", 0x38, 0.32), ("ba", 0x3a, 0.3), ("bc", 0x3c, 0.28))}
-    glass = mat(m, "cap_glass", 0x3b, 0.25, 0.04, 0.0, 0.45)
-    core = mat(m, "cap_core", 0x36, 0.2, 0.4, 0.12)
+    blue = {key: mat(m, key, idx, 0.4, rough, glow) for key, idx, rough, glow in
+            (("b5", 0x35, 0.38, 0.04), ("b6", 0x36, 0.36, 0.05), ("b8", 0x38, 0.32, 0.06), ("ba", 0x3a, 0.3, 0.07),
+             ("bc", 0x3c, 0.28, 0.08))}
+    glass = mat(m, "cap_glass", 0x3c, 0.25, 0.04, 0.0, 0.4)
+    core = mat(m, "cap_core", 0x38, 0.2, 0.4, 0.16)
     glint = mat(m, "cap_glint", 0x8f, 0.0, 0.1, 0.5)
     green = mat(m, "cap_light", 0x28, 0.0, 0.15, 0.5)
     green_hot = mat(m, "cap_light_hot", 0x2c, 0.0, 0.1, 0.6)
@@ -454,7 +546,7 @@ def capsule(m):
     mk.bevel(plate, 0.2, 1, 40)
     for p in (base, lid, plate):
         k.smooth(p, 35)
-        paint_light(p, blue, [(-99, "b5"), (5.4, "b6"), (6.3, "b8"), (7.0, "ba"), (7.6, "bc")], 6.6)
+        paint_front(p, blue, [(-99, "b5"), (5.2, "b6"), (6.0, "b8"), (6.8, "ba"), (7.5, "bc")], 6.8, 4.6)
         parts.append(p)
     # the glass: an open six-sided tube between them, a dark core inside it, rods up its left and right corners
     hexa = hexagon(fx, fy, r - 0.6, 0.0)
@@ -466,7 +558,7 @@ def capsule(m):
     cr = mk.prism("cap_core", hexagon(fx, fy, r - 3.4, 30.0), 2.4, h - 5.0, core)
     parts.append(k.smooth(cr, 30))
     for sx in (-1, 1):
-        rod = lathe_z(f"cap_rod{sx:+d}", [(0.7, 2.0), (0.7, h - 4.8)], (fx + sx * (r - 0.2), fy), blue["b8"], 10)
+        rod = lathe_z(f"cap_rod{sx:+d}", [(0.65, 2.0), (0.65, h - 4.8)], (fx + sx * (r - 0.8), fy), blue["b8"], 10)
         k.smooth(rod, 50)
         paint_light(rod, blue, [(-99, "b6"), (6.0, "b8"), (7.0, "bc")], 6.6)
         parts.append(rod)

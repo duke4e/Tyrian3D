@@ -1,9 +1,9 @@
-"""Helpers for the batch AE models of wave 3 (sheet ', FRUIT and CORAL; written x27 in models.cfg): the sprites'
-pixels (wave3_ae_art.py), and the frames, painting, parts and build loop of batch AA (wave3_aa_kit: pixel frames,
-reliefs inflated from pixel regions, painting faces by the sprite's pixel under them, stand-alone models and whole
-objects cut into their sprites' pieces, the silhouette check), with batch Y's limbs, rings and cones
-(wave3_y_kit), and a few parts of their own: thin plates inflated from pixel regions, bumpy peel, tapering
-limbs along curves, glowing fruit slices.
+"""Helpers of the batch AE models of wave 3 (sheet ', FRUIT and CORAL; written x27 in models.cfg; all of them are
+polish_*.py's models now), kept for the kits built on them (wave3_ag_kit, wave3_ai_kit, wave3_aj_kit, wave3_ak_kit,
+wave3_al_kit): the frames, painting, parts and build loop of batch AA (wave3_aa_kit: pixel frames, reliefs inflated
+from pixel regions, painting faces by the sprite's pixel under them, stand-alone models and whole objects cut into
+their sprites' pieces, the silhouette check), with batch Y's limbs, rings and cones (wave3_y_kit), and a few parts of
+their own: thin plates inflated from pixel regions, bumpy peel, tapering limbs along curves.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre (or the whole object's, for objects the game draws in pieces).
@@ -28,7 +28,6 @@ import wave3_n_kit as n  # noqa: E402,F401
 import wave3_v_kit as v  # noqa: E402,F401
 import wave3_aa_kit as aa  # noqa: E402,F401
 import wave3_y_kit as yk  # noqa: E402,F401
-import wave3_ae_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, paint_faces, lathe_axis, hoop, tube, catmull, sphere, rounded_box, meshes,  # noqa: E402,F401
                          bake, transform)
 from wave3_v_kit import (Frame, Painter, paint_sprite, pixelate, merge_flat, relief, outlines_of,  # noqa: E402,F401
@@ -44,11 +43,6 @@ lens = aa.lens
 ellipsoid_point = aa.ellipsoid_point
 loft_path = yk.loft_path
 torus = yk.torus
-
-
-def frame(name, width, origin):
-    """A Frame of one of wave3_ae_art's pixel arts."""
-    return Frame(getattr(art, name), width, origin)
 
 
 # --- Shaping -----------------------------------------------------------------------------------------
@@ -193,34 +187,6 @@ def disc(name, centre, radius, height, mat, segments=40, bevel=0.35, radius_y=No
                               cy + ry * f * math.sin(2 * math.pi * i / segments), cz + z)) for i in range(segments)])
     obj = k.loft(name, rings, mat, start_point=(cx, cy, cz), end_point=(cx, cy, cz + height + dome))
     return k.smooth(obj, 40)
-
-
-def lemon_slice(name, cx, cy, z, radius, tilt=0.0, glow=1.0):
-    """A lemon slice lying flat at (cx, cy, z) (the lemon beetle's eyes, the pineapple's lamps): yellow rind,
-    white pith, eight glowing segments of juice, white spokes between them; tilted `tilt` degrees about y;
-    glow scales its light."""
-    rind = pal("lemon_rind", 0x7c, metallic=0.05, roughness=0.35)
-    pith = pal("lemon_pith", 0x7f, metallic=0.0, roughness=0.5, glow=0.4 * glow)
-    juice = pal("lemon_juice", 0x7d, metallic=0.0, roughness=0.12, glow=1.1 * glow)
-    juice2 = pal("lemon_juice2", 0x7e, metallic=0.0, roughness=0.12, glow=1.3 * glow)
-    parts = [disc(f"{name}_rind", (0.0, 0.0, -1.2), radius, 1.9, rind, 48, bevel=0.6),
-             disc(f"{name}_pith", (0.0, 0.0, -0.4), radius - 1.0, 1.35, pith, 48, bevel=0.3)]
-    # Eight wedges of juice, domed, white gaps between them.
-    for i in range(8):
-        a0 = 2 * math.pi * i / 8 + math.radians(4.5)
-        a1 = 2 * math.pi * (i + 1) / 8 - math.radians(4.5)
-        outline = [(0.55 * math.cos((a0 + a1) / 2), 0.55 * math.sin((a0 + a1) / 2))]
-        for j in range(7):
-            a = a0 + (a1 - a0) * j / 6
-            outline.append(((radius - 1.7) * math.cos(a), (radius - 1.7) * math.sin(a)))
-        wedge = sh.inflate(f"{name}_juice{i}", [outline], juice if i % 2 else juice2,
-                           sh.pillow_profile(0.5, 0.9, crown=0.25), bottom=0.0, base=0.9, rim=0.05, spacing=0.45)
-        k.smooth(wedge, 50)
-        parts.append(wedge)
-    m = Matrix.Translation((cx, cy, z)) @ Matrix.Rotation(math.radians(tilt), 4, "Y")
-    for p in parts:
-        p.data.transform(m)
-    return parts
 
 
 def ellipse_ring(centre, rx, ry, z, count=48, angle=0.0):

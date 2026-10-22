@@ -1,6 +1,83 @@
 """FRUIT's pineapple boss (sheet ', written x27 in models.cfg: 31 2x2 sprites, enemies 1265-1295 of episode 5, on the
-ground), polished (2026-10-22, round 35; it replaces wave3_ae_boss.py). (Full description: DOC below, filled in when
-the model is done.)
+ground), polished (2026-10-22, round 35; it replaces wave3_ae_boss.py, a relief painted pixel by pixel).
+
+Where it appears: FRUIT's fight (tools/content/tyrevents.py 5 FRUIT, all with link 254 and the boss bar): t 5000, events
+6 (ground) 1282-1287 (' 231-241) at (84 + 24 i, y - 56), 1289-1293 (' 270-278) at (96 + 24 i, y - 28), 1294 1295 (' 281
+283) at (132, y), (156, y), events 10 (ground 2, also drawn as ground enemies) 1273-1280 (' 191-205) at (60 + 24 i,
+y - 84), 1281 (' 229) at (60, y - 56), 1288 (' 243) at (228, y - 56); t 5028 (28 ticks of scroll later: on top of
+them) 1265-1272 (' 153-167) at (60 + 24 i, y - 84): one 192 x 140 picture, four rows of eight, five 36 pixels in, two 72
+pixels in. Episode 6's THE CORE takes FRUIT's boss waves (its placement "boss", episode 5, FRUIT, at 5600). Each piece
+is an enemy of its own (armour 254, 229 and 243 armour 0: never hit), one frame, no damaged look (dgr 0), not animated;
+155 and 165 carry gun 45, 274 gun 30, 270 and 278 (the barrels) launch enemy 1244 (' 207 245, a pale green flame) when
+event 31 sets their launch frequency. No other enemy (launched ones included) shows these sprites, none is another
+sprite's pixels mirrored, turned or in other ramps; the picture is its own mirror image about its middle (coverage 97 %,
+shading too but for the window's figure): built symmetric, the figure on its own.
+
+As the sprites and their 4x upscales draw it (columns and rows of the 192 x 140 picture): a giant pineapple lying down
+the screen (columns 61-130, rows 0-102: a blunt end just over the picture's top, its narrow end at row 102) in a lattice
+of diamond scales about 8 pixels across (browns of ramps 1 and 11, darker creases, pale specks), a tall black glass
+window down its front (columns 85-107 of rows 27-79) with a pale glowing figure in it (a blob at columns 91-98 of rows
+42-52, a thin stem down to a bigger blob at columns 94-102 of rows 61-71, a dim halo round it); its green crown
+fanning out under it like a fir branch (rows 94-137: a dense middle, short leaves out to the left, longer ones to the
+right); behind it a broad grey wing plate (rows 3-90: its top edge at row 3, its sides at columns 0 and 191, its lower
+edges one straight bevel each from row 55 at the side to under the pineapple, lit), panel seams (columns 27 and 22, row
+31), a lemon slice glowing in a round dark socket on each side (columns 16-32 of rows 20-36 and the mirror image); at
+each side a tan pylon on the plate (columns 40-55 of rows 26-81) narrowing into a rod pointing down the screen (columns
+47-52 of rows 82-98), three ribbed steel bolts (rows 26-33, 50-57, 74-81: five four-pixel beads each, columns 51-70)
+from the pylon over the pineapple's flank, a yellow banana claw between each two (columns 55-64 of rows 33-49 and
+57-73), and a big claw under each side (columns 66-78 of rows 88-106).
+
+Built as such a machine, modelled in the picture's plane (x, y as the sprites draw them, z up) and then sheared along
+the game camera's line of sight (y - z tan 20, the normals with it: polish_lemon_beetle's shear_to_camera), so that
+the camera sees every point where the sprites draw it, however high it stands (the pineapple rises 31 pixels):
+- the plate: a constrained Delaunay mesh of each half's outline (its inner edge 4 pixels inside the pineapple's), of
+  the chamfer's inner line and of the seams' edges and bottoms, with a coarse lattice between them, its heights exact
+  along those lines (a chamfer 1.7 wide and 1.3 deep round its edge, seams 0.9 wide and 0.55 deep), walls and a flat
+  underside; painted grey 0x08, the chamfers by the light they get, the bevelled lower edges lit (0x0b) as the
+  sprites draw them, the seams' walls lit or shaded;
+- the lamps: polish_lemon_beetle's lemon slice (scaled to the sprite's 17 pixels) in a rolled steel socket ring,
+  glowing more than the beetle's eyes (0.2-0.56);
+- the pylons: lofted rounded boxes (superellipse sections, power 5) with a rounded upper end, narrowing into the
+  barrel, its muzzle rounded round a dark bore; the bolts lathed along axes rising from inside the pylon into the
+  pineapple's flank (z 10 to 20.6: they lie over the flank as the sprites draw them and screw into it), five beads
+  each where the sprites' ribs are, a flange where each leaves the pylon; the claws lens-sectioned lofts along the
+  sprites' crescents (ramp 7's yellows glowing a little, as the lemon beetle's), the small ones bridging the bolts
+  over the flank, the big ones running from inside the flank along it to points by the crown;
+- the pineapple: rings of a smooth fruit round its axis (its outline R(y): two superellipse arcs fitted to the sprites'
+  (rms 0.35 px); height 0.75 times its half-width over an axis 4 up), about 2 pixels apart along its surface, cut
+  along the scales' creases (the lattice (s +- y) / 8.4, s the arc round it) and along the window's outline and the
+  halo round the figure (polish_coral_manta.split_contour: mesh lines), each scale raised 0.4 in its middle, the scales
+  fading out at the fruit's tips; painted in four browns by the creases and the light (band_split: contours along the
+  cushions), its flat bottom at z 0; inside the window's outline the skin stays smooth and is painted as the window's
+  floor (0x01, lighter round the figure: 0x04, 0x07, glowing a little); over it the smoky glass (0x02, alpha 0.3) bulging
+  up to 2.9 over the skin, a dark rolled rim round it, and between them the figure, a flattened loft along the sprites'
+  S of light glowing white (0x0f at 0.6, its edges 0x0b at 0.4);
+- the crown: a stem out of the fruit's narrow end and 17 lens-sectioned leaves along quadratic curves to where the
+  sprites' leaves end, the middle ones rising along the stem (z up to 12.5), painted in four greens by the light.
+Each part's faces are painted by how they face the game's sun (light_value, polish_fruit_pods.py's). The whole is cut
+into the 31 pieces in the picture's plane along the sprites' edges (polish_coral_manta.cut: the caps the part's inside
+colour, the fruit's flesh 0x7b; the boxes of the picture's edge pieces reach out past it, so the fruit's blunt end
+stays whole), before the shear; each piece moved so that its sprite's middle is its origin, its parts joined, every
+mesh triangulated (polish_k_pod.triangulate). Deterministic (md5 identical over runs, with and without --check): no
+random numbers, no booleans.
+
+Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z up. The whole's origin is the picture's
+middle (its pixel edge 96, 70): column c's left edge is x = c - 96, row r's top edge y = 70 - r; a piece whose sprite's
+top left pixel is (c0, r0) has its origin at (c0 + 12 - 96, 56 - r0). Heights in the picture's plane: the plate 0-5,
+the pylons 4.6-17.5, the bolts' tops to 24, the pineapple to 30.9, the glass to 33.8, the crown 1-12.5; drawn at the
+pieces' origins on the ground layer (models.cfg origin: 4 over the terrain; FRUIT's fight is over open space).
+
+models.cfg: the model lines stay (model pineapple_<sprite> enemies/pineapple_<sprite>.glb origin); the sprite lines get
+glows for the lamps and the figure: sprite x27 155 pineapple_155 yaw=0 glow=22:0.22:125:-11.5:14.5, sprite x27 165
+pineapple_165 yaw=0 glow=22:0.22:125:11.5:14.5, sprite x27 199 pineapple_199 yaw=0 glow=24:0.18:14:-11.5:14.5.
+
+Replaces wave3_ae_boss.py (all of it: the boss is all it builds; nothing imports it) and wave3_ae_art.py's BOSS (read
+only by it through wave3_ae_kit.frame()).
+
+Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the whole's silhouette as the
+camera sees it, and each piece's, against enemy_x27.png), --preview <prefix> (the whole's top and 3/4 views; --pieces 1
+also each piece's), --only <name,...> (pieces to export; "none": none), --whole <file.glb> (the sheared whole as well,
+for looking at), --stats 1 (each piece's largest parts).
 """
 import math
 import os
@@ -734,22 +811,9 @@ def pineapple(m):
         fade = smoothstep(0.0, 0.25, vals["win"][v])
         v.co = p + n * (SCALE_AMP * (c - 0.5) * fade)
         values.append(light_value(n, 1.6 + 3.2 * c, 2.6, 1.0))
-    keys = []
-    for f in bm.faces:
-        cen = f.calc_center_median()
-        win = sum(vals["win"][v] for v in f.verts) / len(f.verts)
-        if win < 0.0:
-            d = sum(vals["fig"][v] for v in f.verts) / len(f.verts)
-            keys.append("cav4" if d < HALO[0] else ("cav2" if d < HALO[1] else "cav"))
-        else:
-            keys.append("s5")
-    win_faces = [i for i, key in enumerate(keys) if key.startswith("cav")]
-    obj = mesh_from_bm("pineapple", bm, m, keys)
-    window_keys = {i: keys[i] for i in win_faces}
-    centres = [tuple(obj.data.polygons[i].center) for i in win_faces]
-    # band_split by the values (it rebuilds the faces: the window's floor is painted again after it, by position)
+    obj = mesh_from_bm("pineapple", bm, m, ["s5"] * len(bm.faces))
+    # band_split by the values (it rebuilds the faces: the window's floor is painted after it, by position)
     band_split(obj, values, [(-99, m["s0"]), (2.3, m["s3"]), (3.6, m["s5"]), (4.6, m["s7"])])
-    del window_keys, centres
 
     def floor(c, n):
         if window_e(c.x, c.y) < -0.002:

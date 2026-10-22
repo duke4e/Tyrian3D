@@ -24,7 +24,8 @@ with four gold bands every three pixels down the diagonal; a grey missile pod do
 
 Built as such: the flesh a solid over its outline (polish_ring_machine.relief: a pillowed top 3.4 over a flat belly,
 its edges rounded, gentle lumps (mathutils.noise, the same every run), a dimple under each pip), painted in four
-reds by the light it gets and glowing a little in them (reds read dark from the game's camera); the pips small golden
+reds by the light it gets, mottled in large soft patches (the upscale's folds of flesh), glowing a little in them
+(reds read dark from the game's camera); the pips small golden
 ovals lying in their dimples; the pipes round bars with rounded bends (the M) and rounded ends, sunk a little into the
 flesh, painted in four greys by their light; the gold bands rings round them; the pod a lathe along its axis, its
 glint a small white patch; the nub a glossy red ball. Modelled in the picture's plane (x, y as the sprite draws them,
