@@ -1,5 +1,5 @@
 """Helpers for the batch AH models of wave 3 (sheet M: the asteroid levels, WINDY, SOH JIN and MINERS; wave3_ah.py,
-the blocks and MINERS' roller and tank; wave3_ah_dome.py, the armoured dome of the asteroid levels and its wreck;
+the blocks and MINERS' roller and tank;
 wave3_ah_rock.py, MINERS' banded rock column and its wreck; wave3_ah_rig.py, MINERS' drilling rig and its guns,
 hatches, torches and drill). The sprites' pixels are in wave3_ah_art.py; the parts come from the earlier batches'
 kits (wave3_s_kit: pixel frames, painting by the sprite, slabs and prisms; wave3_q_kit: heightfield parts, rings,

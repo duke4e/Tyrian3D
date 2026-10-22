@@ -1,19 +1,17 @@
 """Enemies of wave 3, batch AL (sheet %, written x25 in models.cfg): FRUIT's machines in their hexagonal sockets,
 modelled as their sprites look (models.cfg: yaw=0), on the ground. The kit is wave3_al_kit.py, the pixels
-wave3_al_art.py; FRUIT's geodesic ball is in wave3_al_ball.py, CORAL's citadel in wave3_al_citadel.py.
+wave3_al_art.py; FRUIT's geodesic ball is in wave3_al_ball.py, CORAL's citadel in wave3_al_citadel.py; the vent pod
+and the swirl glyph are polish_fruit_pods.py's.
 
 Nearly every FRUIT sprite of the sheet stands in the same socket: a hexagon 16 x 14 pixels in the lower half of
 its sprite, a bevelled blue rim round a sunken floor. The socket is the map's (FRUIT's ground is those hexagons, and
 the sprites carry a copy of it): the models are what stands in it, on the ground, and things the sprites draw
 standing (seen from the side and above, in the oblique view) stand upright, their height along z:
 
-- fruit_hex_pod (% 195; enemy 1250, frames 195 197 199): a round vent grille, eight radial slots in it (dark blue
-  across and down, darker on the diagonals), a red lamp in a square bezel at its hub (its frames brighten the
-  lamp to orange: the model's lamp glows).
 - fruit_hex_eye (% 233; enemy 1251, frames 233 235 237): a grey metal cup, black inside, a glowing orb sitting in
   it (its frames brighten it from dark red to gold).
-- fruit_glyph_tree, fruit_glyph_hook, fruit_glyph_swirl (% 269, 275, 283; enemies 1252-1254): the glyph inlaid in
-  the socket's floor, a green branching sign, a red hook and a white swirl, as glowing strokes on the ground
+- fruit_glyph_tree, fruit_glyph_hook (% 269, 275; enemies 1252, 1253): the glyph inlaid in the socket's floor, a green
+  branching sign and a red hook, as glowing strokes on the ground
   (their frames pulse the glyph's light; the model keeps a middle shade).
 - fruit_pillar_r, fruit_pillar_l (% 205, 243; enemies 1259, 1260, placed on their own): a square grey pillar
   standing upright, 17 high, a grey valve drum clamped to its right (205) or left (243) side near the top.
@@ -31,63 +29,15 @@ import math
 import os
 import sys
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_al_kit as kit  # noqa: E402
-from wave3_al_kit import k, sh, w, pal, Painter  # noqa: E402
-
-HEX_C = (0.0, -7.0)
+from wave3_al_kit import k, sh, w, pal  # noqa: E402
 
 
 def is_socket(val):
     return val >> 4 == 3
-
-
-# --- % 195: the vent pod ---------------------------------------------------------------------------------
-
-POD = kit.frame("POD", 24, (12, 14))
-POD_LAMP = 0x76
-POD_BASE = 0.4      # the grille's rim over the ground
-
-
-def pod_grille(x, y, z):
-    """The grille over the floor: a low round boss with eight radial slots and a raised bezel at its hub."""
-    cx, cy = HEX_C
-    dx, dy = x - cx, y - cy
-    r = math.hypot(dx, dy)
-    boss = 1.2 * max(0.0, 1.0 - (r / 6.2) ** 2) ** 0.5
-    a = math.atan2(dy, dx)
-    step = math.pi / 4
-    off = abs((a + step / 2) % step - step / 2)  # angle to the nearest slot's axis
-    across = r * math.sin(off)
-    slot = 0.75 * kit.smoothstep(0.95, 0.55, across) * kit.smoothstep(1.7, 2.4, r) * kit.smoothstep(5.6, 4.9, r)
-    bezel = 0.35 * kit.smoothstep(2.0, 1.4, max(abs(dx), abs(dy)))
-    return z + boss - slot + bezel
-
-
-@kit.model("fruit_hex_pod", mask=lambda: POD.mask())
-def fruit_hex_pod():
-    """The vent grille standing on the ground in the map's socket (the socket is the map's: not modelled): a
-    round boss with eight radial slots, the lamp in its bezel at the hub, four bolts."""
-    painter = kit.socket_painter("pod", extra={6: (2, 3)})
-    cx, cy = HEX_C
-    disc = [(cx + 6.6 * math.cos(2 * math.pi * i / 48), cy + 6.6 * math.sin(2 * math.pi * i / 48)) for i in range(48)]
-    grille = kit.heightfield("grille", [disc], lambda x, y, e: e * pod_grille(x, y, POD_BASE), painter(0x39),
-                             spacing=0.4, smooth_angle=40, edge=0.9)
-    kit.pixelate(grille, POD)
-    kit.paint_sprite(grille, POD, painter, wall_steps=-2, keep=lambda val: val >> 4 in (3, 6))
-    kit.merge_flat(grille)
-    k.smooth(grille, 40)
-    # The lamp at the hub, glowing red, and its bolts on the diagonals.
-    lamp = pal("pod_lamp", POD_LAMP, metallic=0.0, roughness=0.15, glow=2.2)
-    top = pod_grille(cx, cy, POD_BASE)
-    w.sphere("lamp", (cx, cy, top - 0.1), (1.05, 1.05, 0.75), lamp, 20, 10)
-    bolt = pal("pod_bolt", 0x64, metallic=0.6, roughness=0.3)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            bx, by = cx + sx * 3.1, cy + sy * 3.1
-            w.sphere(f"bolt{sx}{sy}", (bx, by, pod_grille(bx, by, POD_BASE) - 0.05), (0.6, 0.6, 0.4), bolt, 10, 5)
 
 
 # --- % 233: the orb in its cup ---------------------------------------------------------------------------
@@ -117,7 +67,7 @@ def fruit_hex_eye():
     w.sphere("shine", (cx - 0.8, cy + 1.4, fl + 4.4), (0.6, 0.5, 0.25), shine, 12, 6)
 
 
-# --- % 269, 275, 283: the glyph tiles ---------------------------------------------------------------------
+# --- % 269, 275: the glyph tiles ---------------------------------------------------------------------
 
 def glyph_tile(name, f, ramp, index, glow):
     """The glyph as glowing strokes joining its pixels, lying on the ground: the socket it is inlaid in is the
@@ -138,11 +88,6 @@ def fruit_glyph_tree():
 @kit.model("fruit_glyph_hook", mask=lambda: kit.frame("GLYPH_R2", 24, (12, 14)).mask())
 def fruit_glyph_hook():
     glyph_tile("glyph_r", "GLYPH_R2", 7, 0x77, 1.6)
-
-
-@kit.model("fruit_glyph_swirl", mask=lambda: kit.frame("GLYPH_W2", 24, (12, 14)).mask())
-def fruit_glyph_swirl():
-    glyph_tile("glyph_w", "GLYPH_W2", 0, 0x0b, 1.4)
 
 
 # --- % 205, 243: the pillars ----------------------------------------------------------------------------------

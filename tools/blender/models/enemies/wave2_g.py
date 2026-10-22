@@ -6,8 +6,7 @@
 - deli_tower_tl (sheet U 1): the top left corner of DELI's tower, which the game puts together from
   six sprites (U 1, 3, 5 above 39, 41, 43): the tops of a post and two red pipes: a piece (origin).
 - boom_ship_right, boom_ship_left: now built by polish_boom_ship.py.
-- warp_orb (sheet P 85): the swirling fire orb that leads to a secret level; its frames brighten it
-  (glow option).
+- warp_orb: now built by items/polish_warp_orb.py.
 - stone_plant: now built by polish_stone_plant.py.
 - pipe_arm_2: gone; TYRIAN's long arms are built by polish_tusk_arms.py.
 - hatch_ship: now built by polish_hatch_ship.py.
@@ -193,53 +192,6 @@ def paint_faces(obj, fn):
     return obj
 
 
-def sampler(g, origin=(12, 14), shade=lambda v: v & 15, blur=1):
-    """A function (x, y) -> the grid's value (shade) at a point, bilinear between pixel centres and
-    blurred `blur` times; outside the sprite, the nearest pixel's."""
-    h, w = len(g), len(g[0])
-    field = np.full((h, w), np.nan)
-    for r in range(h):
-        for c in range(w):
-            if g[r][c] is not None:
-                field[r, c] = shade(g[r][c])
-    for _ in range(blur):
-        out = field.copy()
-        for r in range(h):
-            for c in range(w):
-                if np.isnan(field[r, c]):
-                    continue
-                vals, wts = [], []
-                for dr in (-1, 0, 1):
-                    for dc in (-1, 0, 1):
-                        rr, cc = r + dr, c + dc
-                        if 0 <= rr < h and 0 <= cc < w and not np.isnan(field[rr, cc]):
-                            vals.append(field[rr, cc])
-                            wts.append(2.0 if dr == dc == 0 else 1.0 if dr == 0 or dc == 0 else 0.5)
-                out[r, c] = np.average(vals, weights=wts)
-        field = out
-    known = [(r, c) for r in range(h) for c in range(w) if not np.isnan(field[r, c])]
-    ox, oy = origin
-
-    def at(x, y):
-        c, r = x + ox - 0.5, oy - y - 0.5
-        c0, r0 = math.floor(c), math.floor(r)
-        total = weight = 0.0
-        for rr, cc, wt in ((r0, c0, (1 - (r - r0)) * (1 - (c - c0))), (r0, c0 + 1, (1 - (r - r0)) * (c - c0)),
-                           (r0 + 1, c0, (r - r0) * (1 - (c - c0))), (r0 + 1, c0 + 1, (r - r0) * (c - c0))):
-            if 0 <= rr < h and 0 <= cc < w and not np.isnan(field[rr, cc]):
-                total += field[rr, cc] * wt
-                weight += wt
-        if weight > 0.05:
-            return total / weight
-        rr, cc = min(known, key=lambda p: (p[0] - r) ** 2 + (p[1] - c) ** 2)
-        return field[rr, cc]
-    return at
-
-
-def gauss(x, y, cx, cy, sx, sy):
-    return math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2))
-
-
 # --- D 115: the ore hauler -------------------------------------------------------------------------
 
 @model("ore_hauler", "D", 115)
@@ -305,50 +257,6 @@ def ore_hauler():
         decimate(obj, 850)
         k.smooth(obj, 50)
     k.smooth(decimate(light, 400), 50)
-
-
-# --- P 85: the warp orb ---------------------------------------------------------------------------
-
-def shade_bands(g, bands, origin=(12, 14), blur=1, low=None):
-    """A painter for paint_faces: the material of the band of the sprite's shade under a face
-    (bands: [(lowest shade, material)], ascending); faces facing down (or below `low`) take the
-    first band."""
-    shade = sampler(g, origin, blur=blur)
-
-    def pick(centre, normal):
-        if normal.z < -0.2 or (low is not None and centre.z < low):
-            return bands[0][1]
-        s = shade(centre.x, centre.y)
-        chosen = bands[0][1]
-        for lowest, mat in bands:
-            if s >= lowest:
-                chosen = mat
-        return chosen
-    return pick
-
-
-@model("warp_orb", "P", 85)
-def warp_orb():
-    """A ball of swirling fire: its top in the sprite's shades of the fire ramp, all glowing (the
-    frames 131 and 233 brighten it: glow option); a darker ball underneath."""
-    g = grid(art.P85, 24)
-    bands = [(lowest, pal(f"warp_{index:x}", index, metallic=0.0, roughness=0.55, glow=0.45 + 0.07 * (index - 0x72)))
-             for lowest, index in ((0.0, 0x72), (2.5, 0x73), (4.0, 0x75), (5.5, 0x76), (7.0, 0x78), (8.5, 0x79),
-                                   (10.0, 0x7b), (11.5, 0x7c), (13.5, 0x7e))]
-    cx, cy, radius, squash = -0.5, -0.5, 10.4, 0.82
-    circle = sh.ellipse(cx, cy, radius, radius, count=96)
-
-    def dome(d, w):
-        r = np.clip(radius - d, 0.0, radius)
-        return squash * np.sqrt(np.maximum(0.0, radius ** 2 - r ** 2))
-    top = sh.inflate("orb", [circle], bands[0][1], dome, bottom=0.0, rim=0.0, spacing=0.45)
-    paint_faces(top, shade_bands(g, bands, blur=0))
-    simplify_bottom(top)
-    k.smooth(top, 80)
-    under = k.ellipsoid("orb_under", (cx, cy, 0.0), (radius - 0.05, radius - 0.05, radius * squash * 0.9), bands[0][1],
-                        40, 20)
-    sh.cut_planes([under], [((0, 0, 0.05), (0, 0, 1))])
-    k.smooth(under, 80)
 
 
 # --- A rectangle with rounded corners (DELI's tower) -------------------------------------------------

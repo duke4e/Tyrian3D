@@ -1,11 +1,7 @@
-"""Batch AT of wave 3 (the second animation pass): three more objects whose frames change shape, for frame lines, each
+"""Batch AT of wave 3 (the second animation pass): two more objects whose frames change shape, for frame lines, each
 built by its own script's builder (imported as it is, its output unchanged) and posed as the frames draw it
 (models.cfg: as the first frame's models, yaw=0).
 
-- eye_hatch_<sprite> (sheet 5: 162, 160; enemy 525 of BRAINIAC, eye_hatch; wave3_l.py): the floor hatch's lids
-  slide apart on its red eye and shut again, 164 162 160 160 160 162 162 162 162 164. wave3_l's hatch has them nearly
-  shut on a slit, as 164 draws them; 162 has them half open (the eye 6 pixels tall between them), 160 drawn back to
-  thin rims at the socket's edge, the whole eye glowing brighter.
 - ice_drill_arm_<sprite> (sheet 7: 205, 203; enemy 86 of CAMANIS, ice_drill_arm; wave3_ac_ice.py): the arm pulls in
   when it launches, 207 205 203 205 207: the knuckle, the grey head with its band, point and bracket slide up the
   screen 2 and 3 pixels, the thin rod behind them sliding into the flange.
@@ -29,52 +25,10 @@ from mathutils import Matrix
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_at_kit as kit  # noqa: E402
 
-wl = kit.quiet_import("wave3_l")
 wa = kit.quiet_import("wave3_ac_ice")
 wz = kit.quiet_import("wave3_z_rock")
 kit.forget()
-lk = wl.w                         # wave3_l_kit, which keeps its own registry
-del lk.MODELS[:]
-del lk.WHOLES[:]
 w = kit.w
-pal = kit.pal
-
-
-# --- Sheet 5: the eye hatch's lids -------------------------------------------------------------------------------
-
-EYE = (0.5, 1.2)      # the eye's centre (wave3_l's ex, ey)
-SOCKET_RY = 4.8       # the socket rim's half height across the screen
-
-
-def eye_hatch(edge, lid_z, lid_rz, eye, hot):
-    """wave3_l's hatch with its lids drawn back so that their inner edges are `edge` from the eye's middle (they shrink
-    into the socket's rim as they go: centred between their edge and the rim, lower), the eye's and its hot middle's
-    materials ((index, glow)) and the hot middle's radii."""
-    wl.eye_hatch()
-    ex, ey = EYE
-    lid = bpy.data.objects["lid-1"].data.materials[0]
-    kit.remove(["lid-1", "lid1"])
-    ry = (SOCKET_RY - edge) / 2 + 0.25
-    for side in (-1, 1):
-        w.sphere(f"lid{side}", (ex, ey + side * (edge + ry - 0.05), lid_z), (5.0 - 0.15 * edge, ry, lid_rz), lid, 24,
-                 10)
-    ei, eg = eye
-    bpy.data.objects["eye"].data.materials[0] = pal(f"hatch_eye_{ei:x}_{int(eg * 10)}", ei, metallic=0.0,
-                                                    roughness=0.15, glow=eg)
-    # The hot middle, larger as the eye opens (at wave3_l's height).
-    (hi, hg), radii = hot
-    zs = [v.co.z for v in bpy.data.objects["eye_hot"].data.vertices]
-    kit.remove(["eye_hot"])
-    w.sphere("eye_hot", (ex - 0.2, ey + 0.1, (min(zs) + max(zs)) / 2), radii,
-             pal(f"hatch_eye_hot_{hi:x}_{int(hg * 10)}", hi, metallic=0.0, roughness=0.1, glow=hg), 16, 6)
-
-
-# (sprite: the lids' inner edges, their height and thickness, the eye, its hot middle): 162 shows the eye from 3 pixels
-# over its middle to 3 under it, 160 from 4 to 4.
-HATCH = {162: (2.6, 1.6, 1.5, (0x77, 1.7), ((0x7b, 2.2), (2.8, 1.4, 0.9))),
-         160: (3.9, 1.3, 1.0, (0x78, 2.0), ((0x7c, 2.6), (3.2, 1.9, 1.0)))}
-for s, args in HATCH.items():
-    lk.model(f"eye_hatch_{s}", s)(lambda args=args: eye_hatch(*args))
 
 
 # --- Sheet 7: the drill's arm pulling in --------------------------------------------------------------------------
@@ -120,8 +74,6 @@ for tl, tr, (dy, dz), radii, heat in NUB:
 
 
 def main():
-    if lk.MODELS:
-        lk.main()
     if w.MODELS:
         w.run()
     if kit.n.OBJECTS or kit.n.MODELS:

@@ -149,67 +149,7 @@ def shade_field(art, blur=1, letters=None, skip=""):
     return at
 
 
-def paint_bands(obj, value, bands):
-    """Paints each face with the material of the band its value(centre, normal) falls in: bands
-    [(lowest value, material)], ascending."""
-    mats = [m for _, m in bands]
-
-    def pick(c, n):
-        v = value(c, n)
-        index = 0
-        for i, (lowest, _) in enumerate(bands):
-            if v >= lowest:
-                index = i
-        return index
-    return paint(obj, pick, mats)
-
-
-def seg_distance(px, py, path):
-    """The distance from (px, py) to a polyline [(x, y)]."""
-    best = 1e9
-    for (ax, ay), (bx, by) in zip(path, path[1:]):
-        dx, dy = bx - ax, by - ay
-        t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / max(dx * dx + dy * dy, 1e-9)))
-        best = min(best, math.hypot(px - ax - t * dx, py - ay - t * dy))
-    return best
-
-
-def gauss(x, y, cx, cy, rx, ry, angle=0.0):
-    """exp(-q) of an ellipse turned by angle (degrees)."""
-    c, s = math.cos(math.radians(angle)), math.sin(math.radians(angle))
-    u, v = (x - cx) * c + (y - cy) * s, -(x - cx) * s + (y - cy) * c
-    return math.exp(-((u / rx) ** 2 + (v / ry) ** 2))
-
-
-def rounded_rect(cx, cy, hx, hy, power=6.0, count=40):
-    """A rounded rectangle (a superellipse of the given power) as a polygon."""
-    out = []
-    for i in range(count):
-        a = 2 * math.pi * i / count
-        c, s = math.cos(a), math.sin(a)
-        out.append((cx + math.copysign(abs(c) ** (2 / power), c) * hx, cy + math.copysign(abs(s) ** (2 / power), s) * hy))
-    return out
-
-
-def poly_px(art, points):
-    """A polygon given in pixel corners (column, row) as model coordinates."""
-    return [(c - art.ox, art.oy - r) for c, r in points]
-
-
-def mirrored(points, axis_x=0.0):
-    """The mirror image of a polygon [(x, y)] across x = axis_x (its winding kept)."""
-    return [(2 * axis_x - x, y) for x, y in reversed(points)]
-
-
 # --- Parts -------------------------------------------------------------------------------------
-
-def plate(name, polys, mat, height, radius=1.0, base=0.0, bottom=0.0, crown=0.0, spacing=0.4, z_fn=None, angle=50):
-    """A part filling the polygons: a top `height` above base with edges rounded over radius (an
-    inflated pillow); bottom > 0 rounds its underside too (as a fraction of the top's rise)."""
-    obj = sh.inflate(name, polys, mat, sh.pillow_profile(height, radius, crown), bottom=bottom, base=base, rim=0.05,
-                     spacing=spacing, z_fn=z_fn)
-    return k.smooth(obj, angle)
-
 
 def rounded(name, polys, mat, aspect=1.0, max_height=None, base=0.0, bottom=0.0, spacing=0.4, z_fn=None, angle=55,
             sigma=1.2):
@@ -217,103 +157,6 @@ def rounded(name, polys, mat, aspect=1.0, max_height=None, base=0.0, bottom=0.0,
     obj = sh.inflate(name, polys, mat, sh.round_profile(aspect, max_height=max_height), bottom=bottom, base=base,
                      rim=0.1, spacing=spacing, z_fn=z_fn, sigma=sigma)
     return k.smooth(obj, angle)
-
-
-def bevelled_slab(name, poly, z0, z1, mat, bevel=0.4, segments=2, z_fn=None, angle=40):
-    """A flat part: the polygon [(x, y)] extruded from z0 to z1, its edges bevelled; z_fn(x, y, z) -> z
-    then reshapes it (tapers, dihedral)."""
-    area = sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
-               for i in range(len(poly)))
-    obj = k.slab(name, poly if area > 0 else poly[::-1], z0, z1, mat, bevel_width=bevel, bevel_segments=segments)
-    sh.apply_modifiers(obj)
-    if z_fn is not None:
-        for v in obj.data.vertices:
-            v.co.z = z_fn(v.co.x, v.co.y, v.co.z)
-    return k.smooth(obj, angle)
-
-
-def loft_y(name, sections, mat, segments=24, power=2.0, start=None, end=None, angle=50):
-    """A hull along y through cross-sections [(y, x centre, z centre, half width, top, bottom)]:
-    superellipses of the given power, `top` above and `bottom` below the centre; start/end close
-    the ends (points, or None for the end ring's centre)."""
-    rings = []
-    for y, xc, zc, hw, top, bottom in sections:
-        rings.append(k.ring(y, max(hw, 0.02), 1.0, segments, z=zc, x=xc, top=max(top, 0.02),
-                            bottom=max(bottom, 0.02), power=power))
-    obj = k.loft(name, rings, mat, start_point=start, end_point=end)
-    return k.smooth(obj, angle)
-
-
-def fin_blade(name, path, mat, thickness=1.2, segments=10, angle=45):
-    """A thin upright blade along y: path [(y, x, z bottom, z top)]; its section a rounded slab
-    `thickness` wide (narrowing at the top edge)."""
-    rings = []
-    for y, x, z0, z1 in path:
-        ring = []
-        for j in range(segments):
-            a = 2 * math.pi * j / segments
-            c, s = math.cos(a), math.sin(a)
-            # A lens: thick at the bottom, thinner towards the rounded top edge.
-            zz = z0 + (z1 - z0) * (0.5 + 0.5 * s)
-            half = thickness / 2 * (1.0 - 0.45 * (0.5 + 0.5 * s)) * (abs(c) ** 0.6)
-            ring.append(Vector((x + math.copysign(half, c), y, zz)))
-        rings.append(ring)
-    obj = k.loft(name, rings, mat)
-    return k.smooth(obj, angle)
-
-
-def arc_band(name, x0, x1, axis_y, axis_z, r_in, r_out, a0, a1, mat, squash=1.0, segments=10, steps=8, angle=40):
-    """A curved band round an axis along x (a sleeve over part of a tube): from x0 to x1, between the
-    angles a0 and a1 (degrees, 0 towards -y (the screen's bottom), 90 up towards the camera), radii
-    r_in to r_out, its height squashed."""
-    verts, faces = [], []
-    xs = [x0 + (x1 - x0) * i / steps for i in range(steps + 1)]
-    for x in xs:
-        for r in (r_out, r_in):
-            for j in range(segments + 1):
-                t = math.radians(a0 + (a1 - a0) * j / segments)
-                verts.append((x, axis_y - r * math.cos(t), axis_z + r * math.sin(t) * squash))
-    per = 2 * (segments + 1)
-    for i in range(steps):
-        a, b = i * per, (i + 1) * per
-        for j in range(segments):
-            faces.append((a + j, a + j + 1, b + j + 1, b + j))                                    # outer
-            o = segments + 1
-            faces.append((a + o + j + 1, a + o + j, b + o + j, b + o + j + 1))                    # inner
-        for j, jj in ((0, segments + 1), (segments, 2 * segments + 1)):                          # the long edges
-            faces.append((a + j, b + j, b + jj, a + jj) if j == 0 else (a + jj, b + jj, b + j, a + j))
-    for base, flip in ((0, True), (steps * per, False)):                                         # the ends
-        for j in range(segments):
-            q = (base + j, base + j + 1, base + segments + 1 + j + 1, base + segments + 1 + j)
-            faces.append(q[::-1] if flip else q)
-    obj = k.mesh_object(name, verts, faces, mat)
-    k.recalc_normals(obj)
-    return k.smooth(obj, angle)
-
-
-def lift(obj, dz):
-    obj.data.transform(Matrix.Translation((0, 0, dz)))
-    return obj
-
-
-def on_surface(obj, under, sink=0.1):
-    """Moves each vertex of obj up by the height of `under`'s top at its (x, y) (a part laid over
-    another, following its curve), less sink."""
-    for v in obj.data.vertices:
-        v.co.z += sh.surface_z(under, v.co.x, v.co.y, 0.0) - sink
-    return obj
-
-
-def mirror_objects(objects, axis_x=0.0):
-    """Mirrors objects in place across x = axis_x."""
-    m = Matrix.Translation((axis_x, 0, 0)) @ Matrix.Scale(-1, 4, (1, 0, 0)) @ Matrix.Translation((-axis_x, 0, 0))
-    for obj in objects:
-        sh.apply_modifiers(obj)
-        obj.data.transform(obj.matrix_world)
-        obj.matrix_world = Matrix.Identity(4)
-        obj.data.transform(m)
-        obj.data.flip_normals()
-    return objects
 
 
 def decimate(obj, target):
@@ -345,22 +188,6 @@ def simplify_flat(obj, normal_z=-0.999):
         ngons = [f for f in bm.faces if len(f.verts) > 3]
         if ngons:
             bmesh.ops.triangulate(bm, faces=ngons, quad_method="BEAUTY", ngon_method="EAR_CLIP")
-    bm.to_mesh(obj.data)
-    bm.free()
-    return obj
-
-
-def planar(obj, degrees=1.5):
-    """Merges the nearly flat stretches of a part's surface into larger faces (keeping the borders
-    between materials), then triangulates: flat tops cost few triangles."""
-    mod = obj.modifiers.new("planar", "DECIMATE")
-    mod.decimate_type = "DISSOLVE"
-    mod.angle_limit = math.radians(degrees)
-    mod.delimit = {"MATERIAL"}
-    sh.apply_modifiers(obj)
-    bm = bmesh.new()
-    bm.from_mesh(obj.data)
-    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="BEAUTY", ngon_method="BEAUTY")
     bm.to_mesh(obj.data)
     bm.free()
     return obj

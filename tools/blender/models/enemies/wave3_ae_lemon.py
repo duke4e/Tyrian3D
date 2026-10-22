@@ -1,12 +1,8 @@
-"""Enemies of wave 3, batch AE (sheet ', written x27 in models.cfg): FRUIT's lemon beetle and strawberry wing,
-modelled as their sprites look (models.cfg: yaw=0); the rest of the sheet is in wave3_ae_boss.py and
-polish_*.py, the kit in wave3_ae_kit.py, the pixels in wave3_ae_art.py. Both are built whole and cut into the
-sprites the level puts them together from (origin).
+"""Enemies of wave 3, batch AE (sheet ', written x27 in models.cfg): FRUIT's strawberry wing,
+modelled as its sprites look (models.cfg: yaw=0); the rest of the sheet is in wave3_ae_boss.py and
+polish_*.py (the lemon beetle: polish_lemon_beetle.py), the kit in wave3_ae_kit.py, the pixels in wave3_ae_art.py.
+It is built whole and cut into the sprites the level puts it together from (origin).
 
-- lemon_beetle_tl, _tr, _ml, _mr, _bl, _br (' 16 18 above 54 56 above 92 94; enemies 1238-1243 at (x, y - 56),
-  (x + 24, y - 56), (x, y - 28), (x + 24, y - 28), (x, y), (x + 24, y), on top): a yellow beetle, 48 x 84, its
-  domed back in overlapping plates, two horns curving up and in from its shoulders, a broad head with two lemon
-  slices for eyes (their juice glowing, white pith between the segments) and two long pincers curving down.
 - strawberry_wing_tl, _tm, _tr, _bl, _br (' 86 88 90 above 125 127; enemies 1233-1235 at (x, y - 28),
   (x + 24, y - 28), (x + 48, y - 28), 1236, 1237 at (x + 12, y), (x + 36, y), in the sky or on top): a red
   chevron of strawberry flesh studded with golden seeds, 72 x 56, grey pipes bent along its two arms in an M,
@@ -15,7 +11,6 @@ sprites the level puts them together from (origin).
 usage: Blender -b --factory-startup -P wave3_ae_lemon.py -- [--only name,name] [--preview <prefix>]
        [--check 1] [--stats 1] [--whole <prefix>]
 """
-import math
 import os
 import sys
 
@@ -23,75 +18,7 @@ from mathutils import Matrix, Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_ae_kit as kit  # noqa: E402
-from wave3_ae_kit import k, sh, w, pal, Painter  # noqa: E402
-
-
-# --- ' 16 18 / 54 56 / 92 94: the lemon beetle ------------------------------------------------------------
-
-LEMON = kit.frame("LEMON", 48, (24, 42))
-BODY_C, BODY_R = Vector((0.0, 10.0, 1.0)), (20.2, 14.2, 12.5)
-HEAD_C, HEAD_R = Vector((0.0, -12.3, 0.5)), (24.2, 9.0, 9.0)
-SLICE_X, SLICE_Y, SLICE_R = 9.6, -12.2, 7.7
-
-
-def ribbed(obj, centre, amount=1.1, period=5.2, top_row_y=20.6, bow=0.022):
-    """The back's overlapping plates: each rises towards its lower edge (down the screen) and drops into
-    the crease under it, the creases bowed like the sprite's (higher in the middle)."""
-    c = Vector(centre)
-    for vt in obj.data.vertices:
-        if vt.co.z < c.z + 0.5:
-            continue
-        y = vt.co.y + bow * vt.co.x * vt.co.x
-        s = (top_row_y - y) / period
-        frac = s - math.floor(s)
-        # A smooth sawtooth: up over the plate, a quick fall into the crease.
-        rise = frac / 0.82 if frac < 0.82 else 1.0 - (frac - 0.82) / 0.18
-        d = amount * (kit.smoothstep(0.0, 1.0, rise) - 0.5)
-        fade = min(1.0, (vt.co.z - c.z) / 4.0)
-        vt.co += (vt.co - c).normalized() * d * fade
-    obj.data.update()
-    return obj
-
-
-def lemon_beetle_whole():
-    f = LEMON
-    yellow = Painter("lemon", shades={7: (0xa, 0xb, 0xc, 0xd, 0xe)}, metallic=0.1, roughness=0.32)
-    # The back: a dome in overlapping plates, painted pixel by pixel (its creases and their lit edges).
-    body = w.sphere("lemon_body", tuple(BODY_C), BODY_R, yellow(0x7c), 72, 40)
-    ribbed(body, BODY_C)
-    kit.pixelate(body, f)
-    kit.paint_sprite(body, f, yellow, wall_steps=-1, default=yellow(0x7b), probe=-1.0, under=yellow(0x7a), blur=1)
-    # The head: a broad, lower block with rounded edges under the back's lower edge, as wide as the sprite's.
-    polys = kit.outlines_of(f, lambda val, c, r: 44 <= r <= 62, smooth=2, epsilon=0.3, min_area=2.0)
-    head = kit.relief("lemon_head", polys, yellow(0x7c), sh.pillow_profile(6.0, 5.0, crown=1.8), bottom=0.0,
-                      base=0.0, rim=0.6, spacing=0.5)
-    kit.pixelate(head, f)
-    kit.paint_sprite(head, f, yellow, wall_steps=-1, default=yellow(0x7b), probe=-1.0, under=yellow(0x7a), blur=1,
-                     keep=lambda val: val not in (0x7e, 0x7f))
-    # The lemon slices, glowing, lying on the head and tilted a little outwards.
-    for side in (-1, 1):
-        z = kit.surface_z([head], side * SLICE_X, SLICE_Y, 7.0)
-        kit.lemon_slice(f"lemon_eye{side:+d}", side * SLICE_X, SLICE_Y, z + 0.4, SLICE_R, side * 12)
-    # The horns: from the shoulders up and in, their tips nearly meeting over the middle.
-    horn = Painter("lhorn", shades={7: (0xa, 0xb, 0xc, 0xd)}, metallic=0.15, roughness=0.3)
-    horn_path = [(-10.6, 17.0, 7.5), (-10.4, 23.5, 10.5), (-10.6, 29.5, 12.0), (-8.6, 35.5, 12.2), (-5.6, 39.6, 11.2),
-                 (-2.6, 41.6, 10.0)]
-    horn_r = [3.6, 3.4, 3.3, 3.0, 2.3, 0.9]
-    # The pincers: from under the head's sides down and in.
-    pincer_path = [(-19.6, -16.5, 4.0), (-17.6, -21.5, 5.4), (-16.2, -26.0, 6.0), (-15.2, -31.0, 5.4), (-14.2, -35.5, 4.8),
-                   (-12.6, -38.6, 4.2), (-10.0, -40.8, 3.8), (-8.6, -41.8, 3.6)]
-    pincer_r = [5.0, 4.0, 3.6, 3.2, 2.9, 2.4, 1.4, 0.4]
-    for side in (-1, 1):
-        for name, path, radii in (("horn", horn_path, horn_r), ("pincer", pincer_path, pincer_r)):
-            pts = [(-side * x if side > 0 else x, y, z) for x, y, z in path]
-            limb = kit.limb(f"lemon_{name}{side:+d}", pts, radii, horn(0x7c), segments=16, squash=0.85)
-            kit.paint_sprite(limb, f, horn, wall_steps=-1, default=horn(0x7b), probe=-0.6, under=horn(0x7a))
-    sh.flat_bottom(kit.meshes(), 0.0)
-
-
-kit.PROTECT += ["lemon_body", "lemon_head", "lemon_eye"]
-kit.pieced("lemon_beetle", lemon_beetle_whole, (48, 84),
-           kit.grid_pieces("lemon_beetle_", LEMON, ["tl", "tr", "ml", "mr", "bl", "br"], 2, 3))
+from wave3_ae_kit import sh, w, pal, Painter  # noqa: E402
 
 
 # --- ' 86 88 90 / 125 127: the strawberry wing ----------------------------------------------------------

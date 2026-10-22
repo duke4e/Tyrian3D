@@ -1,5 +1,5 @@
 """Batch AH of wave 3 (sheet M: the asteroid levels, WINDY, SOH JIN and MINERS), modelled as the sprites look
-(models.cfg: yaw=0). The armoured dome of the asteroid levels is in wave3_ah_dome.py, MINERS' rock column in
+(models.cfg: yaw=0). The armoured dome of the asteroid levels is in polish_armour_dome.py, MINERS' rock column in
 wave3_ah_rock.py and MINERS' drilling rig in wave3_ah_rig.py; the kit is wave3_ah_kit.py, the pixels
 wave3_ah_art.py.
 
