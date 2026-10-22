@@ -1,6 +1,5 @@
-"""Helpers for the batch Y models of wave 3 (sheet 8: IXMUCANE and SAWBLADES; wave3_y.py, the small
-creatures and ships; wave3_y_wall.py, the rock wall with its glowing slots; wave3_y_boss.py, the big
-spider): the sprites' pixels (wave3_y_art.py), the pixel
+"""Helpers first made for the batch Y models of wave 3 (sheet 8: IXMUCANE and SAWBLADES; all of them
+polish_*.py's models now), kept for the kits built on them (wave3_ab_kit, wave3_ae_kit, wave3_ag_kit): the pixel
 frames, sprite painting and shapes of batch S (wave3_s_kit), the parts and materials of batch J
 (wave3_j_kit), heightfield parts (wave3_q_kit), and the build loop of batch N (wave3_n_kit: stand-alone
 models and whole objects cut into their sprites' pieces, silhouettes checked against pixel masks).
@@ -29,7 +28,6 @@ import wave3_j_kit as w  # noqa: E402,F401
 import wave3_n_kit as n  # noqa: E402,F401
 import wave3_q_kit as q  # noqa: E402,F401
 import wave3_s_kit as s  # noqa: E402,F401
-import wave3_y_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, grid, regions, paint_faces, part, lathe_axis, hoop, column, tube, catmull,  # noqa: E402,F401
                          sphere, rounded_box, block, lumpy, meshes, bake, triangles, simplify_bottom, decimate,
                          sampler)
@@ -40,11 +38,6 @@ model = n.model
 pieced = n.pieced
 run = n.run
 check_mask = n.check_mask
-
-
-def frame(name, width, origin):
-    """A Frame of one of wave3_y_art's pixel arts."""
-    return Frame(getattr(art, name), width, origin)
 
 
 def heightfield(name, polys, z_of, mat=None, spacing=0.5, smooth_angle=50, edge=None):
@@ -125,11 +118,6 @@ def jitter(obj, amount, seed=1, scale=1.6, min_z=0.15):
         nrm = v.normal
         v.co += nrm * d * amount
     return obj
-
-
-def frame_mask(fr, box=None):
-    """Coverage of a frame (rows of bools); box (c0, c1, r0, r1), end exclusive."""
-    return n.art_mask(fr.g, box)
 
 
 def loft_y(name, sections, mat, segments=24, power=2.0, start=None, end=None, smooth_angle=50):

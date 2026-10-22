@@ -1,6 +1,7 @@
-"""Items of wave 3, batch AI (the coins sheet's remaining sprites): the red armour shell and the HOT DOG, modelled as
-their sprites look; the kit is enemies/wave3_ai_kit.py, the pixels enemies/wave3_ai_art.py. The hot dog keeps still.
-(The fruit, the rainbow tick and the asteroid killer: polish_fruit_items.py; SOH JIN's golden key: polish_key_gold.py.)
+"""Items of wave 3, batch AI (the coins sheet's remaining sprites): the HOT DOG, modelled as its sprite looks; the kit
+is enemies/wave3_ai_kit.py, the pixels enemies/wave3_ai_art.py. The hot dog keeps still. (The fruit, the rainbow tick
+and the asteroid killer: polish_fruit_items.py; SOH JIN's golden key: polish_key_gold.py; the red armour shell:
+polish_red_keel_shell.py.)
 
 usage: Blender -b --factory-startup -P wave3_ai_items.py -- [--only name,name] [--preview <prefix>] [--check 1]
        [--stats 1]
@@ -14,50 +15,6 @@ from mathutils import Matrix, Vector
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "enemies"))
 import wave3_ai_kit as kit  # noqa: E402
 from wave3_ai_kit import k, sh, w, pal, Painter  # noqa: E402
-
-
-# --- Coins 279: the red armour shell ----------------------------------------------------------------------------
-
-RED_PLATE = kit.frame("RED_PLATE", 24, (12, 14))
-
-
-@kit.model("red_keel_shell", mask=lambda: RED_PLATE.mask())
-def red_keel_shell():
-    """Enemy 560 (100 credits, armour 5): a red shell shaped like a T, a thick rolled bar across its top over a
-    gold rod, a grooved keel running down to a blunt point, and two ribbed gold pods either side of the keel
-    under the bar. Symmetric about x = 0.5, as the sprite."""
-    ax = 0.5
-    red = pal("rks_red", 0x47, metallic=0.3, roughness=0.32)
-    red_light = pal("rks_red_light", 0x4a, metallic=0.3, roughness=0.28)
-    groove = pal("rks_groove", 0x42, metallic=0.2, roughness=0.5)
-    gold = pal("rks_gold", 0x17, metallic=0.7, roughness=0.3)
-    gold_light = pal("rks_gold_light", 0x1b, metallic=0.7, roughness=0.25)
-    # The gold rod behind the bar's top edge.
-    w.lathe_axis("rks_rod", [(0.0, 0.01), (0.3, 1.0), (1.0, 1.35), (11.0, 1.35), (11.7, 1.0), (12.0, 0.01)], gold,
-                 (ax - 6.0, 12.5, 3.2), (1, 0, 0), segments=16)
-    # The rolled bar: a capsule across, a little flattened, its middle fuller.
-    bar = w.lathe_axis("rks_bar", [(0.0, 0.01), (0.25, 1.6), (0.9, 2.7), (2.0, 3.3), (5.0, 3.5), (11.0, 3.7),
-                                   (17.0, 3.5), (20.0, 3.3), (21.1, 2.7), (21.75, 1.6), (22.0, 0.01)], red,
-                       (ax - 11.0, 8.7, 3.4), (1, 0, 0), segments=28, squash=0.95)
-    # The bar's top lighter, as the sprite shades it.
-    kit.paint_faces(bar, lambda c, nrm: red_light if nrm.z > 0.75 else None)
-    # The keel: from under the bar down to its blunt point, round on top with a groove down its middle.
-    sections = [(6.5, 4.4, 4.0), (3.0, 4.6, 4.4), (-1.0, 4.6, 4.2), (-5.0, 4.4, 3.8), (-8.0, 3.9, 3.3),
-                (-10.5, 2.9, 2.6), (-12.5, 1.7, 1.8), (-13.6, 0.4, 0.8)]
-    pts = k.profile([(yy, hw, hh) for yy, hw, hh in reversed(sections)], step=0.5)
-    rings = [k.ring(yy, hw, hh, 28, x=ax, z=0.4, power=2.3, bottom=0.25) for yy, hw, hh in pts]
-    keel = k.loft("rks_keel", rings, red)
-    k.smooth(keel, 55)
-    kit.limb("rks_groove", [(ax, 5.0, 4.45), (ax, 0.0, 4.55), (ax, -5.0, 4.15), (ax, -9.5, 3.0), (ax, -12.6, 1.8)],
-             [0.38, 0.4, 0.38, 0.32, 0.2], groove, segments=8, squash=0.5)
-    # The gold pods: ribbed, rounded, either side of the keel.
-    for side in (-1, 1):
-        cx = ax + side * 6.6
-        pod = w.sphere(f"rks_pod{side:+d}", (cx, -0.6, 2.4), (2.4, 7.4, 2.6), gold, 20, 14)
-        for vt in pod.data.vertices:  # ribs across it
-            vt.co.x += side * 0.18 * math.cos((vt.co.y + 0.6) * 1.9) * max(0.0, vt.co.z - 1.0) / 3.0
-        kit.paint_faces(pod, lambda c, nrm: gold_light if nrm.z > 0.8 else None)
-        k.smooth(pod, 60)
 
 
 # --- Coins 92: the HOT DOG pick-up ------------------------------------------------------------------------------

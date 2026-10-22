@@ -42,7 +42,8 @@ sprite's centre (pixel 12, 14): column c is x = c + 0.5 - 12, row r is y = 13.5 
 
 Replaces wave3_ad.py's bone eye (its section "# --- H 39: the bone ring with its eye": RING, RING_LIT and
 bone_eye(), and its docstring paragraph) and wave3_ad_art.py's RING and RING_3 (only that section reads them).
-wave3_ad_kit.py's tube_wall() stays (wave3_ad_wall.py's creatures use it).
+(GYGES' creatures in their squares of tube wall, polish_gyges_wall.py, build their walls with this slab's heights
+and materials.)
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the silhouette against
 enemy_H.png, and the ring's against the sprite's bone pixels), --preview <prefix>, --only <name,...>.

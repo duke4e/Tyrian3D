@@ -1,11 +1,11 @@
 """Batch AD of wave 3 (sheet H: GYGES, TORM, BONUS), GYGES' small flying things, modelled as the sprites look
-(models.cfg: yaw=0). GYGES' creatures in their pieces of tube wall are in wave3_ad_wall.py, its bronze worm's head
+(models.cfg: yaw=0). GYGES' creatures in their pieces of tube wall are in polish_gyges_wall.py, its bronze worm's head
 and tail in polish_gyges_worm.py, its bone ring with the eye in polish_gyges_bone_eye.py, TORM's beetle in
-polish_torm_beetle.py, the waterfall of TORM and BONUS in wave3_ad_fall.py; the kit is wave3_ad_kit.py, the pixels
+polish_torm_beetle.py, the waterfall of TORM and BONUS in polish_waterfall.py; the kit is wave3_ad_kit.py, the pixels
 wave3_ad_art.py.
 
 - gyges_orb_s, gyges_orb_m, gyges_orb_l (H 89, 127, 91; enemies 417, 418, 419): GYGES' glossy green balls,
-  which swing round over the grey stalk (wave3_ad_wall.py) in ever wider circles.
+  which swing round over the grey stalk (polish_gyges_wall.py) in ever wider circles.
 - gyges_spike_top, gyges_spike_tip (H 77 above 115; enemies 420 above 421, one movement): the green spike
   that swings widest of them, a faceted green knob on a ridged neck over a long pale-ridged point down the
   screen (origin; built round z = 0 like the balls).

@@ -246,8 +246,9 @@ bool dev_autopilot(void)
 
 void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 {
-	// Weave across the playfield with a slow vertical drift; always fire. Timed by frames, so runs
-	// started with TYR3D_START repeat exactly (see dev_start_game).
+	// Weave across the playfield with a slow vertical drift; always fire (TYR3D_AUTOPILOT=nofire: never,
+	// so that enemies live to be looked at). Timed by frames, so runs started with TYR3D_START repeat
+	// exactly (see dev_start_game).
 	const double t = frame / 35.0;
 	// (Across the wide playfield's 16-288 when it is on.)
 	const int target_x = l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
@@ -262,7 +263,7 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	else if (y > target_y + speed)
 		*dy -= speed;
 
-	*fire = true;
+	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0;
 }
 
 /*

@@ -1,6 +1,6 @@
-"""Helpers for the batch S models of wave 3 (sheet F: SAVARA, SAVARA IV, SAVARA V, SAVARA Y and TORM;
-wave3_s.py, the gun silo and the two green jets; SAVARA's boss was wave3_s_boss.py's): the sprites' pixels
-(wave3_s_art.py), pixel frames for objects the game draws in pieces, bevelled slabs and prisms, painting
+"""Helpers first made for the batch S models of wave 3 (sheet F: SAVARA, SAVARA IV, SAVARA V, SAVARA Y and
+TORM; all of them polish_*.py's models now), kept for the kits built on them: pixel frames for objects the game
+draws in pieces, bevelled slabs and prisms, painting
 faces with the colour of the sprite's pixel under them, mirroring, and the build loop of batch N
 (wave3_n_kit: stand-alone models and whole objects cut into their sprites' pieces, the silhouette
 check against the pixels).
@@ -25,7 +25,6 @@ import tyrkit as k  # noqa: E402,F401
 import wave1_d_shapes as sh  # noqa: E402,F401
 import wave3_j_kit as w  # noqa: E402,F401
 import wave3_n_kit as n  # noqa: E402,F401
-import wave3_s_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, grid, regions, paint_faces, part, lathe_axis, tube, catmull, sphere,  # noqa: E402,F401
                          rounded_box, block, meshes, bake, simplify_bottom, decimate, sampler)
 
