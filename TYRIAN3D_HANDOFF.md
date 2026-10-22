@@ -342,6 +342,12 @@ dodati env varijable, npr. `TYR3D_DUMP_LAYERS=1`, `TYR3D_LOG_ENEMIES=1`, `TYR3D_
 
 ## 9. Predloženi sljedeći koraci (redom)
 
+**Korisnikov plan od 2026-10-22, redom:** (1) dovršiti 3D modele do 100 % (nijedan grubi model ni ravni volumen
+koji zamjenjuje sprite; napredak broji `progress.sh` iz radnih skripti, vidi stavku 46); (2) provjeriti z-fighting
+kroz cijelu igru, posebno neprijatelje koji prolaze kroz podignuti teren; (3) modernizirati sva sučelja (izbornici,
+dućan, HUD) i učiniti ih prilagodljivima rezoluciji; (4) polirati novu epizodu (epizoda 6); (5) dodati popis tajni
+(Secrets) u glavni izbornik, da se vidi što još nije otključano.
+
 Plan je gotov (vidi `docs/plans/2026-10-07-tyrian3d-plan.md`, odjeljak 4). Dalje, korisnikovim redom:
 
 1. Korisnik isproba: blokovi u WINDY, svjetla eksplozija, oblaci u SAVARI, miš (Direct), HUD.
