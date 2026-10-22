@@ -1,6 +1,7 @@
 """TYRIAN's and TYRIAN X's red works in the rocks (sheet 2: 15, 17 above 53, 55, 2x2 each: one 48 x 56 picture; the top
-layer; one frame each), polished (2026-10-22, round 37; it replaces wave3_p_ground.py's works_whole(), a steel slab with
-red rounded boxes, pipes and spheres on grey boulders).
+layer; one frame each), polished (2026-10-23, round 38, the quality redo: rebuilt from solids; round 37's version was
+one heightfield of the whole picture painted from the sprite's pixels, which read as flat pixel blocks; that one
+replaced wave3_p_ground.py's works_whole(), a steel slab with red rounded boxes, pipes and spheres on grey boulders).
 
 Where the levels put them: TYRIAN (both of its level files) and TYRIAN X at t3200, event 7 (top enemies 42-45 of
 episodes 1 and 3, armour 12, link 31): 42 (2 15) at (48, y - 27), 43 (2 17) at (72, y - 27), 44 (2 53) at (48, y + 1),
@@ -16,218 +17,478 @@ level brings them (its levels take no TYRIAN waves with the top enemies 42-45).
 
 As the sprites and their 4x upscale draw it (columns and rows of the 48 x 56 picture; lit from the upper left): a dark
 steel deck (0x01-0x03) over columns 3-38 of rows 3-50, crowded with machinery: at the top a grey drum lying across
-(columns 5-13 of rows 1-6, red caps at its ends) and a dark panel striped with tan rails (columns 14-30 of rows 3-6), a
-grey knob at the top right (columns 30-34 of rows 1-6); a big red block bent down at its left (columns 3-16 of rows
+(columns 5-13 of rows 1-6, red caps at its ends) and a dark panel striped with a tan rail (columns 14-30 of rows 3-6),
+a grey knob at the top right (columns 30-34 of rows 1-6); a big red block bent down at its left (columns 3-16 of rows
 7-16, its top lit pink), a grey block beside it, a red block at the upper right (columns 22-28 of rows 7-15) and a tan
-rod right of it (columns 31-32 of rows 6-15); between them a dark housing (columns 13-19 of rows 11-21) with two glowing
-grilles, yellow to orange and red round a white-hot pixel (columns 14-18 of rows 12-14 and 18-20); a red pipe from the
-housing along row 16-17 to column 34, down the right side to row 33 and back along row 28 to column 21, framing a dark
-box (columns 20-34 of rows 18-28) with a grey lid, a dark tan panel sunk in it and grey slats at its right; at the left
-a tan box (columns 0-10 of rows 15-29) with a red button in a dark socket and a tan rail along its foot; under the
-housing a grey block and a red block (columns 11-18 of rows 21-29); lower down a small red block (columns 3-6 of rows
-29-34), a tall tan block (columns 6-12 of rows 33-47) beside a grey block and a red wedge (columns 12-19 of rows 33-47),
-a red bar at the lower right (columns 29-33 of rows 33-48) with the pipe running into its top, a tan rod at the deck's
-right edge (columns 36-37 of rows 22-34).
+rod right of it (columns 31-32 of rows 6-15); two dark grille boxes (columns 13-19 of rows 11-15 and 17-21) glowing
+yellow to orange and red round a white-hot pixel (columns 14-18 of rows 12-14 and 18-20); a red pipe from left of
+them along rows 16-17 to column 34, down the right side to row 33 and back along row 28 to column 21, framing a dark
+box (columns 20-34 of rows 18-28) with a grey lid, a dark tan panel sunk in it and grey slats at its right; at the
+left a tan box (columns 0-10 of rows 15-27) with a red button in a dark socket, a brass strip down its left side and a
+brass rail along its foot; under the grilles a grey block and a red block (columns 10-18 of rows 17-29); lower down a
+small red block (columns 3-6 of rows 29-34), a tall tan block (columns 6-12 of rows 33-47) beside a grey block and a
+red wedge (columns 12-19 of rows 33-47), grey slats and a red bar at the lower right (columns 29-33 of rows 29-48)
+with the pipe running into its top, a slot down it and a tan valve, a tan rod at the deck's right edge (columns 36-37
+of rows 22-34).
 
-Built for the game's camera with polish_sheet9_kit (as GYGES' maw and the round 36 machines are): one heightfield of
-the whole in the picture's plane (gw.Plate, its grid STEP 0.5 apart with the sprites' edges on its lines, so each piece
-is the cells of its sprite's box: no mesh cutting; walls where cut, dark), its outline the works' own pixels (OUTLINE,
-smoothed a little), sheared along the camera's line of sight (y - z tan 20) so the camera sees every point where the
-sprites draw it. Its heights: the deck 1.3 (rounding over 0.8 at its edge), the blocks rounded boxes (BOXES, 2.6-5.4),
-the drum, the pipes and the rods lying tubes (TUBES, 3.0-4.4), the grilles domes glowing out of the housing (6.0), the
-button a dome in a sunk socket (5.6), the knob a dome (3.6), the box's tan panel sunk 0.7; the sprite's fine shading a
-little relief on the parts (DETAIL). Painted by the sprite under each face (polish_sheet9_kit.Painter: the shades of
-each ramp's pixels filled outwards and blurred, LIFT lighter, lighter where the game's sun lights a face less (COMP)):
-the reds ramp 4 (0x43-0x4d), the tans ramp 10 (0xa2-0xac) and the rail's ramp 1 (0x10-0x1c), the steel and the deck
-ramp 0, the grilles ramp 7 glowing in their own colours (0.3-0.6); the walls dark. Heights 0-6.0 over background 3's
-plane (the player's plane is 12 above it).
+Built as such a machine, each part its own solid standing on the deck (the deck a bevelled plate over the works' own
+outline; the blocks bevelled boxes and prisms, the tan block and the red wedge sloping to the front; the drum, the
+rods and the rail lathed lying down, the pipe a tube along its path with rounded bends, the knob and the valves
+lathed upright, the button a glossy dome in a socket; the tan box, the dark box and the red bar reliefs with their
+socket, panel and slot sunk into them; the grilles glowing panels, hottest in the middle, crossed by dark bars, in
+their boxes): heights from the deck's top at 1.2 to the big red block's 5.4 (the player's plane is 12 above
+background 3). Materials by part from the sprites' own ramps, the shading the geometry's: the deck 0x03, slots and
+sockets 0x01, steel 0x04 / 0x06 / 0x08, the red paint 0x48, the button 0x4a, tan 0xa7 / 0xa4 (the sunk panel), the
+rods 0xa9, brass 0x18; the grilles glow in their own colours (0x77 0.35, 0x7a 0.45, 0x7d 0.55), the button a little
+(0.12).
+
+Built in the picture's plane (x, y as the sprites draw them, z up) and cut there along the sprites' edges
+(polish_coral_manta.cut: each piece what its sprite draws; the cuts capped in the part's own material, seen only when
+a neighbouring piece is shot away), then sheared along the game camera's line of sight (y - z tan 20, the normals with
+it: polish_fleet_walker.shear_to_camera), so that the camera sees every point where the sprites draw it; each piece
+moved so that its sprite's middle is its origin, triangulated (polish_k_pod.triangulate) and joined. No booleans, no
+random numbers: the same output every run.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: background 3's
-plane, with height=-6). The whole's origin is its picture's middle (column c is x = c + 0.5 - 24, row r is y = 27.5 -
-r); each piece moved so its sprite's middle is its origin (models.cfg origin): 15 (-12, 14), 17 (12, 14), 53 (-12, -14),
-55 (12, -14).
+plane, with height=-6). The whole's origin is its picture's middle (a pixel corner (column c, row r) is x = c - 24,
+y = 28 - r); each piece moved so its sprite's middle is its origin (models.cfg origin): 15 (-12, 14), 17 (12, 14),
+53 (-12, -14), 55 (12, -14).
 
-models.cfg: the four model lines stay (model red_works_tl ... origin); the sprite lines get height=-6: sprite 2 15
-red_works_tl yaw=0 height=-6, sprite 2 17 red_works_tr yaw=0 height=-6, sprite 2 53 red_works_bl yaw=0 height=-6,
-sprite 2 55 red_works_br yaw=0 height=-6; the grilles glow: glow=9:0.25:123:4.5:2.5 on 15 (the grilles' middle, 4.5
-right of 15's centre and 2.5 down: columns 14-18 of rows 12-20).
-
-Replaces wave3_p_ground.py's red works (WORKS_OUTLINE, works_whole() and the quarters("red_works", ...) line; with them
-inside_outline() and quarters(), which only they use, and so the whole file: delete it) and wave3_p_art.py's WORKS (read
-only by wave3_p_ground.py).
+models.cfg: the lines stay as they are (model red_works_tl ... origin; sprite 2 15 red_works_tl yaw=0 height=-6
+glow=9:0.25:123:4.5:2.5, the grilles' middle 4.5 right of 15's centre and 2.5 down; sprite 2 17, 53, 55 yaw=0
+height=-6). The old code (wave3_p_ground.py, wave3_p_art.py's WORKS) went with round 37.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline against
 its sprite's own pixels, the works' (the cobbles left out)), --preview <prefix>, --only <name,...>.
 """
+import math
 import os
 import sys
 
 import bpy
-import numpy as np
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smax, Region, Zone, Painter, round_rise  # noqa: E402
+from polish_k_pod import triangulate  # noqa: E402
+from polish_deli_boss import join, drop_unused  # noqa: E402
+from polish_coral_manta import cut  # noqa: E402
+from polish_fleet_walker import shear_to_camera, merge_materials  # noqa: E402
+from polish_ring_machine import relief, Region, round_edge, resample  # noqa: E402
 
-# 2 15 17 / 53 55: the 48 x 56 picture (rows top to bottom; each pixel its palette index in hex, '..' none).
-WORKS_ART = """
-09aaaaaaababab050401060305060606060504040607070609aaaaaa0904030306030304660606060605040406070706
-a9aaaaaaababab0404020504010101070606050507090909a9aaaaaa6a05040308030302040506070606050507090909
-a9a9aaaaaaaa070809050a08024301090908050507080808a9a9aaaa090a070309050301040507090908050507080808
-08a8a9a9a905430c0b070f0a044a010102010b0a09080b0a0a0508010b0d0b060d070401030508090907050405060708
-040406a70345490807030905034802a4a40118a5a5a218a5a5a217a50a08060409050301030407090806040303050506
-05050405024a4d0306010504024301010101010101010101010101010606040105040301010203050402020508090a09
-070705020346480104010404011001010101010405090908070705030304010102010201010101010101010509090908
-0808050102074d4b4b4a4a4949494903010101010101010101010101020302a5a202030101020201010104080a090908
-08070604044b4b484847474747474646450505040201494746464645010602a5a202050101020303010105080b0a0908
-070808064a494a464645464646464646430303050402484646464645010401a5a3010401010304040303060a0b0a0808
-0809084949484a4646a2434343434343a20301030403474646464644010201a5a3010101010304040303060909090807
-0908084847484544444206060603070b0d0905030803444444444442010101a5a30101010203040403a3a50708080608
-0807054747454b48474507050502787c7d7b780105034a4948484743010201a5a3010101020304040302a50708070808
-08060447444a4846464506050501760b7a787401050347464646464401010116a301010202030304030203a505060607
-0705044449484846464305050503787c7d7b780204024546464645a201010116a3010102020303030101010203040504
-070303484747464546a20345454545450505040201010243434310010101010101010101020202010101010103060705
-0f0b0909090807040301a24b494847430405044b494847474449474747474747474747010202010101010206080a0a09
-4ea4a4a4a3a3a3a3a3a3034a484747a20405044a48474747454947474747474747474701a010a0a0010306080b0c0b0a
-1ca5a5a4a4a4a4a4a4a403040302787c7d7b78010303030303020102010101020101470101015001020406080a0b0c0a
-1ca5a5a4a4a4a4a4a4a402050401750e7a7875010404040404030106a4a404040403470101020101020407080a0a0b0a
-1ba5a403030202a2a4a401060502787c7d7b7802050501010101010101a20505050447010102020102040708080a0b0a
-1ba503484a4846a202a403040504040504030103040401a2a2a2a2a2a2a2040304044301010101010204066a0a0c0b0a
-1ba5034a4d4a47a201a2a24c4a4a474c4847a209070601a2a3a3a3a3a3a3090706044a010101a001020406070a0b0b0a
-1aa503474a47431001a2a34b464644494646a203020201a2a3a4a4a4a4a4040304044701a41601010204060709090909
-1aa5a2a243a2a20101a2a34a464644484646a205070601a2a3a4a4a4a4a4090605044801a2a401010103040508080807
-1aa5a4010101010101a2a34b484844494746a202020301a2a3a4a4a4a4a4040304044901a2a401010101030507070706
-19a5a5a40101a2a2a2a3a347a2a24144a2a21004050501a2a3a4a4a4a4a4060505044901a2a401010101010406060504
-18181716161616161616a446a2a24144a2a2100406494949494949494949494949494a01a2a401010101010103050404
-0317a4a4a4a4a4a4a4a40244a2a24143a2a2100404040404040404040201010101014801a2a401010101010102050506
-04160102a2a20202a3a30143a2a24142a2a2100303030303030303030106030102014701a2a401010102010103070709
-021601464543430202010102101010101010010202020202020202020107050205044701a2a401010203010103060608
-011601454343a20101010101010101010101010101020202020202020107050205044701a2a501010202010101040508
-01a502454343100101010101010101010102010101020202020202020104040304044701a31601020202500101030306
-01a20143434301a3a2a2020201030202010402020101020202020202014b494847474701a41701010101010203076a09
-0203040404030216a3a3a3a3020503030205030401010102020202020148474701010201a51701010150020305070708
-0205050403030718a5a4a4a4020503030205030501010101020202020148474702030301a20201010101030506070708
-030303030303091b16a4a4a4020404040305040601010101010202020147454502040501010201010102040507060708
-0302010101010c1b18a5a5a502030404030404060101010101010101014c4b490104050101a201010203040507060608
-0604010101010b1b1916a5a501030202020203060101010101010102014b49480103050101a201a00103040505060607
-08050302010108a51c19a5a502484746454547010101010101020203014b4a4a03050601010101a10102030404060408
-08060503010106a3a41b1816024846464648100101010101020203030148454502040401010101a10102a30404050608
-08080604020107a3a3a51c1802494848491001010101010102030303014743430101010101010101010202a303040407
-07070503020107a3a3a4a2a201a2a2a24610010101010101020203030147434343434301010101a10101a00202030304
-05050403020207a316a3a3a301434343434510010101010101010202014743a505044301010101020101010101040505
-0909090906040b16a3a3a3a3014343434343430101450101020202020146431617014301a3a3a30101010104050a6a09
-0a09090909060a16a3a3a30201a24343434343a2014502a5a5a5a5a4a34643a5a3014301010101010103686a6a0b0a0a
-0a090909080707a5a3a3a3010110434343a210a201a2010101010101014543a4a30143010201015003686a68680a0b0a
-0a090908060504a4a3a30201010101a2a21010010101010101010101014543a2a301430103020101046a0a6a686a0a0a
-0a09080605050101010101010101010101010101010101010101010110434343a2a24301020201010305680a6a6a0a0a
-0a090606070505020101010101010101010102020303030303030301a001010101010101010101010405076a0b0b0a0a
-0a090607070806040202010101010101010203040404040404030102010101010101010102020201030507070a0b0b0a
-080706070808080706020101010101010102030406060504040302020202020202010102030302020204070709090909
-070606070707070606030202010101010102040404040403030202030304040404030252020304040203060608080807
-060606a70606060404040202020201010101030303030302020202a50404050505040202020406070402050507070706
-040506a9aaaaaaa9a9a80603030504020101030404040302020304a8a9aaaaa9a8a70503030507070602030406060504
-0607aaaaabacacaba9a8a8050507070503030304050504040607aaaaabacacaba9a8a805030505050504030305050404
-"""
 # The works' own pixels: inside this outline (pixel corners: column, row); the cobbles round it are background 3's.
 OUTLINE = [(4.5, 1.0), (14.0, 1.0), (14.0, 2.5), (30.0, 2.5), (30.0, 0.5), (35.0, 0.5), (35.0, 3.5), (38.5, 3.5),
            (38.5, 50.0), (5.0, 50.0), (5.0, 35.0), (0.5, 35.0), (0.5, 29.5), (0.0, 29.5), (0.0, 15.5), (3.0, 15.5),
            (3.0, 7.0), (4.5, 7.0)]
-DECK = (1.3, 0.8)                 # the deck: its height and how far in from the outline it rounds over
-# Rounded boxes (pixel corners column0, row0, column1, row1; height; how far in they round over).
-BOXES = [
-    (14.0, 3.0, 30.0, 6.5, 2.6, 0.6),      # the dark panel with the tan rails
-    (5.0, 7.0, 16.5, 12.0, 5.4, 1.2),      # the big red block, its top arm
-    (3.5, 9.0, 9.5, 16.0, 5.2, 1.2),       # and the part bent down at its left
-    (10.0, 11.0, 14.0, 15.0, 3.8, 0.6),    # the grey block beside it
-    (13.0, 11.0, 19.5, 21.5, 5.0, 0.7),    # the grilles' housing
-    (22.0, 7.5, 29.0, 15.5, 5.2, 1.1),     # the red block at the upper right
-    (20.0, 18.0, 34.0, 28.0, 2.4, 0.5),    # the dark box in the pipe's frame
-    (23.0, 18.0, 29.0, 20.5, 3.0, 0.5),    # its grey lid
-    (29.5, 20.5, 33.5, 26.5, 3.0, 0.4),    # its grey slats
-    (0.0, 15.5, 10.3, 29.5, 4.0, 0.9),     # the tan box
-    (10.0, 17.0, 14.0, 21.0, 3.8, 0.5),    # the grey block under the housing's left
-    (11.0, 21.0, 18.5, 29.0, 4.8, 1.0),    # the red block under the housing
-    (3.0, 29.5, 6.5, 34.0, 3.0, 0.7),      # the small red block
-    (6.0, 33.0, 12.5, 47.5, 4.6, 0.9),     # the tall tan block
-    (12.0, 33.0, 18.5, 39.5, 3.2, 0.6),    # the grey block beside it
-    (12.0, 39.5, 19.5, 47.5, 4.4, 1.0),    # the red wedge
-    (28.8, 33.0, 33.2, 48.5, 4.2, 0.9),    # the red bar at the lower right
-]
-CORNER = 0.6                      # the boxes' corners rounded in plan
-# Lying tubes: points (column, row) with their half-width and height.
-TUBES = [
-    [(5.4, 3.6, 2.1, 4.4), (13.6, 3.6, 2.1, 4.4)],                         # the grey drum (red caps at its ends)
-    [(32.0, 6.5, 0.9, 3.4), (32.0, 15.8, 0.9, 3.4)],                       # the tan rod at the upper right
-    [(11.0, 16.9, 1.05, 3.9), (34.5, 16.9, 1.05, 3.9), (34.5, 33.6, 1.05, 3.9)],   # the red pipe along and down
-    [(21.0, 28.4, 1.0, 3.6), (34.5, 28.4, 1.0, 3.6)],                      # and back along the box's foot
-    [(0.8, 27.6, 0.8, 4.6), (10.0, 27.6, 0.8, 4.6)],                       # the tan rail along the box's foot
-    [(36.6, 22.5, 0.8, 3.0), (36.6, 34.5, 0.8, 3.0)],                      # the tan rod at the right edge
-]
-GRILLES = [((16.5, 13.5), (2.7, 1.8), 6.0), ((16.5, 19.5), (2.7, 1.8), 6.0)]   # middle, radii, top height
-BUTTON = ((5.2, 22.8), (2.3, 2.2), 5.6, (3.2, 3.4))   # middle, radii, top; its socket's radius and floor height
-KNOB = ((32.4, 3.6), (2.6, 2.8), 3.6)
-PANEL = ((23.0, 20.5, 30.0, 27.5), 0.7)   # the tan panel sunk into the dark box (its box, how deep)
-DETAIL = (0.12, 0.3)              # the sprite's fine shading as relief on the parts: per shade, its limit (pixels)
-GLOW = {0x76: 0.36, 0x7a: 0.48, 0x7d: 0.6}
-RED_LIFT = 1.5                    # the reds a little lighter than the other parts (they read dark in the game)
-# Each zone's palette indices (a piece holds at most 15 materials: 4 + 4 + 2 + 1 + 3 + 1, so no shade is merged).
-SHADES = {"red": [0x44, 0x47, 0x4a, 0x4c], "steel": [0x02, 0x04, 0x06, 0x09], "tan": [0xa3, 0xa5], "rail": [0x18],
-          "glow": [0x76, 0x7a, 0x7d]}
-FINISH = {"red": (0.35, 0.32), "tan": (0.3, 0.42), "rail": (0.3, 0.4), "steel": (0.45, 0.35), "glow": (0.0, 0.2),
-          "dark": (0.3, 0.55)}
-PIECES = [("red_works_tl", 15, (0, 0)), ("red_works_tr", 17, (24, 0)), ("red_works_bl", 53, (0, 28)),
-          ("red_works_br", 55, (24, 28))]
+DECK_TOP, DECK_BEVEL = 1.2, 0.45
+PIECES = [("red_works_tl", 15, (-60.0, 0.0, 0.0, 60.0), (-12.0, 14.0), (0, 0)),
+          ("red_works_tr", 17, (0.0, 60.0, 0.0, 60.0), (12.0, 14.0), (24, 0)),
+          ("red_works_bl", 53, (-60.0, 0.0, -60.0, 0.0), (-12.0, -14.0), (0, 28)),
+          ("red_works_br", 55, (0.0, 60.0, -60.0, 0.0), (12.0, -14.0), (24, 28))]
 
 
-class Works:
-    def __init__(self):
-        self.pic = pic = Pic(parse(WORKS_ART), -24.0, 28.0)
-        a = pic.a
-        inside = nk.polygon_mask(pic, OUTLINE)
-        self.own = (a >= 0) & inside
-        self.region = Region(pic, self.own, sigma=0.5)
-        shade = np.where(self.own, a & 15, 0).astype(float)
-        self.soft = blur(nk.fill(shade, self.own), 0.6)
-        self.broad = blur(nk.fill(shade, self.own), 2.0)
+def px(c, r):
+    """A pixel corner (column c, row r of the 48 x 56 picture) in the model's coordinates."""
+    return (c - 24.0, 28.0 - r)
 
-    @staticmethod
-    def cr(X, Y):
-        """Picture columns and rows (pixel corners) of plane points."""
-        return np.asarray(X, float) + 24.0, 28.0 - np.asarray(Y, float)
 
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        c, r = self.cr(X, Y)
-        d = self.region.depth(X, Y)
-        deck = DECK[0] * round_rise(d, DECK[1])
-        z = deck.copy()
-        for c0, r0, c1, r1, h, roll in BOXES:
-            hw, hh = (c1 - c0) / 2, (r1 - r0) / 2
-            qx, qy = np.abs(c - (c0 + c1) / 2) - (hw - CORNER), np.abs(r - (r0 + r1) / 2) - (hh - CORNER)
-            sdf = np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - CORNER
-            z = smax(z, h * round_rise(-sdf, roll) * (sdf < 0), 0.35)
-        for pts in TUBES:
-            z = smax(z, nk.tube(c, -r, [(pc, -pr, hw, hh) for pc, pr, hw, hh in pts]), 0.35)
-        for (gc, gr), (rx, ry), top in GRILLES:
-            z = smax(z, nk.dome(c, -r, (gc, -gr), (rx, ry), top), 0.3)
-        (bc, br), (bx, by), btop, (sock, floor) = BUTTON
-        dist = np.hypot((c - bc) / sock, (r - br) / sock)
-        z = np.where(dist < 1.0, np.minimum(z, floor + (z - floor) * nk.smoothstep(0.8, 1.0, dist)), z)
-        z = smax(z, nk.dome(c, -r, (bc, -br), (bx, by), btop), 0.2)
-        (kc, kr), (kx, ky), ktop = KNOB
-        z = smax(z, nk.dome(c, -r, (kc, -kr), (kx, ky), ktop), 0.3)
-        (p0, q0, p1, q1), depth = PANEL
-        inner = np.minimum(np.minimum(c - p0, p1 - c), np.minimum(r - q0, q1 - r))
-        z = z - depth * nk.smoothstep(0.0, 0.5, inner)
-        pic = self.pic
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        z = z + np.clip(DETAIL[0] * fine, -DETAIL[1], DETAIL[1]) * nk.smoothstep(DECK[0] + 0.3, DECK[0] + 1.2, z)
-        z = z * round_rise(d, 0.7)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
+def materials():
+    pal = k.level_palette()
+
+    def m(name, index, metallic, roughness, glow=0.0):
+        extra = dict(emission=pal[index], emission_strength=glow) if glow else {}
+        return k.material("works_" + name, palette=index, metallic=metallic, roughness=roughness, **extra)
+    return {
+        "deck": m("deck", 0x03, 0.35, 0.55),
+        "dark": m("dark", 0x01, 0.2, 0.7),
+        "steel_dark": m("steel_dark", 0x04, 0.45, 0.42),
+        "steel": m("steel", 0x06, 0.45, 0.38),
+        "steel_light": m("steel_light", 0x08, 0.45, 0.32),
+        "knob": m("knob", 0x0a, 0.3, 0.3),
+        "red": m("red", 0x48, 0.25, 0.42),
+        "button": m("button", 0x4a, 0.2, 0.25, 0.12),
+        "tan": m("tan", 0xa8, 0.2, 0.5),
+        "tan_dark": m("tan_dark", 0xa5, 0.2, 0.6),
+        "rod": m("rod", 0xab, 0.45, 0.32),
+        "brass": m("brass", 0x18, 0.5, 0.35),
+        "glow_edge": m("glow_edge", 0x77, 0.0, 0.3, 0.4),
+        "glow": m("glow", 0x7a, 0.0, 0.25, 0.5),
+        "glow_core": m("glow_core", 0x7d, 0.0, 0.2, 0.6),
+    }
+
+
+# --- Solids ----------------------------------------------------------------------------------------------------------
+
+def finish(obj, bevel=0.0, segments=3, angle=30.0, weighted=True, smooth_angle=40.0):
+    if bevel > 0:
+        mk.bevel(obj, bevel, segments, angle)
+    return mk.shade(obj, smooth_angle, weighted)
+
+
+def block(name, c0, r0, c1, r1, z0, z1, mat, bevel=0.4, segments=2):
+    """A bevelled box over the pixel corners (c0, r0) - (c1, r1), from z0 to z1."""
+    (x0, y1), (x1, y0) = px(c0, r0), px(c1, r1)
+    return finish(mk.box(name, x0, x1, y0, y1, z0, z1, mat), bevel, segments)
+
+
+def prism(name, pts, z0, z1, mat, bevel=0.4, segments=2):
+    """A bevelled prism over an outline of pixel corners (counter-clockwise or not)."""
+    poly = [px(c, r) for c, r in pts]
+    if sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1])) < 0:
+        poly.reverse()
+    return finish(mk.prism(name, poly, z0, z1, mat), bevel, segments)
+
+
+def sloped(name, pts, z0, top, mat, bevel=0.35, segments=2):
+    """A bevelled block over an outline of pixel corners whose top is top(c, r) (planes keep its faces flat)."""
+    poly = [px(c, r) for c, r in pts]
+    if sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1])) < 0:
+        poly.reverse()
+    obj = mk.wedge(name, poly, z0, lambda x, y: top(x + 24.0, 28.0 - y), mat)
+    return finish(obj, bevel, segments)
+
+
+def lathe_x(name, profile, r_mid, z_axis, mat, segments=24, smooth_angle=50.0):
+    """A round part lying across (its axis along x at row r_mid, height z_axis): profile [(column, radius), ...]."""
+    y = px(0, r_mid)[1]
+    pts = [(c - 24.0, rad) for c, rad in profile]
+    obj = k.lathe(name, pts, mat, segments, axis_x=0.0, axis_z=0.0)
+    obj.data.transform(Matrix.Translation((0.0, y, z_axis)) @ Matrix.Rotation(-math.pi / 2, 4, "Z"))
+    k.recalc_normals(obj)
+    return k.smooth(obj, smooth_angle)
+
+
+def lathe_y(name, profile, c_mid, z_axis, mat, segments=20, smooth_angle=50.0):
+    """A round part lying down the screen (its axis along y at column c_mid, height z_axis): profile [(row, radius)]
+    from the bottom of the screen up (rows decreasing)."""
+    x = px(c_mid, 0)[0]
+    pts = sorted([(28.0 - r, rad) for r, rad in profile])
+    obj = k.lathe(name, pts, mat, segments, axis_x=x, axis_z=z_axis)
+    k.recalc_normals(obj)
+    return k.smooth(obj, smooth_angle)
+
+
+def upright(name, profile, c, r, mat, segments=28, smooth_angle=50.0):
+    """A round part standing up at pixel corner (c, r): profile [(radius, z), ...] from its foot up."""
+    obj = mk.lathe(name, profile, px(c, r), mat, segments)
+    k.recalc_normals(obj)
+    return k.smooth(obj, smooth_angle)
+
+
+def fillet(points, radius, steps=6):
+    """A polyline (x, y, z) with its corners rounded (arcs in the corners' planes)."""
+    pts = [Vector(p) for p in points]
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        a, b, c = pts[i - 1], pts[i], pts[i + 1]
+        u, w = (a - b).normalized(), (c - b).normalized()
+        ang = u.angle(w)
+        if ang > math.pi - 1e-3:
+            out.append(b)
+            continue
+        t = radius / math.tan(ang / 2)
+        t = min(t, (a - b).length * 0.49, (c - b).length * 0.49)
+        p0, p1 = b + u * t, b + w * t
+        for j in range(steps + 1):
+            s = j / steps
+            q0 = p0 + (b - p0) * s
+            q1 = b + (p1 - b) * s
+            out.append(q0 + (q1 - q0) * s)
+    out.append(pts[-1])
+    return out
+
+
+def pipe(name, path_cr, z_axis, radius, mat, segments=16):
+    """A tube along a path of pixel corners (column, row) at height z_axis, its bends rounded, its ends capped."""
+    pts = [(*px(c, r), z_axis) for c, r in path_cr]
+    dense = fillet(pts, radius * 1.6, 8)
+    obj = mk.tube(name, [tuple(p) for p in dense], radius, mat, segments)
+    k.recalc_normals(obj)
+    return k.smooth(obj, 60.0)
+
+
+def plate_relief(name, outer, holes, top, rim, mats, key, side, bottom=0.0, spacing=0.4, hole_floor=None,
+                 hole_rim=0.4, band=1.0):
+    """A slab over an outline (pixel corners) with holes sunk into it: its top at `top`, rounding over `rim` at its
+    outer edge down to `bottom`, and at each hole's edge down to hole_floor (the hole's own parts lie in it)."""
+    outer_m = [px(c, r) for c, r in outer]
+    holes_m = [[px(c, r) for c, r in h] for h in holes]
+    outer_region = Region([outer_m])
+    hole_regions = [Region([h]) for h in holes_m]
+
+    def height(x, y, d):
+        do = float(outer_region.distance([(x, y)])[0])
+        dh = min([float(hr.distance([(x, y)])[0]) for hr in hole_regions] or [99.0])
+        if dh < do and hole_floor is not None:
+            return hole_floor + (top - hole_floor) * round_edge(dh, hole_rim)
+        return bottom + (top - bottom) * round_edge(do, rim)
+    polys = [ccw(outer_m)] + [ccw(h) for h in holes_m]
+    obj = relief(name, polys, height, mats, paint=lambda x, y, d: key, side=side, bottom=bottom, spacing=spacing,
+                 smooth_angle=45.0, band=band)
+    return obj
+
+
+def ccw(points):
+    area = sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]))
+    return list(points) if area > 0 else list(reversed(points))
+
+
+def rect(c0, r0, c1, r1, corner=0.0, steps=5):
+    """A rectangle of pixel corners (counter-clockwise in the model), its corners rounded: corner a radius or four
+    (top left, top right, bottom right, bottom left)."""
+    radii = corner if isinstance(corner, (tuple, list)) else (corner,) * 4
+    (x0, y1), (x1, y0) = px(c0, r0), px(c1, r1)
+    tl, tr, br, bl = radii
+    out = []
+    for (cx, cy, rad, a0) in ((x1 - br, y0 + br, br, -90.0), (x1 - tr, y1 - tr, tr, 0.0), (x0 + tl, y1 - tl, tl, 90.0),
+                              (x0 + bl, y0 + bl, bl, 180.0)):
+        n = steps if rad > 0 else 0
+        for i in range(n + 1):
+            a = math.radians(a0 + 90.0 * i / max(n, 1))
+            out.append((cx + rad * math.cos(a) + 24.0, 28.0 - (cy + rad * math.sin(a))))
+    clean = []
+    for p_ in out:
+        if not clean or math.dist(clean[-1], p_) > 1e-6:
+            clean.append(p_)
+    return clean
+
+
+def ellipse(cc, rr, rc, rrad, n=40):
+    return [(cc + rc * math.cos(2 * math.pi * i / n), rr + rrad * math.sin(2 * math.pi * i / n)) for i in range(n)]
+
+
+# --- The parts ---------------------------------------------------------------------------------------------------------
+
+def deck(m):
+    poly = [px(c, r) for c, r in OUTLINE]
+    obj = mk.prism("deck", ccw(poly), -0.4, DECK_TOP, m["deck"])
+    return finish(obj, DECK_BEVEL, 2)
+
+
+def drum(m):
+    """The grey drum lying across the top left, its red end caps, two grooves round it."""
+    z = 2.55
+    body = lathe_x("drum", [(6.2, 0.01), (6.25, 2.3), (6.6, 2.55), (8.9, 2.55), (9.15, 2.3), (9.55, 2.3), (9.8, 2.55),
+                            (12.3, 2.55), (12.7, 2.3), (12.75, 0.01)], 3.9, z, m["steel_light"], 22)
+    caps = []
+    for name, c0, c1 in (("drum_cap_l", 4.9, 6.6), ("drum_cap_r", 12.4, 13.9)):
+        caps.append(lathe_x(name, [(c0, 0.01), (c0 + 0.02, 2.1), (c0 + 0.35, 2.7), (c1 - 0.35, 2.7), (c1 - 0.02, 2.1),
+                                   (c1, 0.01)], 3.9, z, m["red"], 22))
+    cradle = block("drum_cradle", 5.6, 1.6, 13.4, 6.4, 0.6, 1.9, m["steel_dark"], 0.3)
+    return [body, cradle] + caps
+
+
+def rail_panel(m):
+    """The dark panel striped with a tan rail along it, brass collars on the rail."""
+    panel = block("rail_panel", 14.0, 2.6, 30.0, 6.5, 0.6, 2.6, m["steel_dark"], 0.35)
+    rail = lathe_x("rail", [(14.6, 0.01), (14.65, 0.62), (29.35, 0.62), (29.4, 0.01)], 4.1, 2.75, m["rod"], 14)
+    collars = []
+    for i, c in enumerate((18.5, 22.5, 26.5)):
+        collars.append(lathe_x("rail_collar_%d" % i, [(c - 0.45, 0.01), (c - 0.43, 0.75), (c + 0.43, 0.75),
+                                                       (c + 0.45, 0.01)], 4.1, 2.75, m["brass"], 14))
+    lower = block("rail_lip", 14.4, 5.0, 29.6, 6.3, 2.4, 2.9, m["steel"], 0.2, 2)
+    return [panel, rail, lower] + collars
+
+
+def knob(m):
+    """The grey knob at the top right: a short post with a rounded head on a dark foot."""
+    foot = upright("knob_foot", [(2.45, 0.6), (2.45, 1.9), (2.2, 2.2), (0.01, 2.2)], 32.5, 3.4, m["steel_dark"])
+    post = upright("knob", [(1.75, 1.5), (1.75, 3.3), (1.6, 3.85), (1.2, 4.3), (0.6, 4.55), (0.01, 4.6)], 32.5, 3.1,
+                   m["knob"], 24)
+    return [foot, post]
+
+
+def red_blocks(m):
+    """The big red block bent down at the left (its upper arm and the part under it), the red block at the upper
+    right (two layers), the small red block at the left, the red blocks under the grilles."""
+    arm = rect(3.2, 7.2, 16.6, 11.6, (2.8, 0.6, 0.6, 0.5), 8)
+    out = [prism("red_arm", arm, 0.6, 5.4, m["red"], 0.9)]
+    out.append(block("red_arm_low", 3.2, 11.2, 9.7, 16.1, 0.6, 4.5, m["red"], 0.85))
+    out.append(block("red_ur_top", 22.0, 7.3, 28.7, 11.5, 0.6, 5.2, m["red"], 0.85))
+    out.append(block("red_ur_low", 22.0, 11.3, 28.7, 15.5, 0.6, 4.6, m["red"], 0.85))
+    out.append(block("red_small", 3.0, 29.4, 6.9, 33.9, 0.0, 3.0, m["red"], 0.7))
+    out.append(block("red_under_l", 11.0, 21.2, 14.8, 28.7, 0.6, 4.6, m["red"], 0.75))
+    out.append(block("red_under_r", 14.9, 21.2, 18.9, 28.7, 0.6, 4.4, m["red"], 0.75))
+    return out
+
+
+def grey_blocks(m):
+    out = [block("grey_beside", 9.6, 11.4, 13.3, 15.3, 0.6, 3.8, m["steel"], 0.35)]
+    out.append(block("grey_under", 10.0, 17.5, 13.4, 21.2, 0.6, 3.6, m["steel"], 0.35))
+    out.append(block("grey_ur", 28.7, 7.4, 30.8, 15.4, 0.6, 2.5, m["steel_dark"], 0.3))
+    out.append(block("grey_box_left", 19.4, 17.8, 22.5, 27.4, 0.6, 3.0, m["steel"], 0.3))
+    out.append(block("grey_low_a", 12.4, 33.0, 15.4, 39.5, 0.6, 3.6, m["steel_light"], 0.35))
+    out.append(block("grey_low_b", 15.6, 33.0, 18.6, 39.5, 0.6, 3.6, m["steel_light"], 0.35))
+    out.append(block("slat_low_a", 29.3, 29.4, 31.3, 32.9, 0.6, 3.0, m["steel_light"], 0.3))
+    out.append(block("slat_low_b", 31.5, 29.4, 33.5, 32.9, 0.6, 3.0, m["steel_light"], 0.3))
+    return out
+
+
+def grilles(m):
+    """The two glowing grilles in their dark boxes: a pillow glowing hottest in its middle, two dark bars across."""
+    out = []
+    for i, (r0, r1) in enumerate(((11.0, 15.4), (17.4, 21.5))):
+        out.append(plate_relief("grille_box_%d" % i, rect(13.1, r0, 19.5, r1, 0.5),
+                                [rect(13.55, r0 + 0.45, 19.05, r1 - 0.45, 0.3)], 5.0, 0.4, m, "steel_dark",
+                                "steel_dark", bottom=0.6, spacing=0.42, hole_floor=3.9, hole_rim=0.3, band=0.8))
+        cr0, cr1 = r0 + 0.5, r1 - 0.5
+        cc0, cc1 = 13.6, 19.0
+        poly = [px(c, r) for c, r in rect(cc0, cr0, cc1, cr1, 0.3)]
+
+        def h(x, y, d):
+            return 3.9 + 0.95 * round_edge(d, 1.2)
+
+        def paint(x, y, d):
+            return "glow_edge" if d < 0.3 else "glow" if d < 0.8 else "glow_core"
+        out.append(relief("grille_%d" % i, [ccw(poly)], h, m, paint=paint, side="glow_edge", bottom=3.0,
+                          spacing=0.34, borders=[(lambda x, y, d: d, 0.3), (lambda x, y, d: d, 0.8)],
+                          smooth_angle=60.0, band=1.2))
+        r = (cr0 + cr1) / 2
+        out.append(lathe_x("grille_bar_%d" % i, [(13.5, 0.01), (13.55, 0.18), (19.05, 0.18), (19.1, 0.01)], r, 4.95,
+                           m["steel_dark"], 8))
+    return out
+
+
+def pipes(m):
+    """The red pipe: from left of the grilles along rows 16-17 to column 34.4, down the right side into the red bar,
+    and its branch back along row 28 to column 21; flanges at its ends."""
+    z, rad = 2.3, 0.98
+    out = [pipe("pipe_main", [(10.4, 16.6), (34.4, 16.6), (34.4, 33.6)], z, rad, m["red"]),
+           pipe("pipe_branch", [(20.8, 28.3), (34.2, 28.3)], z, rad * 0.95, m["red"])]
+    out.append(lathe_x("pipe_flange", [(10.0, 0.01), (10.05, 1.25), (10.95, 1.25), (11.0, 0.01)], 16.6, z, m["red"],
+                       18))
+    out.append(lathe_x("pipe_flange_b", [(20.4, 0.01), (20.45, 1.2), (21.25, 1.2), (21.3, 0.01)], 28.3, z,
+                       m["steel_light"], 18))
+    return out
+
+
+def tan_box(m):
+    """The tan box at the left: a slab with a round socket sunk in it (a red button in it), a brass strip down its
+    left side and a brass rail along its foot."""
+    socket = ellipse(5.25, 23.2, 3.55, 3.5, 44)
+    out = [plate_relief("tan_box", rect(0.75, 15.6, 10.35, 27.2, 0.8), [socket], 4.3, 1.0, m, "tan", "tan",
+                        bottom=0.0, spacing=0.5, hole_floor=2.6, hole_rim=0.45, band=1.1)]
+    floor = mk.prism("tan_socket", ccw([px(c, r) for c, r in ellipse(5.25, 23.2, 3.7, 3.65, 44)]), 0.4, 2.65,
+                     m["dark"])
+    out.append(mk.shade(floor, 40, False))
+    x, y = px(5.2, 23.0)
+    out.append(mk.dome("button", (x, y), (2.45, 2.4, 2.4), 2.55, m["button"], 22, 7, power=2.2))
+    out.append(block("brass_strip", 0.0, 15.4, 0.95, 29.4, 0.0, 4.0, m["brass"], 0.35))
+    out.append(lathe_x("brass_rail", [(0.0, 0.01), (0.05, 0.7), (10.3, 0.7), (10.35, 0.01)], 27.9, 1.1, m["brass"],
+                       14))
+    return out
+
+
+def dark_box(m):
+    """The dark box in the pipe's frame: a slab with the tan panel sunk in it, its grey lid with a knob on it and its
+    grey slats."""
+    out = [plate_relief("dark_box", rect(22.4, 17.8, 33.6, 27.6, 0.4), [rect(23.1, 21.0, 29.5, 27.0, 0.25)], 2.9,
+                        0.4, m, "steel_dark", "steel_dark", bottom=0.6, spacing=0.45, hole_floor=2.0, hole_rim=0.3,
+                        band=0.8)]
+    out.append(block("tan_panel", 23.0, 20.9, 29.6, 27.1, 0.6, 2.05, m["tan_dark"], 0.2, 2))
+    out.append(block("lid", 22.7, 18.2, 29.4, 20.7, 2.5, 3.4, m["steel_light"], 0.3))
+    out.append(lathe_x("lid_knob", [(24.2, 0.01), (24.25, 0.65), (27.6, 0.65), (27.65, 0.01)], 19.4, 3.55,
+                       m["steel_dark"], 14))
+    for i, r in enumerate((20.4, 22.1, 23.8, 25.5)):
+        out.append(block("slat_%d" % i, 29.8, r, 33.3, r + 1.25, 2.4, 3.3, m["steel_light"], 0.22, 2))
+    return out
+
+
+def rods(m):
+    out = [lathe_y("rod_ur", [(15.6, 0.01), (15.55, 0.8), (6.65, 0.8), (6.6, 0.01)], 31.8, 1.95, m["rod"], 16)]
+    out.append(lathe_y("rod_right", [(34.4, 0.01), (34.35, 0.78), (21.85, 0.78), (21.8, 0.01)], 36.8, 1.85, m["rod"],
+                       16))
+    for name, r in (("rod_ur_clip_a", 8.4), ("rod_ur_clip_b", 13.6)):
+        out.append(block(name, 30.9, r - 0.5, 32.7, r + 0.5, 0.6, 2.2, m["steel_dark"], 0.2, 2))
+    return out
+
+
+def lower_left(m):
+    """The tall tan block (its top sloping down to the front), the red wedge beside it, the small red valve."""
+    out = [block("tan_tall", 6.6, 33.1, 12.3, 40.9, 0.6, 4.6, m["tan"], 0.7)]
+    out.append(pyramid("tan_tall_front", 6.6, 40.6, 12.3, 47.4, 0.6, 2.1, 4.1, m["tan"]))
+
+    def red_top(c, r):
+        return 4.4 if r < 42.2 else 4.4 - (r - 42.2) * (4.4 - 1.7) / (47.5 - 42.2)
+    out.append(sloped("red_wedge", [(12.4, 39.7), (19.5, 39.7), (19.5, 44.6), (18.0, 47.5), (13.9, 47.5),
+                                    (12.4, 44.6)], 0.6, red_top, m["red"], 0.4))
+    out.append(upright("red_valve", [(0.75, 0.6), (0.75, 2.2), (0.55, 2.6), (0.01, 2.7)], 20.0, 44.9, m["red"]))
+    # The brass bar under the red blocks (row 30), the tan rod across to the red bar (row 45), the grey ledge at the
+    # lower left (rows 33-35).
+    out.append(lathe_x("brass_bar", [(11.8, 0.01), (11.85, 0.62), (17.95, 0.62), (18.0, 0.01)], 30.3, 1.6,
+                       m["brass"], 14))
+    out.append(lathe_x("rod_low", [(20.9, 0.01), (20.95, 0.5), (29.1, 0.5), (29.15, 0.01)], 45.4, 1.75, m["rod"], 14))
+    out.append(block("ledge", 0.7, 33.5, 6.5, 35.0, 0.0, 1.7, m["steel"], 0.3))
+    return out
+
+
+def pyramid(name, c0, r0, c1, r1, z0, z1, apex, mat, bevel=0.3):
+    """A block over the pixel corners (c0, r0) - (c1, r1) standing from z0 to z1, under a pyramid rising to `apex`
+    over its middle (four faces: the sprite's X)."""
+    import bmesh
+    (x0, y1), (x1, y0) = px(c0, r0), px(c1, r1)
+    xm, ym = (x0 + x1) / 2, (y0 + y1) / 2
+    bm = bmesh.new()
+    low = [bm.verts.new(p) for p in ((x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0))]
+    mid = [bm.verts.new(p) for p in ((x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1))]
+    top = bm.verts.new((xm, ym, apex))
+    bm.faces.new(list(reversed(low)))
+    for i in range(4):
+        j = (i + 1) % 4
+        bm.faces.new((low[i], low[j], mid[j], mid[i]))
+        bm.faces.new((mid[i], mid[j], top))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(mat)
+    return finish(obj, bevel, 2, angle=20.0)
+
+
+def floor_plates(m):
+    """Low steel plates on the deck's empty middle (the sprite's slightly lighter panels there)."""
+    return [block("floor_plate", 22.4, 33.4, 28.3, 44.0, 0.6, 1.65, m["steel_dark"], 0.35, 2),
+            block("floor_plate_b", 7.2, 29.4, 10.6, 32.6, 0.6, 1.6, m["steel_dark"], 0.3, 2)]
+
+
+def red_bar(m):
+    """The red bar at the lower right: a slab with a slot sunk down it (a grey bar in it) and a tan valve on it."""
+    slot = rect(31.45, 34.8, 33.35, 41.1, 0.25)
+    out = [plate_relief("red_bar", rect(29.0, 33.0, 33.7, 48.4, 0.7), [slot], 4.2, 0.8, m, "red", "red", bottom=0.6,
+                        spacing=0.4, hole_floor=1.9, hole_rim=0.3, band=0.9)]
+    out.append(block("red_bar_slot", 31.3, 34.65, 33.5, 41.25, 0.6, 1.95, m["dark"], 0.1, 1))
+    out.append(block("red_bar_rod", 31.95, 35.3, 32.85, 40.5, 1.5, 3.2, m["steel_light"], 0.25, 2))
+    out.append(upright("valve", [(1.25, 3.9), (1.25, 4.6), (1.05, 4.95), (0.5, 5.15), (0.01, 5.2)], 31.7, 45.1,
+                       m["rod"]))
+    return out
+
+
+def build_whole(m):
+    parts = [deck(m)]
+    for fn in (drum, rail_panel, knob, red_blocks, grey_blocks, grilles, pipes, tan_box, dark_box, rods, lower_left,
+               floor_plates, red_bar):
+        parts += fn(m)
+    bpy.context.view_layer.update()
+    return parts
+
+
+# --- Pieces ------------------------------------------------------------------------------------------------------------
+
+def own_mask(sheet, sprite, c0, r0):
+    """The sprite's own pixels (the works', inside OUTLINE: the cobbles left out), rows of bools."""
+    mask = k.sprite_mask(sheet, sprite)
+    region = Region([ccw([px(c, r) for c, r in OUTLINE])])
+    out = []
+    for j in range(28):
+        pts = [px(c0 + i + 0.5, r0 + j + 0.5) for i in range(24)]
+        inside = region.inside(pts)
+        out.append([bool(mask[j][i] and inside[i]) for i in range(24)])
+    return out
 
 
 def build():
@@ -235,40 +496,43 @@ def build():
     out = mk.outdir(options)
     only = set(options["only"].split(",")) if "only" in options else None
     k.reset()
-    works = Works()
-    pic, own = works.pic, works.own
-    a = pic.a
-    # The grilles: ramp 7's pixels and the white-hot grey pixel in each (0x0b, 0x0e: the hottest shade).
-    core = own & (a >= 0) & (a >> 4 == 0) & nk.gw.dilate(own & (a >> 4 == 7), 1, diagonal=False) & (a & 15 >= 10)
-    lamp = own & ((a >> 4 == 7) | core)
-    lamp_values = np.where(core, 14.5, pic.shade())
-    zones = [Zone("red", own & (a >> 4 == 4), SHADES["red"], FINISH["red"], lift=RED_LIFT),
-             Zone("tan", own & (a >> 4 == 10), SHADES["tan"], FINISH["tan"]),
-             Zone("rail", own & (a >> 4 == 1), SHADES["rail"], FINISH["rail"]),
-             Zone("steel", own & (a >> 4 == 0) & ~core, SHADES["steel"], FINISH["steel"]),
-             Zone("glow", lamp, SHADES["glow"], FINISH["glow"], glow=GLOW, sigma=0.6, lift=0.0, comp=0.3,
-                  values=lamp_values),
-             Zone("dark", own, [0x01], FINISH["dark"], lift=0.0, comp=0.0, pick=False)]
-    painter = Painter(pic, zones, "works")
-    plate = nk.gw.Plate((-24.0, 24.0, -28.0, 28.0), works.heights, cells=works.region.inside)
-
-    def keys(obj, kinds, wall_z):
-        centres, normals = nk.face_data(obj)
-        near = painter.zone_at(centres[:, 0], centres[:, 1])
-        out_ = painter.keys(obj, zones=["dark" if kinds[i] != 0 else near[i] for i in range(len(kinds))])
-        return [("dark", 0x01) if kinds[i] != 0 else key for i, key in enumerate(out_)]
-    for name, sprite, (c0, r0) in PIECES:
+    bpy.context.scene.view_settings.view_transform = "Standard"
+    m = materials()
+    whole = build_whole(m)
+    if "stats" in options:
+        for obj in sorted(whole, key=lambda o: -mk.triangles([o])):
+            print("    %-22s %6d" % (obj.name, mk.triangles([obj])))
+        print("    total %d" % mk.triangles(whole))
+    sheet = os.path.join(options["check"], "enemy_2.png") if "check" in options else None
+    for name, sprite, box, origin, (c0, r0) in PIECES:
         if only is not None and name not in only:
             continue
-        box = nk.sprite_box(pic, c0, r0)
-        parts = nk.piece_parts(plate, keys, [], box, nk.box_owner(box), name, painter, ("dark", 0x01))
-        mask = None
-        if "check" in options:
-            sub = own[r0:r0 + 28, c0:c0 + 24]
-            mask = sub.tolist()
-        piece = nk.finish(name, parts, box, out, options, painter, mask=mask,
-                          origin=(pic.left + c0 + 12, pic.top - r0 - 14))
-        bpy.data.objects.remove(piece)
+        parts = []
+        for src in whole:
+            cap = src.data.materials[0] if src.data.materials else m["deck"]
+            piece = cut(src, box, cap)
+            if piece is not None:
+                piece.name = src.name + "_" + name
+                parts.append(piece)
+        drop_unused(parts)
+        for src in whole:
+            src.hide_render = True
+        if sheet:
+            mk.compare("%s (2 %d, as the camera sees it; the works' own pixels)" % (name, sprite),
+                       mk.coverage(parts, 24, 28, centre=origin), own_mask(sheet, sprite, c0, r0))
+        shear_to_camera(parts)
+        mk.transform(parts, Matrix.Translation((-origin[0], -origin[1], 0.0)))
+        bpy.context.view_layer.update()
+        triangulate(parts)
+        obj = join(parts, name)
+        obj.data.name = name
+        merge_materials(obj, 15)
+        mk.report(name, [obj], os.path.join(out, name + ".glb"))
+        if "preview" in options:
+            mk.preview(options["preview"] + name, [obj])
+        bpy.data.objects.remove(obj)
+        for src in whole:
+            src.hide_render = False
 
 
 if __name__ == "__main__":
