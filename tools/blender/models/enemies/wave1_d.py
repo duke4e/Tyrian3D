@@ -4,7 +4,6 @@
   red coils at the jaws, which the game puts together from ten indestructible sprites. The whole
   pincer is built once and cut into the ten pieces, so they join up again in the game.
 - ring_frame (sheet 3 271): the grey frame with a blue orb of BRAINIAC, DREAD-NOT and ICE EXIT.
-- mast_left, mast_right (sheet B 39 and 47, mirror images): CAMANIS' tanks with a rod and a post.
 (The tusked boss's jaw, sheet 4 128, is a piece of polish_tusk_boss.py's boss.)
 
 Curved outlines come from the sprites' pixels (wave1_d_art.py) and get their volume by inflation
@@ -258,61 +257,6 @@ def ring_frame():
     for i, poly in enumerate(sh.outlines(rows, "l", SPRITE_ORIGIN, smooth=1, epsilon=0.3, min_area=0.5)):
         k.smooth(sh.inflate(f"light{i}", [sh.inset(poly, -0.3)], light, sh.round_profile(1.0, min_height=1.0),
                             bottom=0.0, base=1.2, spacing=0.25), 50)
-
-
-# --- The masts of CAMANIS (sheet B 39 and its mirror image 47) ------------------------------------
-
-def mast(mirror):
-    """A grey tank lying along the screen with a thin rod reaching up from it (a ring half way),
-    a valve on its side and a small post beside it, all resting on the ground. Sprite 47 is the
-    mirror image of sprite 39."""
-    body = k.material("mast_body", palette=7, metallic=0.6, roughness=0.32)
-    rod = k.material("mast_rod", palette=6, metallic=0.6, roughness=0.35)
-    ring = k.material("mast_ring", palette=9, metallic=0.65, roughness=0.25)
-    dark = k.material("mast_dark", palette=3, metallic=0.5, roughness=0.5)
-    parts = []
-    tank_x, tank_z = 3.5, 3.4
-    # The tank: a domed top towards the rod, a dark base ring, a stub to the sprite's edge.
-    parts.append(k.lathe("tank", [(-14.0, 2.3), (-12.6, 2.3), (-12.4, 3.0), (-9.4, 3.0), (-9.2, 3.45), (-1.4, 3.45),
-                                  (-0.6, 3.1), (0.0, 2.3), (0.35, 1.2), (0.45, 0.01)],
-                         body, 28, axis_x=tank_x, axis_z=tank_z))
-    parts.append(k.lathe("tank_base", [(-12.5, 3.15), (-12.3, 3.5), (-9.6, 3.5), (-9.4, 3.15)], dark, 28,
-                         axis_x=tank_x, axis_z=tank_z))
-    for y in (-7.4, -4.4):
-        parts.append(k.lathe("tank_band", [(y - 0.35, 3.4), (y - 0.25, 3.7), (y + 0.25, 3.7), (y + 0.35, 3.4)], ring,
-                             28, axis_x=tank_x, axis_z=tank_z))
-    # The rod and its ring.
-    parts.append(k.lathe("rod", [(-0.5, 1.4), (12.4, 1.4), (12.8, 1.1), (13.0, 0.01)], rod, 16,
-                         axis_x=tank_x, axis_z=tank_z + 0.6))
-    parts.append(k.lathe("rod_ring", [(3.0, 1.6), (3.2, 2.45), (5.8, 2.45), (6.0, 1.6)], ring, 20,
-                         axis_x=tank_x, axis_z=tank_z + 0.6))
-    parts.append(k.lathe("rod_collar", [(-0.4, 1.9), (-0.2, 2.2), (0.6, 2.2), (0.8, 1.6)], ring, 20,
-                         axis_x=tank_x, axis_z=tank_z + 0.4))
-    # The valve on the tank's side.
-    parts.append(lathe_x("valve", [(-2.0, 0.01), (-1.95, 2.0), (-1.6, 2.7), (-0.8, 2.7), (-0.6, 2.2), (1.0, 2.2)],
-                         body, 24, y=-6.0, z=tank_z - 0.2))
-    parts.append(lathe_x("valve_cap", [(-2.25, 0.01), (-2.2, 1.0), (-1.9, 1.3), (-1.6, 1.3)], dark, 16, y=-6.0,
-                         z=tank_z - 0.2))
-    # The small post beside it: a rod with a joint, a collar, and a stub to the edge.
-    post_x, post_z = -5.5, 1.6
-    parts.append(k.lathe("post", [(-14.0, 1.35), (-3.6, 1.35), (-3.2, 1.0), (-3.0, 0.01)], rod, 16,
-                         axis_x=post_x, axis_z=post_z))
-    parts.append(k.lathe("post_joint", [(-6.9, 1.3), (-6.7, 1.6), (-6.1, 1.6), (-5.9, 1.3)], dark, 16,
-                         axis_x=post_x, axis_z=post_z))
-    parts.append(k.lathe("post_collar", [(-13.0, 1.6), (-12.8, 2.45), (-10.2, 2.45), (-10.0, 1.6)], ring, 20,
-                         axis_x=post_x, axis_z=post_z + 0.4))
-    if mirror:
-        for obj in parts:
-            obj.data.transform(Matrix.Translation((-1.0, 0, 0)) @ Matrix.Scale(-1, 4, (1, 0, 0)))
-            obj.data.flip_normals()
-    for obj in parts:
-        k.recalc_normals(obj)
-    for obj in sh.flat_bottom(parts):
-        k.smooth(obj, 50)
-
-
-model("mast_left", "B", 39)(lambda: mast(False))
-model("mast_right", "B", 47)(lambda: mast(True))
 
 
 # --- Main ----------------------------------------------------------------------------------------

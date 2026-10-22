@@ -7,8 +7,8 @@ quiet_import: its output stays unchanged), posed as the frame draws it and cut e
 The scripts (the bladed orange's frames are polish_orange_saw.py's): wave3_at_m.py (sheet M: the armoured dome's gun port, the
 rig's hatch) (CORAL's manta, sheet T: polish_coral_manta.py),
 wave3_at_d.py (sheet D: the eye tub's iris, the shell ship), wave3_at_j.py (sheet J: the green shell's lids, the eye
-orb), wave3_at_misc.py (sheets 7, L: the drill's arm, the tan creature's nub; the eye hatch's lids are
-polish_eye_hatch.py's, the core in the pipe cage polish_maze_pipe.py's). The frames' sprites are read from the
+orb), wave3_at_misc.py (sheet L: the tan creature's nub; the eye hatch's lids are polish_eye_hatch.py's, the core in
+the pipe cage polish_maze_pipe.py's, the drill's arm polish_ice_drill.py's). The frames' sprites are read from the
 extracted sheets for --check (sheet_mask) only: the poses are set by hand from the frames' pixels (each script says
 which).
 

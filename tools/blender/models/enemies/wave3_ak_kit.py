@@ -1,8 +1,8 @@
-"""Helpers for the batch AK models of wave 3 (sheet b: CAMANIS' boss, wave3_ak_boss.py): the sprites' pixels
-(wave3_ak_art.py), and the kit of batch AG (wave3_ag_kit: pixel frames, painting faces by the sprite's pixel under
-them, heightfield parts, relief by the sprite's brightness, broken (jagged) ends, soot; whole objects cut into
-their sprites' pieces, the silhouette check and the build loop), with a few helpers of their own: frames made
-symmetric or patched (the damaged look painted over the intact one), dents and debris for wrecked plating.
+"""Helpers first written for the batch AK models of wave 3 (CAMANIS' boss, now polish_camanis_boss.py), kept for
+wave3_an_kit.py and wave3_ap_kit.py, which use them: the kit of batch AG (wave3_ag_kit: pixel frames, painting faces by
+the sprite's pixel under them, heightfield parts, relief by the sprite's brightness, broken (jagged) ends, soot; whole
+objects cut into their sprites' pieces, the silhouette check and the build loop), with a few helpers of their own:
+frames patched (the damaged look painted over the intact one), dents and debris for wrecked plating, pipes.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the whole object's centre. Pixel (column c, row r) of an art with origin (ox, oy) covers
@@ -25,7 +25,6 @@ import wave3_n_kit as n  # noqa: E402,F401
 import wave3_v_kit as v  # noqa: E402,F401
 import wave3_ae_kit as ae  # noqa: E402,F401
 import wave3_ag_kit as ag  # noqa: E402,F401
-import wave3_ak_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, paint_faces, lathe_axis, tube, sphere, rounded_box, meshes, bake, sampler,  # noqa: E402,F401
                          transform, triangles)
 from wave3_v_kit import (Frame, Painter, paint_sprite, pixelate, merge_flat, lift, smoothstep,  # noqa: E402,F401
@@ -41,11 +40,6 @@ piece = ag.piece
 lens = ag.lens
 heightfield = ag.heightfield
 polys_of = ag.polys_of
-
-
-def frame(name, width, origin):
-    """A Frame of one of wave3_ak_art's pixel arts."""
-    return Frame(getattr(art, name), width, origin)
 
 
 def patched(base, top, keep=lambda c, r: True, shift=None):
