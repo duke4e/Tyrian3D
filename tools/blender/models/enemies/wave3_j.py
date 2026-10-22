@@ -1,11 +1,10 @@
 """Enemies of wave 3, batch J (sheet D, the asteroid levels), the machines; modelled as their sprites
-look (models.cfg: yaw=0). The rocks and the stone face are in wave3_j_rocks.py; the cage turret (D 275), the red furnace
-(D 267) and the red medallion (D 117) are built by polish_cage_turret.py, polish_red_furnace.py and
-polish_medallion_red.py; the eye tub (D 193 and its frames) by polish_eye_tub.py; the dome cannon (D 245 above 283)
-by polish_dome_cannon.py; the vent dome (D 241 and its frames) by polish_vent_dome.py.
+look (models.cfg: yaw=0). The cage turret (D 275), the red furnace (D 267) and the red medallion (D 117) are built by
+polish_cage_turret.py, polish_red_furnace.py and polish_medallion_red.py; the eye tub (D 193 and its frames) by
+polish_eye_tub.py; the dome cannon (D 245 above 283) by polish_dome_cannon.py; the vent dome (D 241 and its frames) by
+polish_vent_dome.py; the shell ship (D 157 and its frames) by polish_shell_ship.py; the rocks by polish_asteroids.py,
+polish_pebbles.py, polish_sky_rocks.py, polish_crag.py and polish_beacon_rocks.py.
 
-- shell_ship (D 157): the ship of two dark curved shells round a red eye (its frames close the shells;
-  the model shows them open).
 - bronze_beetle (D 16): the bronze beetle with red wing cases and green hooked legs.
 
 The ground machines stand directly on the ground: the tiled floor the sprites draw round them is the map's (the game
@@ -22,40 +21,9 @@ from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_j_kit as w  # noqa: E402
-from wave3_j_kit import k, sh, pal, px, model  # noqa: E402
+from wave3_j_kit import k, pal, px, model  # noqa: E402
 
 D = "enemy_D"
-
-
-# --- D 157: the shell ship -----------------------------------------------------------------------
-
-@model("shell_ship", [(D, 157, True)])
-def shell_ship():
-    """Two dark curved shells standing like wings either side of a small hub with a glowing red
-    eye (the frames close the shells over it; the model shows them open)."""
-    shell = pal("shell_dark", 0x05, metallic=0.75, roughness=0.25)
-    inner = pal("shell_inner", 0x02, metallic=0.6, roughness=0.45)
-    hub_mat = pal("shell_hub", 0x03, metallic=0.6, roughness=0.4)
-    rim = pal("shell_rim", 0x07, metallic=0.7, roughness=0.3)
-    eye = pal("shell_eye", 0x77, metallic=0.0, roughness=0.2, glow=1.4)
-    # A shell: half of a pointed egg along y, cut flat on the inside.
-    prof = k.profile([(-10.4, 0.01), (-9.4, 1.8), (-6.0, 4.4), (-1.0, 6.6), (4.0, 7.4), (8.0, 6.8), (11.0, 5.0),
-                      (12.6, 2.6), (13.3, 0.01)], 0.6)
-    for side in (-1, 1):
-        x_in = side * 3.6
-        body = w.lathe_axis(f"shell{side}", prof, shell, (x_in, 0.0, 0.0), (0, 1, 0), 32, squash=1.15)
-        kept = sh.cut_planes([body], [((x_in, 0, 0), (-side, 0, 0))])
-        for obj in kept:
-            k.smooth(obj, 40)
-            w.paint_faces(obj, lambda c, n, s=side: inner if n.x * s < -0.9 else None)
-        # A rim along the shell's inner edge, over its top.
-        top = [(x_in + side * 0.3, y, max(0.3, 1.15 * r - 0.2)) for y, r in prof[2:-2]]
-        w.tube(f"rim{side}", top, 0.45, rim, 8)
-    # The hub between them, the eye on it.
-    w.rounded_box("hub", (0.0, 3.0, 0.0), (7.6, 10.0, 5.0), hub_mat, bevel=0.8)
-    w.rounded_box("neck", (0.0, -2.6, -0.4), (4.0, 3.6, 3.4), inner, bevel=0.6)
-    w.hoop("eye_ring", (0.0, 5.3, 2.4), [(1.4, -0.3), (2.2, -0.2), (2.3, 0.3), (1.6, 0.5)], rim, 20, scale_y=0.8)
-    w.sphere("eye", (0.0, 5.3, 2.3), (1.6, 1.2, 0.9), eye, 16, 8)
 
 
 # --- D 16: the bronze beetle ---------------------------------------------------------------------
