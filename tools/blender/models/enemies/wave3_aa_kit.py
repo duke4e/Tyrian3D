@@ -1,10 +1,10 @@
 """Helpers for the batch AA models of wave 3 (sheet E: STARGATE's lava grubs, the big dark orb of FLEET,
-MISTAKES and STARGATE, the tan spiked mine, BUBBLES' boiling bubbles, ASTEROIDS' crater with its glass domes,
-the boulders in the pit of TYRIAN and HOLES): the sprites' pixels (wave3_aa_art.py), and the parts, painting
+MISTAKES and STARGATE, the tan spiked mine, BUBBLES' boiling bubbles, the boulders in the pit of TYRIAN and
+HOLES; all polished since, ASTEROIDS' crater and domes by polish_asteroid_craters.py): the parts, painting
 and build loop of batch V (wave3_v_kit: pixel frames, reliefs inflated from pixel regions, painting faces by
 the sprite's pixel under them, mirroring; wave3_n_kit: stand-alone models and whole objects cut into their
 sprites' pieces, the silhouette check), with a few parts of their own: pieces of any size, cones, convex
-rocks, glass domes on a pedestal.
+rocks, lenses (wave3_ag_kit.py and wave3_ae_kit.py use them).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre (or the whole object's, for objects the game draws in pieces).
@@ -28,7 +28,6 @@ import wave3_j_kit as w  # noqa: E402,F401
 import wave3_n_kit as n  # noqa: E402,F401
 import wave3_p_kit as p  # noqa: E402,F401
 import wave3_v_kit as v  # noqa: E402,F401
-import wave3_aa_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, grid, paint_faces, lathe_axis, hoop, tube, catmull, sphere, rounded_box,  # noqa: E402,F401
                          meshes, bake, sampler, transform, lumpy)
 from wave3_v_kit import (Frame, Painter, paint_sprite, pixelate, merge_flat, relief, outlines_of,  # noqa: E402,F401
@@ -103,53 +102,6 @@ def subdivide_faces(obj, cuts=1):
     bm.to_mesh(obj.data)
     bm.free()
     return obj
-
-
-def dome_parts(prefix, f, painter, base_mats, centre_dome, radii_dome, centre_base, radii_base, base_height,
-               dome_height, default=None):
-    """A glass dome on a grey pedestal, as ASTEROIDS' red and blue domes: a bevelled ring of grey steel
-    (centre_base, radii_base (x, y), base_height high, its top edge lit, a dark groove round its top)
-    and on it a glossy dome (centre_dome, radii (x, y), dome_height above the ring) painted by the
-    sprite's pixels (painter; `default` where the sprite has none). Returns the parts."""
-    bx, by = centre_base
-    rx, ry = radii_base
-    light, mid, dark = base_mats
-    parts = []
-    # The pedestal: a short rounded drum.
-    rings = []
-    profile = [(0.0, 1.0, 0.0), (base_height * 0.55, 1.0, 0.0), (base_height - 0.6, 0.985, 0.0),
-               (base_height - 0.15, 0.95, 0.0), (base_height, 0.9, 0.0)]
-    seg = 48
-    for z, scale, _ in profile:
-        rings.append([Vector((bx + rx * scale * math.cos(2 * math.pi * i / seg),
-                              by + ry * scale * math.sin(2 * math.pi * i / seg), z)) for i in range(seg)])
-    verts = [pt for r in rings for pt in r]
-    faces = []
-    for j in range(len(rings) - 1):
-        for i in range(seg):
-            a, b = j * seg + i, j * seg + (i + 1) % seg
-            faces.append((a, b, b + seg, a + seg))
-    top_ring = (len(rings) - 1) * seg
-    verts.append(Vector((bx, by, base_height)))
-    faces += [(top_ring + i, top_ring + (i + 1) % seg, len(verts) - 1) for i in range(seg)]
-    drum = k.mesh_object(prefix + "_pedestal", verts, faces, mid)
-    k.recalc_normals(drum)
-    k.smooth(drum, 35)
-    paint_faces(drum, lambda c, nrm: light if (nrm.z > 0.3 and (nrm.x < 0.2 or nrm.y > 0.2)) else
-                (mid if nrm.z > 0.3 else (dark if c.z < base_height * 0.5 else mid)))
-    parts.append(drum)
-    # A dark groove round the dome's foot.
-    cx, cy = centre_dome
-    dx, dy = radii_dome
-    parts.append(hoop(prefix + "_groove", (cx, cy, base_height), [(dx - 0.4, -0.2), (dx + 0.7, -0.2), (dx + 0.7, 0.3),
-                                                                   (dx - 0.4, 0.3)], dark, segments=48,
-                      scale_y=dy / dx))
-    dome = sphere(prefix + "_dome", (cx, cy, base_height - 0.2), (dx, dy, dome_height + 0.2), default, 72, 36)
-    sh.cut_planes([dome], [((0, 0, base_height - 0.1), (0, 0, -1))])
-    # Painted by the sprite's shades, smoothed (no pixel steps on the glass).
-    paint_sprite(dome, f, painter, wall_steps=-1, default=default, blur=1, probe=-1.0)
-    parts.append(dome)
-    return parts
 
 
 def lens(name, centre, normal, radii, mat, sink=0.2, segments=32):
