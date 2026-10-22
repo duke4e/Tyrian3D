@@ -3,7 +3,6 @@
 - pincer_* (sheet K 161-243): the grey pincer of FLEET and STATION, two arms with red lights and
   red coils at the jaws, which the game puts together from ten indestructible sprites. The whole
   pincer is built once and cut into the ten pieces, so they join up again in the game.
-- ring_frame (sheet 3 271): the grey frame with a blue orb of BRAINIAC, DREAD-NOT and ICE EXIT.
 (The tusked boss's jaw, sheet 4 128, is a piece of polish_tusk_boss.py's boss.)
 
 Curved outlines come from the sprites' pixels (wave1_d_art.py) and get their volume by inflation
@@ -190,73 +189,6 @@ def claw_piece(name, left, top):
 
 for _sprite, _name, _left, _top in CLAW_PIECES:
     model(_name, "K", _sprite)(lambda left=_left, top=_top, name=_name: claw_piece(name, left, top))
-
-
-# --- The sprites' origin -------------------------------------------------------------------------
-
-SPRITE_ORIGIN = (12, 14)
-
-
-# --- The ring frame (sheet 3 271) ---------------------------------------------------------------
-
-def relabel(rows, boxes):
-    """The art with pixels relabelled: boxes are (from chars, to char, c0, c1, r0, r1), inclusive."""
-    grid = [list(r) for r in rows]
-    for src, dst, c0, c1, r0, r1 in boxes:
-        for r in range(r0, r1 + 1):
-            for c in range(c0, c1 + 1):
-                if grid[r][c] in src:
-                    grid[r][c] = dst
-    return ["".join(line) for line in grid]
-
-
-@model("ring_frame", "3", 271)
-def ring_frame():
-    """The device of BRAINIAC, DREAD-NOT and ICE EXIT: a heavy grey frame round a blue orb, with
-    a blue canister below it, finned posts at its upper corners and a ribbed neck at the top. It
-    stands on the ground (flat underneath)."""
-    rows = relabel(sh.art(art.RING), [
-        ("b", "n", 7, 17, 1, 5),     # the neck's blue stripes: inlays on the frame
-        ("b", "n", 1, 4, 3, 9),      # the left post's stripe
-        ("b", "n", 19, 23, 3, 9),    # the right post's stripe
-        ("b", "o", 9, 15, 7, 13),    # the orb
-        ("b", "c", 8, 16, 19, 25),   # the canister
-        ("b", "l", 3, 7, 19, 23),    # the small lights beside it
-        ("b", "l", 17, 21, 19, 23),
-        ("#", ".", 9, 15, 13, 14),   # the orb's dark outline below it: the orb hangs free
-        ("c", "#", 16, 16, 19, 19),  # a blue pixel of the frame beside the canister
-    ])
-    frame_mat = k.material("ringframe_frame", palette=8, metallic=0.6, roughness=0.3)
-    blue = k.material("ringframe_blue", palette=58, metallic=0.4, roughness=0.25)
-    orb = k.material("ringframe_orb", palette=57, metallic=0.2, roughness=0.08, emission=(40, 120, 255),
-                     emission_strength=0.15)
-    light = k.material("ringframe_light", palette=57, roughness=0.2, emission=(60, 150, 255), emission_strength=0.3)
-    height = 4.5
-    frame = sh.outlines(rows, "#n", SPRITE_ORIGIN, smooth=0, epsilon=0.6)
-    frame_obj = sh.inflate("frame", frame, frame_mat, sh.pillow_profile(height, 1.1), bottom=0.0, spacing=0.35)
-    k.smooth(frame_obj, 45)
-    # Blue inlays along the neck and the posts.
-    stripes = sh.outlines(relabel(rows, [("n", "#", 7, 17, 2, 2), ("n", "#", 15, 15, 5, 5)]), "n", SPRITE_ORIGIN,
-                          smooth=0, epsilon=0.3)
-    for i, poly in enumerate(stripes):
-        cx = sum(x for x, _ in poly) / len(poly)
-        cy = sum(y for _, y in poly) / len(poly)
-        z = sh.surface_z(frame_obj, cx, cy, height)
-        inlay = k.slab(f"inlay{i}", sh.inset(poly, 0.12), z - 0.3, z + 0.35, blue, bevel_width=0.15)
-        k.smooth(inlay, 40)
-    # The orb, hanging in the ring's opening.
-    k.smooth(k.ellipsoid("orb", (0.5, 3.6, 3.4), (3.55, 3.55, 3.3), orb, 32, 16), 60)
-    # The canister below: a round body along Y, its end rounded, banded.
-    canister = k.lathe("canister", [(-12.0, 0.01), (-11.95, 1.7), (-11.7, 2.7), (-11.2, 3.35), (-10.4, 3.65),
-                                    (-6.0, 3.65), (-5.6, 3.2), (-4.0, 3.2)], blue, 28, axis_x=0.5, axis_z=2.2)
-    k.smooth(canister, 50)
-    for y in (-9.0, -6.6):
-        band = k.lathe("band", [(y - 0.45, 3.6), (y - 0.3, 3.95), (y + 0.3, 3.95), (y + 0.45, 3.6)], frame_mat, 28,
-                       axis_x=0.5, axis_z=2.2)
-        k.smooth(band, 50)
-    for i, poly in enumerate(sh.outlines(rows, "l", SPRITE_ORIGIN, smooth=1, epsilon=0.3, min_area=0.5)):
-        k.smooth(sh.inflate(f"light{i}", [sh.inset(poly, -0.3)], light, sh.round_profile(1.0, min_height=1.0),
-                            bottom=0.0, base=1.2, spacing=0.25), 50)
 
 
 # --- Main ----------------------------------------------------------------------------------------
