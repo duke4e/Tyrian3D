@@ -1,5 +1,5 @@
-"""Enemies of wave 3, batch AA (sheet E), continued (wave3_aa.py has the round ones, wave3_aa_grub.py the
-lava grubs): the grey boulders in a pit in the dirt of TYRIAN, HOLES and TYRIAN X, modelled as the sprites
+"""Enemies of wave 3, batch AA (sheet E), continued (wave3_aa.py has the round ones, polish_lava_grub.py
+the lava grubs): the grey boulders in a pit in the dirt of TYRIAN, HOLES and TYRIAN X, modelled as the sprites
 look (models.cfg: yaw=0).
 
 - holes_rocks_tl, holes_rocks_tm, holes_rocks_tr, holes_rocks_bl, holes_rocks_bm, holes_rocks_br (E 1, 3, 5

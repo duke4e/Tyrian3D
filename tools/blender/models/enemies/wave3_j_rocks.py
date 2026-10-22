@@ -1,4 +1,4 @@
-"""Enemies of wave 3, batch J (sheet D, the asteroid levels), the rocks and the stone face; modelled as
+"""Enemies of wave 3, batch J (sheet D, the asteroid levels), the rocks; modelled as
 their sprites look (models.cfg: yaw=0). The machines are in wave3_j.py; the two big asteroids (D 1 3 / 39 41 and
 D 7 9 / 45 47) in polish_asteroids.py; the small rocks (D 95, 114, 133, 152) in polish_pebbles.py; the sky rocks D 43, 85 and 123 in
 polish_sky_rocks.py; the huge asteroid (D 13 ... 91) in polish_crag.py.
@@ -7,13 +7,9 @@ polish_sky_rocks.py; the huge asteroid (D 13 ... 91) in polish_crag.py.
   the beacon: it glows).
 - rock_blue_eye (D 229): a faceted asteroid with a blue light set in its middle (its frames 231-235
   light it up: it glows).
-- stone_face_tl, stone_face_tr, stone_face_bl, stone_face_br (D 155, P 123, D 165, P 127): the stone
-  face lying on the ground of ASTEROID1 and ASTEROID2, which the game puts together from two
-  sprites of sheet D and two of sheet P (event 12), built whole and cut (origin).
 
 usage: Blender -b --factory-startup -P wave3_j_rocks.py -- [--only name,name] [--preview <prefix>]
        [--check <directory of the extracted sheets>] [--stats 1]
-       [--whole stone_face --preview <prefix>]
 """
 import math
 import os
@@ -23,10 +19,9 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wave3_j_kit as w  # noqa: E402
-from wave3_j_kit import art, k, sh, pal, model, whole  # noqa: E402
+from wave3_j_kit import art, sh, pal, model  # noqa: E402
 
 D = "enemy_D"
-P = "enemy_P"
 
 
 # --- Asteroids in the sky (D 93, 229) ------------------------------------------------
@@ -75,70 +70,6 @@ def rock_blue_eye():
         d = Vector((math.cos(a * math.pi / 2), math.sin(a * math.pi / 2), 0))
         w.sphere(f"ray{a}", (x + d.x * 2.0, y + d.y * 2.0, z + 0.05), (0.7 + 0.5 * abs(d.x), 0.7 + 0.5 * abs(d.y), 0.5),
                  blue, 10, 5)
-
-
-# --- D 155, P 123, D 165, P 127: the stone face ---------------------------------------------------
-
-def gauss(x, y, cx, cy, sx, sy):
-    return math.exp(-(((x - cx) / sx) ** 2 + ((y - cy) / sy) ** 2))
-
-
-@whole("stone_face", (48, 56))
-def stone_face_whole():
-    """A grey stone face lying on the ground, its forehead up the screen: an oval head, a high
-    forehead, a heavy brow over two deep eye sockets, a long nose, cheekbones, a mouth with full
-    lips and a round chin; painted in the sprite's shades (the sockets and the mouth dark)."""
-    g = w.grid(art.FACE, 48)
-    origin = (24, 28)
-    x0 = 2.6  # the face's middle
-    rows = w.regions(g, lambda v, c, r: "#")
-    polys = sh.outlines(rows, "#", origin, smooth=2, epsilon=0.4, min_area=4.0)
-
-    def features(x, y, z):
-        u = x - x0
-        z += 1.2 * gauss(x, y, x0, 13.0, 8.0, 6.0)                                     # the forehead
-        z += 2.6 * gauss(u * 0.8, y, 0.0, 6.6, 10.5, 1.5)                              # the brow
-        for ex in (-6.4, 6.4):                                                         # the eye sockets
-            z -= 4.2 * gauss(u, y, ex, 2.7, 3.9, 2.5)
-            z += 1.4 * gauss(u, y, ex, 2.3, 1.8, 1.1)                                  # the eyeballs
-        t = min(1.0, max(0.0, (5.0 - y) / 10.0))                                       # the nose, rising
-        z += (1.5 + 3.8 * t) * gauss(u, y, 0.3, -0.4, 1.35 + 0.5 * t, 5.2)
-        z += 1.6 * gauss(u, y, 0.3, -5.0, 2.3, 1.2)                                    # the nostrils
-        for cx in (-7.6, 7.6):                                                         # the cheekbones
-            z += 1.8 * gauss(u, y, cx, -3.2, 3.2, 2.6)
-            z -= 1.2 * gauss(u, y, cx * 0.8, -8.5, 2.5, 3.0)                           # hollow cheeks
-        z -= 2.0 * gauss(u, y, 0.3, -8.0, 4.6, 0.5)                                    # the mouth
-        z += 1.3 * gauss(u, y, 0.3, -6.9, 4.0, 0.7)                                    # the upper lip
-        z += 1.7 * gauss(u, y, 0.3, -10.0, 3.6, 1.1)                                   # the lower lip
-        z += 2.2 * gauss(u, y, 0.3, -16.3, 4.0, 2.8)                                   # the chin
-        return z
-
-    stone = pal("face_stone", 0x07, metallic=0.05, roughness=0.7)
-    face = sh.inflate("face", polys, stone, sh.pillow_profile(5.5, 6.0, crown=1.5), bottom=0.0, spacing=0.45,
-                      z_fn=features, sigma=2.5)
-    w.simplify_bottom(face)
-    w.decimate(face, 4200)
-    k.smooth(face, 70)
-    dark = pal("face_dark", 0x04, metallic=0.05, roughness=0.8)
-    deep = pal("face_deep", 0x02, metallic=0.05, roughness=0.85)
-
-    def paint(c, n):
-        # The hollows (the sockets, the mouth) darker, as the sprite draws them; the rest stone.
-        dent = features(c.x, c.y, 0.0)
-        return deep if dent < -2.4 else dark if dent < -0.8 else None
-    w.paint_faces(face, paint)
-
-
-def stone_face_piece(x0, x1, y0, y1):
-    stone_face_whole()
-    w.bake()
-    w.piece(w.meshes(), x0, x1, y0, y1)
-
-
-model("stone_face_tl", [(D, 155, True)])(lambda: stone_face_piece(-24, 0, 0, 28))
-model("stone_face_tr", [(P, 123, True)])(lambda: stone_face_piece(0, 24, 0, 28))
-model("stone_face_bl", [(D, 165, True)])(lambda: stone_face_piece(-24, 0, -28, 0))
-model("stone_face_br", [(P, 127, True)])(lambda: stone_face_piece(0, 24, -28, 0))
 
 
 w.run()

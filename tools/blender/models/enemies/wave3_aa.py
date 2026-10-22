@@ -1,5 +1,5 @@
 """Enemies of wave 3, batch AA (sheet E), modelled as their sprites look (models.cfg: yaw=0 unless noted). The
-boulders in the pit of TYRIAN and HOLES are in wave3_aa_rocks.py, STARGATE's lava grubs in wave3_aa_grub.py;
+boulders in the pit of TYRIAN and HOLES are in wave3_aa_rocks.py, the lava grubs in polish_lava_grub.py;
 the kit is wave3_aa_kit.py, the pixels wave3_aa_art.py. Objects the levels put together from several sprites
 (the level files' enemy events say how) are built whole and cut into their pieces, drawn at their own
 origins (origin). (The big dark orb, E 191 193 above 229 231: polish_dark_orb.py.)

@@ -12,11 +12,6 @@ sprites the level events place (origin); the kit is wave3_w_kit.py, the pixels w
   above the house: modelled upright, batch AV; its frames move the dome's highlights: the model is
   polished gold). The dome is an enemy of its own: its piece holds the dome and its collar, standing on
   the shaft over the house's top left piece (Drawn, drawn_pieced).
-- cargo_pod_tl, cargo_pod_tr, cargo_pod_ml, cargo_pod_mr, cargo_pod_bl, cargo_pod_br (P 165, 167 above
-  203, 205 above 241, 243): the cargo pod of ASTEROID1, ASTEROID2, ASTCITY, AST. CITY and AST ROCK
-  (enemies 343-348 and 1035-1040): a long grey container lying on the house, its sides chamfered and
-  ribbed, its top a light panel with "812" across it, its back end reaching past the house onto a dark
-  cradle; in front of it a dark dock with two vents.
 - asteroid_rig_crane_l, asteroid_rig_crane_r, asteroid_rig_tl, asteroid_rig_tr, asteroid_rig_bl,
   asteroid_rig_br (P 9, 11 above 1, 3 above 39, 41): the drilling rig of ASTEROID1 and AST ROCK (enemies
   332-337 and 1024-1029: event 12 places 39, 41, 1, 3, two more put the crane's halves 9 and 11 above
@@ -124,77 +119,6 @@ def drawn_pieced(name, builder, size, pieces, drawn):
             k.smooth(obj, 40)
     for piece_name, box, centre, mask in pieces:
         kit.model(piece_name, mask=mask)(lambda box=box, centre=centre: build(box, centre))
-
-
-# --- P 165 167 / 203 205 / 241 243: the cargo pod ------------------------------------------------------
-
-CRATE = kit.Frame(art.CRATE, 48, (24, 42))
-
-
-def crate_ring(y, z0, ztop, inset, xl=-18.0, xr=18.0, tl=-11.0, tr=9.0, knee=4.0):
-    """The pod's cross-section at y: a flat bottom from xl to xr (moved in by inset), upright sides `knee`
-    high, sides sloping in to the top face from tl to tr at ztop. Counter-clockwise seen from +y."""
-    zk = min(z0 + knee, ztop - 0.3)
-    pts = [(xr - inset, z0), (xr - inset, zk), (tr - inset * 0.5, ztop), (tl + inset * 0.5, ztop), (xl + inset, zk),
-           (xl + inset, z0)]
-    return [Vector((x, y, z)) for x, z in pts]
-
-
-def crate_whole():
-    f = CRATE
-    X, Y = f.X, f.Y
-    hm = kit.house_mats("crate")
-    g = hm["grey"]
-    # No floor round the house: the sprites' floor is the map's ground, which the game draws under it (batch AV).
-    kit.house("crate", f, 28, m=hm, plain=True)
-    roof = 10.0
-    z0, top = roof + 0.4, roof + 11.0
-    # The pod, lofted along y from its front end (row 55) to its back end (row 14).
-    stations = [(f.bottom(55) + 0.05, z0 + 2.4, 0.9), (f.bottom(55) + 0.6, z0 + 3.6, 0.3), (f.bottom(53), z0 + 5.5, 0.0),
-                (f.bottom(48), top - 0.4, 0.0), (f.bottom(47), top, 0.0), (f.top(19), top, 0.0),
-                (f.top(18), top - 0.5, 0.0), (f.top(15), z0 + 6.0, 0.0), (f.top(14) - 0.6, z0 + 4.5, 0.3),
-                (f.top(14) - 0.05, z0 + 3.4, 0.9)]
-    rings = [crate_ring(y, z0, zt, i) for y, zt, i in stations]
-    pod = k.loft("pod", rings, g[9])
-    k.smooth(pod, 30)
-    # Painted pixel for pixel: the label with its number, the ribs along the sides.
-    painter = kit.Painter("crate", shades={0: (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)}, metallic=0.35,
-                          roughness=0.5)
-    paint = kit.Frame(art.CRATE, 48, (24, 42)).fill({0x01})
-    kit.pixelate(pod, paint)
-    kit.paint_sprite(pod, paint, painter, wall_steps=1, under=g[3], probe=0.5)
-    kit.merge_flat(pod)
-    # Ribs along the sloping sides (the sprite's stripes).
-    for i, x in enumerate((-16.4, -14.4, -12.4)):
-        zt = z0 + 4.0 + (top - z0 - 4.0) * (-18.0 - x) / (-18.0 + 11.0) if x < -11 else top
-        w.tube(f"rib_l{i}", [(x, f.bottom(51), zt - 0.1), (x, f.top(17), zt - 0.1)], 0.45, g[0xa if i % 2 else 8], 8)
-    for i, x in enumerate((10.5, 12.5, 14.5, 16.5)):
-        zt = top + (z0 + 4.0 - top) * (x - 9.0) / (18.0 - 9.0)
-        w.tube(f"rib_r{i}", [(x, f.bottom(51), zt - 0.1), (x, f.top(17), zt - 0.1)], 0.45, g[7 if i % 2 else 6], 8)
-    # The cradle under its back end, past the house.
-    kit.slab("cradle", kit.rrect(-15.0, 15.0, f.top(28) - 1.0, f.top(15)), 0.0, z0 + 0.2, g[3], bevel=0.6)
-    for x in (-13.0, 13.0):
-        kit.rounded_box(f"cradle_foot{x:.0f}", (x, f.top(21), 0.6), (4.0, 12.0, 1.2), g[4], bevel=0.4)
-    # The dock in front of it: a dark frame let into the roof with two vents, a light lip at its front.
-    dock = kit.slab("dock", kit.rrect(f.left(6), f.right(41), f.bottom(68), f.top(56), (1.0, 1.0, 0.0, 0.0)),
-                    roof - 0.4, roof + 0.5, g[2], bevel=0.3, segments=2)
-    kit.paint_faces(dock, lambda c, nrm: g[2] if nrm.z > 0.9 else g[4])
-    for name, c0, c1 in (("vent_l", 9, 21), ("vent_r", 23, 35)):
-        kit.slab(name, kit.rrect(f.left(c0), f.right(c1), f.bottom(64), f.top(58)), roof + 0.3, roof + 0.9, g[4],
-                 bevel=0.25)
-        kit.slab(name + "_hole", kit.rrect(f.left(c0) + 0.8, f.right(c1) - 0.8, f.bottom(64) + 0.8, f.top(58) - 0.8),
-                 roof + 0.85, roof + 0.95, g[1], bevel=0.05, segments=1)
-        kit.rounded_box(name + "_bar", ((f.left(c0) + f.right(c1)) / 2, Y(61.0), roof + 1.15),
-                        (f.right(c1) - f.left(c0) - 2.4, 1.1, 0.6), g[6], bevel=0.25)
-    lip = kit.slab("dock_lip", kit.rrect(f.left(7), f.right(40), f.bottom(68), f.top(66)), roof + 0.3, roof + 1.0,
-                   g[5], bevel=0.3)
-    kit.paint_faces(lip, lambda c, nrm: g[6] if nrm.z > 0.9 else g[4])
-
-
-kit.pieced("cargo_pod", crate_whole, (48, 84), [
-    kit.quarter("cargo_pod_tl", CRATE, 0, 0), kit.quarter("cargo_pod_tr", CRATE, 24, 0),
-    kit.quarter("cargo_pod_ml", CRATE, 0, 28), kit.quarter("cargo_pod_mr", CRATE, 24, 28),
-    kit.quarter("cargo_pod_bl", CRATE, 0, 56), kit.quarter("cargo_pod_br", CRATE, 24, 56)])
 
 
 # --- P 9 11 / 1 3 / 39 41: the drilling rig ------------------------------------------------------------

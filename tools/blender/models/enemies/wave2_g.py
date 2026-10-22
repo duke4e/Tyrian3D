@@ -2,8 +2,7 @@
 
 - ore_hauler (sheet D 115): the brown hauler of ASTEROID2 and AST ROCK, a heavy crossbar over a
   keeled spine, glowing red engine pods at both sides and a red light bar at the top.
-- rock_tip (sheet 8 245): the lower tip of a narrow rock column of IXMUCANE and SAWBLADES, in the
-  sprite's top right corner (the column's upper part is sprite 207): a piece (origin).
+- rock_tip: gone; 8 245 is the wall's left end (polish_ixm_wall_ends.py).
 - deli_tower_tl (sheet U 1): the top left corner of DELI's tower, which the game puts together from
   six sprites (U 1, 3, 5 above 39, 41, 43): the tops of a post and two red pipes: a piece (origin).
 - boom_ship_right, boom_ship_left: now built by polish_boom_ship.py.
@@ -363,36 +362,6 @@ def rounded_rect(x0, y0, x1, y1, radius, count=6):
             a = math.radians(a0 + 90 * i / count)
             out.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
     return out
-
-
-# --- 8 245: the tip of a rock column -----------------------------------------------------------------
-
-@model("rock_tip", "8", 245)
-def rock_tip():
-    """The lower tip of a narrow brown rock column (its upper part is sprite 207, above this one):
-    a rough rock narrowing to a point, in the sprite's top right corner, cut flat at the sprite's
-    top edge where the column goes on. A piece (origin): it stands on its layer."""
-    g = grid(art.E8_245, 24)
-    shade = sampler(g, blur=1)
-    rows = regions(g, lambda v, c, r: "#")
-    # The column goes on above the sprite: its top row repeated, so the cut at the edge is clean.
-    rows = [rows[0]] * 4 + rows
-    bands = [(0.0, pal("rock_dark", 0x14, metallic=0.05, roughness=0.8)),
-             (2.5, pal("rock_mid", 0x16, metallic=0.05, roughness=0.75)),
-             (4.5, pal("rock_brown", 0x17, metallic=0.05, roughness=0.7)),
-             (6.5, pal("rock_light", 0x19, metallic=0.05, roughness=0.6))]
-
-    def rough(x, y, z):
-        if z < 0.3:
-            return z
-        return z + 0.35 * math.sin(1.7 * x + 0.9 * y) * math.sin(1.3 * y - 0.6 * x) + 0.12 * shade(x, min(y, 13.5))
-    rock = part("rock", rows, "#", bands[0][1], sh.round_profile(1.3, max_height=4.4), origin=(12, 18), smooth=1,
-                epsilon=0.3, spacing=0.35, z_fn=rough, sigma=1.0, rim=0.2)
-    paint_faces(rock, shade_bands(g, bands, blur=1))
-    kept = sh.cut_box([rock], -12.0, 12.0, -14.0, 14.0)
-    for obj in kept:
-        simplify_bottom(obj)
-        k.smooth(obj, 55)
 
 
 # --- U 1: the top left corner of DELI's tower -----------------------------------------------------
