@@ -4,7 +4,7 @@ wave3_ah_rock.py, MINERS' banded rock column and its wreck; wave3_ah_rig.py, MIN
 hatches, torches and drill). The sprites' pixels are in wave3_ah_art.py; the parts come from the earlier batches'
 kits (wave3_s_kit: pixel frames, painting by the sprite, slabs and prisms; wave3_q_kit: heightfield parts, rings,
 grooves; wave3_j_kit: palette materials, turned parts, tubes, spheres, the tiled floor; wave3_aa_kit: lenses set
-into shells; wave3_x_kit: thin floor beds; wave3_z_kit: pieces, noise, assemblies and the build loop of
+into shells; wave3_z_kit: pieces, noise, assemblies and the build loop of
 wave3_n_kit: stand-alone models and whole objects cut into their sprites' pieces, the silhouette check, the
 triangle budget).
 
@@ -31,7 +31,6 @@ import wave3_n_kit as n  # noqa: E402,F401
 import wave3_q_kit as q  # noqa: E402,F401
 import wave3_s_kit as s  # noqa: E402,F401
 import wave3_aa_kit as aa  # noqa: E402,F401
-import wave3_x_kit as xk  # noqa: E402,F401
 import wave3_z_kit as z  # noqa: E402,F401
 import wave3_ah_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, grid, regions, paint_faces, lathe_axis, hoop, column, tube, catmull, sphere,  # noqa: E402,F401

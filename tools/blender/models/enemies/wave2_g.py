@@ -3,8 +3,7 @@
 - ore_hauler (sheet D 115): the brown hauler of ASTEROID2 and AST ROCK, a heavy crossbar over a
   keeled spine, glowing red engine pods at both sides and a red light bar at the top.
 - rock_tip: gone; 8 245 is the wall's left end (polish_ixm_wall_ends.py).
-- deli_tower_tl (sheet U 1): the top left corner of DELI's tower, which the game puts together from
-  six sprites (U 1, 3, 5 above 39, 41, 43): the tops of a post and two red pipes: a piece (origin).
+- deli_tower_tl: gone; DELI's towers are built by polish_deli_towers.py.
 - boom_ship_right, boom_ship_left: now built by polish_boom_ship.py.
 - warp_orb: now built by items/polish_warp_orb.py.
 - stone_plant: now built by polish_stone_plant.py.
@@ -257,48 +256,6 @@ def ore_hauler():
         decimate(obj, 850)
         k.smooth(obj, 50)
     k.smooth(decimate(light, 400), 50)
-
-
-# --- A rectangle with rounded corners (DELI's tower) -------------------------------------------------
-
-def rounded_rect(x0, y0, x1, y1, radius, count=6):
-    """A rectangle with rounded corners, counter-clockwise."""
-    out = []
-    for cx, cy, a0 in ((x1 - radius, y0 + radius, -90), (x1 - radius, y1 - radius, 0), (x0 + radius, y1 - radius, 90),
-                       (x0 + radius, y0 + radius, 180)):
-        for i in range(count + 1):
-            a = math.radians(a0 + 90 * i / count)
-            out.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
-    return out
-
-
-# --- U 1: the top left corner of DELI's tower -----------------------------------------------------
-
-@model("deli_tower_tl", "U", 1)
-def deli_tower_tl():
-    """What of DELI's tower lies in its top left sprite (the tower is 72 x 56 pixels, U 1, 3, 5 above
-    39, 41, 43): the top of a red column with a grey cap and a block at its foot, at the bottom right,
-    and the top of a thin red pipe at the bottom; both go on into the sprites below and to the right
-    (cut at the edges). A piece (origin), standing on the ground."""
-    grey = pal("tower_grey", 0x09, metallic=0.6, roughness=0.3)
-    cap = pal("tower_cap", 0x0c, metallic=0.6, roughness=0.25)
-    pink = pal("tower_pink", 0x48, metallic=0.4, roughness=0.35)
-    dark = pal("tower_dark", 0x44, metallic=0.4, roughness=0.5)
-    # The column: lying up the screen as the sprite draws it, its cap at the top.
-    k.smooth(k.lathe("column", [(-16.0, 2.5), (-8.6, 2.5), (-8.2, 2.8), (-7.6, 2.8), (-7.3, 2.5)], pink, 24,
-                     axis_x=10.0, axis_z=3.4), 50)
-    k.smooth(k.lathe("cap", [(-7.6, 2.75), (-7.0, 2.9), (-5.6, 2.9), (-5.2, 2.5), (-4.9, 1.6), (-4.75, 0.01)], cap, 24,
-                     axis_x=10.0, axis_z=3.4), 50)
-    k.smooth(lathe_x("cap_band", [(7.0, 2.9), (7.2, 3.1), (12.8, 3.1), (13.0, 2.9)], grey, 20, y=-7.9, z=3.4), 50)
-    # The block at the column's foot and the thin pipe.
-    block = sh.inflate("block", [rounded_rect(3.6, -16.0, 9.0, -10.8, 0.6)], dark, sh.pillow_profile(3.0, 0.6),
-                       bottom=0.0, spacing=0.4)
-    k.smooth(simplify_bottom(block), 40)
-    k.smooth(k.lathe("pipe", [(-16.0, 1.15), (-12.6, 1.15), (-12.3, 0.9), (-12.1, 0.01)], pink, 14, axis_x=-3.0,
-                     axis_z=3.2), 50)
-    kept = sh.cut_box(sh.flat_bottom(scene_objects()), -12.0, 12.0, -14.0, 14.0)
-    for obj in kept:
-        k.smooth(obj, 50)
 
 
 # --- Main ------------------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-"""Helpers for the batch AG models of wave 3 (sheet u: DELI, New Deli, BONUS and HARVEST; the glass
-globe is polish_glass_globe.py's; wave3_ag_tower.py, DELI's two towers and their damaged looks): the sprites' pixels
-(wave3_ag_art.py), and the frames, painting, parts and build loop of batches AA and AE (wave3_aa_kit: pixel
+"""Helpers first written for the batch AG models of wave 3 (sheet u: DELI, New Deli, BONUS and HARVEST; its models are
+polish_glass_globe.py's and polish_deli_towers.py's now), kept for the kits that import it (wave3_ak_kit,
+wave3_an_kit, wave3_ap_kit): the frames, painting, parts and build loop of batches AA and AE (wave3_aa_kit: pixel
 frames, reliefs inflated from pixel regions, painting faces by the sprite's pixel under them, stand-alone models
 and whole objects cut into their sprites' pieces, the silhouette check; wave3_ae_kit: plates, pipes with
 rounded bends, discs, displacements), with a few helpers of their own: relief by the sprite's brightness,
@@ -30,7 +30,6 @@ import wave3_v_kit as v  # noqa: E402,F401
 import wave3_aa_kit as aa  # noqa: E402,F401
 import wave3_ae_kit as ae  # noqa: E402,F401
 import wave3_y_kit as yk  # noqa: E402,F401
-import wave3_ag_art as art  # noqa: E402,F401
 from wave3_j_kit import (pal, paint_faces, lathe_axis, hoop, tube, catmull, sphere, rounded_box, block,  # noqa: E402,F401
                          meshes, bake, sampler, transform, triangles)
 from wave3_v_kit import (Frame, Painter, paint_sprite, pixelate, merge_flat, relief, outlines_of,  # noqa: E402,F401
@@ -50,11 +49,6 @@ ellipsoid_point = aa.ellipsoid_point
 loft_path = ae.loft_path
 heightfield = yk.heightfield
 polys_of = yk.polys_of
-
-
-def frame(name, width, origin):
-    """A Frame of one of wave3_ag_art's pixel arts."""
-    return Frame(getattr(art, name), width, origin)
 
 
 def luminance(index):
