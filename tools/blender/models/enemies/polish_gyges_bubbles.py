@@ -24,7 +24,7 @@ asteroids.
 
 Replaces wave3_an.py's bubbles (its section "# --- The bubbles": bubble() and its three registrations, and the
 gyges_bubble paragraph of its docstring) and wave3_an_art.py's ORB_13, ORB_15 and ORB_125 (only that section reads
-them); wave3_an_kit.py stays as it is (the boss and the pincers use it).
+them); wave3_an_kit.py stayed for the boss and the pincers (polish_gyges_maw.py's since round 35).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each bubble's silhouette
 against enemy_N.png), --preview <prefix>, --only <name,...>.

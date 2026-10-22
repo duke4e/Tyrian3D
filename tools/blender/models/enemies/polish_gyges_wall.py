@@ -14,7 +14,7 @@ Where GYGES puts them (event 15, the sky; dat3 2: they move down the screen with
 pieces of each as the sheet lays them out, the top row at (x, y - 28), (x + 24, y - 28) over the bottom row at (x, y),
 (x + 24, y) (the lurker at t446 (twice), 1944, 2182, 4086 (twice), 4156; the brood at t1398, 1902 (twice), 2896,
 4212); the stalk's rows sent 14 ticks apart (28 pixels) one after the other, its cap 12 pixels in over its square
-(t121-149; the orbs and the spike that swing round over the cap are wave3_ad.py's), and once more on the top layer
+(t121-149; the orbs and the spike that swing round over the cap are polish_gyges_orbs.py's), and once more on the top layer
 (event 7, t2921-2935, bg3's speed). Each is background 2's tube wall coming alive: GYGES' bg2 map draws the same
 creature WOUNDED in the very squares the events make them over (the lurker: shapes 97 98 over 107 108, red gashes in
 it; the brood: 91 ... with red cuts; the stalk: 99 100 over 109 110, its root torn and red, its stem and cap gone; bg2

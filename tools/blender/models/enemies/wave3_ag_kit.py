@@ -1,6 +1,6 @@
 """Helpers first written for the batch AG models of wave 3 (sheet u: DELI, New Deli, BONUS and HARVEST; its models are
 polish_glass_globe.py's and polish_deli_towers.py's now), kept for the kits that import it (wave3_ak_kit,
-wave3_an_kit, wave3_ap_kit): the frames, painting, parts and build loop of batches AA and AE (wave3_aa_kit: pixel
+wave3_ap_kit): the frames, painting, parts and build loop of batches AA and AE (wave3_aa_kit: pixel
 frames, reliefs inflated from pixel regions, painting faces by the sprite's pixel under them, stand-alone models
 and whole objects cut into their sprites' pieces, the silhouette check; wave3_ae_kit: plates, pipes with
 rounded bends, discs, displacements), with a few helpers of their own: relief by the sprite's brightness,

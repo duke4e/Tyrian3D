@@ -1,5 +1,5 @@
 """Helpers first written for the batch AK models of wave 3 (CAMANIS' boss, now polish_camanis_boss.py), kept for
-wave3_an_kit.py and wave3_ap_kit.py, which use them: the kit of batch AG (wave3_ag_kit: pixel frames, painting faces by
+wave3_ap_kit.py, which uses them: the kit of batch AG (wave3_ag_kit: pixel frames, painting faces by
 the sprite's pixel under them, heightfield parts, relief by the sprite's brightness, broken (jagged) ends, soot; whole
 objects cut into their sprites' pieces, the silhouette check and the build loop), with a few helpers of their own:
 frames patched (the damaged look painted over the intact one), dents and debris for wrecked plating, pipes.

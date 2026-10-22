@@ -4,8 +4,8 @@ frames that change an object's shape (a flap swinging on its hinge, a maw openin
 hatch opening). Each is built by the object's own script (imported as it is, quiet_import: its output stays
 unchanged), posed as the frame draws it and cut into the same pieces as the first frame, so that it swaps in place.
 
-The scripts (the spinning claw and the dark sawblade of sheet # are polish_spin_claw.py's):
-wave3_ar_gyges.py (sheet N: GYGES' maw opening, its pincers),
+The scripts (the spinning claw and the dark sawblade of sheet # are polish_spin_claw.py's, GYGES' maw opening and
+its pincers polish_gyges_maw.py's):
 wave3_ar_beasts.py (sheet 0: the GRYPHON's jaw).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera); the origin
