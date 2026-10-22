@@ -1,6 +1,7 @@
-"""Shapes for the batch D models (wave1_d.py): outlines traced from a sprite's pixels, parts inflated
-from them (rounded like tubes or pillows, so curved outlines get real volume), and cutting a
-large model into the pieces the game draws as separate sprites.
+"""Shapes first made for the batch D models (wave1_d.py, whose models are all polish_*.py's now), kept for the kits
+and scripts built on them: outlines traced from a sprite's pixels, parts inflated from them (rounded like tubes or
+pillows, so curved outlines get real volume), and cutting a large model into the pieces the game draws as separate
+sprites.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up. Pixel art is
 given as rows of characters (row 0 at the top); pixel (column c, row r) covers x = c - ox .. c + 1 - ox

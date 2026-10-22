@@ -1,7 +1,7 @@
-"""Helpers for the batch O models of wave 3 (sheet K: wave3_o.py, the sparks; wave3_o_machines.py, the grey
-machines; also used by other batches' kits): the sprites' pixels (wave3_o_art.py), the part builders of batch J
-(wave3_j_kit: palette materials, inflated parts, turned parts, tubes, painting faces), cutting a whole object into
-the pieces the game draws, and the build loop (wave3_j_kit.run).
+"""Helpers first made for the batch O models of wave 3 (sheet K; all of them are polish_*.py's models now), kept for
+the kits built on them (wave3_q_kit, wave3_u_kit): the part builders of batch J (wave3_j_kit: palette materials,
+inflated parts, turned parts, tubes, painting faces), painting by bands, cutting a whole object into the pieces the
+game draws, mirroring, joining and a triangle budget.
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, X right, Y up the screen, Z up (towards the camera);
 the origin is the sprite's centre. Pixel (column c, row r) of an art with origin (ox, oy) covers
@@ -20,35 +20,8 @@ sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402,F401
 import wave1_d_shapes as sh  # noqa: E402,F401
 import wave3_j_kit as w  # noqa: E402,F401
-import wave3_o_art as art  # noqa: E402,F401
 from wave3_j_kit import (bake, block, catmull, grid, hoop, lathe_axis, meshes, outlines, paint_faces, pal,  # noqa: E402,F401
                          part, regions, relabel, rounded_box, sampler, sphere, transform, triangles, tube)
-
-K = "enemy_K"
-
-
-def model(name, sprites, size=(24, 28)):
-    """Registers a builder (wave3_j_kit.model); sprites: sheet K sprites [(sprite, large)]."""
-    return w.model(name, [(K, s, large) for s, large in sprites], size)
-
-
-whole = w.whole
-run = w.run
-
-
-# --- Pixels --------------------------------------------------------------------------------------
-
-
-def char_rows(g, fn):
-    """Char rows of a grid: fn(index, column, row) -> a char ('.' nothing)."""
-    return regions(g, fn)
-
-
-def at(g, c, r):
-    if 0 <= r < len(g) and 0 <= c < len(g[r]):
-        return g[r][c]
-    return None
-
 
 # --- Painting ------------------------------------------------------------------------------------
 

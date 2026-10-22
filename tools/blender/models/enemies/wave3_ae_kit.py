@@ -1,5 +1,5 @@
 """Helpers of the batch AE models of wave 3 (sheet ', FRUIT and CORAL; written x27 in models.cfg; all of them are
-polish_*.py's models now), kept for the kits built on them (wave3_ag_kit, wave3_ai_kit, wave3_aj_kit, wave3_ak_kit,
+polish_*.py's models now), kept for the kits built on them (wave3_ag_kit, wave3_ai_kit, wave3_ak_kit,
 wave3_al_kit): the frames, painting, parts and build loop of batch AA (wave3_aa_kit: pixel frames, reliefs inflated
 from pixel regions, painting faces by the sprite's pixel under them, stand-alone models and whole objects cut into
 their sprites' pieces, the silhouette check), with batch Y's limbs, rings and cones (wave3_y_kit), and a few parts of
