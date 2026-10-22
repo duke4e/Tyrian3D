@@ -1,9 +1,5 @@
 """Wave 2, batch E of the enemy models, authored as their sprites look (models.cfg: yaw=0 unless noted; the faceted orbs, V 153: polish_facet_orb.py):
 
-- station_end_left / station_end_right (sheet L 24 / 34): the ends of a steel axle in STATION and TIME
-  WAR, at both sides of the screen with their knobs facing each other (the axle goes on into the
-  background): a knob, a tube, two flanges with red lamps and a collar with red clamps, turned round
-  the axle. Mirror images.
 - face_eye (sheet 5 270): the eyeballs of NOSE DRIP's face, authored looking up the screen so that
   yaw=aim turns them after the player (the sprite looks down the screen).
 - nose_bridge (sheet 5 154): the bridge of NOSE DRIP's nose; nose_tip_left / nose_tip_right (5 191 / 193)
@@ -40,78 +36,6 @@ def model(name, sheet, sprite, large=True, directory="enemies", preview_yaw=0.0)
         MODELS.append((name, fn, sheet, sprite, large, directory, preview_yaw))
         return fn
     return register
-
-
-def lathe_x(name, profile, mat, segments=32, y=0.0, z=0.0, squash=1.0):
-    """A round part along X: profile is (x, radius) pairs in increasing x."""
-    obj = k.lathe(name, profile, mat, segments=segments, squash=squash)
-    # Built along Y: turn so that +Y becomes +X, then place.
-    obj.data.transform(Matrix.Rotation(math.radians(-90), 4, "Z"))
-    obj.data.transform(Matrix.Translation((0.0, y, z)))
-    return obj
-
-
-def mirror_all(objects):
-    for obj in objects:
-        obj.data.transform(Matrix.Scale(-1, 4, (1, 0, 0)))
-        obj.data.flip_normals()
-        k.recalc_normals(obj)
-
-
-# --- The ends of the station's axle (sheet L 24 and its mirror image 34) ----------------------------
-
-def station_end(mirror):
-    """The end of the steel axle whose knob points left (sprite 24; 34 is its mirror image), along X: a rounded
-    knob, a tube, two flanges with a groove between them and small red lamps on the first one's rim,
-    and a collar with red clamps at its sides, cut where the axle goes on into the background. The
-    axle's centre is at y = 0.5 (rows 3-23); squashed in height."""
-    steel = k.material("axle_steel", palette=9, metallic=0.5, roughness=0.3)
-    bright = k.material("axle_bright", palette=11, metallic=0.5, roughness=0.25)
-    dark = k.material("axle_dark", palette=4, metallic=0.6, roughness=0.45)
-    red = k.material("axle_red", palette=116, metallic=0.3, roughness=0.3, emission=(220, 30, 0),
-                     emission_strength=0.6)
-    y0, squash = 0.5, 0.62
-    objs = []
-    # The knob and the tube.
-    objs.append(lathe_x("knob", [(-8.0, 0.01), (-7.95, 1.6), (-7.75, 2.6), (-7.35, 3.25), (-6.8, 3.5), (-5.6, 3.5),
-                                 (-5.3, 3.2), (-5.0, 3.2)], bright, y=y0, squash=squash))
-    objs.append(lathe_x("tube", [(-5.3, 4.6), (-5.1, 5.3), (-4.8, 5.5), (-0.4, 5.5), (-0.1, 5.0), (0.3, 5.0)],
-                        steel, y=y0, squash=squash))
-    objs.append(lathe_x("tube_ring", [(-3.2, 5.3), (-3.05, 5.75), (-2.25, 5.75), (-2.1, 5.3)], dark, y=y0,
-                        squash=squash))
-    # The flanges, each with a chamfered rim, and the hub between them.
-    for i, (a, b) in enumerate(((0.05, 3.7), (4.45, 7.95))):
-        objs.append(lathe_x(f"flange{i}", [(a, 6.0), (a + 0.05, 9.6), (a + 0.45, 10.45), (b - 0.45, 10.45),
-                                           (b - 0.05, 9.6), (b, 6.0)], steel, y=y0, squash=squash))
-        objs.append(lathe_x(f"flange_face{i}", [(a - 0.02, 3.0), (a - 0.01, 8.6), (b + 0.01, 8.6), (b + 0.02, 3.0)],
-                            dark, y=y0, squash=squash))
-    objs.append(lathe_x("flange_band", [(1.6, 10.2), (1.75, 10.6), (2.25, 10.6), (2.4, 10.2)], bright, y=y0,
-                        squash=squash))
-    objs.append(lathe_x("hub", [(3.5, 8.3), (3.7, 8.6), (4.7, 8.6), (4.9, 8.3)], dark, y=y0, squash=squash))
-    # The collar, cut at the sprite's edge.
-    objs.append(lathe_x("collar", [(7.8, 6.6), (8.1, 7.2), (8.4, 7.45), (12.0, 7.45), (12.0, 0.01)], steel, y=y0,
-                        squash=squash))
-    objs.append(lathe_x("collar_ring", [(10.3, 7.3), (10.45, 7.75), (11.15, 7.75), (11.3, 7.3)], dark, y=y0,
-                        squash=squash))
-    # Red lamps on the first flange's rim, up and down the screen.
-    for side in (1, -1):
-        lamp = k.ellipsoid(f"lamp{side}", (3.0, y0 + side * 9.8, 0.0), (0.75, 1.3, 1.7), red, 16, 8)
-        objs.append(k.smooth(lamp, 60))
-    # Red clamps at the collar's sides.
-    for side in (1, -1):
-        clamp = k.slab(f"clamp{side}", [(8.6, -1.2), (11.9, -1.2), (11.9, 1.2), (8.6, 1.2)], -3.3, 3.3, red,
-                       bevel_width=0.35)
-        clamp.data.transform(Matrix.Translation((0, y0 + side * 6.1, 0)))
-        objs.append(clamp)
-    for obj in objs:
-        if not obj.modifiers:
-            k.smooth(obj, 50)
-    if mirror:
-        mirror_all(objs)
-
-
-model("station_end_left", "L", 24)(lambda: station_end(False))
-model("station_end_right", "L", 34)(lambda: station_end(True))
 
 
 # --- NOSE DRIP's eye (sheet 5 270) ------------------------------------------------------------------
