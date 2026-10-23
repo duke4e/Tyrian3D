@@ -45,6 +45,8 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire);
 
 // True if the frame about to be presented should be captured (pass its pixels below).
 bool dev_capture_next_frame(void);
+// Whether the frame being shown is dumped (TYR3D_DUMP_DIR; not the debug flight's snapshots).
+bool dev_dumping_frame(void);
 
 // Called once per presented frame, with the final RGBA8 image if it was captured (else NULL).
 void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch);

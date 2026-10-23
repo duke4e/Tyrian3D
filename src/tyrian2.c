@@ -519,6 +519,8 @@ static bool draw_enemy_model(unsigned int i)
 
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
 	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
+	if (added)
+		l3d_enemy_last_object(sheet, first_sprite);
 	if (added && look.layer > 0)
 		l3d_layer_last_object((L3DLayerType)(look.layer - 1));  // a piece of an object on another layer
 	float vx, vy;
@@ -588,7 +590,8 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 		return;
 
 	const float x = x_now + map_x_ofs + 6, y = y_now + 7;
-	const M3DAppearance look = m3d_enemy_appearance(enemy_sheet_letter(sheet), what.graphic, what.large, l3d_current_layer());
+	const char letter = enemy_sheet_letter(sheet);
+	const M3DAppearance look = m3d_enemy_appearance(letter, what.graphic, what.large, l3d_current_layer());
 	bool added;
 	if (look.model >= 0)
 		added = l3d_add_object(look.model, x, y, look.height, look.yaw, 0.0f, 0);
@@ -602,6 +605,7 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 		return;
 	if (added)
 	{
+		l3d_enemy_last_object(letter, what.graphic);
 		l3d_key_last_object(key, NULL, NULL);
 		l3d_appear_last_object(l3d_key_shown(key));  // (one first shown in sight fades in)
 	}

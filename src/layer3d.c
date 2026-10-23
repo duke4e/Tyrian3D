@@ -39,6 +39,7 @@ typedef enum
 static PhaseKind phase_kind = PHASE_NONE;
 static bool phase_blur = false;  // the modify phase is the game's blur (l3d_modify_blur)
 static L3DLayerType phase_type;
+static Uint8 phase_number = 0;   // draw phases begun in the frame so far (L3DObject.phase)
 
 static Uint8 snapshot[L3D_WIDTH * L3D_ROWS];
 static Uint8 owner[L3D_WIDTH * L3D_ROWS];  // topmost layer per pixel, 0xff for none
@@ -215,6 +216,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	phase_kind = PHASE_FULL;
 	phase_type = first_type;
 	phase_blur = false;
+	phase_number = 0;
 }
 
 void l3d_phase(L3DLayerType type)
@@ -227,6 +229,7 @@ void l3d_phase(L3DLayerType type)
 	phase_kind = PHASE_DRAW;
 	phase_type = type;
 	phase_blur = false;
+	++phase_number;
 }
 
 void l3d_modify(void)
@@ -365,6 +368,7 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 	object->yaw = yaw;
 	object->roll = roll;
 	object->filter = filter;
+	object->phase = phase_number;
 	return true;
 }
 
@@ -465,6 +469,15 @@ void l3d_layer_last_object(L3DLayerType type)
 {
 	if (l3d_capturing && l3d_frame.object_count > 0)
 		l3d_frame.objects[l3d_frame.object_count - 1].layer = type;
+}
+
+void l3d_enemy_last_object(char sheet, unsigned int first_sprite)
+{
+	if (l3d_capturing && l3d_frame.object_count > 0)
+	{
+		l3d_frame.objects[l3d_frame.object_count - 1].enemy_sheet = sheet;
+		l3d_frame.objects[l3d_frame.object_count - 1].enemy_sprite = (Uint16)first_sprite;
+	}
 }
 
 void l3d_pointer_last_object(void)
@@ -667,6 +680,7 @@ void l3d_add_background(int set, Uint8 **top_row, Uint8 **position, Uint8 **wrap
 	background->x = x;
 	background->top_y = top_y;
 	background->effect_count = 0;
+	background->phase = phase_number;
 }
 
 void l3d_add_star(Uint16 position, Uint8 color, bool bright)

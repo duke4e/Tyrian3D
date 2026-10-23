@@ -2666,6 +2666,32 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 
+// TYR3D_LOG_CLIP (log_clipping): what the frame draws where, kept only while the switch is on. Each
+// model object's transform as add_object_batches draws it (before aligned()), and each background
+// as add_background_batches draws it: as terrain (the ground's, or a solid) or flat.
+typedef struct
+{
+	const L3DBackground *background;
+	const B3DTerrain *terrain;  // NULL: drawn flat
+	float height;               // its plane's height (its tiles' and its terrain rows')
+	float hole_depth;           // how far its terrain's walls go down where it has nothing
+	float shift;                // how far it has scrolled on since the tick (game pixels)
+	bool clouds;                // its cloud tiles are clouds (add_cloud_batches), not on its plane
+} ClipSurface;
+
+static Mat4 clip_transforms[L3D_MAX_OBJECTS];
+static bool clip_drawn[L3D_MAX_OBJECTS];
+static ClipSurface clip_surfaces[L3D_MAX_BACKGROUNDS];
+static int clip_surface_count = 0;
+
+static bool clip_log_on(void)
+{
+	static int on = -1;
+	if (on < 0)
+		on = SDL_getenv("TYR3D_LOG_CLIP") != NULL;
+	return on != 0;
+}
+
 // Appends instances and batches for the frame's model objects, grouped by model. colors are the
 // frame's palette colours, for palette materials.
 // mirror turns the models left for right: in a vertically mirrored view (upside-down levels) that
@@ -2683,6 +2709,9 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
                                int *batch_count)
 {
 	sync_model_cache();
+	const bool clip_log = clip_log_on();
+	if (clip_log)
+		memset(clip_drawn, 0, sizeof(clip_drawn));
 
 	for (int model_index = 0; model_index < m3d_model_count; ++model_index)
 	{
@@ -2743,6 +2772,11 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					transform.m[13] += 0.3f - (height - reach);
 				write_instance(instances + *instance_count * 24, &transform, object->wreck ? WRECK_SHADE : 1.0f);
 				++*instance_count;
+				if (clip_log)  // (where it is drawn)
+				{
+					clip_transforms[o] = transform;
+					clip_drawn[o] = true;
+				}
 			}
 
 			const int count = *instance_count - first_instance;
@@ -4181,6 +4215,13 @@ static float solid_top(int set)
 	return SOLID_EXTRUDE * (set == 3 ? top : top - SOLID_BG2_BELOW_BG3);
 }
 
+// How far a terrain's walls go down where it has holes, drawn at the given height: in the ground,
+// chasms; in backgrounds 2 and 3 (solid), the walls of their solids go down to below the ground.
+static float terrain_hole_depth(bool solid, float height)
+{
+	return solid ? height * 1.5f + 8.0f : TERRAIN_HOLE_DEPTH;
+}
+
 // What stands on the ground (its enemies, their explosions) stands on the terrain: the terrain's
 // height at a game position, 0 over a hole or off the map. Their game positions stay as they are
 // (aligned scales by height).
@@ -5348,6 +5389,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
                                    const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
 	cloud_tile_count = 0;
+	if (clip_log_on())
+		clip_surface_count = 0;
 	if (frame->background_count == 0)
 		return;
 	++tile_frame;
@@ -5427,6 +5470,13 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			continue;
 		rect[1] -= shift;  // what has scrolled into view
 		rect[3] -= shift;
+		if (clip_log_on() && clip_surface_count < L3D_MAX_BACKGROUNDS)  // (what is drawn where, for log_clipping)
+		{
+			const bool terrain = terrain_background(frame, background);
+			clip_surfaces[clip_surface_count++] = (ClipSurface){
+				background, terrain ? frame_terrains[background->set] : NULL, height, terrain_hole_depth(solid, height), shift,
+				cloud_background(background, composed[i]) };
+		}
 
 		b3d_tile_is_cloud(background->set, 0);  // classifies the set's tiles (logged with TYR3D_LOG_CLOUDS)
 		// Tiles take the colours the game gives them through blending and the level's filters.
@@ -5480,9 +5530,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		{
 			const B3DTerrain *terrain = frame_terrains[background->set];
 			TerrainRing *ring = terrain_ring(terrain, background->set, page_colors, ground_zero);
-			// Holes: in the ground, chasms; in backgrounds 2 and 3, the walls of their solids go
-			// down to below the ground.
-			const float hole_depth = solid ? height * 1.5f + 8.0f : TERRAIN_HOLE_DEPTH;
+			const float hole_depth = terrain_hole_depth(solid, height);
 			const int columns = (terrain->width - 1) / (B3D_TILE_W / terrain->sample);
 			int kept = first;
 			for (int t = first; t < tile_count; ++t)
@@ -5740,6 +5788,556 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		dim_by_fade(b);  // (the plants' colours are the full palette's)
 		b->unlit_enabled = 1;
 	}
+}
+
+/*
+ * TYR3D_LOG_CLIP=1 (dev): where raised ground or a background hides part of an enemy's model that
+ * should show, or shows part the game hides. In every CLIP_LOG_EVERY of the game's frames, the first
+ * shown (as captured, not moved on between ticks), and in every frame dumped: each enemy drawn as a model (not volumes, wrecks or
+ * the side decor) has its model's triangles placed as add_object_batches draws them (lifted, turned,
+ * scaled, aligned) and rasterized as the camera sees them (clip_view_model): the points of it that
+ * would show with nothing else drawn. Each of those is checked, in world space as the depth test
+ * checks it, against what add_background_batches drew (clip_surfaces):
+ *   terrain               the ground's terrain (background 1, or a background 2 covering it): the way
+ *                         from the point to the camera passes below its surface, so it hides the point
+ *   bg2-solid, bg3-solid  backgrounds 2 and 3 as solids: the same
+ *   ground                background 1 drawn flat: the point is below it and its pixel hides it
+ *   bg2-plane, bg3-plane  backgrounds 2 and 3 drawn flat (not their clouds), the game drawing them under
+ *                         the enemy: the point is below the plane and its pixel hides it
+ *   bg2-over, bg3-over    the same, the game drawing them over the enemy: the point shows above the
+ *                         plane where the plane has a pixel, which in the game covers the enemy
+ * (Parts of a model inside the ground that nothing shows, such as its underside, don't count.)
+ * A line for each kind that reaches deeper than CLIP_LOG_MIN somewhere: the deepest, in the model's
+ * game pixels (how far below the terrain the way to the camera passes, or how far the point is from
+ * the plane); the height of its bounds; the share of what shows of the model that is affected that
+ * deep, and of that the share where the model is inside a terrain or solid (sunk, rather than hidden
+ * by raised ground in front of it); where its middle is in the window (0 to 1 across and down, to find it in a frame dump: the
+ * "dump:" lines say which 3D frame a dump shows):
+ *   clip: <kind> frame <3D frame> layer <layer> sheet <sheet> sprite <first sprite> model <name>
+ *         at <x>,<y> depth <pixels> of <pixels> area <percent> inside <percent> screen <x>,<y>
+ * TYR3D_LOG_CLIP=2 also prints where the deepest point of each is:
+ *   clip-cell: <kind> point <world x,y,z> (<x>,<z> from the middle, game pixels) of <cells seen>,
+ *              <cells affected> deep, base <the model's translation height>, lift <compute_object_lifts'>
+ *              (the terrain where it is <terrain_lift at its own position>)
+ */
+#define CLIP_LOG_EVERY 10
+#define CLIP_LOG_MIN 2.0f
+#define CLIP_GRID_MAX 128   // cells across at most (larger models get larger cells)
+
+enum { CLIP_TERRAIN, CLIP_BG2_SOLID, CLIP_BG3_SOLID, CLIP_GROUND, CLIP_BG2_PLANE, CLIP_BG3_PLANE, CLIP_BG2_OVER, CLIP_BG3_OVER,
+       CLIP_KINDS };
+static const char *const clip_kind_names[CLIP_KINDS] = {
+	"terrain", "bg2-solid", "bg3-solid", "ground", "bg2-plane", "bg3-plane", "bg2-over", "bg3-over"
+};
+
+// (over: a flat background the game draws over the enemy)
+static int clip_kind(const ClipSurface *s, bool over)
+{
+	const int set = s->background->set;
+	if (s->terrain != NULL)
+		return set == 1 || s->background == lift_ground ? CLIP_TERRAIN : set == 2 ? CLIP_BG2_SOLID : CLIP_BG3_SOLID;
+	if (over)
+		return set == 3 ? CLIP_BG3_OVER : CLIP_BG2_OVER;
+	return set == 1 ? CLIP_GROUND : set == 2 ? CLIP_BG2_PLANE : CLIP_BG3_PLANE;
+}
+
+// A model's triangles on the CPU, read as btbh_gpu_window_model_load reads them: every mesh node's
+// triangle primitives at the node's world transform (skinned ones as they are).
+typedef struct
+{
+	bool tried;
+	int vertex_count, index_count;
+	float *positions;  // x, y, z a vertex, model units
+	Uint32 *indices;   // three a triangle
+} ClipMesh;
+
+static ClipMesh clip_meshes[M3D_MAX_MODELS];
+
+static const ClipMesh *clip_mesh(int model)
+{
+	static unsigned int generation = 0;  // m3d_generation + 1 of the meshes read
+	if (generation != m3d_generation + 1)
+	{
+		for (int i = 0; i < M3D_MAX_MODELS; ++i)
+		{
+			free(clip_meshes[i].positions);
+			free(clip_meshes[i].indices);
+		}
+		memset(clip_meshes, 0, sizeof(clip_meshes));
+		generation = m3d_generation + 1;
+	}
+	ClipMesh *mesh = &clip_meshes[model];
+	if (mesh->tried)
+		return mesh->index_count > 0 ? mesh : NULL;
+	mesh->tried = true;
+
+	cgltf_options options;
+	memset(&options, 0, sizeof(options));
+	cgltf_data *data = NULL;
+	if (cgltf_parse_file(&options, m3d_models[model].path, &data) != cgltf_result_success ||
+	    cgltf_load_buffers(&options, data, m3d_models[model].path) != cgltf_result_success)
+	{
+		cgltf_free(data);
+		return NULL;
+	}
+	// Counted, then read.
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		int vertices = 0, indices = 0;
+		for (cgltf_size n = 0; n < data->nodes_count; ++n)
+		{
+			const cgltf_node *node = &data->nodes[n];
+			if (node->mesh == NULL)
+				continue;
+			float world[16];
+			cgltf_node_transform_world(node, world);
+			for (cgltf_size p = 0; p < node->mesh->primitives_count; ++p)
+			{
+				const cgltf_primitive *primitive = &node->mesh->primitives[p];
+				const cgltf_accessor *position = NULL;
+				for (cgltf_size a = 0; a < primitive->attributes_count; ++a)
+					if (primitive->attributes[a].type == cgltf_attribute_type_position)
+						position = primitive->attributes[a].data;
+				if (primitive->type != cgltf_primitive_type_triangles || position == NULL)
+					continue;
+				const int count = (int)(primitive->indices != NULL ? primitive->indices->count : position->count);
+				if (pass == 1)
+				{
+					for (cgltf_size v = 0; v < position->count; ++v)
+					{
+						float in[3] = { 0, 0, 0 };
+						cgltf_accessor_read_float(position, v, in, 3);
+						float *out = &mesh->positions[(vertices + (int)v) * 3];
+						for (int k = 0; k < 3; ++k)
+							out[k] = node->skin != NULL ? in[k]
+							                            : world[k] * in[0] + world[4 + k] * in[1] + world[8 + k] * in[2] + world[12 + k];
+					}
+					for (int i = 0; i < count; ++i)
+						mesh->indices[indices + i] = (Uint32)vertices +
+							(Uint32)(primitive->indices != NULL ? cgltf_accessor_read_index(primitive->indices, (cgltf_size)i) : (cgltf_size)i);
+				}
+				vertices += (int)position->count;
+				indices += count;
+			}
+		}
+		if (pass == 0)
+		{
+			mesh->positions = malloc(sizeof(float) * 3 * (size_t)SDL_max(vertices, 1));
+			mesh->indices = malloc(sizeof(Uint32) * (size_t)SDL_max(indices, 1));
+			if (mesh->positions == NULL || mesh->indices == NULL)
+				break;
+		}
+		else
+		{
+			mesh->vertex_count = vertices;
+			mesh->index_count = indices / 3 * 3;
+		}
+	}
+	cgltf_free(data);
+	return mesh->index_count > 0 ? mesh : NULL;
+}
+
+// A model as drawn, as the camera sees it: rasterized into a grid of the window (window points),
+// each cell keeping the nearest of its points there (its depth and world position), as the depth
+// test leaves it with nothing else in the scene.
+typedef struct
+{
+	float u0, v0, cell;  // the window position of cell 0's corner, the cells' side
+	int w, h;
+	float depth[CLIP_GRID_MAX * CLIP_GRID_MAX];      // clip-space w of the nearest point; INFINITY: none
+	float point[CLIP_GRID_MAX * CLIP_GRID_MAX][3];   // its world position
+} ClipView;
+
+static bool clip_view_model(ClipView *g, const ClipMesh *mesh, const Mat4 *world, const float vp[16], float window_w,
+                            float window_h, float cell)
+{
+	// The vertices placed (world x, y, z) and projected (window u, v and clip-space w).
+	static float *placed = NULL;
+	static int capacity = 0;
+	if (capacity < mesh->vertex_count)
+	{
+		free(placed);
+		placed = malloc(sizeof(float) * 6 * (size_t)mesh->vertex_count);
+		capacity = placed != NULL ? mesh->vertex_count : 0;
+		if (placed == NULL)
+			return false;
+	}
+	const float *m = world->m;
+	float u0 = INFINITY, v0 = INFINITY, u1 = -INFINITY, v1 = -INFINITY;
+	for (int i = 0; i < mesh->vertex_count; ++i)
+	{
+		const float *p = &mesh->positions[i * 3];
+		float *out = &placed[i * 6];
+		for (int k = 0; k < 3; ++k)
+			out[k] = m[k] * p[0] + m[4 + k] * p[1] + m[8 + k] * p[2] + m[12 + k];
+		float clip[4];
+		for (int r = 0; r < 4; ++r)
+			clip[r] = vp[r] * out[0] + vp[4 + r] * out[1] + vp[8 + r] * out[2] + vp[12 + r];
+		out[5] = clip[3];
+		if (clip[3] <= 0.1f)
+			continue;  // (behind the camera)
+		out[3] = (clip[0] / clip[3] + 1) / 2 * window_w;
+		out[4] = (1 - clip[1] / clip[3]) / 2 * window_h;
+		u0 = SDL_min(u0, out[3]);
+		u1 = SDL_max(u1, out[3]);
+		v0 = SDL_min(v0, out[4]);
+		v1 = SDL_max(v1, out[4]);
+	}
+	// (What the window shows of it.)
+	u0 = SDL_max(u0, 0.0f);
+	v0 = SDL_max(v0, 0.0f);
+	u1 = SDL_min(u1, window_w);
+	v1 = SDL_min(v1, window_h);
+	if (!(u0 < u1 && v0 < v1))
+		return false;
+	g->cell = SDL_max(cell, SDL_max(u1 - u0, v1 - v0) / (CLIP_GRID_MAX - 1));
+	g->u0 = u0;
+	g->v0 = v0;
+	g->w = SDL_min((int)((u1 - u0) / g->cell) + 1, CLIP_GRID_MAX);
+	g->h = SDL_min((int)((v1 - v0) / g->cell) + 1, CLIP_GRID_MAX);
+	for (int c = 0; c < g->w * g->h; ++c)
+		g->depth[c] = INFINITY;
+	for (int t = 0; t + 2 < mesh->index_count; t += 3)
+	{
+		const float *a = &placed[mesh->indices[t] * 6], *b = &placed[mesh->indices[t + 1] * 6],
+		            *c = &placed[mesh->indices[t + 2] * 6];
+		if (a[5] <= 0.1f || b[5] <= 0.1f || c[5] <= 0.1f)
+			continue;
+		const float area = (b[3] - a[3]) * (c[4] - a[4]) - (c[3] - a[3]) * (b[4] - a[4]);
+		if (fabsf(area) < 1e-9f)
+			continue;
+		const int i0 = SDL_max((int)floorf((SDL_min(a[3], SDL_min(b[3], c[3])) - g->u0) / g->cell), 0);
+		const int i1 = SDL_min((int)floorf((SDL_max(a[3], SDL_max(b[3], c[3])) - g->u0) / g->cell), g->w - 1);
+		const int j0 = SDL_max((int)floorf((SDL_min(a[4], SDL_min(b[4], c[4])) - g->v0) / g->cell), 0);
+		const int j1 = SDL_min((int)floorf((SDL_max(a[4], SDL_max(b[4], c[4])) - g->v0) / g->cell), g->h - 1);
+		for (int j = j0; j <= j1; ++j)
+			for (int i = i0; i <= i1; ++i)
+			{
+				const float pu = g->u0 + (i + 0.5f) * g->cell, pv = g->v0 + (j + 0.5f) * g->cell;
+				const float lb = ((pu - a[3]) * (c[4] - a[4]) - (c[3] - a[3]) * (pv - a[4])) / area;
+				const float lc = ((b[3] - a[3]) * (pv - a[4]) - (pu - a[3]) * (b[4] - a[4])) / area;
+				const float la = 1 - lb - lc;
+				if (la < -1e-4f || lb < -1e-4f || lc < -1e-4f)
+					continue;
+				// Perspective-correct: what varies linearly across the window is a quantity over w.
+				const float inv = la / a[5] + lb / b[5] + lc / c[5];
+				const float w = 1 / inv;
+				const int cell_index = j * g->w + i;
+				if (w >= g->depth[cell_index])
+					continue;
+				g->depth[cell_index] = w;
+				for (int k = 0; k < 3; ++k)
+					g->point[cell_index][k] = (la * a[k] / a[5] + lb * b[k] / b[5] + lc * c[k] / c[5]) * w;
+			}
+	}
+	return true;
+}
+
+// Where a surface's map lies under the world point x, z: from the tile there, the map pixel of any
+// world point near it (its plane is aligned: k times its size about the point below the camera;
+// and has scrolled on by shift). False off its map.
+typedef struct
+{
+	float k;            // the plane's align_scale
+	float x, z;         // the tile's top-left corner, game screen coordinates
+	int row, column;    // the tile's place in the map (map_row, map_column)
+} ClipAnchor;
+
+static bool clip_anchor(const ClipSurface *s, float x, float z, ClipAnchor *anchor)
+{
+	anchor->k = align_scale(s->height);
+	const float gx = align.cx + (x - align.cx) / anchor->k, gy = align.cz + (z - align.cz) / anchor->k - s->shift;
+	// (Above the topmost drawn row the tiles come row by row from the one above it up to the
+	// point's: the point's is the one containing it.)
+	B3DTile tiles[32];
+	const int count = b3d_collect_tiles(s->background, true, gx, gy, gx, gy, tiles, (int)COUNTOF(tiles));
+	for (int i = 0; i < count; ++i)
+		if (gy >= tiles[i].z && gy < tiles[i].z + B3D_TILE_H)
+		{
+			anchor->x = tiles[i].x;
+			anchor->z = tiles[i].z;
+			anchor->row = tiles[i].map_row;
+			anchor->column = tiles[i].map_column;
+			return true;
+		}
+	return false;
+}
+
+// The world height of what a surface draws at the world point x, z (near its anchor); false where
+// it draws nothing there (holes all round in its terrain, a clear pixel or a cloud of a flat one, no
+// tile). *local: a terrain's own height there.
+static bool clip_surface_height(const ClipSurface *s, const ClipAnchor *anchor, float x, float z, float *height,
+                                float *local)
+{
+	const float gx = align.cx + (x - align.cx) / anchor->k, gy = align.cz + (z - align.cz) / anchor->k - s->shift;
+	// Map pixels from the map's column 0 and row 0.
+	const float mx = anchor->column * B3D_TILE_W + (gx - anchor->x), my = anchor->row * B3D_TILE_H + (gy - anchor->z);
+	const int column = (int)floorf(mx / B3D_TILE_W), row = (int)floorf(my / B3D_TILE_H);
+	bool flipped;
+	const int cell = b3d_map_cell(s->background->set, row, column, &flipped);
+	if (cell < 0 || cell >= B3D_CELLS)
+		return false;
+	if (s->terrain == NULL)
+	{
+		const int set = cell / B3D_TILES_PER_SET + 1, index = cell % B3D_TILES_PER_SET;
+		const Uint8 *pixels = b3d_tile_pixels(set, index);
+		if (pixels == NULL || (s->clouds && b3d_tile_is_cloud(set, index)))
+			return false;
+		const int px = SDL_clamp((int)floorf(mx - column * B3D_TILE_W), 0, B3D_TILE_W - 1);
+		const int py = SDL_clamp((int)floorf(my - row * B3D_TILE_H), 0, B3D_TILE_H - 1);
+		if (pixels[py * B3D_TILE_W + (flipped ? B3D_TILE_W - 1 - px : px)] == 0)
+			return false;
+		*height = s->height;
+		*local = 0;
+		return true;
+	}
+	// The terrain as its rows' meshes have it (add_background_batches, build_terrain_row): beyond
+	// its columns the tiles are flat; holes at their walls' feet.
+	const B3DTerrain *t = s->terrain;
+	if (column + t->side_columns < 0 || column + t->side_columns >= (t->width - 1) / (B3D_TILE_W / t->sample))
+		return false;
+	const float fx = (mx + t->side_columns * B3D_TILE_W) / t->sample, fy = my / t->sample;
+	const int sx = (int)floorf(fx), sy = (int)floorf(fy);
+	float h[4];
+	int holes = 0;
+	for (int c = 0; c < 4; ++c)
+	{
+		const int ix = SDL_clamp(sx + (c & 1), 0, t->width - 1), iy = SDL_clamp(sy + (c >> 1), 0, t->height - 1);
+		const Sint8 value = t->heights[iy * t->width + ix];
+		const bool hole = t->holes && value == B3D_TERRAIN_HOLE;
+		holes += hole;
+		h[c] = hole ? -s->hole_depth : (float)value;
+	}
+	if (holes == 4)
+		return false;
+	const float ax = fx - sx, ay = fy - sy;
+	*local = (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
+	*height = s->height + anchor->k * *local;
+	return true;
+}
+
+// The highest a terrain or solid stands (world, a little over) round a model's bounds (world x0..x1,
+// z0..z1) and on the way from them to the camera, `reach` world units towards it: what can hide any of
+// the model. Sampled every couple of world units at most CLIP_TOP_SAMPLES each way.
+#define CLIP_TOP_SAMPLES 12
+
+static float clip_local_top(const ClipSurface *s, const ClipAnchor *anchor, const float *camera, float x0, float z0,
+                            float x1, float z1, float reach)
+{
+	const float mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+	const float dx = camera[0] - mx, dz = camera[2] - mz, length = sqrtf(dx * dx + dz * dz);
+	if (length > 0)
+	{
+		const float rx = dx / length * reach, rz = dz / length * reach;
+		x0 = SDL_min(x0, x0 + rx);
+		x1 = SDL_max(x1, x1 + rx);
+		z0 = SDL_min(z0, z0 + rz);
+		z1 = SDL_max(z1, z1 + rz);
+	}
+	const int nx = SDL_clamp((int)ceilf((x1 - x0) / 2.0f), 1, CLIP_TOP_SAMPLES);
+	const int nz = SDL_clamp((int)ceilf((z1 - z0) / 2.0f), 1, CLIP_TOP_SAMPLES);
+	float top = -INFINITY;
+	for (int j = 0; j <= nz; ++j)
+		for (int i = 0; i <= nx; ++i)
+		{
+			float height, local;
+			if (clip_surface_height(s, anchor, x0 + (x1 - x0) * i / nx, z0 + (z1 - z0) * j / nz, &height, &local))
+				top = SDL_max(top, height);
+		}
+	// (between the samples: a slope of the terrain's steepest)
+	return top + 0.5f * SDL_max(x1 - x0, z1 - z0) / SDL_max(nx, nz) * 2.0f;
+}
+
+// A sheet as models.cfg names it (parse_sheet): its letter in lower case, coins, powerups, or x and
+// the hex code of a sign.
+static const char *clip_sheet_name(char sheet, char name[8])
+{
+	if (sheet == M3D_SHEET_COINS)
+		return "coins";
+	if (sheet == M3D_SHEET_POWERUPS)
+		return "powerups";
+	if (SDL_isalnum((unsigned char)sheet))
+		SDL_snprintf(name, 8, "%c", SDL_tolower((unsigned char)sheet));
+	else
+		SDL_snprintf(name, 8, "x%02x", (unsigned char)sheet);
+	return name;
+}
+
+static void log_clipping(const L3DFrame *frame)
+{
+	// (and every frame dumped: TYR3D_DUMP_DIR)
+	static Uint32 checked = 0;  // the frame last looked at
+	if (!clip_log_on() || ahead != 0 || menu.on || !shown_view.valid || l3d_frame_number == checked ||
+	    (l3d_frame_number / CLIP_LOG_EVERY == checked / CLIP_LOG_EVERY && !dev_dumping_frame()))
+		return;
+	checked = l3d_frame_number;
+	static int verbose = -1;
+	if (verbose < 0)
+		verbose = SDL_atoi(SDL_getenv("TYR3D_LOG_CLIP")) >= 2;
+
+	const Camera3D *camera = &shown_view.camera;
+	const float *vp = camera->view_projection.m;
+	const float window_w = shown_view.window_w, window_h = shown_view.window_h;
+	static ClipView view;
+	bool printed = false;
+	for (int o = 0; o < frame->object_count; ++o)
+	{
+		const L3DObject *object = &frame->objects[o];
+		if (!clip_drawn[o] || object->enemy_sheet == 0 || object->wreck || object->model < 0 || object->model >= m3d_model_count)
+			continue;
+		const LoadedModel *loaded = &loaded_models[object->model];
+		const float *centre = loaded->center, *half = loaded->half;
+		const Mat4 world = aligned(&clip_transforms[o]);
+		const float k = align_scale(clip_transforms[o].m[13]);  // world units to the model's game pixels
+
+		// The model's bounds as drawn: its middle, how far they reach up and down (world).
+		const float middle[3] = {
+			world.m[0] * centre[0] + world.m[4] * centre[1] + world.m[8] * centre[2] + world.m[12],
+			world.m[1] * centre[0] + world.m[5] * centre[1] + world.m[9] * centre[2] + world.m[13],
+			world.m[2] * centre[0] + world.m[6] * centre[1] + world.m[10] * centre[2] + world.m[14],
+		};
+		const float reach = fabsf(world.m[1]) * half[0] + fabsf(world.m[5]) * half[1] + fabsf(world.m[9]) * half[2];
+
+		// The surfaces that may hide some of it: a terrain whose highest point stands above its
+		// bottom, a flat background the game draws under the enemy above its bottom, one it draws over
+		// the enemy below its top.
+		const ClipSurface *surfaces[L3D_MAX_BACKGROUNDS];
+		bool over[L3D_MAX_BACKGROUNDS];
+		ClipAnchor anchors[L3D_MAX_BACKGROUNDS];
+		float tops[L3D_MAX_BACKGROUNDS];  // a terrain's highest round the model (clip_local_top)
+		int count = 0;
+		const float half_x = fabsf(world.m[0]) * half[0] + fabsf(world.m[4]) * half[1] + fabsf(world.m[8]) * half[2];
+		const float half_z = fabsf(world.m[2]) * half[0] + fabsf(world.m[6]) * half[1] + fabsf(world.m[10]) * half[2];
+		for (int s = 0; s < clip_surface_count; ++s)
+		{
+			const ClipSurface *surface = &clip_surfaces[s];
+			const bool drawn_over = surface->terrain == NULL && surface->background->phase > object->phase;
+			float top = surface->terrain != NULL
+			                ? surface->height + align_scale(surface->height) * SDL_max(surface->terrain->highest, 0)
+			                : surface->height;
+			const float bottom = middle[1] - reach;
+			float room = drawn_over ? middle[1] + reach - top : top - bottom;
+			if (room <= CLIP_LOG_MIN * k || !clip_anchor(surface, middle[0], middle[2], &anchors[count]))
+				continue;
+			if (surface->terrain != NULL)
+			{
+				// What stands round it and between it and the camera: the way from its lowest point up to
+				// the terrain's highest goes about as far across as the camera is away across for its height.
+				const float *eye = shown_view.camera.position;
+				const float across = sqrtf((eye[0] - middle[0]) * (eye[0] - middle[0]) + (eye[2] - middle[2]) * (eye[2] - middle[2]));
+				const float reach_across = (top - bottom) * across / SDL_max(eye[1] - bottom, 1.0f);
+				top = clip_local_top(surface, &anchors[count], eye, middle[0] - half_x, middle[2] - half_z, middle[0] + half_x,
+				                     middle[2] + half_z, reach_across);
+				room = top - bottom;
+				if (room <= CLIP_LOG_MIN * k)
+					continue;
+			}
+			surfaces[count] = surface;
+			tops[count] = top;
+			over[count++] = drawn_over;
+		}
+		const ClipMesh *mesh = count > 0 ? clip_mesh(object->model) : NULL;
+		// (cells of about two thirds of a game pixel where the playfield's bottom edge is)
+		if (mesh == NULL || !clip_view_model(&view, mesh, &world, vp, window_w, window_h, window_w / l3d_field_w() / 1.5f))
+			continue;
+
+		// Each point of the model the camera would see, against each surface: hidden by a terrain (the
+		// way to the camera passes below its surface) or by a flat background the game draws under the
+		// enemy, or shown above one the game draws over it, where it has a pixel. How far (world), and
+		// how much of what is seen of the model.
+		float deepest[CLIP_KINDS];
+		int cells_of[CLIP_KINDS] = { 0 }, inside_of[CLIP_KINDS] = { 0 }, deepest_cell[CLIP_KINDS] = { 0 };
+		for (int kind = 0; kind < CLIP_KINDS; ++kind)
+			deepest[kind] = -INFINITY;
+		int seen = 0;
+		for (int c = 0; c < view.w * view.h; ++c)
+		{
+			if (view.depth[c] == INFINITY)
+				continue;
+			++seen;
+			const float *p = view.point[c];
+			float to_camera[3] = { camera->position[0] - p[0], camera->position[1] - p[1], camera->position[2] - p[2] };
+			const float length = sqrtf(to_camera[0] * to_camera[0] + to_camera[1] * to_camera[1] + to_camera[2] * to_camera[2]);
+			if (length <= 0 || to_camera[1] <= 0)
+				continue;
+			for (int a = 0; a < 3; ++a)
+				to_camera[a] /= length;
+			bool counted[CLIP_KINDS] = { false }, inside[CLIP_KINDS] = { false };
+			for (int s = 0; s < count; ++s)
+			{
+				const ClipSurface *surface = surfaces[s];
+				const int kind = clip_kind(surface, over[s]);
+				float d = -INFINITY, height, local;
+				bool in = false;  // the point inside the terrain (below its surface where it is)
+				if (surface->terrain != NULL)
+				{
+					in = clip_surface_height(surface, &anchors[s], p[0], p[2], &height, &local) && height > p[1] + 0.3f;
+					// Along the way to the camera, from a little off the point, until above the terrain's top
+					// round the model.
+					for (float t = 0.3f; p[1] + t * to_camera[1] < tops[s] && t < 80.0f; t += 1.0f)
+					{
+						const float x = p[0] + t * to_camera[0], y = p[1] + t * to_camera[1], z = p[2] + t * to_camera[2];
+						if (clip_surface_height(surface, &anchors[s], x, z, &height, &local))
+							d = SDL_max(d, height - y);
+					}
+				}
+				else if (!over[s] ? p[1] < surface->height : p[1] > surface->height)
+				{
+					// Where the way to the camera crosses the plane (one drawn over the enemy: behind the
+					// point, where the game's plane would cover it).
+					const float t = (surface->height - p[1]) / to_camera[1];
+					if (clip_surface_height(surface, &anchors[s], p[0] + t * to_camera[0], p[2] + t * to_camera[2], &height, &local))
+						d = fabsf(surface->height - p[1]);
+				}
+				if (d <= 0)
+					continue;
+				if (d > deepest[kind])
+				{
+					deepest[kind] = d;
+					deepest_cell[kind] = c;
+				}
+				if (d > CLIP_LOG_MIN * k && !counted[kind])
+				{
+					counted[kind] = true;
+					++cells_of[kind];
+				}
+				if (d > CLIP_LOG_MIN * k && in && !inside[kind])
+				{
+					inside[kind] = true;
+					++inside_of[kind];
+				}
+			}
+		}
+
+		for (int kind = 0; kind < CLIP_KINDS; ++kind)
+		{
+			if (!(deepest[kind] > CLIP_LOG_MIN * k) || cells_of[kind] == 0)
+				continue;
+			// Where its middle is in the window (as rgpu_playfield_to_window finds it).
+			float clip[4];
+			for (int r = 0; r < 4; ++r)
+				clip[r] = vp[r] * middle[0] + vp[4 + r] * middle[1] + vp[8 + r] * middle[2] + vp[12 + r];
+			const float w = clip[3] > 1e-6f ? clip[3] : 1e-6f;
+			char sheet[8];
+			printf("clip: %s frame %u layer %s sheet %s sprite %u model %s at %.0f,%.0f depth %.1f of %.1f area %.1f inside %.0f screen %.3f,%.3f\n",
+			       clip_kind_names[kind], l3d_frame_number, l3d_layer_name(object->layer),
+			       clip_sheet_name(object->enemy_sheet, sheet), (unsigned int)object->enemy_sprite,
+			       m3d_models[object->model].name, object->x, object->y, deepest[kind] / k, 2 * reach / k,
+			       100.0f * cells_of[kind] / SDL_max(seen, 1), 100.0f * inside_of[kind] / cells_of[kind], (clip[0] / w + 1) / 2,
+			       (1 - clip[1] / w) / 2);
+			if (verbose)
+			{
+				const float *p = view.point[deepest_cell[kind]];
+				printf("clip-cell: %s point %.2f,%.2f,%.2f (%.1f,%.1f from the middle, game pixels) of %d seen, %d deep, base %.2f, "
+				       "lift %.1f (the terrain where it is %.1f)\n",
+				       clip_kind_names[kind], p[0], p[1], p[2], (p[0] - middle[0]) / k, (p[2] - middle[2]) / k, seen,
+				       cells_of[kind], clip_transforms[o].m[13], object_lifts[o], terrain_lift(object->x, object->y));
+			}
+			printed = true;
+		}
+	}
+	if (printed)
+		fflush(stdout);  // (runs are often ended by killing the game)
 }
 
 // The starfield sits below background 1, whose colour 0 lets it through as in the game.
@@ -6747,6 +7345,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
+	log_clipping(frame);  // TYR3D_LOG_CLIP
 
 	// Shadows: objects (models and volumetric sprites) cast the sun's shadow; the unlit surfaces
 	// (layers, background tiles, volumetric sprites) darken in it, lit models are shaded by it.

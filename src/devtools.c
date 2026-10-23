@@ -48,6 +48,11 @@ bool dev_capture_next_frame(void)
 	return dumping_this_frame() || debug_flight_snapshot_wanted();
 }
 
+bool dev_dumping_frame(void)
+{
+	return dumping_this_frame();
+}
+
 void dev_on_layers_captured(void)
 {
 	if (SDL_getenv("TYR3D_DUMP_LAYERS") == NULL || !dumping_this_frame())
@@ -396,8 +401,8 @@ void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 			snprintf(path, sizeof(path), "%s/frame_%06ld.bmp", dump_dir, frame);
 			SDL_SaveBMP(surface, path);
 			SDL_DestroySurface(surface);
-			// To find what TYR3D_LOG_ENEMIES reports by 3D frame.
-			if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL)
+			// To find what TYR3D_LOG_ENEMIES and TYR3D_LOG_CLIP report by 3D frame.
+			if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL || SDL_getenv("TYR3D_LOG_CLIP") != NULL)
 				printf("dump: frame %ld is 3D frame %u\n", frame, l3d_frame_number);
 		}
 	}

@@ -82,6 +82,9 @@ typedef struct
 	Uint8 open_sides;     // L3D_VOLUME: sides another part of the same enemy continues (V3D_OPEN_*)
 	bool wreck;           // what is left of a destroyed ground object: burnt and slumped
 	float scale;          // its model this many times its size (0: 1)
+	Uint8 phase;          // the draw phase it was recorded in (L3DBackground.phase)
+	char enemy_sheet;     // an enemy's shape file letter (M3D_SHEET_* for coins and power-ups) and the
+	Uint16 enemy_sprite;  // first sprite of its animation, as models.cfg names it; 0 for other objects
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -110,6 +113,8 @@ typedef struct
 	int x, top_y;             // screen position of the topmost row's first tile
 	int effect_count;         // filters applied after it was drawn, in order
 	Uint8 effects[L3D_MAX_EFFECTS], effect_params[L3D_MAX_EFFECTS];
+	Uint8 phase;              // the draw phase it was drawn in, counted in the frame: objects of earlier
+	                          // phases (L3DObject.phase) the game draws under it, of later ones over it
 } L3DBackground;
 
 #define L3D_MAX_BACKGROUNDS 4
@@ -262,6 +267,9 @@ void l3d_open_last_object(Uint8 sides);
 // The last object added is drawn at another layer's height (pieces of one object the game draws
 // on different layers).
 void l3d_layer_last_object(L3DLayerType type);
+// The last object added is an enemy of this sheet (the shape file's letter, M3D_SHEET_*) and first
+// sprite (L3DObject.enemy_sheet; TYR3D_LOG_CLIP names it so).
+void l3d_enemy_last_object(char sheet, unsigned int first_sprite);
 extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).
