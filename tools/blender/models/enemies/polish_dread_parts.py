@@ -1,63 +1,73 @@
 """DREAD-NOT's machine at the level's start, the parts it lays round the armoured head (polish_dome_heads.py): the two
-anchors, the bladed shell and the two shoulders (sheet 9, 2x2 sprites); polished (2026-10-22, round 36). It replaces
-wave3_aj_dread.py (the shoulders and the shell: heightfields painted pixel by pixel, 24 and 13 pixels tall) and
-wave2_e_parts.py's anchors (an inflated hull, a gun and four struts).
+anchors, the bladed shell and the two shoulders (sheet 9, 2x2 sprites); rebuilt as a machine of separate solids
+(2026-10-23, round 38: the quality redo). It replaces round 36's heightfields of the parts' pictures painted by their
+pixels (themselves replacing wave3_aj_dread.py and wave2_e_parts.py's anchors).
 
 Where the level puts them (DREAD-NOT's events; the map stands still, every part moves down 1 pixel a tick with its
 link group until t190; positions at t101 relative to the head's top left corner, the head's 309 at (130, y)):
 - the anchors (enemies 358-361, 362-365, ground, t101): anchor_l_side 235 at (-10, 41), anchor_l_gun 236 at (2, 41),
   anchor_l_hip 254 at (-10, 55), anchor_l_legs 274 at (2, 69) (the four overlap: one 36 x 56 picture), the right one
-  (238 239 258 276) its mirror image at (48, 41): a hooded body with a crest, a gun pointing at the other, four struts
-  reaching out to the ground;
+  (238 239 258 276) its mirror image at (48, 41): a hooded body, a gun pointing in at the head, four struts reaching out
+  to the ground;
 - the bladed shell (enemies 442-445 above 446-449, ground 2, t96 and t68: 159 161 163 165 above 197 199 201 203 at
   (-12 + 24 i, 60) and (-12 + 24 i, 88), as the sheet lays them out, 96 x 56): two domed shells, three curved blades
   fanning out under each, a broad segmented plate between them round a notch where the head's jaw shows;
 - the shoulders (enemies 434-437 and 438-441, ground 2, t100: 77 79 above 115 117 at (-10, -24), 81 83 above 119 121
-  at (32, -24), 48 x 56 each, the right one the left one's pixels mirrored a pixel over, 98 %): a tall rounded cap with
-  a square plate on its top, under it an armoured arm reaching down and out over the head's dome, four glossy red bulbs
-  in it, a white lamp at its end.
+  at (32, -24), 48 x 56 each, the right one the left one's pixels mirrored a pixel over, 98 %): a tall shoulder cap
+  with a square plate on its top, under it an armoured arm reaching down and out over the head's dome, four glossy red
+  bulbs in it, a white lamp at its end.
 The game draws ground enemies in their slots' order, then ground 2's: the cannons (t99, polish_dread_cannons.py)
-under the head, the head under the anchors, all of them under the shell and the shoulders. Here each part is built
-over what it covers, in the picture's plane (where whatever stands higher covers what lies under it): its own shape
-lifted smoothly wherever it would lie lower than GAP over the parts under it (polish_sheet9_kit.lifted: the head's top
-with its knob and bulbs, polish_dome_heads.Head.top; the anchors' for the shell; over the cannons' barrels the
-shoulders' arms keep at least ARM_FLOOR). Shown together they are DREAD-NOT's machine as its sprites draw it. All are
-armour 255 and never destroyed; one frame each, no damaged look, nothing launched; no other enemy shows them, and no
-other sprite is their pixels mirrored, turned or in other ramps (the right anchor is the left one's mirror image only
-in 93 % of its outline: each side is painted by its own pixels, its shapes the left one's mirrored).
+under the head, the head under the anchors, all of them under the shell and the shoulders. Each part is built over
+what it covers, in the picture's plane (where whatever stands higher covers what lies under it): it stands on a
+smooth floor (polish_dread_kit.Envelope) GAP over the tops under it, the head's (polish_dome_heads.Head: its knob,
+brows and bulbs included), the anchors' for the shell, the cannons' barrels for the shoulders (their pixels,
+polish_dread_cannons.CANNON_ART, CANNON_TOP high). Shown together they are DREAD-NOT's machine as its sprites draw it.
+All are armour 255 and never destroyed; one frame each, no damaged look, nothing launched; no other enemy shows them,
+and no other sprite is their pixels mirrored, turned or in other ramps. DREAD-NOT's machine is symmetric but for
+small shifts: the right shoulder is the left one mirrored about the head's axis (x -0.5), the right anchor about
+x -1.0 (93 % of its outline), the shell about x 0.5 (its own middle): each right part is its left one's solids
+mirrored, cut along its own sprites' boxes.
 
 As the sprites and their 4x upscales draw them (lit from the upper left; grey armour, ramp 0):
-- the anchor (its picture's columns and rows): a hood (columns 9-23 of rows 0-24) with a crest at its top (columns
-  15-20 of rows 0-4); the gun (columns 20-29 of rows 4-13), its bright muzzle ring at its right end; the struts: outwards
-  (columns 0-12 of rows 10-15), down and out (2-11 of 25-34), down and in (17-31 of 26-34), down (20-26 of 34-44).
-- the shell: the domes (columns 6-42 and 53-90 of rows 4-27), glossy, a highlight at their upper right; under each three
-  blades curving out and down to points (their tips at (2, 33), (4, 48), (11, 53) and their mirror images); the plate
-  (columns 12-84 of rows 34-55) round the notch (columns 43-54 of rows 0-33), in segments.
-- the shoulder (the left one's columns and rows): the cap (columns 19-46 of rows 5-24), lit on its top, a raised square
-  plate on it (columns 36-44 of rows 12-19); the arm (columns 4-43 of rows 24-53) down to the lower left; the red bulbs
-  (ramp 4) at (8.9, 29.5), (22.2, 29.5), (36.8, 33.0) and (28.3, 44.2); the white lamp at (11.6, 46.9).
+- the anchor (its picture's columns and rows): a hooded body (columns 9-23 of rows 0-27, its crest at the top); the
+  gun (columns 18-29 of rows 4-13), its bright muzzle ring at its right end; the struts: outwards (columns 0-12 of rows
+  10-15), down and out (2-12 of 25-34), down and in (17-31 of 26-34), down (20-26 of 30-44).
+- the shell: the domes (columns 6-42 and 54-90 of rows 4-28), glossy; under each three blades curving out and down to
+  points (their tips at (2, 33), (4, 48), (11, 53) and their mirror images), each lit along its upper edge; the plate
+  (columns 25-71 of rows 28-55) round the notch (columns 43-54 of rows 0-33): an upper segment each side of the notch
+  and the broad tail under them.
+- the shoulder (the left one's columns and rows): the cap (columns 14-47 of rows 5-27), its top flat and lit, its
+  lower left side a broad chamfer, a raised square plate on it (columns 36-44 of rows 12-19); the arm (columns 4-43 of
+  rows 24-53) down to the lower left; the red bulbs (ramp 4) at (8.9, 29.5), (22.0, 29.3), (36.8, 33.0) and
+  (28.3, 44.0) in dark sockets; the white lamp at (11.7, 46.9).
 
-Built for the game's camera with polish_sheet9_kit: each part one heightfield (its regions pillows of their pixels,
-tubes for the struts, the gun and the arm's limb, domes for the shell's domes and the cap), lifted over what it covers;
-the bulbs (glossy red ellipsoids) and the lamp (a white lens glowing 0.5) solids on it. Heights (z 0: the base on the
-terrain): the anchors up to 13.5 (over the head's jaw), the shell 13.6, the shoulders 19.6 (their arms over the head's
-dome and brows).
+Built as such a machine, from separate solids (polish_dread_kit.py), each in one palette material from the sprites'
+own ramps, the shading left to the geometry and the game's light: the parts' outlines are the sprites' own pixels
+inside hand-drawn regions (traced on a grid four times finer, smoothed: no pixel steps); the anchor's body a bevelled
+block, the gun a turned barrel with its bright ring and dark bore, the struts tubes on ball joints; the shell's domes
+domes, each blade a plate highest along its lit upper edge (its crest), the plate's segments bevelled plates; the
+shoulder's cap a block with its chamfer and the square plate on it, the arm a plate with sockets, the bulbs glossy red
+ellipsoids glowing a little, the lamp a white lens glowing 0.5; under the shell's and the shoulders' plates a dark plate
+over their whole outline, seen in the seams between them (SEAM). Materials: armour 0x08 (metallic 0.3), the anchors'
+steel 0x07, the shell's domes 0x09 (glossy), dark 0x03 (seams, sockets, bores, the cuts), the guns' rings 0x0c, the
+bulbs 0x48 (emission 0.16), their insides 0x43, the lamps 0x0e (emission 0.5). Heights (z 0: the base on the terrain):
+the anchors up to 14.1 (over the jaw's sides), the shell up to 17.9 (its domes over the jaw's lower corners and the
+anchors' struts; its tail 5-9, over nothing), the shoulders up to 20.3 (over the dome, the brows' upper ends and the
+cannons' barrels); with --check the build prints how far each part stands over what it covers.
 
-Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera. Each part's whole
-has its origin at its picture's middle; a piece whose sprite's top left pixel is (c0, r0) has its origin at that
-sprite's middle (models.cfg origin): the anchor (36 x 56): (c0 - 6, 14 - r0); the shell (96 x 56): (c0 - 36, 14 - r0);
-the shoulders (48 x 56): (c0 - 12, 14 - r0).
+Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera. Everything is built
+in the head's model coordinates (its picture's middle at 0, 0: column c of the head's picture at x = c - 36, row r at
+y = 42 - r), each part's picture placed at PLACES; a piece whose sprite's top left pixel is (c0, r0) of the head's
+picture has its origin at (c0 - 24, 28 - r0), its sprite's middle (models.cfg origin).
 
-models.cfg: the model lines stay (anchor_*, dread_shell_*, dread_shoulder_* ... origin); every sprite line of these
-gets height=-4, as the head's (on the terrain, together).
+models.cfg: unchanged (the model lines anchor_*, dread_shell_*, dread_shoulder_* ... origin; every sprite line of these
+with height=-4, as the head's: on the terrain, together).
 
-Replaces wave3_aj_dread.py (all of it: delete it) and wave2_e_parts.py's anchors (ANCHOR_ORIGIN, ANCHOR_PIECES,
-anchor_materials(), anchor(), _lathe_x(), build_anchors(), their PIECES and ASSEMBLED entries) and wave2_e_art.py's
-ANCHOR (only anchor() reads it).
+Replaces round 36's polish_dread_parts.py (this file, rewritten: nothing else to remove).
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline as the
-camera sees it against its sprite's pixels), --preview <prefix>, --only <name,...> (or the groups anchors, shell,
-shoulders).
+camera sees it against its sprite's own pixels), --preview <prefix>, --only <name,...> (or the groups anchors, shell,
+shoulders), --whole <file.glb> (the whole machine with the head, sheared, for looking at).
 """
 import math
 import os
@@ -71,21 +81,91 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smoothstep, smax, Region, Zone, Painter, round_rise  # noqa: E402
+import polish_dread_kit as dk  # noqa: E402
 import polish_dome_heads as dh  # noqa: E402
+import polish_dread_cannons as dc  # noqa: E402  (its pixels: what the shoulders lie over)
 
-GAP = 1.0                         # a part lies at least this far over what it covers
-ARM_FLOOR = 11.6                  # the shoulders' arms over DREAD-NOT's cannons (their barrels' top: 10.3)
-GREY = [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d]
-RED = [0x43, 0x45, 0x47, 0x49, 0x4b, 0x4d]
-FINISH = {"grey": (0.34, 0.34), "red": (0.08, 0.2), "lamp": (0.05, 0.1), "dark": (0.2, 0.5)}
-CREASE = 0.9
-DETAIL = (0.14, 0.35)
-
-# The parts' places in the head's picture (the column and row of their picture's top left corner) at t101.
+GAP = 0.6                         # a part stands at least this far over what it covers
+SEAM = (0.45, 0.5)                # the parts' plates lie this far in from their dark under plate's outline (the seams
+                                  # between them), the under plate this high over its floor
+CANNON_TOP = 10.4                 # the cannons' barrels' top (polish_dread_cannons: 9.9) and a little
 PLACES = {"anchor_l": (-10, 41), "anchor_r": (48, 41), "shell": (-12, 60), "shoulder_l": (-10, -24),
           "shoulder_r": (32, -24)}
+AXES = {"anchor": -1.0, "shell": 0.5, "shoulder": -0.5}   # the mirror lines (model x)
+
+MATS = {   # palette index, metallic, roughness, emission (in its own colour)
+    "armour": (0x08, 0.3, 0.32, 0.0),     # the shoulders' and the shell's painted steel
+    "anchor": (0x07, 0.35, 0.3, 0.0),     # the anchors' darker steel
+    "dome": (0x09, 0.25, 0.2, 0.0),       # the shell's glossy domes
+    "dark": (0x03, 0.3, 0.5, 0.0),        # sockets, bores; the cuts' insides
+    "steel": (0x0c, 0.5, 0.18, 0.0),      # the guns' bright muzzle rings
+    "bulb": (0x48, 0.05, 0.14, 0.16),     # the red glass bulbs
+    "redcut": (0x43, 0.1, 0.4, 0.0),
+    "lamp": (0x0e, 0.1, 0.15, 0.5),       # the shoulders' white lamps
+}
+
+# --- The anchor (the left one's picture: 36 x 56) ---------------------------------------------------------------------
+A_BODY = [(19.4, 0.2), (21.2, 0.5), (21.6, 4.4), (22.8, 13.6), (22.9, 24.0), (21.2, 26.6), (17.0, 27.2), (12.8, 26.6),
+          (9.9, 24.2), (9.4, 14.0), (10.2, 9.4), (14.2, 4.6)]   # the hooded body (its outline as drawn)
+A_BODY_Z = (2.6, 1.4, 1.0)        # its height over the highest floor under it, its rounding, its crown
+A_GUN = ((8.8, 16.6), [(0.0, 4.1), (9.7, 4.1), (9.8, 4.55), (12.5, 4.55), (13.0, 3.8), (13.1, 2.4)], 0.85, (9.8, 12.5))
+                                  # the gun: axis (row, from column), profile (t, radius), its section squashed, the
+                                  # bright ring's span (t)
+A_STRUTS = [  # (path (column, row), radius at its root and its tip)
+    ([(12.0, 12.3), (6.5, 12.4), (0.8, 12.6)], (2.6, 2.1)),
+    ([(12.8, 26.6), (8.2, 29.6), (3.6, 32.8)], (2.6, 2.0)),
+    ([(15.8, 29.4), (21.0, 30.6), (26.0, 31.6), (30.6, 32.4)], (2.5, 2.0)),
+    ([(23.4, 29.6), (23.3, 37.0), (23.0, 43.6)], (3.1, 2.3)),
+]
+A_JOINT = 1.2                     # the struts' ball joints: their radius over the strut's
+
+# --- The shell (96 x 56; its left half, mirrored about its column 48.5) -----------------------------------------------------
+S_DOME = [(8.0, 10.0), (12.0, 6.0), (18.0, 4.2), (30.0, 4.2), (36.0, 6.0), (40.0, 9.0), (41.6, 14.0), (41.2, 20.0),
+          (39.8, 25.0), (37.4, 27.8), (33.5, 25.6), (28.0, 22.2), (20.0, 20.2), (12.0, 18.6), (5.0, 17.6), (3.4, 15.0),
+          (5.0, 12.0)]
+S_SEG = [(26.0, 35.0), (28.5, 31.0), (32.5, 28.4), (37.0, 27.8), (40.8, 29.6), (44.5, 32.6), (46.4, 34.2),
+         (43.5, 36.5), (39.0, 38.6), (34.5, 40.6), (29.5, 42.4), (26.2, 40.0)]
+S_TAIL = [(48.5, 57.0), (40.0, 57.0), (30.0, 54.0), (24.6, 48.6), (25.0, 44.6), (29.5, 42.4), (34.5, 40.6),
+          (39.0, 38.6), (43.5, 36.5), (46.4, 34.2), (48.5, 33.4)]   # the tail's left half, from the axis round to it
+S_BLADES = [   # (region, crest along its lit upper edge)
+    ([(-2.0, 10.0), (10.0, 12.0), (24.0, 14.0), (36.0, 18.0), (42.0, 26.0), (40.0, 31.0), (33.0, 31.4), (24.0, 28.8),
+      (16.0, 27.4), (10.0, 28.4), (6.2, 31.4), (3.6, 35.6), (-2.0, 36.0)],
+     [(40.0, 27.6), (33.0, 25.4), (27.0, 22.6), (20.0, 20.9), (13.0, 19.6), (8.0, 20.4), (4.6, 23.6), (2.6, 28.0),
+      (1.6, 32.6)]),
+    ([(-2.0, 30.0), (8.0, 26.0), (16.0, 25.0), (24.0, 26.0), (34.0, 28.0), (33.4, 37.0), (26.0, 37.8), (18.0, 37.4),
+      (12.6, 40.0), (8.6, 44.0), (6.8, 50.0), (-2.0, 50.0)],
+     [(32.0, 30.6), (26.0, 29.4), (18.0, 29.4), (12.0, 31.6), (8.0, 35.6), (5.6, 40.6), (4.4, 47.0)]),
+    ([(2.0, 40.0), (14.0, 34.0), (24.0, 34.0), (31.0, 36.0), (29.0, 40.0), (27.4, 44.2), (22.4, 48.2), (19.0, 49.4),
+      (15.4, 50.6), (14.0, 57.0), (2.0, 57.0)],
+     [(28.6, 38.8), (22.0, 39.2), (16.6, 42.0), (13.0, 46.4), (11.2, 52.0)]),
+]
+S_DOME_H = (5.6, 8.0)             # the domes: height over their floor, how far in they round up
+S_BLADE = (1.0, 2.0, 4.0, 0.8)    # the blades: height at their lower edge, how much more at their crest, its fall
+                                  # (pixels), their rounding
+S_PLATE = (2.4, 1.0)              # the plate's segments: height, rounding
+S_BASE = 5.0                      # the shell stands at least this high (its tail lies over nothing)
+S_TAIL_CROWN = ((48.5, 46.5), (22.0, 9.0), 1.4)  # the tail's crown: middle, radii, height
+
+# --- The shoulder (the left one's picture: 48 x 56) -----------------------------------------------------------------------
+H_CAP = [(30.6, 5.0), (44.8, 4.8), (47.2, 7.0), (47.2, 23.6), (44.8, 26.6), (34.0, 27.6), (27.0, 26.0), (20.0, 24.8),
+         (14.6, 24.4), (13.8, 22.0), (20.0, 12.8), (24.6, 8.4)]
+H_CHAMFER = ([(14.6, 24.4), (13.8, 22.0), (20.0, 12.8), (24.6, 8.4), (30.6, 5.0)], 0.4, 5.0)   # the cap's lower left
+                                  # edge: its height there (a share), how far in it rises to full
+H_CAP_Z = (3.6, 2.4, 0.8)         # the cap: height over the arm's top, rounding, its crown
+H_PLATE = ((36.0, 44.2, 12.0, 19.8), 1.2, (0.9, 0.5))   # the square plate on it: columns, rows, its corner; height,
+                                  # rounding
+H_ARM = (2.8, 2.0, 1.4)           # the arm: height over its floor, rounding, its crown (in its middle)
+H_RIM = ([(6.6, 31.0), (5.9, 36.0), (5.8, 41.0), (6.3, 45.6), (7.9, 49.0), (10.6, 51.3), (14.0, 52.3), (18.0, 52.0)],
+         1.0, 1.7)                # the rolled rim along the arm's outer edge: path, height, half width
+H_LIMB = ([(31.0, 24.6), (26.4, 30.6), (23.6, 37.4), (20.4, 44.2), (16.0, 49.6), (12.0, 51.8)], 3.2, (0.7, 1.4))
+                                  # the limb down the arm: path, half width; its height over the arm, rounding
+H_BULBS = [(8.9, 29.5, 4.0, 4.9, 30.0, 0.4), (22.0, 29.3, 3.6, 3.5, 0.0, 1.0), (36.8, 33.0, 6.2, 4.9, 10.0, 1.0),
+           (28.3, 44.0, 4.2, 4.8, 25.0, 1.0)]      # (column, row, radii, tilt, its collar's share: the outer one at
+                                                  # the arm's edge has a narrow one)
+H_BULB = (0.75, 1.0, 0.6, 1.3, 0.9)   # the bulbs: their height (a share of their smaller radius), how far their middle
+                                  # lies under the arm's top; the dark gap round them, the collar round that and its
+                                  # height
+H_LAMP = ((11.7, 46.9), (1.9, 1.7), 1.2)   # the lamp: middle, radii, height
 
 ANCHOR_L_ART = """
     ......................................0101..............................
@@ -379,386 +459,373 @@ SHOULDER_R_ART = """
 """
 
 
-def picture(text, w, h):
-    rows = [[0x01 if v == 0xfe else v for v in row] for row in parse(text)]   # (0xfe: an outline pixel)
-    return Pic(rows, -w / 2.0, h / 2.0)
+def materials():
+    return dk.materials("dread", MATS)
 
 
-class Part:
-    """A part in its own picture (columns u, rows v, continuous) placed at (ox, oy) in the head's picture."""
-
-    def __init__(self, name, text, w, h, mirror=None):
-        self.name, self.w, self.h = name, w, h
-        self.pic = picture(text, w, h)
-        self.ox, self.oy = PLACES[name]
-        self.mirror = mirror      # the left part's column for each of this one's (u -> mirror - u), or None
-        a = self.pic.a
-        self.own = a >= 0
-        self.region = Region(self.pic, self.own, sigma=0.5)
-        shade = np.where(self.own, a & 15, 0).astype(float)
-        grey = self.own & (a >> 4 == 0)
-        dark = grey & (shade <= 1)
-        hh, ww = a.shape
-        p = np.pad(self.own, 1)
-        surrounded = np.ones_like(self.own)
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            surrounded &= p[1 + dr:1 + dr + hh, 1 + dc:1 + dc + ww]
-        self.crease = blur((dark & surrounded).astype(float), 0.45)
-        self.soft = blur(nk.fill(shade, grey), 0.6)
-        self.broad = blur(nk.fill(shade, grey), 2.0)
-
-    def uv(self, X, Y):
-        """This part's (u, v) of model points, as the left part's (mirrored for the right one)."""
-        u = np.asarray(X, float) + self.w / 2.0
-        v = self.h / 2.0 - np.asarray(Y, float)
-        return (self.mirror - u if self.mirror is not None else u), v
-
-    def to_head(self, X, Y):
-        """The head's model coordinates of this part's model points."""
-        u = np.asarray(X, float) + self.w / 2.0
-        v = self.h / 2.0 - np.asarray(Y, float)
-        c, r = u + self.ox, v + self.oy
-        return c + dh.LEFT, dh.TOP - r
-
-    def from_head(self, Xh, Yh):
-        c, r = np.asarray(Xh, float) - dh.LEFT, dh.TOP - np.asarray(Yh, float)
-        u, v = c - self.ox, r - self.oy
-        return u - self.w / 2.0, self.h / 2.0 - v
-
-    def surface(self, X, Y, z, detail=None):
-        """The sprite's dark lines creased into a part's heights, its fine shading a little relief."""
-        pic = self.pic
-        detail = detail or DETAIL
-        z = z - CREASE * pic.sample(self.crease, X, Y) * np.clip(z / 4.0, 0.0, 1.0)
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        return z + np.clip(detail[0] * fine, -detail[1], detail[1]) * smoothstep(1.0, 3.0, z)
+def frame(part):
+    """A part's picture's top left corner in the head's model coordinates."""
+    px, py = PLACES[part]
+    return px - 36.0, 42.0 - py
 
 
-def zones_of(part, red=False):
-    a = part.pic.a
-    own = a >= 0
-    grey = own & (a >> 4 == 0)
-    out = [Zone("grey", grey, GREY, FINISH["grey"]),
-           Zone("dark", grey, [0x01, 0x02], FINISH["dark"], lift=0.0, comp=0.0, pick=False)]
-    if red:
-        out.append(Zone("red", own & (a >> 4 == 4), RED, FINISH["red"], sigma=0.7))
-        out.append(Zone("lamp", grey, [0x0c, 0x0e, 0x0f], FINISH["lamp"], glow={0x0c: 0.35, 0x0e: 0.5, 0x0f: 0.55},
-                        lift=2.5, comp=0.5, pick=False))
-    return out
+def PP(part, u, v):
+    left, top = frame(part)
+    return (left + u, top - v)
 
 
-# --- The anchors (the left one's picture: 36 x 56) ---------------------------------------------------------------------
-ANCHOR_BODY = ((16.5, 19.0), 7.5, 11.0)          # the hood's middle; the struts' part of the outline lowered from
-ANCHOR_HULL = (8.4, 2.6)                          # its height, how far in from its outline it rises to it
-ANCHOR_TUBES = [  # (points (column, row, half width, height)): the gun, the crest, the struts
-    [(17.0, 9.3, 4.4, 10.4), (27.6, 9.3, 4.5, 10.4), (29.6, 9.3, 4.2, 9.6)],
-    [(16.0, 6.5, 1.6, 9.6), (18.0, 3.0, 1.3, 8.0), (19.6, 0.9, 0.9, 5.6)],
-    [(11.5, 12.4, 2.5, 6.6), (6.0, 12.5, 2.4, 5.6), (0.9, 12.6, 2.2, 4.6)],
-    [(12.6, 27.6, 2.5, 6.0), (8.4, 30.2, 2.4, 5.0), (4.0, 32.8, 2.1, 4.0)],
-    [(22.0, 29.4, 2.4, 6.0), (26.4, 31.6, 2.3, 5.0), (30.4, 33.3, 2.1, 4.0)],
-    [(23.4, 31.0, 3.4, 7.0), (23.3, 37.0, 3.0, 5.6), (23.0, 43.4, 2.3, 4.2)],
-]
-MUZZLE = (27.6, 29.9)             # the gun's bright ring (columns)
+def art(var, w=None, h=56):
+    w = w or {"ANCHOR_L_ART": 36, "ANCHOR_R_ART": 36, "SHELL_ART": 96, "SHOULDER_L_ART": 48, "SHOULDER_R_ART": 48}[var]
+    return dk.parse_art(globals()[var], w, h)
 
 
-def anchor_own(part):
-    def own(X, Y):
-        u, v = part.uv(X, Y)
-        d = part.region.depth(X, Y)
-        (bc, br), r0, r1 = ANCHOR_BODY
-        dist = np.hypot(u - bc, (v - br) / 1.45)
-        hull = ANCHOR_HULL[0] * round_rise(d, ANCHOR_HULL[1]) * (1.0 - 0.7 * smoothstep(r0, r1, dist))
-        z = hull
-        for pts in ANCHOR_TUBES:
-            z = smax(z, nk.tube(u, -v, [(c, -r, hw, hgt) for c, r, hw, hgt in pts]), 0.6)
-        z = part.surface(X, Y, z * round_rise(d, 0.9))
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-    return own
+def poly_d(points):
+    """The distance to a polyline (model points)."""
+    def d(x, y):
+        best = 1e9
+        for (ax, ay), (bx, by) in zip(points, points[1:]):
+            ex, ey = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((x - ax) * ex + (y - ay) * ey) / max(ex * ex + ey * ey, 1e-12)))
+            best = min(best, math.hypot(x - ax - t * ex, y - ay - t * ey))
+        return best
+    return d
 
 
-# --- The shell (96 x 56, symmetric about the middle of column 47: u -> 95 - u) -------------------------------------
-SHELL_AXIS2 = 95.0
-DOME = [(8.0, 10.0), (12.0, 6.0), (18.0, 4.2), (30.0, 4.2), (36.0, 6.0), (40.0, 9.0), (41.6, 14.0), (41.2, 20.0),
-        (39.8, 25.0), (37.4, 27.8), (33.5, 25.6), (28.0, 22.2), (20.0, 20.2), (12.0, 18.6), (5.0, 17.6), (3.4, 15.0),
-        (5.0, 12.0)]
-BLADES = [  # (outline, height): generous; the sprite's outline and the plates above them trim them
-    ([(-2.0, 10.0), (10.0, 12.0), (24.0, 14.0), (36.0, 18.0), (42.0, 26.0), (40.0, 31.0), (33.0, 31.4), (24.0, 28.8),
-      (16.0, 27.4), (10.0, 28.4), (6.2, 31.4), (3.6, 35.6), (-2.0, 36.0)], 9.6),
-    ([(-2.0, 30.0), (8.0, 26.0), (16.0, 25.0), (24.0, 26.0), (34.0, 28.0), (33.4, 37.0), (26.0, 37.8), (18.0, 37.4),
-      (12.6, 40.0), (8.6, 44.0), (6.8, 50.0), (-2.0, 50.0)], 8.0),
-    ([(2.0, 40.0), (14.0, 34.0), (24.0, 34.0), (31.0, 36.0), (29.0, 40.0), (27.4, 44.2), (22.4, 48.2), (19.0, 49.4),
-      (15.4, 50.6), (14.0, 57.0), (2.0, 57.0)], 6.4),
-]
-PLATE = [(25.6, 40.4), (29.6, 36.2), (34.0, 33.0), (38.4, 31.6), (42.6, 33.2), (44.4, 34.4), (47.5, 33.8)]
-PLATE_BOTTOM = [(47.5, 58.0), (40.0, 58.0), (30.0, 54.0), (25.0, 48.6), (24.0, 44.0)]
-SHELL_DOME_H = (11.6, 8.0)        # the domes: height, how far in they round over (their whole inner width)
-SHELL_PLATE_H = (7.4, 2.6)        # the plate: height at its rim, how far in it rounds over; its crown
-SHELL_PLATE_CROWN = 1.6
-BLADE_ROLL = 2.6                  # the blades rise to their middle line over this
-SHELL_DETAIL = (0.05, 0.2)
-SEAM = 0.6                        # between its plates the heights fall to this share
+# --- What the parts lie over --------------------------------------------------------------------------------------------
+
+def cannon_floor():
+    """CANNON_TOP over the cannons' pixels (a pixel round them), 0 elsewhere: the two pairs at (-10, 1) and (34, 1)
+    (the second one mirrored) and the lone barrels at (-10, 29) (its 14: columns 0-23) and (58, 29) (169: the mirrored
+    pair's columns 24-47), on the head's picture."""
+    pic = dk.parse_art(dc.CANNON_ART, 48, 28) >= 0
+    grown = pic.copy()
+    p = np.pad(pic, 1)
+    for dr in (-1, 0, 1):
+        for dc_ in (-1, 0, 1):
+            grown |= p[1 + dr:1 + dr + 28, 1 + dc_:1 + dc_ + 48]
+    places = [(-10, 1, False, (0, 48)), (34, 1, True, (0, 48)), (-10, 29, False, (0, 24)), (34, 29, True, (24, 48))]
+
+    def floor(X, Y):
+        C = np.asarray(X, float) + 36.0
+        R = 42.0 - np.asarray(Y, float)
+        out = np.zeros(C.shape)
+        for c0, r0, mirror, (u0, u1) in places:
+            u = np.floor(C - c0).astype(int)
+            v = np.floor(R - r0).astype(int)
+            ok = (v >= 0) & (v < 28) & (u >= u0) & (u < u1)
+            uu = np.clip(np.where(mirror, 47 - u, u), 0, 47)
+            vv = np.clip(v, 0, 27)
+            out = np.where(ok & grown[vv, uu], CANNON_TOP, out)
+        return out
+    return floor
 
 
-def mirrored(poly):
-    return [(SHELL_AXIS2 - c, r) for c, r in poly]
-
-
-def plate_outline():
-    right = [(SHELL_AXIS2 - c, r) for c, r in reversed(PLATE[:-1])]
-    right_bottom = [(SHELL_AXIS2 - c, r) for c, r in reversed(PLATE_BOTTOM[1:])]
-    return PLATE + right + right_bottom + PLATE_BOTTOM
-
-
-class Shell:
-    def __init__(self, part):
-        self.part = part
-        pic = part.pic
-        polys = [("dome", DOME, SHELL_DOME_H), ("dome", mirrored(DOME), SHELL_DOME_H),
-                 ("plate", plate_outline(), SHELL_PLATE_H)]
-        for points, hh in BLADES:
-            polys += [("blade", points, (hh, BLADE_ROLL)), ("blade", mirrored(points), (hh, BLADE_ROLL))]
-        taken = np.zeros(part.own.shape, bool)
-        self.regions = []
-        for kind, poly, (hh, roll) in polys:
-            m = nk.polygon_mask(pic, poly) & part.own & ~taken
-            taken |= m
-            if m.any():
-                self.regions.append((kind, Region(pic, m, sigma=0.5), hh, roll, poly))
-
-    def own(self, X, Y):
-        part = self.part
-        u, v = part.uv(X, Y)
-        d = part.region.depth(X, Y)
-        z = np.zeros_like(np.asarray(X, float))
-        uu = np.minimum(u, SHELL_AXIS2 - u)
-        for kind, reg, hh, roll, poly in self.regions:
-            rd = np.maximum(reg.depth(X, Y) + 0.3, 0.0)
-            if kind == "blade":
-                # a blade: a ridge along its middle (a roof rising over its half width), drooping towards its point
-                hh = hh * (1.0 - 0.35 * smoothstep(26.0, 2.0, uu))
-                zr = hh * (SEAM + (1.0 - SEAM) * np.clip(rd / roll, 0.0, 1.0))
-            elif kind == "dome":
-                # a dome: round over its whole width, highest towards its outer, lit shoulder
-                zr = hh * (1.0 + 0.06 * smoothstep(8.0, 26.0, uu)) * (SEAM + (1.0 - SEAM) * np.sqrt(np.clip(rd / roll, 0.0, 1.0)))
-            else:
-                # the plate: a shield, highest along its middle row
-                crown = SHELL_PLATE_CROWN * np.clip(1.0 - ((v - 46.0) / 10.0) ** 2, 0.0, 1.0)
-                zr = (hh + crown) * (SEAM + (1.0 - SEAM) * round_rise(rd, roll))
-            z = np.where(reg.depth(X, Y) > -0.3, np.maximum(z, zr), z)
-        z = part.surface(X, Y, z * round_rise(d, 1.0), detail=SHELL_DETAIL)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-
-
-# --- The shoulders (the left one's picture: 48 x 56; the right one's columns u -> 49 - u) ----------------------------
-CAP = [(32.0, 5.0), (44.2, 5.0), (45.9, 7.0), (45.9, 22.6), (44.4, 24.8), (31.0, 25.4), (25.0, 24.0), (20.6, 21.0),
-       (19.8, 15.0), (23.4, 10.2), (29.0, 6.0)]
-CAP_H = (16.4, 4.0)               # the cap's height beyond the head, how far in it rounds over
-CAP_PLATE = ((36.0, 43.8), (12.2, 19.2), 1.1)    # the square plate on it: columns, rows, its height
-SPINE = [(31.0, 24.0), (26.0, 30.5), (23.5, 37.5), (20.0, 44.5), (15.0, 50.0), (11.0, 52.0)]
-ARM = (9.0, 3.0, 10.0, 3.2)       # the arm: its height at its outline's roll, the roll, the limb's half width, its rise
-SH_BULBS = [(8.9, 29.5, 4.2, 4.9, 30.0), (22.2, 29.5, 3.7, 3.5, 0.0), (36.8, 33.0, 6.3, 4.9, 10.0),
-            (28.3, 44.2, 4.3, 4.8, 25.0)]
-SH_BULB = (0.55, 0.9)             # the bulbs: their height over the arm (share of their radius), how deep they sink
-LAMP = ((11.7, 46.9), (1.9, 1.7, 1.3))
-
-
-def shoulder_own(part):
-    cap_mask = nk.polygon_mask(part.pic, CAP if part.mirror is None else [(49.0 - c, r) for c, r in CAP]) & part.own
-    cap_region = Region(part.pic, cap_mask, sigma=0.6)
-
-    def own(X, Y):
-        u, v = part.uv(X, Y)
-        d = part.region.depth(X, Y)
-        arm_h, roll, hw, rise = ARM
-        dist = np.full(np.shape(u), 1e9)
-        for (ax, ay), (bx, by) in zip(SPINE, SPINE[1:]):
-            dx, dy = bx - ax, by - ay
-            t = np.clip(((u - ax) * dx + (v - ay) * dy) / (dx * dx + dy * dy), 0.0, 1.0)
-            dist = np.minimum(dist, np.hypot(u - (ax + t * dx), v - (ay + t * dy)))
-        arm = arm_h * round_rise(d, roll) + rise * np.clip(1.0 - (dist / hw) ** 2, 0.0, 1.0)
-        cd = cap_region.depth(X, Y)
-        cap = CAP_H[0] * round_rise(np.maximum(cd + 0.4, 0.0), CAP_H[1]) * (cd > -0.4)
-        (c0, c1), (r0, r1), ph = CAP_PLATE
-        inplate = smoothstep(c0 - 0.4, c0 + 0.4, u) * (1 - smoothstep(c1 - 0.4, c1 + 0.4, u)) * \
-            smoothstep(r0 - 0.4, r0 + 0.4, v) * (1 - smoothstep(r1 - 0.4, r1 + 0.4, v))
-        cap = cap + ph * inplate * (cd > 1.0)
-        z = smax(arm, cap, 1.2)
-        z = part.surface(X, Y, z * round_rise(d, 0.9))
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-    return own
-
-
-# --- Building ------------------------------------------------------------------------------------------------------------
-
-def head_top_fn(head):
-    return lambda Xh, Yh: head.top(Xh, Yh)
-
-
-def under_fn(part, tops):
-    """What a part lies over: the largest of the tops (functions of the head's model coordinates) at its points."""
-    def under(X, Y):
-        Xh, Yh = part.to_head(X, Y)
-        z = np.zeros_like(np.asarray(X, float))
-        for top in tops:
-            z = np.maximum(z, top(Xh, Yh))
+def tops(*fns):
+    def top(X, Y):
+        z = np.zeros(np.shape(X))
+        for f in fns:
+            z = np.maximum(z, f(X, Y))
         return z
-    return under
-
-
-def plate_top_fn(part, plate):
-    """A built part's top as a function of the head's model coordinates (0 off it)."""
-    def top(Xh, Yh):
-        X, Y = part.from_head(Xh, Yh)
-        fx = (X - plate.X[0, 0]) / nk.STEP
-        fy = (Y - plate.Y[0, 0]) / nk.STEP
-        ny, nx = plate.Z.shape
-        i = np.clip(np.floor(fx).astype(int), 0, nx - 2)
-        j = np.clip(np.floor(fy).astype(int), 0, ny - 2)
-        tx, ty = np.clip(fx - i, 0, 1), np.clip(fy - j, 0, 1)
-        Z = plate.Z
-        z = (Z[j, i] * (1 - tx) + Z[j, i + 1] * tx) * (1 - ty) + (Z[j + 1, i] * (1 - tx) + Z[j + 1, i + 1] * tx) * ty
-        inside = (fx >= 0) & (fx <= nx - 1) & (fy >= 0) & (fy <= ny - 1)
-        return np.where(inside, z, 0.0)
     return top
 
 
-def keys_fn(part, painter, red_of=None):
-    def keys(obj, kinds, wall_z):
-        centres, normals = nk.face_data(obj)
-        names = []
-        near = painter.zone_at(centres[:, 0], centres[:, 1]) if red_of is not None else None
-        for i in range(len(centres)):
-            if kinds[i] != 0:
-                names.append("dark")
-            elif near is not None and near[i] == "red":
-                names.append("red")
-            else:
-                names.append("grey")
-        out = painter.keys(obj, zones=names)
-        return [("dark", 0x01) if kinds[i] != 0 else key for i, key in enumerate(out)]
-    return keys
+def box_of(polys, margin=3.0):
+    xs = [p[0] for poly in polys for p in poly]
+    ys = [p[1] for poly in polys for p in poly]
+    return (min(xs) - margin, max(xs) + margin, min(ys) - margin, max(ys) + margin)
 
 
-def export_part(part, plate, painter, keys, solids, pieces, options, out, only):
-    for name, (c0, r0) in pieces:
-        if only is not None and name not in only:
-            continue
-        box = nk.sprite_box(part.pic, c0, r0)
-        own_cells = nk.box_owner(box)
-        parts = nk.piece_parts(plate, keys, solids, box, own_cells, name, painter, ("dark", 0x01))
-        for p in parts:
-            p.hide_render = False
-        mask = nk.sprite_mask(part.pic, c0, r0) if "check" in options else None
-        piece = nk.finish(name, parts, box, out, options, painter, mask=mask,
-                          origin=(part.pic.left + c0 + 12, part.pic.top - r0 - 14))
-        bpy.data.objects.remove(piece)
+# --- The anchor -----------------------------------------------------------------------------------------------------------
+
+def anchor(m, under, part):
+    """An anchor's solids (head model coordinates) over `under`: the left one's shapes, mirrored for the right one
+    (its picture's columns u -> 32 - u), its outline its own pixels."""
+    right = part == "anchor_r"
+    left, top = frame(part)
+    own = art("ANCHOR_R_ART" if right else "ANCHOR_L_ART") >= 0
+
+    def U(u):
+        return 32.0 - u if right else u
+    body_poly = [(U(c), r) for c, r in A_BODY]
+    body = dk.region_outlines(own, [body_poly], left, top, sigma=0.9)[0]
+    floor = dk.Envelope(under, box_of(body, 10.0), gap=GAP, reach=2.5, sigma=1.5)
+    zb, rb, crown = A_BODY_Z
+    base = max(floor(x, y) for poly in body for x, y in poly[::3])
+    inside = dk.fw.InsideDistance(body, step=0.25, sigma=1.2)
+
+    def body_top(x, y, d):
+        # a block: as high everywhere as over its highest floor, its top crowned a little, its edge rounded
+        return base + 0.3 + ((zb - 0.3) + crown * dk.sstep(rb, rb + 4.0, inside(x, y))) * dk.rounded(d, rb)
+    parts = [dk.plate(part + "_body", body, body_top, m["anchor"], bottom=0.0, spacing=0.4, band=2.5,
+                      smooth_angle=45.0)]
+    # the gun: its axis as high as the floor under its whole length; it points in at the head
+    (row, c0), profile, squash, (ring0, ring1) = A_GUN
+    x0, y = PP(part, U(c0), row)
+    sign = -1.0 if right else 1.0
+    length = profile[-1][0]
+    rad = max(r for _, r in profile)
+    samples = [floor(x0 + sign * t, y + dy) for t in np.linspace(0.0, length, 12) for dy in (-rad * 0.9, 0.0, rad * 0.9)]
+    z = max(samples) - 0.2
+    gun = dk.turned(part + "_gun", profile, (x0, y, z), (sign, 0, 0), m["anchor"], segments=28, squash=squash)
+    k.smooth(gun, 45)
+    mk.paint(gun, lambda c, n: m["steel"] if ring0 + 0.05 < sign * (c.x - x0) < ring1 + 0.3 and abs(n.x) < 0.9 else
+             (m["dark"] if sign * (c.x - x0) > ring1 + 0.3 else None))
+    parts.append(gun)
+    # the struts on their ball joints
+    for i, (path, (r0, r1)) in enumerate(A_STRUTS):
+        pts = []
+        dense = mk.chaikin([(U(c), r) for c, r in path], 2, closed=False)
+        radii = [r0 + (r1 - r0) * j / (len(dense) - 1) for j in range(len(dense))]
+        for j, (c, r) in enumerate(dense):
+            x, yy = PP(part, c, r)
+            pts.append((x, yy, max(floor(x, yy) + 0.2, radii[j] * 0.85 + 0.1)))   # its underside on the ground at least
+        strut = dk.tube_path("%s_strut%d" % (part, i), pts, r0, m["anchor"], segments=16, radii=radii, squash=0.85)
+        k.smooth(strut, 50)
+        parts.append(strut)
+        jx, jy, jz = pts[0]
+        parts.append(dk.ball("%s_joint%d" % (part, i), (jx, jy, jz), (r0 + A_JOINT * 0.5, r0 + A_JOINT * 0.5, r0 * 0.9),
+                             m["anchor"], segments=24, rings=12))
+    for obj in parts:
+        mk.apply(obj)
+    return parts
 
 
-ANCHOR_PIECES = {"anchor_l": [("anchor_l_side", (0, 0)), ("anchor_l_gun", (12, 0)), ("anchor_l_hip", (0, 14)),
-                              ("anchor_l_legs", (12, 28))],
-                 "anchor_r": [("anchor_r_gun", (0, 0)), ("anchor_r_side", (12, 0)), ("anchor_r_hip", (12, 14)),
-                              ("anchor_r_legs", (0, 28))]}
+# --- The shell ------------------------------------------------------------------------------------------------------------
+
+def shell(m, under):
+    part = "shell"
+    left, top = frame(part)
+    own = art("SHELL_ART") >= 0
+    tail = S_TAIL + [(97.0 - c, r) for c, r in reversed(S_TAIL[1:-1])]   # both halves (about its column 48.5)
+    regions = [S_DOME, S_SEG, tail] + [b for b, _ in S_BLADES]
+    outl = dk.region_outlines(own, regions, left, top, sigma=1.3, shrink=SEAM[0])
+    under_plate = dk.region_outlines(own, [None], left, top, sigma=1.3)[0]
+    allpolys = [p for o in outl for p in o]
+    env = dk.Envelope(under, box_of(allpolys + under_plate, 8.0), gap=GAP, reach=4.0, sigma=3.0)
+
+    def floor(x, y):
+        return max(env(x, y), S_BASE)
+    half, whole = [], []
+    dh_, dr_ = S_DOME_H
+
+    def dome_top(x, y, d):
+        t = min(1.0, d / dr_)
+        return floor(x, y) + 0.3 + dh_ * math.sqrt(max(0.0, 1.0 - (1.0 - t) ** 2))
+    for i, poly in enumerate(outl[0]):
+        half.append(dk.plate("shell_dome%d" % i, [poly], dome_top, m["dome"], bottom=0.0, spacing=0.5, band=3.5,
+                             smooth_angle=70.0))
+    ph, pr = S_PLATE
+
+    (tc, tr), (trx, tr_y), th = S_TAIL_CROWN
+    tcx, tcy = PP(part, tc, tr)
+
+    def plate_top(x, y, d):
+        q = max(0.0, 1.0 - ((x - tcx) / trx) ** 2 - ((y - tcy) / tr_y) ** 2)
+        return floor(x, y) + 0.3 + (ph + th * math.sqrt(q)) * dk.rounded(d, pr)
+    for j, name, into in ((1, "seg", half), (2, "tail", whole)):
+        for i, poly in enumerate(outl[j]):
+            into.append(dk.plate("shell_%s%d" % (name, i), [poly], plate_top, m["armour"], bottom=0.0, spacing=0.45,
+                                 band=2.5, smooth_angle=45.0))
+    low, crest_h, fall, rnd = S_BLADE
+    for b, (_region, crest) in enumerate(S_BLADES):
+        cd = poly_d([PP(part, c, r) for c, r in crest])
+
+        def blade_top(x, y, d, cd=cd):
+            h = low + crest_h * max(0.0, 1.0 - cd(x, y) / fall)
+            return floor(x, y) + 0.3 + h * dk.rounded(d, rnd)
+        for i, poly in enumerate(outl[3 + b]):
+            half.append(dk.plate("shell_blade%d_%d" % (b, i), [poly], blade_top, m["armour"], bottom=0.0,
+                                 spacing=0.4, band=2.0, smooth_angle=50.0))
+    whole.append(dk.plate("shell_under", under_plate, lambda x, y, d: floor(x, y) + SEAM[1] * dk.rounded(d, 0.6),
+                          m["dark"], bottom=0.0, spacing=0.8, band=1.0, smooth_angle=45.0))
+    for obj in half + whole:
+        mk.apply(obj)
+    return half, whole
 
 
-def anchor_piece_owner(side):
-    """The anchors' four sprites overlap: each cell of the picture goes to the sprite drawn last over it in the level
-    (the slots' order: side, gun, hip, legs; the right one gun, side, legs, hip)."""
-    order = ANCHOR_PIECES[side]
-    if side == "anchor_r":
-        order = [order[0], order[1], order[3], order[2]]
-    return order
+# --- The shoulder ---------------------------------------------------------------------------------------------------------
+
+def shoulder(m, under):
+    part = "shoulder_l"
+    left, top = frame(part)
+    own = art("SHOULDER_L_ART") >= 0
+    cap_o, arm_o = dk.region_outlines(own, [H_CAP, None], left, top, sigma=1.3, shrink=SEAM[0])
+    under_plate = dk.region_outlines(own, [None], left, top, sigma=1.3)[0]
+    floor = dk.Envelope(under, box_of(cap_o + arm_o, 8.0), gap=GAP, reach=5.0, sigma=6.0)
+    parts = []
+    za, ra, acrown = H_ARM
+    sockets, bulbs = [], []
+    share, sink, gap_w, collar_w, collar_h = H_BULB
+    inside = dk.fw.InsideDistance(arm_o, step=0.25, sigma=1.5)
+
+    rim_d = poly_d([PP(part, c, r) for c, r in mk.chaikin(H_RIM[0], 2, closed=False)])
+    rim_h, rim_w = H_RIM[1], H_RIM[2]
+
+    def arm_top(x, y, d):
+        rim = rim_h * max(0.0, 1.0 - (rim_d(x, y) / rim_w) ** 2) ** 1.5
+        return floor(x, y) + 0.3 + ((za - 0.3) + acrown * dk.sstep(ra, ra + 5.0, inside(x, y)) + rim) * \
+            dk.rounded(d, ra)
+
+    def ring(name, x, y, rx, ry, tilt, width, collar):
+        """A socket: a dark ring round a bulb, a raised collar round that."""
+        zt = arm_top(x, y, 9.0)
+        e0 = dk.ellipse_poly(x, y, max(rx - 0.4, 0.3), max(ry - 0.4, 0.3), tilt, 44)
+        e1 = dk.ellipse_poly(x, y, rx + width, ry + width, tilt, 44)
+        e2 = dk.ellipse_poly(x, y, rx + width + collar, ry + width + collar, tilt, 48)
+        dark = dk.plate(name, [e1, e0], lambda px, py, d, zt=zt: zt + 0.1 + 0.2 * dk.rounded(d, 0.3), m["dark"],
+                        bottom=zt - 1.0, spacing=0.45, smooth_angle=50.0)
+        rim = dk.plate(name + "_collar", [e2, e1], lambda px, py, d, zt=zt: zt + 0.1 + collar_h * dk.rounded(d, collar * 0.45),
+                       m["armour"], bottom=zt - 1.0, spacing=0.4, smooth_angle=60.0)
+        return [dark, rim], zt
+    for i, (c, r, rx, ry, tilt, cshare) in enumerate(H_BULBS):
+        x, y = PP(part, c, r)
+        socket, zt = ring("sh_socket%d" % i, x, y, rx, ry, tilt, gap_w * (0.5 + 0.5 * cshare), collar_w * cshare)
+        sockets += socket
+        bulbs.append(dk.ball("sh_bulb%d" % i, (x, y, zt - sink), (rx, ry, min(rx, ry) * share + sink), m["bulb"],
+                             segments=30, rings=14, angle=tilt))
+    (lc, lr), (lrx, lry), lh = H_LAMP
+    lx, ly = PP(part, lc, lr)
+    socket, zl = ring("sh_lamp_socket", lx, ly, lrx, lry, 0.0, 0.5, 0.9)
+    sockets += socket
+    lamp = dk.ball("sh_lamp", (lx, ly, zl - 0.6), (lrx, lry, lh + 0.6), m["lamp"], segments=28, rings=14)
+    parts.append(dk.plate("sh_arm", arm_o, arm_top, m["armour"], bottom=0.0, spacing=0.5, band=2.2,
+                          smooth_angle=45.0))
+    parts.append(dk.plate("sh_under", under_plate, lambda x, y, d: floor(x, y) + SEAM[1] * dk.rounded(d, 0.6),
+                          m["dark"], bottom=0.0, spacing=0.8, band=1.0, smooth_angle=45.0))
+    parts += sockets + bulbs + [lamp]
+    # the limb: a raised bar down the arm between the bulbs
+    path, hw, (lhz, lrnd) = H_LIMB
+    pts = [PP(part, c, r) for c, r in mk.chaikin(path, 2, closed=False)]
+    edge_a, edge_b = [], []
+    for i, (x, y) in enumerate(pts):
+        ax, ay = pts[max(i - 1, 0)]
+        bx, by = pts[min(i + 1, len(pts) - 1)]
+        ln = math.hypot(bx - ax, by - ay)
+        nx, ny = -(by - ay) / ln, (bx - ax) / ln
+        w = hw * (1.0 - 0.35 * i / (len(pts) - 1))
+        edge_a.append((x + nx * w, y + ny * w))
+        edge_b.append((x - nx * w, y - ny * w))
+    limb = mk.chaikin(edge_a + list(reversed(edge_b)), 1, closed=True)
+    parts.append(dk.plate("sh_limb", [limb], lambda x, y, d: arm_top(x, y, 9.0) + 0.1 + lhz * dk.rounded(d, lrnd),
+                          m["armour"], bottom=0.0, spacing=0.4, smooth_angle=50.0))
+    # the cap: as high over its floor as the arm's top beside it, its chamfer on its lower left side
+    zc, rc, crown = H_CAP_Z
+    cham = poly_d([PP(part, c, r) for c, r in H_CHAMFER[0]])
+    share_c, run = H_CHAMFER[1], H_CHAMFER[2]
+    base = max(floor(x, y) for poly in cap_o for x, y in poly[::4]) + za
+
+    def cap_top(x, y, d):
+        s = share_c + (1.0 - share_c) * dk.sstep(0.0, run, cham(x, y))
+        return base + 0.3 + (zc - 0.3 + crown * dk.sstep(rc, rc + 6.0, d)) * dk.rounded(d, rc) * s
+    for i, poly in enumerate(cap_o):
+        parts.append(dk.plate("sh_cap%d" % i, [poly], cap_top, m["armour"], bottom=0.0, spacing=0.45, band=2.6,
+                              smooth_angle=45.0))
+    (pc0, pc1, pr0, pr1), ph, (pcorner, prnd) = H_PLATE[0], H_PLATE[1], H_PLATE[2]
+    cx, cy = PP(part, (pc0 + pc1) / 2, (pr0 + pr1) / 2)
+    plate_poly = mk.rounded_rect_ring((cx, cy), (pc1 - pc0) / 2, (pr1 - pr0) / 2, pcorner, 0.0, 64)
+    plate_poly = [(p.x, p.y) for p in plate_poly]
+
+    def plate_top(x, y, d):
+        return base + zc + 0.1 + ph * dk.rounded(d, prnd)
+    parts.append(dk.plate("sh_plate", [plate_poly], plate_top, m["armour"], bottom=base, spacing=0.35,
+                          smooth_angle=45.0))
+    for obj in parts:
+        mk.apply(obj)
+    return parts
 
 
-def build_anchor(side, head, options, out, only):
-    text = {"anchor_l": ANCHOR_L_ART, "anchor_r": ANCHOR_R_ART}[side]
-    part = Part(side, text, 36, 56, mirror=None if side == "anchor_l" else 33.0)
-    top = nk.lifted(anchor_own(part), under_fn(part, [head_top_fn(head)]), GAP)
-    plate = nk.gw.Plate((-18.0, 18.0, -28.0, 28.0), top, cells=part.region.inside)
-    painter = Painter(part.pic, zones_of(part), "anchor")
-    keys = keys_fn(part, painter)
-    order = anchor_piece_owner(side)
-    boxes = [(name, nk.sprite_box(part.pic, c0, r0)) for name, (c0, r0) in order]
-    if only is None or any(n in only for n, _ in boxes):
-        for idx, (name, box) in enumerate(boxes):
-            if only is not None and name not in only:
-                continue
-            later = [b for _, b in boxes[idx + 1:]]
+# --- Pieces ---------------------------------------------------------------------------------------------------------------
 
-            def owns(cx, cy, box=box, later=later):
-                mine = nk.box_owner(box)(cx, cy)
-                for b in later:
-                    mine &= ~nk.box_owner(b)(cx, cy)
-                return mine
-            c0, r0 = dict(order)[name]
-            parts = nk.piece_parts(plate, keys, [], box, owns, name, painter, ("dark", 0x01))
-            mask = None
-            if "check" in options:
-                m = np.array(nk.sprite_mask(part.pic, c0, r0))
-                cs = part.pic.left + c0 + np.arange(24) + 0.5
-                rs = part.pic.top - r0 - np.arange(28) - 0.5
-                CC, RR = np.meshgrid(cs, rs)
-                mask = (m & owns(CC, RR)).tolist()
-            piece = nk.finish(name, parts, box, out, options, painter, mask=mask,
-                              origin=(part.pic.left + c0 + 12, part.pic.top - r0 - 14))
-            bpy.data.objects.remove(piece)
-    return part, plate
+ANCHOR_PIECES = {"anchor_l": [("anchor_l_side", 235, (0, 0)), ("anchor_l_gun", 236, (12, 0)), ("anchor_l_hip", 254, (0, 14)),
+                              ("anchor_l_legs", 274, (12, 28))],
+                 "anchor_r": [("anchor_r_gun", 238, (0, 0)), ("anchor_r_side", 239, (12, 0)), ("anchor_r_legs", 276, (0, 28)),
+                              ("anchor_r_hip", 258, (12, 14))]}   # in drawing order (each over the ones before it)
+SHELL_SPRITES = (159, 161, 163, 165, 197, 199, 201, 203)
+SHOULDER_SPRITES = {"shoulder_l": (77, 79, 115, 117), "shoulder_r": (81, 83, 119, 121)}
 
 
-def build_shell(head, anchors, options, out, only):
-    part = Part("shell", SHELL_ART, 96, 56)
-    shell = Shell(part)
-    tops = [head_top_fn(head)] + [plate_top_fn(p, pl) for p, pl in anchors]
-    top = nk.lifted(shell.own, under_fn(part, tops), GAP)
-    plate = nk.gw.Plate((-48.0, 48.0, -28.0, 28.0), top, cells=part.region.inside)
-    painter = Painter(part.pic, zones_of(part), "dread_shell")
-    pieces = [("dread_shell_%d" % s, (24 * (i % 4), 28 * (i // 4)))
-              for i, s in enumerate((159, 161, 163, 165, 197, 199, 201, 203))]
-    export_part(part, plate, painter, keys_fn(part, painter), [], pieces, options, out, only)
+def part_pieces(part, specs, picture):
+    """[(name, own rects, origin, mask)] of a part's pieces: specs [(name, sprite, (c0, r0) in the part's picture)] in
+    drawing order."""
+    left, top = frame(part)
+    boxes = {name: (left + c0, left + c0 + 24, top - r0 - 28, top - r0) for name, _s, (c0, r0) in specs}
+    rects = dk.own_rects(boxes, [name for name, _s, _p in specs])
+    out = []
+    for name, _sprite, (c0, r0) in specs:
+        mask = np.zeros((28, 24), bool)
+        for rr in range(28):
+            for cc in range(24):
+                pr, pc = r0 + rr, c0 + cc
+                if 0 <= pr < picture.shape[0] and 0 <= pc < picture.shape[1] and picture[pr, pc] >= 0:
+                    x, y = left + pc + 0.5, top - pr - 0.5
+                    mask[rr, cc] = any(a <= x < b and c <= y < d for a, b, c, d in rects[name])
+        origin = (left + c0 + 12.0, top - r0 - 14.0)
+        out.append((name, rects[name], origin, mask.tolist()))
+    return out
 
 
-def build_shoulder(side, head, options, out, only):
-    text = SHOULDER_L_ART if side == "shoulder_l" else SHOULDER_R_ART
-    part = Part(side, text, 48, 56, mirror=None if side == "shoulder_l" else 49.0)
-
-    def floor(Xh, Yh):
-        X, Y = part.from_head(Xh, Yh)
-        u, v = part.uv(X, Y)
-        return np.where(v > 25.0, ARM_FLOOR - GAP, 0.0)
-    top = nk.lifted(shoulder_own(part), under_fn(part, [head_top_fn(head), floor]), GAP)
-    plate = nk.gw.Plate((-24.0, 24.0, -28.0, 28.0), top, cells=part.region.inside)
-    painter = Painter(part.pic, zones_of(part, red=True), "dread_shoulder")
-    solids = []
-    for i, (bu, bv, rx, ry, tilt) in enumerate(SH_BULBS):
-        u = bu if part.mirror is None else part.mirror - bu
-        x, y = part.pic.left + u, part.pic.top - bv
-        surf = nk.sample_plate(plate, x, y)
-        r = max(rx, ry)
-        bulb = nk.ellipsoid("%s_bulb%d" % (side, i), (x, y, surf - SH_BULB[1]), (rx, ry, r * SH_BULB[0] + SH_BULB[1]),
-                            count=12, around=32, angle=tilt if part.mirror is None else -tilt,
-                            cut_below=surf - SH_BULB[1] - 0.2)
-        nk.assign(bulb, painter.keys(bulb, zone="red", offset=0.6), painter)
-        solids.append(bulb)
-    (lu, lv), (lrx, lry, lrz) = LAMP
-    u = lu if part.mirror is None else part.mirror - lu
-    x, y = part.pic.left + u, part.pic.top - lv
-    surf = nk.sample_plate(plate, x, y)
-    lamp = nk.ellipsoid("%s_lamp" % side, (x, y, surf - 0.3), (lrx, lry, lrz), count=10, around=24,
-                        cut_below=surf - 0.5)
-    nk.assign(lamp, painter.keys(lamp, zone="lamp"), painter)
-    solids.append(lamp)
-    for s_ in solids:
-        s_.hide_render = True
-    sprites = (77, 79, 115, 117) if side == "shoulder_l" else (81, 83, 119, 121)
-    tag = "l" if side == "shoulder_l" else "r"
-    pieces = [("dread_shoulder_%s_%d" % (tag, s), ((i % 2) * 24, (i // 2) * 28)) for i, s in enumerate(sprites)]
-    export_part(part, plate, painter, keys_fn(part, painter, red_of=True), solids, pieces, options, out, only)
+def pieces():
+    out = {}
+    out["anchor_l"] = part_pieces("anchor_l", ANCHOR_PIECES["anchor_l"], art("ANCHOR_L_ART"))
+    out["anchor_r"] = part_pieces("anchor_r", ANCHOR_PIECES["anchor_r"], art("ANCHOR_R_ART"))
+    out["shell"] = part_pieces("shell", [("dread_shell_%d" % s, s, (24 * (i % 4), 28 * (i // 4)))
+                                         for i, s in enumerate(SHELL_SPRITES)], art("SHELL_ART"))
+    for side, var in (("shoulder_l", "SHOULDER_L_ART"), ("shoulder_r", "SHOULDER_R_ART")):
+        tag = side[-1]
+        out[side] = part_pieces(side, [("dread_shoulder_%s_%d" % (tag, s), s, (24 * (i % 2), 28 * (i // 2)))
+                                       for i, s in enumerate(SHOULDER_SPRITES[side])], art(var))
+    return out
 
 
-GROUPS = {"anchors": ["anchor_l_side", "anchor_l_gun", "anchor_l_hip", "anchor_l_legs", "anchor_r_gun", "anchor_r_side",
-                      "anchor_r_hip", "anchor_r_legs"],
-          "shell": ["dread_shell_%d" % s for s in (159, 161, 163, 165, 197, 199, 201, 203)],
-          "shoulders": ["dread_shoulder_l_%d" % s for s in (77, 79, 115, 117)] +
-                       ["dread_shoulder_r_%d" % s for s in (81, 83, 119, 121)]}
+GROUPS = {"anchors": [n for side in ("anchor_l", "anchor_r") for n, _s, _p in ANCHOR_PIECES[side]],
+          "shell": ["dread_shell_%d" % s for s in SHELL_SPRITES],
+          "shoulders": ["dread_shoulder_l_%d" % s for s in SHOULDER_SPRITES["shoulder_l"]] +
+                       ["dread_shoulder_r_%d" % s for s in SHOULDER_SPRITES["shoulder_r"]]}
+
+
+def cap_of(m):
+    def cap(src):
+        return m["redcut"] if "bulb" in src.name else m["dark"]
+    return cap
+
+
+def build_all(m):
+    """The head (hidden) and the parts over it: {group: objects}."""
+    head = dh.Head()
+    head_top = head.top
+    left_anchor = anchor(m, head_top, "anchor_l")
+    right_anchor = anchor(m, head_top, "anchor_r")
+    anchors_top = dk.Surface(left_anchor + right_anchor).top
+    half, whole = shell(m, tops(head_top, anchors_top))
+    shells = half + dk.mirror(half, AXES["shell"], "_r") + whole
+    left_sh = shoulder(m, tops(head_top, cannon_floor()))
+    shoulders = left_sh + dk.mirror(left_sh, AXES["shoulder"], "_r")
+    return head, {"anchor_l": left_anchor, "anchor_r": right_anchor, "shell": shells,
+                  "shoulder_l": left_sh, "shoulder_r": shoulders[len(left_sh):]}
+
+
+def clearance(label, objects, under, part, var):
+    """Prints how far a part's top stands over what it covers at its sprite pixels' middles (a quarter pixel apart):
+    the share of them where what is under pokes through, and the lowest margin."""
+    left, top = frame(part)
+    pic = art(var) >= 0
+    rr, cc = np.nonzero(pic)
+    xs, ys = [], []
+    for r, c in zip(rr, cc):
+        for dy in (0.25, 0.75):
+            for dx in (0.25, 0.75):
+                xs.append(left + c + dx)
+                ys.append(top - r - dy)
+    X, Y = np.array(xs), np.array(ys)
+    own = dk.Surface(objects).top(X, Y)
+    low = under(X, Y)
+    there = own > 0.01
+    margin = (own - low)[there]
+    bad = margin < 0.05
+    print("clearance %-10s %5.1f %% of the points it stands on under what it covers (lowest margin %.2f); it misses "
+          "%.1f %% of its pixels' points; its top %.2f..%.2f" % (label, 100.0 * bad.mean(), margin.min(),
+                                                                100.0 * (1 - there.mean()), own[there].min(),
+                                                                own.max()))
 
 
 def build():
@@ -770,14 +837,38 @@ def build():
         for name in options["only"].split(","):
             only |= set(GROUPS.get(name, [name]))
     k.reset()
-    head = dh.Head(dh.picture())
-    anchors = [build_anchor(side, head, options, out, only) for side in ("anchor_l", "anchor_r")]
-    if only is None or only & set(GROUPS["shell"]):
-        build_shell(head, anchors, options, out, only)
-    for side in ("shoulder_l", "shoulder_r"):
-        names = GROUPS["shoulders"][:4] if side == "shoulder_l" else GROUPS["shoulders"][4:]
-        if only is None or only & set(names):
-            build_shoulder(side, head, options, out, only)
+    m = materials()
+    head, groups = build_all(m)
+    if "check" in options:
+        head_top = head.top
+        anchors_top = dk.Surface(groups["anchor_l"] + groups["anchor_r"]).top
+        clearance("anchor_l", groups["anchor_l"], head_top, "anchor_l", "ANCHOR_L_ART")
+        clearance("anchor_r", groups["anchor_r"], head_top, "anchor_r", "ANCHOR_R_ART")
+        clearance("shell", groups["shell"], tops(head_top, anchors_top), "shell", "SHELL_ART")
+        clearance("shoulder_l", groups["shoulder_l"], tops(head_top, cannon_floor()), "shoulder_l", "SHOULDER_L_ART")
+        clearance("shoulder_r", groups["shoulder_r"], tops(head_top, cannon_floor()), "shoulder_r", "SHOULDER_R_ART")
+    for name, objs in groups.items():
+        low, high = mk.bounds(objs)
+        print("== %s: %d triangles, x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f" % (
+            name, mk.triangles(objs), low.x, high.x, low.y, high.y, low.z, high.z))
+    if "whole" in options:
+        for obj in head.objects:
+            obj.hide_render = False
+        dk.export_whole(head.objects + [o for objs in groups.values() for o in objs], options["whole"])
+    dk.remove(head.objects)
+    specs = pieces()
+    results = {}
+    everything = [o for objs in groups.values() for o in objs]
+    for part, objs in groups.items():
+        others = [o for o in everything if o not in objs]
+        for o in others:
+            o.hide_render = True
+        results.update(dk.export_pieces(objs, specs[part], cap_of(m), options, out, only, check="check" in options))
+        for o in others:
+            o.hide_render = False
+    for name, score in results.items():
+        if score is not None:
+            print("overlap %-24s %.3f" % (name, score))
 
 
 if __name__ == "__main__":

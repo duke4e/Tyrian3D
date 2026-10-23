@@ -1,53 +1,65 @@
 """The armoured head of UNDERDELI, DREAD-NOT, GRAVITRON (on the ground) and LAVA RUN (in the sky): sheet 9 sprites
-10 12 / 28 32 / 47 49 51 / 85 87 89 (2x2 each), one 72 x 84 picture; polished (2026-10-22, round 36). It replaces
-wave3_aj_head.py (a heightfield painted pixel by pixel, 22.6 pixels tall, its knob, pipes and bulbs on it).
+10 12 / 28 32 / 47 49 51 / 85 87 89 (2x2 each), one 72 x 84 picture; rebuilt as a hard-surface machine (2026-10-23,
+round 38: the quality redo). It replaces round 36's heightfield of the whole picture painted by its pixels (itself
+replacing wave3_aj_head.py).
 
 Where the levels put it (the enemy events): ten armoured pieces (armour 255, never destroyed) as the sheet lays them
 out, 85 87 89 at (x, y), (x + 24, y), (x + 48, y), 47 49 51 28 pixels above them, 28 and 32 at (x, y - 42) and
 (x + 48, y - 42), 10 and 12 at (x + 12, y - 56) and (x + 36, y - 56): episode 4's enemies 309-318 (336, 87 again, for
 310 in LAVA RUN), UNDERDELI t4600 and t9600 and DREAD-NOT t100 on the ground (event 6), LAVA RUN t2880 in the sky
-(event 15), GRAVITRON (episode 6) t6000 on the ground (its enemies 1665-1669 are 49 51 85 87 47 again). One frame each,
-no damaged look (dgr 0), nothing launched (313's launch, enemy 337, needs a launch frequency no event gives it). The
-sprites overlap: 10 and 28, 12 and 32 share a tile; 28 and 32 reach into 47 and 51's rows; each region is kept by one
-piece: 10 and 12 the dome's top (columns 12-59, rows 0-27), 28 and 32 only its sides (columns 0-11 and 60-71 of rows
-14-27), the others their whole boxes. No other sprite of any sheet is these pixels mirrored, turned or in other ramps
-(the head is symmetric about the middle of column 35 in outline, 99.5 %, but lit from the upper left: each side is
-painted by its own pixels); no other enemy shows them.
+(event 15), GRAVITRON (episode 6) t6000 on the ground (its enemies 1665-1669 are 49 51 85 87 47 again; episode 6's
+composer brings only the head there, none of DREAD-NOT's other parts). One frame each, no damaged look (dgr 0), nothing
+launched (313's launch, enemy 337, needs a launch frequency no event gives it). The sprites overlap: 10 and 28, 12 and
+32 share a tile; 28 and 32 reach into 47 and 51's rows; each region is kept by one piece: 10 and 12 the dome's top
+(columns 12-59, rows 0-27), 28 and 32 only its sides (columns 0-11 and 60-71 of rows 14-27), the others their whole
+boxes. No other sprite of any sheet is these pixels mirrored, turned or in other ramps (the head is symmetric about the
+middle of column 35 in outline, 99.5 %, but lit from the upper left); no other enemy shows them: built symmetric.
 What stands on it: UNDERDELI puts its lilac capsule (9 123, polish_deli_capsule.py) on the jaw's middle (columns 23-46,
-rows 57-84) and, a tick before the head, the pulsing blob (5 121, blob_big, 10.9 pixels tall) that fires its shots
-under the dome's middle (columns 25-47, rows 17-39): the dome stands over it there (at least 12 pixels), as the
-sprites cover it. DREAD-NOT lays its shoulders over the dome and its bladed shell over the jaw (polish_dread_parts.py,
-which builds them over this head's heights: heights()).
+rows 57-84) and, a tick before the head, the pulsing blob (5 121, blob_big, 10.9 pixels tall, its bottom lifted to 0.3)
+that fires its shots under the dome's middle (columns 25-47, rows 17-39): the dome stands over it there (12 and more,
+the knob and the brows' inner ends beside it), as the sprites cover it. DREAD-NOT lays its shoulders over the dome and
+its bladed shell over the jaw, its anchors beside it, its cannons under its sides (polish_dread_parts.py builds them
+over this head: Head).
 
 As the sprites and their 4x upscales draw it (the picture's columns and rows; symmetric about the middle of column 35,
-x = -0.5; lit from the upper left): a dome of grey armour plates (ramp 0, rows 8-36) with a raised Y seam down to a
-steel knob (columns 28-42 of rows 36-48) and panel lines; over each side a thick glossy red brow (ramp 4, columns 3-30
-and 41-67 of rows 24-43) curling down at its outer end; under the brows dark slots with two black pipes each (rows
-38-41 and 43-46) and a small red pad (columns 8-16 and 54-62 of rows 42-46); below them the broad jaw plate (rows
-47-82): its top edge rolled into a lit lip, a ridge down its middle, four glossy red bulbs in sockets in a V (columns
-10-18 and 52-60 of rows 55-65, 22-30 and 40-48 of rows 61-72), its lower edge in two lobes either side of a notch.
+x = -0.5; lit from the upper left): a dome of grey armour (rows 8-36) with a raised seam down its middle to a steel
+knob (columns 28-42 of rows 36-48), an oval boss on its crown and the seam's arms out to its sides, an inset panel on
+each side of the seam; over each side a thick glossy red brow (ramp 4, columns 3-30 and 41-67 of rows 24-43), its
+upper end swelling, its outer end curling down, a dark line down beside the knob from its inner end; under the brows dark
+slots with two black pipes each (rows 38-41 and 43-46) and a small red pad (columns 8-16 and 54-62 of rows 42-46);
+below them the broad jaw plate (rows 47-82): its top edge rolled into a lip, a ridge down its middle, four glossy red
+bulbs in dark sockets in a V (columns 10-18 and 52-60 of rows 55-65, 22-30 and 40-48 of rows 61-72), its lower edge in
+two lobes either side of a notch.
 
-Built for the game's camera, with polish_sheet9_kit (the picture's plane sheared along the camera's line of sight; a
-heightfield body on the sprites' grid; solids cut along the pieces' boxes; painted by the picture): the body's dome a
-crown (DOME) rolling over at the outline (EDGE_ROLL), the brows plates of their red pixels standing BROW_T over it,
-the slots carved to SLOT_FLOOR between them and the jaw, the jaw a plate (JAW) with its lip, its ridge and its
-sockets; the sprite's dark lines creased, its fine shading (the panel lines, the seam) a little relief. Solids: the
-knob (a steel ball with a collar), the pipes (black tubes lying in the slots, ringed), the bulbs (glossy red
-ellipsoids sunk into their sockets). Heights: z 0 (the base) to 14.2 (the knob's top; the dome 13.5): low enough for
-the sky (under background 3) and for what DREAD-NOT lays over it.
+Built as such a machine, from separate solids (polish_dread_kit.py), each in one palette material from the sprite's
+own ramps, its shading left to the geometry and the game's light: the dome a shell over the outline of the sprite's
+pixels above the jaw (a crown rolling over at its rim, the inset panels sunk into it with dark seams round them
+(PANEL_GROOVE), as the sprite's panel lines, the slots carved to SLOT_Z under the brows); the seam, its boss and arms
+raised ribs on it; the brows thick red pads over their pixels' outlines (the sprite's darkest red, its outline and
+the line down beside the knob, left out), standing BROW_T over the dome, rounded over BROW_R, the upper end swelling
+(HUMP); the pads, the pipes (glossy dark tubes, ringed), the knob (a steel ball on a collar ring); the jaw a plate over
+its pixels' outline, crowned (JAW_Z), its rim rolled up along its top edge and sides (LIP), a hollow between its lobes
+over the notch (THROAT), holes where the sockets are; the ridge a raised strip down its middle, the sockets dark wells,
+the bulbs glossy red ellipsoids glowing a little in them. Every outline smooth (the pixel masks' outlines traced
+through their boundary edges' midpoints and smoothed; hand-drawn ones rounded). Materials: armour 0x08 (metallic 0.3),
+dark 0x03 (the slots, sockets, seams and cuts), the pipes 0x05 (glossy), steel 0x09 (the knob, the rings), red 0x47
+(the brows, the pads; emission 0.05), the bulbs 0x48 (emission 0.16), the red parts' insides 0x43. Heights: z 0 (the
+base, on the terrain) to 15.9 (the brows' upper ends; the knob 15.0, the dome's crown 13, the jaw 5.4-10.6): low enough
+for the sky (under background 3) and for what DREAD-NOT lays over it. UNDERDELI's blob stays hidden under the dome in
+all three of its frames with more than a pixel to spare (raised 1.5 it first shows through the inset panels).
 
 Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: the base).
 The whole's origin is the picture's middle (column 36, row 42): column c is x = c + 0.5 - 36, row r is y = 41.5 - r; a
 piece whose sprite's top left pixel is (c0, r0) has its origin at (c0 - 24, 28 - r0) (models.cfg origin).
 
-models.cfg: the ten model lines stay (dome_head_<sprite> enemies/dome_head_<sprite>.glb origin); the sprite lines get
-height=-4 (on the terrain: drawn at its origin a ground piece stands 4 pixels over it; in LAVA RUN's sky 4 pixels lower,
-under background 3). DREAD-NOT's other parts and UNDERDELI's capsule get the same (see their scripts).
+models.cfg: unchanged (the ten model lines dome_head_<sprite> enemies/dome_head_<sprite>.glb origin; the sprite lines
+with height=-4: on the terrain, in LAVA RUN's sky 4 pixels lower, under background 3).
 
-Replaces wave3_aj_head.py (all of it: delete it; wave3_aj_dread.py imported its heights: it is replaced too).
+Replaces round 36's polish_dome_heads.py (this file, rewritten: nothing else to remove). polish_deli_capsule.py reads
+Head(picture()).top() (the jaw under the capsule) and LEFT, TOP; polish_dread_parts.py builds over Head.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline as the
-camera sees it against its sprite's pixels), --preview <prefix>, --only <name,...>.
+camera sees it against its sprite's own pixels), --preview <prefix>, --only <name,...>.
 """
 import math
 import os
@@ -61,52 +73,69 @@ sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smoothstep, smax, Region, Zone, Painter, round_rise  # noqa: E402
+import polish_dread_kit as dk  # noqa: E402
 
 LEFT, TOP = -36.0, 42.0
-ROW0 = 8                          # the art below starts at the picture's row 8 (rows 0-7 and 83 are empty)
 W, H = 72, 84
-AXIS_C = 35.5                     # the mirror line: the middle of column 35 (x = -0.5)
+ROW0 = 8                          # the art below starts at the picture's row 8 (rows 0-7 and 83 are empty)
+AXIS = -0.5                       # the mirror line: the middle of column 35
+MID_C = 35.5                      # its column
 
-# --- Heights (picture columns C and rows R, continuous: pixel c spans C c .. c + 1) ------------------------------------
-DOME = ((35.5, 29.0), (42.0, 30.0), 6.0, 14.0)   # the crown: centre, radii, height at its rim and at its middle
-EDGE_ROLL = 5.5                   # the dome rolls over to its outline within this
-BROW_T, BROW_ROLL = 3.2, 2.4      # the brows: how far they stand over the dome, how far in from their outline
-BROW_BASE = 8.6                   # their underside at least this high (where the dome falls away under their ends)
-SLOT_FLOOR = 4.2                  # the slots' floor
-SLOT_ROWS = (36.6, 47.4)          # the slots' upper and lower edge (rows)
-KNOB_C = 7.6                      # the slots stop this far from the axis (the knob)
-POST = (7.6, 11.0, 42.6, 11.6)    # the brows' inner ends hanging down beside the knob (from, to the axis; their lower
-                                  # row; their top): they keep the slots off the blob UNDERDELI hides under the dome
-PAD_T = 2.4                       # the red pads stand this high over the slots' floor
-JAW = (5.4, 9.0)                  # the jaw plate's height at its sides and in its middle
-JAW_TOP = 47.3                    # the jaw's top edge (row)
-LIP = (51.2, 2.2, 1.3)            # its lip: the crest's row, its half width, its height
-RIDGE = (5.2, 1.6, (49.0, 80.0))  # the ridge down the middle: half width, height, rows
-JAW_ROLL = 2.6                    # the jaw rolls over to its outline within this
-SOCKET = (1.0, 1.6)               # the bulbs' sockets: how far beyond a bulb, how deep
-CREASE = 1.0                      # the sprite's dark lines inside the head cut this deep
-DETAIL = (0.22, 0.45)             # its fine shading as relief: per shade, its limit
+MATS = {   # palette index, metallic, roughness, emission (in its own colour)
+    "armour": (0x08, 0.3, 0.32, 0.0),     # the painted steel of the dome, its ribs, the jaw, its lip and ridge
+    "dark": (0x03, 0.3, 0.5, 0.0),        # the slots' floor, the sockets; the cuts' insides
+    "pipe": (0x05, 0.6, 0.12, 0.0),       # the black pipes
+    "steel": (0x09, 0.6, 0.2, 0.0),       # the knob and the rings
+    "red": (0x47, 0.12, 0.13, 0.05),      # the brows and the pads
+    "redcut": (0x43, 0.1, 0.4, 0.0),      # their insides
+    "bulb": (0x48, 0.05, 0.14, 0.16),     # the red glass bulbs
+}
 
-# The bulbs (from the sprite's red pixels): (column, row, radius across, radius along) and their tilt (degrees).
-BULBS = [(14.6, 60.6, 4.6, 5.8, 10.0), (56.4, 60.6, 4.6, 5.8, -10.0),
-         (26.1, 66.8, 4.6, 6.2, 12.0), (44.9, 66.8, 4.6, 6.2, -12.0)]
-BULB_RZ, BULB_SINK = 3.4, 1.4     # their height (half), how far their middle lies under the jaw's surface
-KNOB = ((35.5, 41.9), (7.3, 6.4, 5.6), 9.6)       # the knob: middle (column, row), radii, its middle's height
-PIPES = [  # (from column, to column, row, radius): the left slot's (the right one's mirrored)
-    (8.4, 26.4, 39.7, 2.05), (16.8, 27.6, 44.8, 1.55)]
+# --- The dome (picture columns C and rows R, continuous: pixel c spans C c .. c + 1) ------------------------------------
+DOME_C = (35.5, 29.0)             # the crown's middle
+DOME_R = (33.0, 22.0, 34.0)       # its radii: across, up the screen, down
+DOME_Z = (3.2, 13.0)              # its height at its rim and at its middle
+DOME_EDGE = (1.2, 2.4)            # its outline's height, how far in it rolls up to the crown
+PANEL = ((26.4, 22.5), (4.4, 5.2, 2.7), 0.5)     # the inset panel: middle, half width, half height, corner; its depth
+PANEL_GROOVE = 0.24               # the dark seam round it: half its width
+SLOT_Z = 3.4                      # the slots' floor
+SLOT_ROWS = (36.4, 37.8)          # the slots' upper edge (under the brows), carved from to
+RIB_UP = (0.35, 0.8, 1.0)         # the seam's ribs: how high their edge, how much more their crest, its rounding
+STEM = (33.4, (19.0, 36.8))       # the seam's stem: its left edge (its right one mirrored), its rows
+BOSS = ((35.5, 15.2), (5.4, 3.8), (0.5, 1.1, 1.6))   # the oval boss on the crown: middle, radii; its rim, top, rounding
+ARM = [(30.6, 14.6, 1.25), (27.0, 13.2, 1.15), (23.0, 12.3, 1.0), (20.6, 12.2, 0.9)]   # the seam's left arm (column, row,
+                                  # half width); the right one mirrored
+
+# --- The brows, the pads, the pipes, the knob ---------------------------------------------------------------------------
+BROW_T, BROW_R = 3.3, 3.2         # the brows stand this far over the dome, round over this
+BROW_FALL = 0.55                  # below row 36 (their curled outer end, their hanging inner end) they fall per row
+HUMP = ((14.6, 26.4), (5.8, 4.4), 1.6)           # the swelling upper end: middle, radii, how much thicker
+PAD = (2.1, 1.5)                  # the red pads: how high over the slots' floor, their rounding
+PIPES = [((8.0, 28.0, 39.7), 2.1), ((16.6, 28.6, 44.9), 1.7)]    # (from column, to column, row), radius: the left slot's
+RING = (3.4, 0.5, 0.32)           # a ring on each pipe this far from its inner end: half width, how far it stands out
+KNOB = ((35.5, 41.8), (7.1, 6.3, 5.6), 9.4)      # the knob: middle, radii, its middle's height
+COLLAR = (7.5, 5.6, (0.75, 0.9))  # the knob's collar ring: radius, height, its section's half height and thickness
+
+# --- The jaw ------------------------------------------------------------------------------------------------------------
+JAW_Z = (5.4, 8.8)                # the jaw plate's height at its sides and in its middle
+JAW_FALL = 0.035                  # falling this much a row below row 56
+JAW_EDGE = (2.0, 1.7)             # its outline's height, how far in it rounds up
+LIP = ([(29.6, 50.6), (24.6, 49.6), (19.0, 49.1), (13.0, 49.0), (8.4, 49.3), (5.3, 50.3), (3.1, 52.1), (2.1, 54.6),
+        (2.0, 58.0), (2.3, 63.0), (3.1, 66.8), (4.4, 69.6)], 1.75, 1.9)   # its rolled rim: path (left half), height,
+                                  # half width
+RIDGE = ([(30.8, 50.2), (31.6, 56.0), (31.6, 68.0), (32.3, 71.6), (33.8, 73.6), (35.5, 74.2)], (0.35, 1.1, 1.1))   # the ridge (left
+                                  # half of its outline; rim, crest, rounding)
+THROAT = ((35.5, 76.2), (5.2, 4.6), 2.6)        # the hollow between the lobes above the notch: middle, radii, depth
+BULBS = [(14.6, 60.6, 4.6, 5.8, 10.0), (26.1, 66.8, 4.6, 6.2, 12.0)]   # (column, row, radius across, along, tilt): the
+                                  # left ones; the right ones mirrored
+BULB = (3.3, 1.3, 0.85)           # the bulbs' half height, how far their middle lies under the jaw's surface; how far the
+                                  # sockets reach round them
 
 # The pieces: sprite -> (top left pixel of its box, the part of the picture it keeps: columns c0 c1, rows r0 r1).
 PIECES = {10: ((12, 0), (12, 36, 0, 28)), 12: ((36, 0), (36, 60, 0, 28)),
           28: ((0, 14), (0, 12, 14, 28)), 32: ((48, 14), (60, 72, 14, 28)),
           47: ((0, 28), None), 49: ((24, 28), None), 51: ((48, 28), None),
           85: ((0, 56), None), 87: ((24, 56), None), 89: ((48, 56), None)}
-
-GREY = [0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c]
-RED = [0x43, 0x45, 0x47, 0x49, 0x4b, 0x4d]
-PIPE = [0x01, 0x02, 0x03, 0x05, 0x07, 0x0a]
-FINISH = {"grey": (0.32, 0.36), "red": (0.08, 0.22), "pipe": (0.45, 0.24), "knob": (0.45, 0.26), "dark": (0.2, 0.5)}
 
 HEAD_ART = """
     ..............................................................010101010101010101................................................................
@@ -188,224 +217,310 @@ HEAD_ART = """
 
 
 def picture():
-    rows = parse(HEAD_ART)
-    rows = [[None] * W for _ in range(ROW0)] + rows
-    rows += [[None] * W for _ in range(H - len(rows))]
-    return Pic(rows, LEFT, TOP)
+    """The head's pixels: an index array (84 rows, 72 columns; -1 empty)."""
+    return dk.parse_art(HEAD_ART, W, H, ROW0)
 
 
-def CR(X, Y):
-    return np.asarray(X, float) - LEFT, TOP - np.asarray(Y, float)
+def P(c, r):
+    return (c + LEFT, TOP - r)
 
 
-def XY(c, r):
-    return c + LEFT, TOP - r
+def CR(x, y):
+    return x - LEFT, TOP - y
 
 
-class Head:
-    """The head's shapes in the picture's plane."""
+def materials():
+    return dk.materials("dome_head", MATS)
 
-    def __init__(self, pic):
-        self.pic = pic
-        a = pic.a
-        rows = np.arange(pic.h)[:, None] * np.ones((1, pic.w))
-        cols = np.ones((pic.h, 1)) * np.arange(pic.w)[None, :]
+
+# --- Heights ------------------------------------------------------------------------------------------------------------
+
+def crown(x, y):
+    """The dome's crown over the plane (no rim)."""
+    c, r = CR(x, y)
+    cc, rc = DOME_C
+    rx, ry_up, ry_down = DOME_R
+    ry = ry_up if r < rc else ry_down
+    q = 1.0 - ((c - cc) / rx) ** 2 - ((r - rc) / ry) ** 2
+    return DOME_Z[0] + (DOME_Z[1] - DOME_Z[0]) * math.sqrt(max(q, 0.0))
+
+
+def slot_amount(x, y):
+    c, r = CR(x, y)
+    return dk.sstep(SLOT_ROWS[0], SLOT_ROWS[1], r)
+
+
+def panel_sd(x, y):
+    """The signed distance to the left or right inset panel's outline (negative inside)."""
+    c, r = CR(x, y)
+    (pc, pr), (hw, hh, rad), _ = PANEL
+    u = abs(c - MID_C) - (MID_C - pc)
+    return mk.rounded_rect_distance(u, r - pr, hw, hh, rad)
+
+
+def dome_top(x, y, d):
+    e, roll = DOME_EDGE
+    z = e + (crown(x, y) - e) * dk.rounded(d, roll)
+    # the inset panels, sunk with a crisp step
+    s = panel_sd(x, y)
+    z -= PANEL[2] * dk.sstep(0.2, -0.2, s)
+    # the slots under the brows
+    a = slot_amount(x, y)
+    return z + (min(z, SLOT_Z) - z) * a
+
+
+def brow_base(x, y):
+    c, r = CR(x, y)
+    base = crown(*P(c, min(r, 36.0)))
+    return base - BROW_FALL * max(0.0, r - 36.0)
+
+
+def brow_top(x, y, d):
+    c, r = CR(x, y)
+    (hc, hr), (hrx, hry), hz = HUMP
+    u = abs(c - MID_C) - (MID_C - hc)
+    q = max(0.0, 1.0 - (u / hrx) ** 2 - ((r - hr) / hry) ** 2)
+    t = 0.45 + (BROW_T - 0.45) * dk.rounded(d, BROW_R)
+    return brow_base(x, y) + t + hz * q * dk.rounded(d, BROW_R * 1.5)
+
+
+def jaw_z(x, y):
+    c, r = CR(x, y)
+    u = min(1.0, abs(c - MID_C) / 36.0)
+    return JAW_Z[0] + (JAW_Z[1] - JAW_Z[0]) * (1.0 - u ** 1.6) - JAW_FALL * max(0.0, r - 56.0)
+
+
+_LIP_PATH = None
+
+
+def lip_bump(x, y):
+    """The rolled rim along the jaw's top edge and sides: how much it raises the plate."""
+    global _LIP_PATH
+    path, height, half = LIP
+    if _LIP_PATH is None:
+        _LIP_PATH = [P(c, r) for c, r in mk.chaikin(path, 2, closed=False)]
+    c, r = CR(x, y)
+    fx, fy = P(MID_C - abs(c - MID_C), r)            # folded onto the left half
+    best = 1e9
+    for (ax, ay), (bx, by) in zip(_LIP_PATH, _LIP_PATH[1:]):
+        ex, ey = bx - ax, by - ay
+        t = max(0.0, min(1.0, ((fx - ax) * ex + (fy - ay) * ey) / (ex * ex + ey * ey)))
+        best = min(best, math.hypot(fx - ax - t * ex, fy - ay - t * ey))
+    s = best / half
+    return height * max(0.0, 1.0 - s * s) ** 1.5
+
+
+def throat(x, y):
+    """The hollow between the jaw's lobes above the notch: how deep."""
+    c, r = CR(x, y)
+    (tc, tr), (trx, try_), depth = THROAT
+    q = ((c - tc) / trx) ** 2 + ((r - tr) / try_) ** 2
+    return depth * max(0.0, 1.0 - q) ** 1.5
+
+
+def jaw_top(x, y, d):
+    e, roll = JAW_EDGE
+    return e + (jaw_z(x, y) + lip_bump(x, y) - throat(x, y) - e) * dk.rounded(d, roll)
+
+
+# --- The parts ------------------------------------------------------------------------------------------------------------
+
+class Outlines:
+    """The parts' outlines in model coordinates (from the pixels where the sprite draws a part's own outline)."""
+
+    def __init__(self):
+        a = picture()
         own = a >= 0
-        self.own = own
-        self.red = own & (a >> 4 == 4)
-        self.brow = self.red & (rows < 42)
-        self.pads = self.red & (rows >= 42) & (rows < 48) & (np.abs(cols + 0.5 - AXIS_C) > 15)
-        self.bulb = self.red & (rows >= 53)
-        self.region = Region(pic, own, sigma=0.5)
-        self.brow_region = Region(pic, self.brow, sigma=0.55)
-        self.pad_region = Region(pic, self.pads, sigma=0.5)
-        # The jaw's own outline (rows 47 on) for its roll.
-        self.jaw_region = Region(pic, own & (rows >= 46), sigma=0.5)
-        dark = own & (a >> 4 == 0) & ((a & 15) <= 1)
-        h, w = a.shape
-        p = np.pad(own, 1)
-        surrounded = np.ones_like(own)
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            surrounded &= p[1 + dr:1 + dr + h, 1 + dc:1 + dc + w]
-        self.crease = blur((dark & surrounded & (rows < 37)).astype(float), 0.45)
-        shade = np.where(own, a & 15, 0).astype(float)
-        grey = own & (a >> 4 == 0)
-        self.soft = blur(nk.fill(shade, grey), 0.6)
-        self.broad = blur(nk.fill(shade, grey), 2.0)
-
-    # The parts' heights ------------------------------------------------------------------------------------------------
-    def dome(self, X, Y, d):
-        C, R = CR(X, Y)
-        (cc, cr), (rx, ry), h0, h1 = DOME
-        q = np.clip(1.0 - ((C - cc) / rx) ** 2 - ((R - cr) / ry) ** 2, 0.0, 1.0)
-        crown = h0 + (h1 - h0) * np.sqrt(q)
-        return crown * round_rise(d, EDGE_ROLL)
-
-    def slot_amount(self, X, Y):
-        C, R = CR(X, Y)
-        rows = smoothstep(SLOT_ROWS[0] - 0.6, SLOT_ROWS[0] + 0.6, R) * (1.0 - smoothstep(SLOT_ROWS[1] - 0.6, SLOT_ROWS[1] + 0.4, R))
-        side = smoothstep(KNOB_C - 0.5, KNOB_C + 0.8, np.abs(C - AXIS_C))
-        return rows * side
-
-    def post_amount(self, X, Y):
-        C, R = CR(X, Y)
-        u = np.abs(C - AXIS_C)
-        return (smoothstep(POST[0] - 0.3, POST[0] + 0.3, u) * (1.0 - smoothstep(POST[1] - 0.6, POST[1] + 0.4, u)) *
-                (1.0 - smoothstep(POST[2] - 0.8, POST[2] + 0.4, R)))
-
-    def jaw(self, X, Y):
-        C, R = CR(X, Y)
-        u = np.clip(np.abs(C - AXIS_C) / 36.0, 0.0, 1.0)
-        top = JAW[0] + (JAW[1] - JAW[0]) * (1.0 - u ** 1.6)
-        top = top - 0.045 * np.clip(R - 56.0, 0.0, None)                       # falling a little towards its foot
-        lip = LIP[2] * np.exp(-((R - LIP[0]) / LIP[1]) ** 2)
-        rw, rh, (r0, r1) = RIDGE
-        ridge = rh * (1.0 - smoothstep(rw - 1.0, rw + 0.6, np.abs(C - AXIS_C))) * smoothstep(r0, r0 + 2.5, R) * \
-            (1.0 - smoothstep(r1 - 3.0, r1, R))
-        # The jaw's top edge rolls down to the slots' floor.
-        rise = smoothstep(JAW_TOP - 0.6, JAW_TOP + 2.6, R)
-        z = SLOT_FLOOR + (top + lip + ridge - SLOT_FLOOR) * rise
-        for bc, br, rx, ry, _t in BULBS:
-            q = ((C - bc) / (rx + SOCKET[0])) ** 2 + ((R - br) / (ry + SOCKET[0])) ** 2
-            z = z - SOCKET[1] * (1.0 - smoothstep(0.55, 1.0, q))
-        return z
-
-    def heights(self, X, Y):
-        """The head's top over the plane (0 off it)."""
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        C, R = CR(X, Y)
-        d = self.region.depth(X, Y)
-        z = self.dome(X, Y, d)
-        # The slots: carved to their floor under the brows, between the knob and the head's sides.
-        s = self.slot_amount(X, Y)
-        post = self.post_amount(X, Y)
-        floor = SLOT_FLOOR + (POST[3] - SLOT_FLOOR) * post
-        z = z + (np.minimum(z, floor) - z) * s
-        # The jaw from its top edge down.
-        jz = self.jaw(X, Y) * round_rise(self.jaw_region.depth(X, Y), JAW_ROLL)
-        z = np.where(R > JAW_TOP - 1.5, smax(z * (1.0 - smoothstep(JAW_TOP - 1.0, JAW_TOP + 1.0, R)), jz, 0.8), z)
-        # The sprite's dark lines and fine shading.
-        pic = self.pic
-        z = z - CREASE * pic.sample(self.crease, X, Y) * np.clip(z / 4.0, 0.0, 1.0)
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        z = z + np.clip(DETAIL[0] * fine, -DETAIL[1], DETAIL[1]) * smoothstep(1.0, 3.0, z) * (R < JAW_TOP)
-        # The brows over the dome, the pads over the slots.
-        bd = self.brow_region.depth(X, Y)
-        base = np.maximum(self.dome(X, Y, np.maximum(d, 0.0)) - 0.6, BROW_BASE * (R > 30.0) * smoothstep(29.0, 33.0, R))
-        brow = np.where(bd > -0.2, base + BROW_T * round_rise(bd + 0.2, BROW_ROLL), 0.0)
-        z = np.where(bd > -0.2, np.maximum(z, brow), z)
-        pd = self.pad_region.depth(X, Y)
-        pad = np.where(pd > -0.2, SLOT_FLOOR + PAD_T * round_rise(pd + 0.2, 1.4), 0.0)
-        z = np.maximum(z, pad)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-
-    def cells(self, X, Y):
-        return self.region.inside(X, Y)
-
-    def top(self, X, Y):
-        """The head's top with its solids (the knob, the bulbs) over the plane: what DREAD-NOT lays its parts over."""
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        z = self.heights(X, Y)
-        C, R = CR(X, Y)
-        (kc, kr), (rx, ry, rz), kz = KNOB
-        q = ((C - kc) / rx) ** 2 + ((R - kr) / ry) ** 2
-        z = np.maximum(z, np.where(q < 1.0, kz + rz * np.sqrt(np.clip(1.0 - q, 0.0, 1.0)), 0.0))
-        for bc, br, brx, bry, _t in BULBS:
-            x, y = XY(bc, br)
-            surface = float(self.jaw(np.array([x]), np.array([y]))[0])
-            q = ((C - bc) / brx) ** 2 + ((R - br) / bry) ** 2
-            z = np.maximum(z, np.where(q < 1.0, surface - BULB_SINK + SOCKET[1] * 0.5 +
-                                       BULB_RZ * np.sqrt(np.clip(1.0 - q, 0.0, 1.0)), 0.0))
-        return z
+        rows = np.arange(H)[:, None] * np.ones((1, W), int)
+        cols = np.ones((H, 1), int) * np.arange(W)[None, :]
+        red = own & (a >> 4 == 4)
+        left = cols < MID_C
+        self.art = a
+        stray = (rows == 12) & (cols <= 21)          # two outline pixels standing off the dome's edge
+        self.dome = dk.mask_outline(own & (rows <= 47) & ~stray, LEFT, TOP, sigma=1.8)
+        self.jaw = dk.mask_outline(own & (rows >= 47), LEFT, TOP, sigma=1.8)
+        pad = red & (rows >= 41) & (rows <= 47) & (cols <= 18) & left
+        brow = red & left & ~pad & (rows <= 41) & ((rows <= 36) | (cols <= 12))
+        self.brow = dk.mask_outline(brow, LEFT, TOP, sigma=1.1)
+        self.pad = dk.mask_outline(pad, LEFT, TOP, sigma=1.0)
 
 
-def zones(pic, head):
-    a = pic.a
-    own = a >= 0
-    rows = np.arange(pic.h)[:, None] * np.ones((1, pic.w))
-    grey = own & (a >> 4 == 0)
-    slot = grey & (rows >= 37) & (rows < 47)
-    return [Zone("grey", grey, GREY, FINISH["grey"]),
-            Zone("red", head.red, RED, FINISH["red"], sigma=0.7),
-            Zone("pipe", slot, PIPE, FINISH["pipe"], sigma=0.6, lift=0.6, comp=1.2, pick=False),
-            Zone("knob", grey, GREY, FINISH["knob"], sigma=0.6, lift=1.6, comp=2.4, pick=False),
-            Zone("dark", grey, [0x01, 0x02], FINISH["dark"], lift=0.0, comp=0.0, pick=False)]
-
-
-def plate_keys(head, painter):
-    def keys(obj, kinds, wall_z):
-        centres, normals = nk.face_data(obj)
-        X, Y = centres[:, 0], centres[:, 1]
-        C, R = CR(X, Y)
-        bd = head.brow_region.depth(X, Y)
-        pd = head.pad_region.depth(X, Y)
-        post = head.post_amount(X, Y)
-        z = centres[:, 2]
-        zone_names = []
-        for i in range(len(X)):
-            if kinds[i] != 0:
-                zone_names.append("dark")
-            elif bd[i] > 0.0 or pd[i] > 0.0 or (post[i] > 0.5 and SLOT_ROWS[0] < R[i] and z[i] > SLOT_FLOOR + 1.0):
-                zone_names.append("red")
-            elif SLOT_ROWS[0] < R[i] < SLOT_ROWS[1] and z[i] < SLOT_FLOOR + 0.6:
-                zone_names.append("dark")
-            else:
-                zone_names.append("grey")
-        out = painter.keys(obj, zones=zone_names)
-        return [("dark", 0x01) if kinds[i] != 0 else key for i, key in enumerate(out)]
-    return keys
-
-
-def solids(head, painter):
-    """The knob, the pipes and the bulbs, painted."""
+def bulb_list():
+    """All four bulbs (model x, y, radii, tilt)."""
     out = []
-    (kc, kr), (rx, ry, rz), kz = KNOB
-    x, y = XY(kc, kr)
-    knob = nk.ellipsoid("knob", (x, y, kz), (rx, ry, rz), count=14, around=36, cut_below=SLOT_FLOOR - 0.5)
-    nk.assign(knob, painter.keys(knob, zone="knob"), painter)
-    out.append(knob)
-    collar = nk.lathe_axis("knob_collar", [(-0.5, rx + 0.35), (-0.25, rx + 0.75), (0.25, rx + 0.75), (0.5, rx + 0.35)],
-                           (x, y, kz - 1.6), (0, 0, 1), around=36)
-    nk.assign(collar, painter.keys(collar, zone="pipe", offset=1.0), painter)
-    out.append(collar)
-    for side in (-1, 1):
-        for i, (c0, c1, r, rad) in enumerate(PIPES):
-            if side > 0:
-                c0, c1 = 2 * AXIS_C - c1, 2 * AXIS_C - c0
-            x0, y0 = XY(c0, r)
-            x1, y1 = XY(c1, r)
-            n = 8
-            pts = [(x0 + (x1 - x0) * j / n, y0, SLOT_FLOOR + rad * 0.72) for j in range(n + 1)]
-            pipe = nk.loft_path("pipe%d_%d" % (side, i), pts, [rad] * (n + 1), around=18, squash=0.92)
-            nk.assign(pipe, painter.keys(pipe, zone="pipe"), painter)
-            out.append(pipe)
-            # A ring round each pipe near its inner end.
-            cring = c1 - 3.2 if side < 0 else c0 + 3.2
-            xr, _ = XY(cring, r)
-            ring = nk.lathe_axis("pipe_ring%d_%d" % (side, i), [(-0.45, rad + 0.05), (-0.25, rad + 0.32),
-                                                               (0.25, rad + 0.32), (0.45, rad + 0.05)],
-                                 (xr, y0, SLOT_FLOOR + rad * 0.72), (1, 0, 0), around=18, squash=0.92)
-            nk.assign(ring, painter.keys(ring, zone="knob", offset=-1.0), painter)
-            out.append(ring)
-    for i, (bc, br, rx, ry, tilt) in enumerate(BULBS):
-        x, y = XY(bc, br)
-        surface = float(head.jaw(np.array([x]), np.array([y]))[0])
-        bulb = nk.ellipsoid("bulb%d" % i, (x, y, surface - BULB_SINK + SOCKET[1] * 0.5), (rx, ry, BULB_RZ), count=12,
-                            around=32, angle=tilt, cut_below=surface - SOCKET[1] - 0.6)
-        nk.assign(bulb, painter.keys(bulb, zone="red", offset=0.4), painter)
-        out.append(bulb)
+    for c, r, rx, ry, tilt in BULBS:
+        x, y = P(c, r)
+        out.append((x, y, rx, ry, tilt))
+        out.append((2 * AXIS - x, y, rx, ry, -tilt))
     return out
 
 
-def build_all(options):
-    pic = picture()
-    head = Head(pic)
-    plate = nk.gw.Plate((LEFT, LEFT + W, TOP - H, TOP), head.heights, cells=head.cells)
-    painter = Painter(pic, zones(pic, head), "dome_head")
-    parts = solids(head, painter)
-    for p in parts:
-        p.hide_render = True
-    return pic, head, plate, painter, parts
+def dome(m, ol):
+    groove = PANEL_GROOVE
+
+    def paint(x, y, d):
+        return "dark" if slot_amount(x, y) > 0.5 or abs(panel_sd(x, y)) < groove else "top"
+    shell = dk.plate("dome_shell", ol.dome, dome_top, m["armour"], side=m["dark"], mats={"dark": m["dark"]},
+                     paint=paint, borders=[(lambda x, y, d: slot_amount(x, y), 0.5),
+                                           (lambda x, y, d: -panel_sd(x, y), -groove),
+                                           (lambda x, y, d: -panel_sd(x, y), groove)],
+                     bottom=0.0, spacing=0.55, band=2.6, smooth_angle=55.0)
+    parts = [shell]
+    # the seam's stem
+    c0, (r0, r1) = STEM
+    stem_poly = dk.rounded_poly([(c0, r1), (c0, r0 + 1.0), (c0 + 0.6, r0), (2 * MID_C - c0 - 0.6, r0),
+                                 (2 * MID_C - c0, r0 + 1.0), (2 * MID_C - c0, r1)], LEFT, TOP, 1)
+    up, crest, rnd = RIB_UP
+
+    def rib_top(x, y, d):
+        return crown(x, y) + up + crest * dk.rounded(d, rnd)
+    parts.append(dk.plate("dome_stem", [stem_poly], rib_top, m["armour"], bottom=1.0, spacing=0.32, band=1.2,
+                          smooth_angle=60.0))
+    # the arms out to the dome's sides
+    for side in (-1, 1):
+        pts = [P(c if side < 0 else 2 * MID_C - c, r) for c, r, _ in ARM]
+        hw = [w for _, _, w in ARM]
+        edge_a, edge_b = [], []
+        for i, (x, y) in enumerate(pts):
+            ax, ay = pts[max(i - 1, 0)]
+            bx, by = pts[min(i + 1, len(pts) - 1)]
+            dx, dy = bx - ax, by - ay
+            ln = math.hypot(dx, dy)
+            nx, ny = -dy / ln, dx / ln
+            edge_a.append((x + nx * hw[i], y + ny * hw[i]))
+            edge_b.append((x - nx * hw[i], y - ny * hw[i]))
+        poly = mk.chaikin(edge_a + list(reversed(edge_b)), 1, closed=True)
+        parts.append(dk.plate("dome_arm%d" % side, [poly], rib_top, m["armour"], bottom=1.0, spacing=0.25,
+                              smooth_angle=60.0))
+    # the oval boss on the crown
+    (bc, br), (brx, bry), (brim, btop, brnd) = BOSS
+    bx, by = P(bc, br)
+
+    def boss_top(x, y, d):
+        return crown(x, y) + brim + btop * dk.rounded(d, brnd)
+    parts.append(dk.plate("dome_boss", [dk.ellipse_poly(bx, by, brx, bry, segments=48)], boss_top, m["armour"],
+                          bottom=1.0, spacing=0.4))
+    return parts
+
+
+def brows(m, ol):
+    parts = []
+    for i, poly in enumerate(ol.brow):
+        parts.append(dk.plate("brow%d" % i, [poly], brow_top, m["red"], bottom=1.0, spacing=0.4, band=2.2,
+                              smooth_angle=50.0))
+
+    def pad_top(x, y, d):
+        return SLOT_Z + 0.4 + PAD[0] * dk.rounded(d, PAD[1])
+    for i, poly in enumerate(ol.pad):
+        parts.append(dk.plate("pad%d" % i, [poly], pad_top, m["red"], bottom=SLOT_Z - 1.0, spacing=0.35,
+                              smooth_angle=60.0))
+    return parts
+
+
+def pipes(m):
+    parts = []
+    for i, ((c0, c1, r), rad) in enumerate(PIPES):
+        x0, y = P(c0, r)
+        x1, _ = P(c1, r)
+        z = SLOT_Z + rad * 0.8
+        n = 10
+        pts = [(x0 + (x1 - x0) * j / n, y, z) for j in range(n + 1)]
+        pipe = dk.tube_path("pipe%d" % i, pts, rad, m["pipe"], segments=16, squash=0.92)
+        k.smooth(pipe, 60)
+        parts.append(pipe)
+        half, out, _ = RING
+        xr = x1 - RING[0]
+        ring = dk.turned("pipe_ring%d" % i, [(-half, rad + 0.02), (-half * 0.6, rad + out), (half * 0.6, rad + out),
+                                             (half, rad + 0.02)], (xr, y, z), (1, 0, 0), m["steel"], segments=20,
+                         squash=0.92)
+        k.smooth(ring, 50)
+        parts.append(ring)
+    return parts
+
+
+def knob(m):
+    (kc, kr), radii, kz = KNOB
+    x, y = P(kc, kr)
+    ball = dk.ball("knob", (x, y, kz), radii, m["steel"], segments=28, rings=14)
+    rad, z, (hh, th) = COLLAR
+    collar = dk.turned("knob_collar", [(-hh, rad - th), (-hh * 0.5, rad), (hh * 0.5, rad), (hh, rad - th)],
+                       (x, y, z), (0, 0, 1), m["steel"], segments=40)
+    k.smooth(collar, 50)
+    return [ball, collar]
+
+
+def jaw(m, ol):
+    holes = []
+    sockets = []
+    bulbs = []
+    reach = BULB[2]
+    for i, (x, y, rx, ry, tilt) in enumerate(bulb_list()):
+        holes.append(dk.ellipse_poly(x, y, rx + reach, ry + reach, tilt, segments=40))
+        z = jaw_z(x, y)
+        sockets.append(mk.prism("socket%d" % i, dk.ellipse_poly(x, y, rx + reach + 0.05, ry + reach + 0.05, tilt, 40),
+                                0.0, z - 2.2, m["dark"]))
+        bulbs.append(dk.ball("bulb%d" % i, (x, y, z - BULB[1]), (rx, ry, BULB[0]), m["bulb"], segments=28, rings=14,
+                             angle=tilt))
+    plate = dk.plate("jaw", ol.jaw + holes, jaw_top, m["armour"], side=m["dark"], bottom=0.0, spacing=0.55, band=3.4,
+                     smooth_angle=70.0)
+    parts = [plate] + sockets + bulbs
+    # the ridge down its middle
+    half, (rim, crest, rnd) = RIDGE
+    poly = dk.rounded_poly(half + [(2 * MID_C - c, r) for c, r in reversed(half[:-1])], LEFT, TOP, 2)
+
+    def ridge_top(x, y, d):
+        return jaw_z(x, y) + rim + crest * dk.rounded(d, rnd)
+    parts.append(dk.plate("ridge", [poly], ridge_top, m["armour"], bottom=1.0, spacing=0.5, band=1.6))
+    return parts
+
+
+def build_head(m):
+    """The whole head in the picture's plane (head model coordinates, not sheared)."""
+    ol = Outlines()
+    whole = dome(m, ol) + jaw(m, ol) + knob(m)
+    left = brows(m, ol) + pipes(m)
+    whole += left + dk.mirror(left, AXIS)
+    for obj in whole:
+        mk.apply(obj)
+    bpy.context.view_layer.update()
+    return whole
+
+
+class Head:
+    """The head's top over the plane, its solids included, as polish_deli_capsule.py and polish_dread_parts.py read
+    it: the head built once (its solids left in the scene, hidden from renders), cast straight down onto."""
+
+    def __init__(self, pic=None):
+        self.m = materials()
+        self.objects = build_head(self.m)
+        for obj in self.objects:
+            obj.hide_render = True
+        self.surface = dk.Surface(self.objects)
+
+    def top(self, X, Y):
+        return self.surface.top(X, Y)
+
+
+def cap_of(m):
+    def cap(src):
+        name = src.name
+        if name.startswith(("brow", "pad", "bulb")):
+            return m["redcut"]
+        return m["dark"]
+    return cap
+
+
+def pieces():
+    art = picture()
+    boxes = {}
+    for sprite, ((c0, r0), keep) in PIECES.items():
+        kc0, kc1, kr0, kr1 = keep if keep is not None else (c0, c0 + 24, r0, r0 + 28)
+        boxes[sprite] = (LEFT + kc0, LEFT + kc1, TOP - kr1, TOP - kr0)
+    rects = dk.own_rects(boxes, list(PIECES))
+    out = []
+    for sprite, ((c0, r0), keep) in PIECES.items():
+        out.append(("dome_head_%d" % sprite, rects[sprite], (c0 - 24.0, 28.0 - r0), dk.sprite_mask_of(art, c0, r0, keep)))
+    return out
 
 
 def build():
@@ -413,29 +528,17 @@ def build():
     out = mk.outdir(options)
     only = set(options["only"].split(",")) if "only" in options else None
     k.reset()
-    pic, head, plate, painter, parts = build_all(options)
-    keys = plate_keys(head, painter)
-    for sprite, ((c0, r0), keep) in PIECES.items():
-        name = "dome_head_%d" % sprite
-        if only is not None and name not in only:
-            continue
-        box = nk.own_box(pic, c0, r0, keep)
-        owns = nk.box_owner(box)
-        pieces = nk.piece_parts(plate, keys, parts, box, owns, name, painter, ("dark", 0x01))
-        for p in pieces:
-            p.hide_render = False
-        mask = None
-        if "check" in options:
-            m = np.array(nk.sprite_mask(pic, c0, r0))
-            if keep is not None:
-                kc0, kc1, kr0, kr1 = keep
-                sub = np.zeros_like(m)
-                sub[max(0, kr0 - r0):kr1 - r0, max(0, kc0 - c0):kc1 - c0] = True
-                m = m & sub
-            mask = m.tolist()
-        origin = (LEFT + c0 + 12, TOP - r0 - 14)
-        piece = nk.finish(name, pieces, box, out, options, painter, mask=mask, origin=origin)
-        bpy.data.objects.remove(piece)
+    m = materials()
+    whole = build_head(m)
+    low, high = mk.bounds(whole)
+    print("== head: %d triangles, x %.2f..%.2f y %.2f..%.2f z %.2f..%.2f" % (
+        mk.triangles(whole), low.x, high.x, low.y, high.y, low.z, high.z))
+    if "whole" in options:
+        dk.export_whole(whole, options["whole"])
+    results = dk.export_pieces(whole, pieces(), cap_of(m), options, out, only, check="check" in options)
+    for name, score in results.items():
+        if score is not None:
+            print("overlap %-16s %.3f" % (name, score))
 
 
 if __name__ == "__main__":
