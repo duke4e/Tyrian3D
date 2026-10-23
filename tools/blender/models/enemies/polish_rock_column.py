@@ -1,19 +1,21 @@
 """MINERS's banded rock column and its broken look (sheet M sprites 163 165 above 201 203 above 239 241, 2x2 each: one
 48 x 84 picture; the broken look 167 169 above 205 207 in the upper four's places; enemies 1191-1196 of episode 5,
-ground layers, armour 30, worth 10 each), polished (2026-10-22, round 35; it replaces wave3_ah_rock.py, an octagonal
-pillar leaning up the screen built as a heightfield on its own frame, painted by the sprite's ramps, and its broken
-look cut out of it). models.cfg: model rock_column_tl / _tr / _ml / _mr / _bl / _br and rock_column_wreck_tl / _tr /
-_ml / _mr ... origin (unchanged); every sprite line gets height=-4.
+ground layers, armour 30, worth 10 each), polished (2026-10-23, round 38, the quality redo: rebuilt from faceted
+stones; round 35's version, one signed distance field with the picture's shading as relief and its shades painted on
+face by face, read as a lumpy blob with blotchy white highlights; that one replaced wave3_ah_rock.py, an octagonal
+pillar built as a heightfield on its own frame). models.cfg: model rock_column_tl / _tr / _ml / _mr / _bl / _br and
+rock_column_wreck_tl / _tr / _ml / _mr ... origin (unchanged); every sprite line has height=-4 (unchanged).
 
 Where the level puts it (the level events, tools/content/tyrevents.py; the enemy data, tools/content/tyrdata.py):
 MINERS builds the column five times (t468 at column 3, t1140 at 10, t1196 at 9, t3632 at 6, t4276 at 7), each time
 from six ground enemies with one link: 1195 (239) at (x, y) and 1196 (241) at x + 24 on the ground layer, 1193 (201)
 and 1194 (203) 28 pixels up the screen and 1191 (163) and 1192 (165) 56 pixels up (d5 -29 and -57) on ground 2: the
 sheet's picture whole. Always on the map's row above tiles of its own: the map paints the column's broken stump (the
-lower drum shattered) in the tile row under 239 and 241. Shot, the six go together (one link): the upper four turn to
-their broken looks (dgr 167 169 205 207, dlevel -1: they stay), the lower two die (the game leaves its slumped wrecks
-of their models over the painted stump). No other enemy, launched ones included, shows these sprites; none is another
-sprite's pixels mirrored, turned or in other ramps; no episode 6 level places the column.
+lower drum shattered) in the tile row under 239 and 241 (background 1, e.g. map row 274 under the column whose top left
+is at row 272, column 3). Shot, the six go together (one link): the upper four turn to their broken looks (dgr 167
+169 205 207, dlevel -1: they stay), the lower two die (the game leaves its slumped wrecks of their models over the
+painted stump). No other enemy, launched ones included, shows these sprites; none is another sprite's pixels
+mirrored, turned or in other ramps; no episode 6 level places the column.
 
 As the sprites and their 4x upscales draw it (columns and rows of the 48 x 84 picture; ramp 10's tans 0xa1-0xae): an
 octagonal column of stone seen from the front and above, standing up the screen from its foot (the bottom edge, rows
@@ -27,35 +29,41 @@ rows 7-22, ramp 6's 0x60-0x66), its top right broken away (the outline running f
 row 28) over a smaller hollow (columns 33-39 of rows 21-27); hollows in the upper drum (columns 33-41 of rows 31-38,
 11-18 of rows 46-55, 34-38 of rows 40-50).
 
-Built as such a column, for the game's camera: designed in the picture's plane (x, y as the picture draws them, z up,
-the camera looking straight down) and then sheared along the game camera's line of sight (y - z tan 20:
-polish_lava_grub.py's and polish_red_mound.py's way), so that the camera sees every point where the picture draws it.
-In the picture's plane the column leans back LEAN (72) degrees from upright about its foot, so that the camera sees its
-drums nearly face on and their joints as the flat arcs the sprites draw (a ring of the column shows RN cos LEAN = 5.6
-rows deeper at its front than at its sides); the joints lie where the sprites draw them at the column's sides (rows 69.5,
-50, 31 and the head's rim at row 20: T_JOINTS, T_CAP along its axis); the head's dome reaches the picture's row 2
-(DOME). The column's foot stands on the ground: under its lowest ring its sides go straight down to the ground in the
-picture's plane (along the camera's line of sight once sheared: unseen), so that the camera sees the foot's edge where
-the sprites draw it and nothing under it. After the shear the column leans back about 73 degrees from upright (from
-the side a thick pillar lying back on the sand), its head 36 pixels over the ground. It is a signed distance field on a
-grid H pixels apart (polish_rock_arch.py's surface nets, as polish_red_spire.py's and polish_red_mound.py's rocks): an
-octagonal prism (RX across, RN deep, its front face W_FRONT wide) with rounded edges, the joints sunk GROOVE deep round
-it, the head rounding from the octagon into an ellipsoid dome; the picture's fine shading as relief (lumps where it is
-light, pits where it is dark: the drums' mottling), smooth noise, rougher on the head. Its colours are the picture's own
-shades under each face (the faces' points taken back into the picture's plane): the broad shading kept in part round MID
-(KEEP: the game's sun shades it), the fine shading kept, grained a little; the gold flecks 0x19 and the quartz 0xbf
-where the picture has them; the undersides dark. The broken look is the same column with the hollows carved out of it
-down the camera's line of sight (as deep as the picture's black is dark, up to HOLLOW_DEPTH under the surface) and the
-head's top right broken away (everything the camera would see outside the broken outline removed, its edge sloping in
-as a fracture face), painted from the broken pictures (the hollows 0x61 / 0x64 by the light, their lips dark).
+Built as such a column of separate stones, for the game's camera: designed in the picture's plane (x, y as the
+picture draws them, z up) and then sheared along the game camera's line of sight (y - z tan 20: polish_lava_grub.py's
+and polish_red_mound.py's way), so that the camera sees every point where the picture draws it. In the picture's
+plane the column leans back LEAN (72) degrees from upright about its foot, so that the camera sees its stones nearly
+face on and their joints as the flat arcs the sprites draw (a ring of the column shows RN cos LEAN = 5.6 rows deeper
+at its front than at its sides); the joints lie where the sprites draw them at the column's sides (rows 50 and 31: J1,
+J2 along its axis), the head's rim at row 20 (T_CAP), its dome's tip at row 2 (T_END). Each stone is a convex solid
+with clean flat facets (the convex hull of its rings: no noise, no painting): the two drums octagons (RX across, RN
+deep, the front face W_FRONT wide, the corners chamfered CORNER) with chamfered ends, a little fuller in their middles
+(each face a few facets); the foot a plinth flaring forward to the sprites' lowest row (78) and under its ring straight
+down to the ground (in the picture's plane: along the camera's line of sight once sheared, unseen), a few of its edges
+chipped off by flat cuts; the head the octagon narrowing into a dome whose points are jittered (ROUGH), so that its
+hull is a rough cap of flat chiselled facets, CHIPS of its edges chipped. In each joint a dark core shows between the stones' chamfers. Details are their own small solids:
+gold nuggets set into the stones where the picture's gold flecks cluster, white quartz crystals standing out of the
+head where its sparkles cluster (found by a ray straight down in the picture's plane: what the camera sees there).
+The broken look is the same column shattered, cut into with exact booleans (one joined cutter a part,
+self-intersection on; the meshes rebuilt in a fixed order after them, canonical(), so that the output is the same
+every run): cavities where the broken pictures are dark (hollow_mask(): ramp 6's black or shades 0-2 that are not dark
+in the intact picture, closed over a pixel), each a jagged funnel over the region's outline grown by HOLLOW_GROW, its
+floor sloping in from the surface to HOLLOW_DEPTH with its points jittered (broken faces the camera sees); V-shaped
+cracks along CRACKS; chips broken off the upper drum's rims and corners and the head's lower rim (chip_cutters); the
+head's top right broken away beyond the broken outline by three faceted wedges. The broken faces keep each stone's own
+colour; only faces deeper than DEEP under the original surface, the holes' insides, are dark (0x61). Broken chunks
+(RUBBLE) lie in the head's crater, in the joints and on the drum, faceted, in the colour of the stone they lie on.
+Heights: the foot's front 17 over the ground, the head 34.6 at its top (round 35's 34.3).
+Materials by part (palette, the shading the geometry's): the drums 0xa7, the head 0xad, the joints 0x02, gold 0x1b
+(metallic, emission 0.12), quartz 0xbf (emission 0.18), the holes' dark insides 0x61. The facets flat-shaded, the
+holes' dark insides smooth.
 
-The whole is cut along the planes the camera sees as the sprites' edges (x = 0; y + tan 20 z = 14 and -14, leaning
-back up the screen: polish_stone_face.view_cut's planes), so that each piece holds what the camera sees in its sprite
-(the upper pieces the head, which stands over the middle pieces once sheared), the cuts capped with the stone's inside
-(CAP; they show only through gaps: the pieces stand together); each piece's triangles reduced to TARGET with its cut's
-vertices kept (polish_rock_arch.decimate) and its normals those of the dense whole (shade_like), so the pieces meet
-exactly and shade as one column; each moved so that its sprite's centre is its origin, triangulated
-(polish_k_pod.triangulate). The broken pieces are cut the same way (only the upper four are exported).
+The whole is cut along the sprites' edges in the picture's plane (x = 0, y = 14 and -14: the camera's lines of sight
+once sheared, polish_stone_face.view_cut's planes), so that each piece holds what the camera sees in its sprite (the
+upper pieces the head, which stands over the middle pieces once sheared), the cuts closed in each part's own material
+(they show only through gaps: the pieces stand together); each piece sheared, moved so that its sprite's centre is its
+origin, triangulated (polish_k_pod.triangulate) and joined. The broken pieces are cut the same way (only the upper
+four are exported).
 
 Coordinates: 1 unit = 1 game pixel; +X right, +Y up the screen, +Z up from the ground (z = 0); the whole's origin is
 the picture's middle (the corner where 201 and 203 meet, half way down): column c of the picture is x = c + 0.5 - 24,
@@ -63,35 +71,35 @@ row r is y = 41.5 - r. The pieces' centres: 163 (-12, 28), 165 (12, 28), 201 (-1
 241 (12, -28). Drawn at their origins (origin) on the ground layers: height=-4 sets the column on the terrain (the game
 lifts pieces side by side moving alike together, to the terrain under their middle; MINERS's ground is level there).
 
-Replaces wave3_ah_rock.py (all of it: the column and its broken look were all it built). With wave3_ah.py
-(polish_miners_machines.py, polish_block_rubble.py) and wave3_ah_rig.py (polish_miners_rig.py) gone too, nothing
-imports wave3_ah_kit.py or its pixels, wave3_ah_art.py (the column's ROCK and ROCK_WRECK among them): both go.
+shear_to_camera, view_coverage, cut_piece, drop_islands and TILT stay as round 35 wrote them: polish_lander.py,
+polish_tan_dome.py and polish_miners_rig.py import them. The old code (wave3_ah_rock.py and its kit and art) went with
+round 35.
 
 Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (the whole's and each piece's
 silhouette as the camera sees it against the sprites' own pixels, the ground they paint left out), --preview <prefix>,
---whole <prefix> (the uncut column and its broken look: views and GLBs), --only <name,...>.
+--whole <prefix> (the uncut column and its broken look: views), --only <name,...>.
 """
 import math
 import os
 import sys
-import time
 
 import bmesh
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
+from mathutils.bvhtree import BVHTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-from polish_rock_arch import (surface_nets, finish_whole, mesh_object, noise3, smax, fill_outside, face_data,  # noqa: E402
-                              assign, decimate, shade_like)
 from polish_k_pod import triangulate  # noqa: E402
+from polish_deli_boss import join, drop_unused  # noqa: E402
+from polish_ring_machine import relief, round_edge, resample  # noqa: E402
+from polish_fleet_walker import mask_loops, area  # noqa: E402
 
 TILT = math.tan(math.radians(20.0))     # the camera shows a point this much further up the screen per pixel up
-LIGHT = Vector((-0.55, 0.45, 0.7)).normalized()
 
 # The pieces: model, sprite, (its broken look's model, sprite), its box in the picture's plane (x0, x1, y0, y1; None:
 # no neighbour that side), its sprite's centre.
@@ -254,50 +262,41 @@ Y_FOOT, Z_FOOT = -28.0, 0.0             # its axis meets its foot ring here (the
 X_AXIS = 0.5                            # (the sprites draw it from column 2 to 46: its middle half a pixel right)
 RX, RN = 22.5, 18.0                     # the octagon: half its width, half its depth (front to back)
 W_FRONT, H_SIDE = 10.8, 7.2             # half the front face's width, half the side faces' depth
-FLARE, FLARE_T = 8.0, 7.0               # the foot flares forward (deeper by FLARE at the foot ring, over FLARE_T)
-# Along its axis (pixels from the foot ring): the joints' middles (the sprites' rows 69.5, 50 and 31 at its sides) and
-# the head's rim (row 20); the head's boss over it, narrowing from the rim to its top (S_RIM, S_TOP of the octagon),
-# its top face's middle drawn at row 7.4 (T_TOP), bulging BULGE, its edge rounded over ROUND.
-T_JOINTS = [0.0, 19.5 / SA, 38.5 / SA]
+J1, J2 = 19.5 / SA, 38.5 / SA           # the joints' middles along the axis (the sprites' rows 50 and 31 at its sides)
+GAP = 1.45                              # half the joints' gap between the stones
+END = (1.6, 0.895)                      # the stones' chamfered ends: how long along the axis, how far in (a share)
+BULGE = 1.022                           # the drums a little fuller in their middles
+CORNER = 0.55                           # the octagon's corners chamfered this far along its faces (catching light)
+PLINTH = [(0.0, 1.0, 26.0), (2.6, 1.0, 21.0), (6.2, 1.0, 18.2)]   # the foot: (axis, share of the width, depth)
+# The head: from the upper joint up, the octagon (shares of it along the axis) narrowing into a rough dome whose tip
+# is drawn at row 2 (T_END along the axis); its facets: the points jittered in by up to ROUGH, every DOME_STEP.
 T_CAP = 49.5 / SA
-T_TOP = (69.5 - 7.4) / SA
-S_RIM, S_TOP, BULGE, ROUND = 0.935, 0.78, 1.6, 2.6
-GROOVE, GROOVE_W, GROOVE_EDGE = 2.0, 1.3, 1.4       # the joints: depth, half width, the drums' rounded edges
-FOOT_W = 0.6                            # the foot ring's joint is narrower (the drum's lower edge)
+T_END = (70.0 - 2.4) / SA
+HEAD = [(J2 + GAP, END[1]), (J2 + GAP + END[0], 1.0), (T_CAP - 3.0, 0.985), (T_CAP, 0.955)]
+DOME_POWER, DOME_STEP, ROUGH = 2.3, 1.3, 1.15
 SKIRT = 1.5                             # how far the column reaches under the ground
-# The relief from the picture's fine shading, the noise ((amplitude, scale)), on the drums and on the head.
-RELIEF_DRUM, RELIEF_HEAD = 0.1, 0.45
-NOISE_DRUM = ((0.08, 2.4), (0.03, 1.0))
-NOISE_HEAD = ((0.3, 3.0), (0.12, 1.2))
-# The broken look: how deep the hollows go under the surface (where the picture is black), how far in the broken top
-# right's fracture face reaches over its height.
-HOLLOW_DEPTH = 4.2
-FRACTURE_DEPTH = 4.5
+CHIPS = 6                               # chipped edges on the head
+# The broken look: cavities where the broken pictures are dark (hollow_mask(); regions of HOLLOW_MIN pixels or more):
+# each a jagged funnel over the region's outline grown by HOLLOW_GROW (its points jittered JAG), its floor sloping in
+# at HOLLOW_SLOPE from the surface to HOLLOW_DEPTH (the big regions deepest), the floor's points jittered JAG_FLOOR:
+# broken faces. Cracks: V grooves along CRACKS (half width, depth: CRACK). Faces deeper than DEEP under the stone's
+# surface are the holes' dark insides; the shallower broken faces keep the stone's own colour. WRECK_CHIPS edges of
+# the head and of the upper drum chipped off; RUBBLE: broken chunks (column, row, size) lying where they fell.
+HOLLOW_DEPTH, HOLLOW_GROW, HOLLOW_SLOPE, HOLLOW_MIN = (2.4, 5.6), 1.35, 1.3, 3
+JAG, JAG_FLOOR, DEEP = 0.7, 0.8, 1.6
+CRACKS = [[(16.0, 23.0), (17.6, 27.4), (16.6, 31.6), (18.3, 35.6)],
+          [(14.4, 35.2), (17.0, 39.0), (19.6, 42.4), (22.2, 45.6)],
+          [(35.0, 45.8), (35.3, 50.0), (34.5, 54.2)],
+          [(30.2, 23.2), (28.2, 27.8), (29.6, 32.6)],
+          [(9.2, 32.8), (7.6, 37.8), (8.6, 43.2)],
+          [(26.2, 8.8), (23.4, 14.2), (24.6, 18.0)]]
+CRACK = (0.6, 2.2)
+WRECK_CHIPS = (14, 8)            # chips broken off the upper drum's rims and corners, the head's lower rim
+RUBBLE = [(15.5, 19.5, 1.5), (20.0, 22.0, 1.15), (11.2, 16.5, 0.95), (19.6, 36.4, 1.25), (28.6, 36.0, 1.05),
+          (23.2, 55.0, 1.15), (39.2, 31.4, 1.0), (13.4, 52.0, 0.9)]
+BREAK = [(24.0, 2.0), (47.5, 28.5)]
+MATS = {"drum": 0xa7, "head": 0xad, "joint": 0x02, "gold": 0x1b, "quartz": 0xbf, "hollow": 0x61}
 
-# The grid (the picture's plane).
-H = 0.35
-X0, NX = -25.2, 146
-Y0, NY = -37.0, 230
-Z0, NZ = -2.8, 124
-XS = X0 + H * np.arange(NX)
-YS = Y0 + H * np.arange(NY)
-ZS = Z0 + H * np.arange(NZ)
-
-# The colours: the share of the picture's broad shading kept (round MID), the fine shading's weight, the grain.
-MID, KEEP, DETAIL, DITHER = 8.6, 0.65, 1.3, 0.35
-CAP = 0xa5
-GOLD, QUARTZ = 0x19, 0xbf
-JOINT = 0x01
-HOLLOW_DARK, HOLLOW_LIT = JOINT, 0x62
-TARGET = 5600
-
-
-def smoothstep(e0, e1, x):
-    t = np.clip((np.asarray(x, dtype=np.float64) - e0) / (e1 - e0), 0.0, 1.0)
-    return t * t * (3.0 - 2.0 * t)
-
-
-# --- The picture ------------------------------------------------------------------------------------------------------
 
 def art(text, base=None):
     """A picture's arrays (84 x 48): its shades (nan: none), its gold flecks, quartz and black (bools); rows the text
@@ -327,240 +326,607 @@ def own_pixels(pic):
     return ~np.isnan(pic[0])
 
 
-def sample(a, x, y, pad=0.0):
-    """Bilinear sample of a pixel array a[row, column] of the picture (values at the pixels' centres)."""
-    rows, cols = a.shape
-    u, v = x + 24.0 - 0.5, 41.5 - y
-    c0, r0 = np.floor(u).astype(int), np.floor(v).astype(int)
-    fu, fv = u - c0, v - r0
-
-    def at(r, c):
-        ok = (r >= 0) & (r < rows) & (c >= 0) & (c < cols)
-        return np.where(ok, a[np.clip(r, 0, rows - 1), np.clip(c, 0, cols - 1)], pad)
-    return ((1 - fu) * (1 - fv) * at(r0, c0) + fu * (1 - fv) * at(r0, c0 + 1) + (1 - fu) * fv * at(r0 + 1, c0) +
-            fu * fv * at(r0 + 1, c0 + 1))
-
-
-def blur(a, sigma):
-    """A Gaussian blur (sigma in pixels) of a field on the grid's x, y."""
-    s = sigma / H
-    r = int(math.ceil(3 * s))
-    kernel = np.exp(-0.5 * (np.arange(-r, r + 1) / s) ** 2)
-    kernel /= kernel.sum()
-    out = a
-    for axis in (0, 1):
-        pad = [(0, 0), (0, 0)]
-        pad[axis] = (r, r)
-        p = np.pad(out, pad, mode="edge")
-        acc = np.zeros_like(out)
-        for i, w in enumerate(kernel):
-            acc += w * (p[i:i + out.shape[0], :] if axis == 0 else p[:, i:i + out.shape[1]])
-        out = acc
+def morph(mask, size, grow):
+    """A binary dilation (grow) or erosion of a picture's mask by a size x size square (numpy only)."""
+    out = mask.copy() if grow else np.ones_like(mask)
+    lo = -(size // 2)
+    for dr in range(lo, lo + size):
+        for dc in range(lo, lo + size):
+            shifted = np.zeros_like(mask)
+            r0, r1 = max(0, dr), mask.shape[0] + min(0, dr)
+            c0, c1 = max(0, dc), mask.shape[1] + min(0, dc)
+            shifted[r0:r1, c0:c1] = mask[r0 - dr:r1 - dr, c0 - dc:c1 - dc]
+            out = (out | shifted) if grow else (out & shifted)
     return out
 
 
-def sample_grid(a, x, y):
-    """Bilinear sample of a field on the grid's x, y."""
-    u = np.clip((x - X0) / H, 0.0, NX - 1.001)
-    v = np.clip((y - Y0) / H, 0.0, NY - 1.001)
-    i, j = np.floor(u).astype(int), np.floor(v).astype(int)
-    fu, fv = u - i, v - j
-    return (a[i, j] * (1 - fu) * (1 - fv) + a[i + 1, j] * fu * (1 - fv) + a[i, j + 1] * (1 - fu) * fv +
-            a[i + 1, j + 1] * fu * fv)
+def hollow_mask(pic, pic_dmg):
+    """Where the broken look's hollows are: dark in the broken picture (ramp 6's black or shades 0-2) but not in the
+    intact one (not its joints and edges), closed over a pixel, specks opened away; ramp 6's black always."""
+    dark_b = (pic_dmg[3] | (pic_dmg[0] <= 2)) & ~np.isnan(pic_dmg[0])
+    dark_a = (pic[0] <= 2) & ~np.isnan(pic[0])
+    m = dark_b & ~dark_a
+    m = morph(morph(m, 3, True), 3, False)
+    m = morph(morph(m, 2, False), 2, True)
+    return m | pic_dmg[3]
 
 
-def paint_fields(pic):
-    """The picture's colours on the grid's x, y: the shade to paint (broad shading kept in part, the fine kept), the
-    gold flecks', the quartz's and the black hollows' masks, the fine relief, the column's own pixels."""
-    shade, gold, quartz, black = pic
-    own = own_pixels(pic)
-    filled = fill_outside(shade)
-    gx, gy = np.meshgrid(XS, YS, indexing="ij")
-    s_px = sample(filled, gx, gy)
-    fine, mid, broad = blur(s_px, 0.5), blur(s_px, 1.6), blur(s_px, 4.5)
-    local = blur(s_px, 0.6)
-    paint = MID + (broad - MID) * KEEP + DETAIL * (local - broad)
-    masks = {name: blur(sample(m.astype(np.float64), gx, gy), 0.35) for name, m in
-             (("gold", gold), ("quartz", quartz), ("black", black))}
-    mask = blur(sample(own.astype(np.float64), gx, gy), 0.4)
-    return {"paint": paint, "relief": fine - mid, "mask": mask, **masks}
+def components(mask):
+    """The connected groups of a boolean picture's pixels (4-neighbours): lists of (row, column), largest first."""
+    seen = np.zeros(mask.shape, bool)
+    groups = []
+    for r0, c0 in zip(*np.nonzero(mask)):
+        if seen[r0, c0]:
+            continue
+        stack, group = [(r0, c0)], []
+        seen[r0, c0] = True
+        while stack:
+            r, c = stack.pop()
+            group.append((int(r), int(c)))
+            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                rr, cc = r + dr, c + dc
+                if 0 <= rr < mask.shape[0] and 0 <= cc < mask.shape[1] and mask[rr, cc] and not seen[rr, cc]:
+                    seen[rr, cc] = True
+                    stack.append((rr, cc))
+        groups.append(sorted(group))
+    groups.sort(key=lambda g: (-len(g), g[0]))
+    return groups
 
 
-# --- The solid ------------------------------------------------------------------------------------------------------------
-
-def octagon(u, v, rx=RX, rn=RN):
-    """The octagon's distance (exact inside, a little short outside), u across, v front to back; rn may vary."""
-    au, av = np.abs(u), np.abs(v)
-    cx, cy = W_FRONT * rx / RX, rn                                   # the front face's corner
-    ex, ey = rx, H_SIDE * rn / RN                                    # the side face's corner
-    nx, ny = cy - ey, ex - cx                                        # the corner face's normal (before normalising)
-    length = np.hypot(nx, ny)
-    d = (nx * cx + ny * cy) / length
-    return np.maximum(np.maximum(au - rx, av - rn), (nx * au + ny * av) / length - d)
+def pic_xy(c, r):
+    """A point of the picture (column c, row r; pixel corners) in the model's plane."""
+    return (c - 24.0, 42.0 - r)
 
 
-def ellipse(u, v, rx=RX, rn=RN):
-    return (np.sqrt((u / rx) ** 2 + (v / rn) ** 2) - 1.0) * np.minimum(rx, rn)
+# --- Solids ------------------------------------------------------------------------------------------------------------
+
+def at(t, u, v):
+    """The point of the column's frame: t along its axis from the foot ring, u across, v towards its front."""
+    return Vector((X_AXIS + u, Y_FOOT + t * SA - v * CA, Z_FOOT + t * CA + v * SA))
 
 
-def joints(t):
-    """How deep the joints sink the surface at axis position t."""
-    g = np.zeros_like(t)
-    for i, tj in enumerate(T_JOINTS):
-        w = FOOT_W if i == 0 else GROOVE_W
-        g = np.maximum(g, GROOVE * (1.0 - smoothstep(w, w + GROOVE_EDGE, np.abs(t - tj))))
-    return g
+def octagon(share=1.0, depth=RN, corner=CORNER):
+    """The octagon's corners (u, v), counter-clockwise from the front face's right corner, each chamfered (two points
+    `corner` along its faces)."""
+    w, h = W_FRONT * share, H_SIDE * share * depth / RN
+    rx, rn = RX * share, depth * share
+    pts = [(w, rn), (-w, rn), (-rx, h), (-rx, -h), (-w, -rn), (w, -rn), (rx, -h), (rx, h)]
+    if corner <= 0:
+        return pts
+    out = []
+    for i, (u, v) in enumerate(pts):
+        (pu, pv), (nu, nv) = pts[i - 1], pts[(i + 1) % len(pts)]
+        for (au, av) in ((pu, pv), (nu, nv)):
+            d = math.hypot(au - u, av - v)
+            f = min(corner * share, d * 0.3) / d
+            out.append((u + (au - u) * f, v + (av - v) * f))
+    return out
 
 
-def depth_at(t):
-    """The octagon's half depth at axis position t (the foot flaring forward)."""
-    return RN + FLARE * (1.0 - smoothstep(0.0, FLARE_T, t))
+def ring(t, share=1.0, depth=RN):
+    return [at(t, u, v) for u, v in octagon(share, depth)]
 
 
-def boss_scale(t):
-    """The head's boss: its size (a share of the drums') at axis position t."""
-    s = S_RIM + (S_TOP - S_RIM) * np.clip((t - T_CAP - 1.5) / (T_TOP - T_CAP - 1.5), 0.0, 1.0)
-    return np.where(t < T_CAP + 1.5, 1.0 + (S_RIM - 1.0) * smoothstep(T_CAP, T_CAP + 1.5, t), s)
+class Rand:
+    """A small deterministic random source (a linear congruential generator): the same numbers every run."""
+
+    def __init__(self, seed):
+        self.state = seed & 0x7FFFFFFF or 1
+
+    def random(self):
+        self.state = (1103515245 * self.state + 12345) & 0x7FFFFFFF
+        return self.state / 0x7FFFFFFF
+
+    def uniform(self, a, b):
+        return a + (b - a) * self.random()
 
 
-def column_sdf(gx, gy, gz):
-    """The column's signed distance on points of the picture's plane (before the relief and the noise)."""
-    dy, dz = gy - Y_FOOT, gz - Z_FOOT
-    t = dy * SA + dz * CA
-    v = -dy * CA + dz * SA
-    u = gx - X_AXIS
-    rn = depth_at(np.maximum(t, 0.0))
-    drums = smax(octagon(u, v, RX, rn) + joints(t), t - T_CAP - 0.6, 1.0)
-    # The head's boss: the octagon rounding into an ellipse, narrowing to its top, its top face bulging, its edge round.
-    s = boss_scale(t)
-    w = 0.35 * smoothstep(T_CAP + 0.5, T_CAP + 7.0, t)
-    radial = ((1.0 - w) * octagon(u / s, v / s) + w * ellipse(u / s, v / s)) * s
-    q = np.minimum(1.0, (u / (RX * s)) ** 2 + (v / (RN * s)) ** 2)
-    top = t - T_TOP - BULGE * (1.0 - q)
-    boss = smax(np.maximum(radial, T_CAP - 1.0 - t), top, ROUND)
-    upper = np.maximum(-smax(-drums, -boss, 1.0), -t)               # (a smooth union: the rim rounds into the boss)
-    # The foot: under the foot ring, straight down to the ground (in the picture's plane: unseen by the camera).
-    z_ring = Z_FOOT - dy * SA / CA                                  # the foot ring's plane over (x, y)
-    v_ring = -dy * CA + (z_ring - Z_FOOT) * SA
-    foot = np.maximum(octagon(u, v_ring, RX, depth_at(np.zeros_like(t))) + joints(np.zeros_like(t)), gz - z_ring)
-    return np.minimum(upper, foot), t
+def hull(name, points, mat):
+    """The convex hull of the points as a closed solid, its coplanar triangles merged into flat faces."""
+    bm = bmesh.new()
+    verts = [bm.verts.new(tuple(p)) for p in points]
+    res = bmesh.ops.convex_hull(bm, input=verts, use_existing_faces=False)
+    drop = list(dict.fromkeys(g for g in res["geom_interior"] + res["geom_unused"] if isinstance(g, bmesh.types.BMVert)))
+    if drop:
+        bmesh.ops.delete(bm, geom=drop, context="VERTS")
+    bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.5), use_dissolve_boundaries=False, verts=bm.verts[:],
+                             edges=bm.edges[:])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.data.materials.append(mat)
+    return obj
 
 
-def solid(fl, carve=None):
-    t0 = time.time()
-    gx = XS[:, None, None]
-    gy = YS[None, :, None]
-    gz = ZS[None, None, :].astype(np.float64)
-    d, t = column_sdf(gx, gy, gz)
-    d = d.astype(np.float32)
-    t = np.broadcast_to(t, d.shape)
-    # The relief from the picture's fine shading (lumps where it is light, pits where it is dark).
-    relief = fl["relief"][:, :, None]
-    head = smoothstep(T_JOINTS[2] + 1.5, T_JOINTS[2] + 3.5, t)
-    d -= (relief * (RELIEF_DRUM + (RELIEF_HEAD - RELIEF_DRUM) * head)).astype(np.float32)
-    # Noise near the surface: rougher on the head.
-    i, j, kz = np.nonzero(np.abs(d) < 2.0)
-    x, y, zz = XS[i], YS[j], ZS[kz]
-    hw = head[i, j, kz]
-    detail = np.zeros(len(i))
-    for n, ((ad, sd), (ah, sh)) in enumerate(zip(NOISE_DRUM, NOISE_HEAD)):
-        detail += (1.0 - hw) * ad * noise3(x / sd, y / sd, zz / sd, 71 + n)
-        detail += hw * ah * noise3(x / sh, y / sh, zz / sh, 81 + n)
-    d[i, j, kz] += detail.astype(np.float32)
-    if carve is not None:
-        d = np.maximum(d, carve(d).astype(np.float32))
-    d = np.maximum(d, np.float32(-SKIRT) - ZS[None, None, :].astype(np.float32))
-    for axis in range(3):                                            # smoothed a little: nothing finer than the grid
-        p = np.pad(d, [(1, 1) if ax == axis else (0, 0) for ax in range(3)], mode="edge")
-        d = 0.25 * np.take(p, range(0, d.shape[axis]), axis=axis) + 0.5 * d + \
-            0.25 * np.take(p, range(2, d.shape[axis] + 2), axis=axis)
-    print("solid: %.1f s" % (time.time() - t0))
-    return d.astype(np.float32)
+def slice_off(obj, planes, mat_index=0):
+    """Cuts away what lies beyond each plane (point, outward normal), the cuts closed flat (material slot mat_index)."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    for co, no in planes:
+        if not bm.faces:
+            break
+        res = bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6, plane_co=co,
+                                     plane_no=no, clear_outer=True)
+        edges = [e for e in res["geom_cut"] if isinstance(e, bmesh.types.BMEdge) and e.is_valid]
+        open_edges = [e for e in edges if len(e.link_faces) == 1]
+        if open_edges:
+            filled = bmesh.ops.holes_fill(bm, edges=open_edges, sides=0)
+            for f in filled["faces"]:
+                f.material_index = mat_index
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(obj.data)
+    bm.free()
+    return obj
 
 
-def top_surface(d):
-    """The height of the highest surface over each grid point x, y (where the field first turns negative from above),
-    nan where there is none."""
-    inside = d < 0
-    any_in = inside.any(axis=2)
-    top_k = NZ - 1 - np.argmax(inside[:, :, ::-1], axis=2)
-    k0 = np.clip(top_k, 0, NZ - 2)
-    a = np.take_along_axis(d, k0[:, :, None], 2)[:, :, 0]
-    b = np.take_along_axis(d, np.clip(k0 + 1, 0, NZ - 1)[:, :, None], 2)[:, :, 0]
-    frac = np.where(np.abs(a - b) > 1e-6, a / (a - b), 0.0)
-    z = ZS[k0] + np.clip(frac, 0.0, 1.0) * H
-    return np.where(any_in, z, np.nan)
+def chip(obj, rand, count, mat_index=0, depth=(0.45, 1.1)):
+    """Chipped edges: flat cuts across `count` of the solid's sharper edges facing the camera (deterministic)."""
+    mesh = obj.data
+    edges = []
+    for e in mesh.edges:
+        a, b = mesh.vertices[e.vertices[0]].co, mesh.vertices[e.vertices[1]].co
+        if (a - b).length < 1.2:
+            continue
+        mid = (a + b) / 2
+        if mid.z < 2.0:
+            continue
+        edges.append((round(mid.x, 3), round(mid.y, 3), round(mid.z, 3), tuple(a), tuple(b)))
+    edges.sort()
+    if not edges:
+        return obj
+    centre = sum((v.co for v in mesh.vertices), Vector()) / len(mesh.vertices)
+    planes = []
+    for _ in range(count):
+        mx, my, mz, a, b = edges[int(rand.random() * len(edges)) % len(edges)]
+        a, b = Vector(a), Vector(b)
+        p = a + (b - a) * rand.uniform(0.2, 0.8)
+        out = (p - centre)
+        out.x *= 0.6
+        n = (out.normalized() + Vector((rand.uniform(-0.3, 0.3), rand.uniform(-0.3, 0.3), 0.35))).normalized()
+        planes.append((p - n * rand.uniform(*depth), n))
+    return slice_off(obj, planes, mat_index)
 
 
-def broken_carve(fl_dmg, z_top):
-    """The broken look's carving (a field to take the max with): the hollows down the camera's line of sight (in the
-    picture's plane: straight down) as deep as the picture is black; everything the camera would see outside the broken
-    outline, and inside it, near the break, the top lowered into a fracture face (up to FRACTURE_DEPTH at the edge)."""
-    depth = blur(HOLLOW_DEPTH * smoothstep(0.12, 0.75, fl_dmg["black"]), 0.5)
-    gone = np.clip(fl_dmg["gone"], 0.0, 1.0)
-    lower = FRACTURE_DEPTH * smoothstep(0.06, 0.5, np.clip(fl_dmg["gone_soft"], 0.0, 1.0))
-    zt = np.nan_to_num(z_top, nan=-10.0)
-
-    def carve(d):
-        gz = ZS[None, None, :]
-        under = zt[:, :, None] - gz                                 # how far under the intact top surface
-        cut = np.maximum(depth, lower)[:, :, None] - under          # > 0: inside a hollow or the fracture
-        return np.maximum(cut, (gone[:, :, None] - 0.5) * 8.0)
-    return carve
+def drum(name, t0, t1, mat, rand):
+    """A stone of the column: the octagon between two joints, its ends and corners chamfered, a little fuller in its
+    middle (each face a few facets)."""
+    length = t1 - t0
+    pts = ring(t0, END[1]) + ring(t0 + END[0], 1.0) + ring(t1 - END[0], 1.0) + ring(t1, END[1])
+    for f, share in ((0.3, (1.0 + BULGE) / 2), (0.5, BULGE), (0.7, (1.0 + BULGE) / 2)):
+        pts += ring(t0 + length * f, share)
+    return hull(name, pts, mat)
 
 
-def hollow_test(fl_dmg, z_top):
-    """Which faces (their points in the picture's plane x, py and height z) lie in a hollow: under the intact top where
-    the broken picture is black."""
-    depth = blur(HOLLOW_DEPTH * smoothstep(0.12, 0.75, fl_dmg["black"]), 0.5)
-    zt = np.nan_to_num(z_top, nan=-10.0)
+def plinth(mat, rand):
+    """The foot: the lowest stone's base flaring forward (the sprites' foot ring reaching row 78 in the middle), and
+    under its ring straight down to the ground (in the picture's plane: along the camera's line of sight once
+    sheared, unseen)."""
+    pts = []
+    for t, share, depth in PLINTH:
+        pts += ring(t, share, depth)
+    foot = ring(0.0, 1.0, PLINTH[0][2])
+    pts += [Vector((p.x, p.y, -SKIRT)) for p in foot if p.z > -SKIRT]
+    obj = hull("plinth", pts, mat)
+    return chip(obj, rand, 3)
 
-    def test(x, py, z):
-        return (sample_grid(depth, x, py) > 0.6) & (z < sample_grid(zt, x, py) - 0.35)
-    return test
+
+def joint(name, t, mat):
+    """The dark core showing in a joint between two stones."""
+    return hull(name, ring(t - GAP - END[0] - 0.4, 0.9) + ring(t + GAP + END[0] + 0.4, 0.9), mat)
 
 
-# --- Colours -----------------------------------------------------------------------------------------------------------
+def head(mat, rand):
+    """The pale head: the octagon over the upper joint narrowing into a rough dome, its facets the points of the
+    dome jittered in (a convex hull: clean flat facets)."""
+    pts = []
+    for t, share in HEAD:
+        pts += ring(t, share)
+    t = T_CAP + DOME_STEP
+    n = 0
+    while t < T_END - 0.3:
+        f = (t - T_CAP) / (T_END - T_CAP)
+        share = HEAD[-1][1] * (1.0 - f ** DOME_POWER) ** (1.0 / DOME_POWER)
+        for j in range(20):
+            a = 2 * math.pi * (j + 0.5 * (n % 2)) / 20
+            # the octagon rounding into a superellipse towards the top
+            u, v = math.cos(a), math.sin(a)
+            box = max(abs(u) / RX, abs(v) / RN)
+            ru, rv = u / box, v / box
+            blend = min(1.0, f * 1.6)
+            q = (abs(u) ** 2.6 / RX ** 2.6 + abs(v) ** 2.6 / RN ** 2.6) ** (-1 / 2.6)
+            ru, rv = (1 - blend) * ru + blend * u * q, (1 - blend) * rv + blend * v * q
+            jit = 1.0 + rand.uniform(-ROUGH, 0.3) / (RN * max(share, 0.3))
+            pts.append(at(t + rand.uniform(-0.45, 0.45), ru * share * jit, rv * share * jit))
+        t += DOME_STEP
+        n += 1
+    pts.append(at(T_END, 0.0, 1.5))
+    obj = hull("head", pts, mat)
+    return chip(obj, rand, CHIPS)
+
+
+def ray_down(objects):
+    """hit(x, y): the topmost point of the objects over (x, y) of the picture's plane and its normal (pointing up),
+    or None: what the camera sees there once sheared."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    trees = [BVHTree.FromObject(o, depsgraph) for o in objects]
+
+    def hit(x, y):
+        best = None
+        for tree in trees:
+            loc, nor, _, _ = tree.ray_cast(Vector((x, y, 200.0)), Vector((0, 0, -1)))
+            if loc is not None and (best is None or loc.z > best[0].z):
+                best = (loc, nor if nor.z > 0 else -nor)
+        return best
+    return hit
+
+
+def gem(name, centre, normal, radius, height, mat, rand, sides=6, tip=0.0):
+    """A small faceted stone set into the surface at centre (half sunk), standing along normal: gold nuggets (tip 0),
+    quartz crystals (a pointed tip)."""
+    n = Vector(normal).normalized()
+    ref = Vector((1, 0, 0)) if abs(n.x) < 0.8 else Vector((0, 1, 0))
+    a = n.cross(ref).normalized()
+    b = n.cross(a).normalized()
+    pts = []
+    for level, scale in ((-0.6 * height, 0.9), (0.0, 1.0), (height * (0.6 if tip else 1.0), 0.75 if not tip else 0.9)):
+        for j in range(sides):
+            ang = 2 * math.pi * (j + rand.uniform(-0.2, 0.2)) / sides
+            r = radius * scale * rand.uniform(0.8, 1.1)
+            pts.append(Vector(centre) + n * level + (a * math.cos(ang) + b * math.sin(ang)) * r)
+    if tip:
+        pts.append(Vector(centre) + n * (height * (1.0 + tip)))
+    return hull(name, pts, mat)
+
+
+def details(look, stones, m, rand, hollows=None):
+    """The gold flecks on the stones (nuggets where the picture's gold clusters are) and the quartz on the head
+    (crystals where its white sparkles cluster)."""
+    shade, gold, quartz, black = look
+    hit = ray_down(stones)
+    out = []
+    for kind, mask, limit, min_px in (("gold", gold, 22, 1), ("quartz", quartz, 26, 2)):
+        groups = [g for g in components(mask) if len(g) >= min_px][:limit]
+        for i, g in enumerate(groups):
+            r = sum(p[0] for p in g) / len(g) + 0.5
+            c = sum(p[1] for p in g) / len(g) + 0.5
+            if hollows is not None and hollows[max(0, int(r) - 1):int(r) + 2, max(0, int(c) - 1):int(c) + 2].any():
+                continue
+            x, y = pic_xy(c, r)
+            h = hit(x, y)
+            if h is None:
+                continue
+            loc, nor = h
+            if kind == "gold":
+                size = 0.55 + 0.12 * min(len(g), 4)
+                out.append(gem("gold_%d" % i, loc, nor, size, 0.45, m["gold"], rand, 5))
+            else:
+                for j in range(1 + (len(g) > 4)):
+                    tilt = Vector((rand.uniform(-0.45, 0.45), rand.uniform(-0.45, 0.45), 0.0))
+                    off = Vector((rand.uniform(-0.6, 0.6), rand.uniform(-0.6, 0.6), 0.0)) * j
+                    h2 = hit(x + off.x, y + off.y) or h
+                    out.append(gem("quartz_%d_%d" % (i, j), h2[0], (h2[1] + tilt).normalized(), 0.48, 0.42,
+                                   m["quartz"], rand, 6, tip=0.45))
+    return out
+
+
+def canonical(obj):
+    """Rebuilds the object's mesh in a fixed order (its vertices by position, each face starting at its smallest
+    corner, the faces by their corners; polish_powerups_specials.canonical): the exact boolean returns its result in
+    an order that changes from run to run."""
+    me = obj.data
+
+    def key(co):
+        return (round(co.x, 5), round(co.y, 5), round(co.z, 5))
+    faces = []
+    for poly in me.polygons:
+        corners = [key(me.vertices[i].co) for i in poly.vertices]
+        start = corners.index(min(corners))
+        faces.append((corners[start:] + corners[:start], poly.material_index))
+    faces.sort()
+    verts = sorted({c for corners, _ in faces for c in corners})
+    index = {c: i for i, c in enumerate(verts)}
+    mesh = bpy.data.meshes.new(me.name)
+    mesh.from_pydata(verts, [], [[index[c] for c in corners] for corners, _ in faces])
+    mesh.validate()
+    for mat in me.materials:
+        mesh.materials.append(mat)
+    for poly, (_, material) in zip(mesh.polygons, faces):
+        poly.material_index = material
+    obj.data = mesh
+    bpy.data.meshes.remove(me)
+    return obj
+
+
+def jitter(x, y, seed):
+    """A deterministic number in [0, 1) for a point (a hash of its coordinates)."""
+    v = math.sin(x * 12.9898 + y * 78.233 + seed * 37.719) * 43758.5453
+    return v - math.floor(v)
+
+
+def grow_loop(loop, amount, jag=0.0, seed=0):
+    """A loop moved out along its normals (it runs counter-clockwise round its inside), each point by amount plus up to
+    jag either way."""
+    n = len(loop)
+    out = []
+    for i in range(n):
+        (x0, y0), (x1, y1), (x2, y2) = loop[i - 1], loop[i], loop[(i + 1) % n]
+        tx, ty = x2 - x0, y2 - y0
+        length = math.hypot(tx, ty) or 1.0
+        a = amount + (jitter(x1, y1, seed) - 0.5) * 2.0 * jag
+        out.append((x1 + ty / length * a, y1 - tx / length * a))
+    return out
+
+
+def crosses(poly):
+    """Whether a closed polygon's edges cross each other (segments that do not share a corner)."""
+    n = len(poly)
+
+    def ccw_(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        for j in range(i + 2, n):
+            if i == 0 and j == n - 1:
+                continue
+            c, d = poly[j], poly[(j + 1) % n]
+            if (ccw_(a, b, c) > 0) != (ccw_(a, b, d) > 0) and (ccw_(c, d, a) > 0) != (ccw_(c, d, b) > 0):
+                return True
+    return False
+
+
+def safe_grow(loop, amount, jag, seed):
+    """The loop resampled evenly and grown (grow_loop), with less jitter and growth until its edges do not cross."""
+    pts = resample(loop, 1.05)
+    if area(pts) < 0:
+        pts.reverse()
+    for f in (1.0, 0.5, 0.25, 0.0):
+        poly = grow_loop(pts, amount * (0.5 + 0.5 * f), jag * f, seed)
+        if not crosses(poly):
+            return poly
+    return pts
+
+
+def funnel(name, poly, depth, slope, hit, z_miss, mat, seed, spacing=0.5, jag_floor=JAG_FLOOR):
+    """A cutter over a polygon of the picture's plane: from far above down to a floor that starts just over the
+    stone's surface at the polygon's edge and slopes in under it (slope per pixel in from the edge) to depth, its points
+    jittered (broken faces). Built as a relief standing on its head (polish_ring_machine.relief), then turned over."""
+    def height(x, y, d):
+        h = hit(x, y)
+        zs = h[0].z if h is not None else z_miss
+        sink = min(depth, slope * d) + (jitter(x, y, seed) - 0.5) * jag_floor * min(1.0, d)
+        return -(zs + 0.3 - sink)
+    obj = relief(name, [poly], height, {"hollow": mat}, paint=lambda x, y, d: "hollow", side="hollow",
+                 bottom=-60.0 - 0.37 * (seed % 17), spacing=spacing, smooth_angle=0.0)
+    obj.data.transform(Matrix.Scale(-1.0, 4, (0.0, 0.0, 1.0)))
+    k.recalc_normals(obj)
+    return obj
+
+
+def hollow_cutters(black, hit, mat):
+    """The broken picture's dark regions as jagged cavities (funnels over their outlines grown by HOLLOW_GROW)."""
+    out = []
+    for n, g in enumerate(components(black)):
+        if len(g) < HOLLOW_MIN:
+            continue
+        mask = np.zeros(black.shape, bool)
+        for r, c in g:
+            mask[r, c] = True
+        depth = HOLLOW_DEPTH[0] + (HOLLOW_DEPTH[1] - HOLLOW_DEPTH[0]) * min(1.0, len(g) / 60.0)
+        rs = [p_[0] for p_ in g]
+        cs = [p_[1] for p_ in g]
+        fallback = hit(*pic_xy(sum(cs) / len(cs) + 0.5, sum(rs) / len(rs) + 0.5))
+        z_miss = fallback[0].z if fallback is not None else 0.0
+        for i, loop in enumerate(mask_loops(mask, -24.0, 42.0, chaikin=1, sigma=0.7)):
+            if area(loop) < 1.5:
+                continue
+            poly = safe_grow(loop, HOLLOW_GROW, JAG, 7 * n + i)
+            spacing = 0.72 if len(g) < 80 else 0.78
+            out.append(funnel("hollow_%d_%d" % (n, i), poly, depth, HOLLOW_SLOPE, hit, z_miss, mat, 11 + n, spacing))
+    return out
+
+
+def crack_cutters(hit, mat):
+    """The cracks: V grooves along CRACKS, their edges jagged, deepest along the middle."""
+    half, depth = CRACK
+    out = []
+    for n, pts in enumerate(CRACKS):
+        line = [pic_xy(c, r) for c, r in pts]
+        dense = []
+        for (x0, y0), (x1, y1) in zip(line, line[1:]):
+            steps = max(1, int(math.hypot(x1 - x0, y1 - y0) / 0.7))
+            dense += [(x0 + (x1 - x0) * t / steps, y0 + (y1 - y0) * t / steps) for t in range(steps)]
+        dense.append(line[-1])
+        left, right = [], []
+        for i, (x, y) in enumerate(dense):
+            (xa, ya), (xb, yb) = dense[max(0, i - 1)], dense[min(len(dense) - 1, i + 1)]
+            tx, ty = xb - xa, yb - ya
+            length = math.hypot(tx, ty) or 1.0
+            nx, ny = -ty / length, tx / length
+            taper = min(1.0, i / 2.0, (len(dense) - 1 - i) / 2.0) * 0.7 + 0.3
+            w = half * taper * (0.75 + 0.5 * jitter(x, y, 90 + n))
+            left.append((x + nx * w, y + ny * w))
+            right.append((x - nx * w, y - ny * w))
+        poly = left + right[::-1]
+        if area(poly) < 0:
+            poly.reverse()
+        if crosses(poly):
+            continue
+        h = hit(*dense[len(dense) // 2])
+        z_miss = h[0].z if h is not None else 0.0
+        out.append(funnel("crack_%d" % n, poly, depth, depth / half * 1.1, hit, z_miss, mat, 120 + n, spacing=0.42,
+                          jag_floor=0.4))
+    return out
+
+
+def chip_cutters(mat, rand):
+    """Chips broken off the edges: small faceted lumps cut out where the upper drum's front rims meet its chamfers,
+    down its octagon's corners, and along the head's lower rim (their faces the stone's own: a marker material)."""
+    spots = []
+    t_lo, t_hi = J1 + GAP + END[0], J2 - GAP - END[0]
+    for _ in range(WRECK_CHIPS[0]):
+        side = rand.random()
+        if side < 0.35:
+            spots.append((t_lo, rand.uniform(-RX * 0.95, RX * 0.95)))
+        elif side < 0.7:
+            spots.append((t_hi, rand.uniform(-RX * 0.95, RX * 0.95)))
+        else:
+            spots.append((rand.uniform(t_lo, t_hi), W_FRONT * (1 if rand.random() < 0.5 else -1)))
+    for _ in range(WRECK_CHIPS[1]):
+        spots.append((J2 + GAP + END[0], rand.uniform(-RX * 0.9, RX * 0.9)))
+    out = []
+    for i, (t, u) in enumerate(spots):
+        # the octagon's surface point over u (the front face, or the corner faces beyond W_FRONT)
+        au = abs(u)
+        if au <= W_FRONT:
+            v = RN
+        else:
+            v = RN - (RN - H_SIDE) * (au - W_FRONT) / (RX - W_FRONT)
+        centre = at(t, u, v)
+        size = rand.uniform(0.9, 1.7)
+        pts = []
+        for j in range(9):
+            a = 2 * math.pi * (j + rand.uniform(-0.3, 0.3)) / 9
+            el = rand.uniform(-1.2, 1.2)
+            rr = size * rand.uniform(0.7, 1.15)
+            pts.append(centre + Vector((rr * math.cos(a) * math.cos(el), rr * math.sin(a) * math.cos(el),
+                                        rr * math.sin(el))))
+        out.append(hull("chip_%d" % i, pts, mat))
+    return out
+
+
+def rubble(stones, m, rand):
+    """Broken chunks lying on the broken column where they fell (RUBBLE), each the stone under it, faceted."""
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    trees = [(BVHTree.FromObject(o, depsgraph), o) for o in stones]
+    out = []
+    for i, (c, r, size) in enumerate(RUBBLE):
+        x, y = pic_xy(c, r)
+        best = None
+        for tree, o in trees:
+            loc, nor, _, _ = tree.ray_cast(Vector((x, y, 200.0)), Vector((0, 0, -1)))
+            if loc is not None and (best is None or loc.z > best[0].z):
+                best = (loc, nor if nor.z > 0 else -nor, o)
+        if best is None:
+            continue
+        loc, nor, o = best
+        centre = loc + nor * size * 0.45
+        pts = []
+        for j in range(11):
+            a = 2 * math.pi * (j + rand.uniform(-0.3, 0.3)) / 11
+            el = rand.uniform(-0.9, 0.9)
+            rr = size * rand.uniform(0.65, 1.1)
+            pts.append(centre + Vector((rr * math.cos(a) * math.cos(el), rr * math.sin(a) * math.cos(el),
+                                        rr * 0.7 * math.sin(el))))
+        mat = m["drum"] if o.name.startswith("joint") or not o.data.materials else o.data.materials[0]
+        chunk = hull("rubble_%d" % i, pts, mat)
+        out.append(chunk)
+    return out
+
+
+def cutter_break(name, z_top, mat, rand):
+    """The head's top right broken away: three faceted wedges beyond the broken outline (column 25 of row 3 to column
+    46 of row 28), their faces (the fracture) the stone's own (a marker material, replaced by each part's)."""
+    (c0, r0), (c1, r1) = BREAK
+    out = []
+    for i in range(3):
+        f0, f1 = i / 3 - (0.35 if i == 0 else 0.04), (i + 1) / 3 + (0.35 if i == 2 else 0.04)
+        a = Vector(pic_xy(c0 + (c1 - c0) * f0, r0 + (r1 - r0) * f0) + (0.0,))
+        b = Vector(pic_xy(c0 + (c1 - c0) * f1, r0 + (r1 - r0) * f1) + (0.0,))
+        side = Vector((-(b.y - a.y), b.x - a.x, 0.0)).normalized()     # towards the upper right
+        jag = rand.uniform(-1.0, 1.0)
+        pts = []
+        for p in (a, b):
+            for dz, inset in ((z_top + 4.0, 1.6 + jag), (z_top * 0.6, -0.3), (-SKIRT - 1.0, -1.2)):
+                q = p - side * inset
+                pts.append(Vector((q.x, q.y, dz)))
+                q2 = p + side * 24.0
+                pts.append(Vector((q2.x, q2.y, dz)))
+        out.append(hull("%s_%d" % (name, i), pts, mat))
+    return out
+
 
 def materials():
-    m = {i: k.material("column_stone", palette=i, metallic=0.0, roughness=0.82) for i in range(0xa3, 0xae)}
-    m[JOINT] = k.material("column_joint", palette=JOINT, metallic=0.3, roughness=0.6)
-    m[GOLD] = k.material("column_gold", palette=GOLD, metallic=0.35, roughness=0.45)
-    m[QUARTZ] = k.material("column_quartz", palette=QUARTZ, metallic=0.1, roughness=0.5)
-    m[HOLLOW_LIT] = k.material("column_hollow_lit", palette=HOLLOW_LIT, metallic=0.0, roughness=0.9)
-    return m
+    pal = k.level_palette()
+
+    def m(name, idx, metallic, roughness, glow=0.0):
+        extra = dict(emission=pal[idx], emission_strength=glow) if glow else {}
+        return k.material("column_" + name, palette=idx, metallic=metallic, roughness=roughness, **extra)
+    return {"drum": m("drum", MATS["drum"], 0.0, 0.85), "head": m("head", MATS["head"], 0.0, 0.8),
+            "joint": m("joint", MATS["joint"], 0.1, 0.9), "gold": m("gold", MATS["gold"], 0.6, 0.32, 0.12),
+            "quartz": m("quartz", MATS["quartz"], 0.1, 0.22, 0.18), "hollow": m("hollow", MATS["hollow"], 0.0, 1.0),
+            "marker": m("marker", MATS["drum"], 0.0, 0.85)}
 
 
-def axis_position(x, py, z):
-    """Where along the column's axis a point (x, the picture's py, z) lies."""
-    return (py - Y_FOOT) * SA + (z - Z_FOOT) * CA
+def build_column(m, look, broken, hollows=None):
+    """The column (or its broken look: hollows its mask) as its parts, in the picture's plane: [object, ...]."""
+    rand = Rand(7)
+    lower = drum("drum_low", PLINTH[-1][0] - 1.5, J1 - GAP, m["drum"], rand)
+    foot = plinth(m["drum"], rand)
+    upper = drum("drum_up", J1 + GAP, J2 - GAP, m["drum"], rand)
+    top = head(m["head"], rand)
+    cores = [joint("joint_1", J1, m["joint"]), joint("joint_2", J2, m["joint"])]
+    stones = [lower, foot, upper, top]
+    for obj in stones + cores:
+        slice_off(obj, [(Vector((0, 0, -SKIRT)), Vector((0, 0, -1)))])
+    bpy.context.view_layer.update()
+    rand_d = Rand(11)
+    if broken:
+        hit = ray_down([upper, top] + cores)
+        z_top = max(v.co.z for v in top.data.vertices)
+        cutters = (hollow_cutters(hollows, hit, m["hollow"]) + crack_cutters(hit, m["hollow"]) +
+                   cutter_break("break", z_top, m["marker"], Rand(53)) + chip_cutters(m["marker"], Rand(61)))
+        cutter = join(cutters, "cutter")
+        mesh = cutter.data
+        names = [mt.name for mt in mesh.materials]
+        deep = []
+        for poly in mesh.polygons:
+            c = poly.center
+            h = hit(c.x, c.y)
+            zs = h[0].z if h is not None else c.z
+            deep.append(names[poly.material_index] == m["hollow"].name and zs - c.z > DEEP)
+        for obj in [top, upper] + cores:
+            tool = cutter.copy()
+            tool.data = cutter.data.copy()
+            bpy.context.scene.collection.objects.link(tool)
+            tool.hide_render = True
+            # the broken faces the part's own stone, the holes' deep insides dark
+            tool.data.materials.clear()
+            tool.data.materials.append(obj.data.materials[0])
+            tool.data.materials.append(m["hollow"])
+            tool.data.polygons.foreach_set("material_index", [1 if d else 0 for d in deep])
+            mod = obj.modifiers.new("boolean", "BOOLEAN")
+            mod.operation = "DIFFERENCE"
+            mod.solver = "EXACT"
+            mod.material_mode = "TRANSFER"
+            mod.use_self = True
+            mod.object = tool
+            mk.apply(obj)
+            data = tool.data
+            bpy.data.objects.remove(tool)
+            bpy.data.meshes.remove(data)
+            canonical(obj)
+            bm = bmesh.new()
+            bm.from_mesh(obj.data)
+            bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="FIXED", ngon_method="EAR_CLIP")
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+            bad = sum(1 for e in bm.edges if not e.is_manifold)
+            bm.to_mesh(obj.data)
+            bm.free()
+            if bad:
+                print("  %s: %d non-manifold edges after the cuts" % (obj.name, bad))
+        data = cutter.data
+        bpy.data.objects.remove(cutter)
+        bpy.data.meshes.remove(data)
+        bpy.context.view_layer.update()
+        stones = stones + rubble([top, upper] + cores, m, Rand(71))
+    extra = details(look, [lower, upper, top], m, rand_d, hollows)
+    return stones + cores + extra
 
 
-def shades(centres, normals, fl, hollow=None):
-    """Each face's palette index: the picture's colours under it (its point taken back into the picture's plane); the
-    joints dark, the undersides in shade; the gold flecks and the quartz where the picture has them."""
-    x, y, z = centres[:, 0], centres[:, 1], centres[:, 2]
-    py = y + TILT * z
-    s = sample_grid(fl["paint"], x, py)
-    s = s + DITHER * noise3(x / 1.1, py / 1.1, z / 1.1, 91)
-    s = np.where(normals[:, 2] < -0.35, np.minimum(s, 4.0), s)      # the undersides in shade
-    t = axis_position(x, py, z)
-    in_joint = np.zeros(len(x), bool)
-    for tj in T_JOINTS[1:]:
-        in_joint |= np.abs(t - tj) < GROOVE_W + 0.25
-    idx = 0xa0 + np.clip(np.round(s), 3, 13).astype(int)
-    idx = np.where(in_joint, JOINT, idx)
-    seen = (normals[:, 2] - normals[:, 1] * TILT) > 0.15              # faces the camera sees
-    idx = np.where(seen & ~in_joint & (sample_grid(fl["gold"], x, py) > 0.42), GOLD, idx)
-    idx = np.where(seen & (normals[:, 2] > 0.25) & (sample_grid(fl["quartz"], x, py) > 0.62), QUARTZ, idx)
-    if hollow is not None:
-        inside = hollow(x, py, z)
-        lit = (normals @ np.array(LIGHT)) > 0.55
-        idx = np.where(inside, np.where(lit, HOLLOW_LIT, HOLLOW_DARK), idx)
-    return idx
-
-
-# --- Pieces ------------------------------------------------------------------------------------------------------------
+# --- Shared with polish_lander.py, polish_tan_dome.py and polish_miners_rig.py (round 35's, unchanged) ---------
 
 def shear_to_camera(obj, sign=-1.0):
     """Moves every point along the camera's line of sight: y - z tan 20 (sign -1; +1 undoes it)."""
@@ -672,107 +1038,108 @@ def drop_islands(verts, quads, keep_share=0.05):
     return quads[np.isin(roots, list(keep))]
 
 
-def build_whole(name, fl, carve=None):
-    d = solid(fl, carve)
-    verts, quads = surface_nets(d, (X0, Y0, Z0), H)
-    quads = drop_islands(verts, quads)
-    whole = finish_whole(mesh_object(name, verts, quads))
-    bm = bmesh.new()
-    bm.from_mesh(whole.data)
-    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
-    bm.to_mesh(whole.data)
-    bm.free()
-    return whole, d
+def column_cut(obj, box, name):
+    """The part of an object the camera sees in a sprite's box (x0, x1, y0, y1 in the picture's plane; None: open),
+    cut there in the picture's plane (before the shear: the planes are the camera's lines of sight once sheared), the
+    cuts closed in the part's own material."""
+    x0, x1, y0, y1 = box
+    planes = []
+    if x0 is not None:
+        planes.append((Vector((x0, 0, 0)), Vector((-1, 0, 0))))
+    if x1 is not None:
+        planes.append((Vector((x1, 0, 0)), Vector((1, 0, 0))))
+    if y0 is not None:
+        planes.append((Vector((0, y0, 0)), Vector((0, -1, 0))))
+    if y1 is not None:
+        planes.append((Vector((0, y1, 0)), Vector((0, 1, 0))))
+    lo, hi = mk.bounds([obj])
+    if ((x0 is not None and hi.x <= x0) or (x1 is not None and lo.x >= x1) or (y0 is not None and hi.y <= y0) or
+            (y1 is not None and lo.y >= y1)):
+        return None
+    piece = obj.copy()
+    piece.data = obj.data.copy()
+    piece.name = name
+    bpy.context.scene.collection.objects.link(piece)
+    slice_off(piece, planes, 0)
+    if not piece.data.polygons:
+        bpy.data.objects.remove(piece)
+        return None
+    return piece
 
 
-def export_piece(obj, label, name, sprite_mask, centre, options, out):
-    if sprite_mask is not None:
-        mk.compare("%s as the camera sees it, its sprite's own pixels" % label,
-                   view_coverage([obj], 24, 28, centre), sprite_mask)
-    obj.data.transform(Matrix.Translation((-centre[0], -centre[1], 0.0)))
-    obj.data.validate()
-    mk.apply(obj)
-    triangulate([obj])
-    bpy.context.view_layer.update()
-    mk.report(name, [obj], os.path.join(out, name + ".glb"))
-    if "preview" in options:
-        mk.preview(options["preview"] + name, [obj], size=(24, 56), scale=12, centre=(0.0, -10.0))
+def export_pieces(parts, pieces, look, options, out, label):
+    own = own_pixels(look)
+    for name, sprite, box, centre in pieces:
+        cuts = []
+        for obj in parts:
+            c = column_cut(obj, box, obj.name + "_" + name)
+            if c is not None:
+                cuts.append(c)
+        for obj in parts:
+            obj.hide_render = True
+        if "check" in options:
+            c0, r0 = int(centre[0] - 12 + 24), int(42 - centre[1] - 14)
+            mask = own[r0:r0 + 28, c0:c0 + 24].tolist()
+            mk.compare("%s (M %d) as the camera sees it, its sprite's own pixels" % (name, sprite),
+                       mk.coverage(cuts, 24, 28, centre=centre), mask)
+        for c in cuts:
+            shear_to_camera(c)
+        mk.transform(cuts, Matrix.Translation((-centre[0], -centre[1], 0.0)))
+        bpy.context.view_layer.update()
+        triangulate(cuts)
+        obj = join(cuts, name)
+        obj.data.name = name
+        # Flat facets, the hollows' floors smooth (bowls).
+        hollow = {i for i, mt in enumerate(obj.data.materials) if mt is not None and mt.name.startswith("column_hollow")}
+        obj.data.polygons.foreach_set("use_smooth", [p_.material_index in hollow for p_ in obj.data.polygons])
+        obj.data.update()
+        mk.report(name, [obj], os.path.join(out, name + ".glb"))
+        if "preview" in options:
+            mk.preview(options["preview"] + name, [obj], size=(24, 56), scale=12, centre=(0.0, -10.0))
+        bpy.data.objects.remove(obj)
+        for p in parts:
+            p.hide_render = False
 
 
 def build():
     options = k.args()
     out = mk.outdir(options)
     only = set(options["only"].split(",")) if "only" in options else None
-    check = "check" in options
     k.reset()
     bpy.context.scene.view_settings.view_transform = "Standard"
-    mats = materials()
+    m = materials()
     pic = art(ART)
     pic_dmg = art(ART_DMG, base=pic)
-    fl = paint_fields(pic)
-    fl_dmg = paint_fields(pic_dmg)
-    gx, gy = np.meshgrid(XS, YS, indexing="ij")
-    gone = (own_pixels(pic) & ~own_pixels(pic_dmg)).astype(np.float64)
-    fl_dmg["gone"] = blur(sample(gone, gx, gy), 0.45)
-    fl_dmg["gone_soft"] = blur(sample(gone, gx, gy), 1.7)
-    wanted = [p for p in PIECES if not only or p[0] in only]
-    wanted_dmg = [p for p in PIECES if p[2] and (not only or p[2][0] in only)]
-    jobs = []
-    if wanted or "whole" in options:
-        jobs.append(("rock_column", pic, fl, False,
-                     [(name, sprite, box, centre) for name, sprite, _, box, centre in wanted]))
-    if wanted_dmg or "whole" in options:
-        jobs.append(("rock_column_wreck", pic_dmg, fl_dmg, True,
-                     [(dmg[0], dmg[1], box, centre) for _, _, dmg, box, centre in wanted_dmg]))
-    for label, look, paint, broken, pieces in jobs:
-        carve = hollow = None
-        if broken:
-            z_top = top_surface(solid(fl))
-            carve = broken_carve(fl_dmg, z_top)
-            hollow = hollow_test(fl_dmg, z_top)
-        whole, _ = build_whole(label, paint, carve)
-        shear_to_camera(whole)
-        whole.data.update()
-        print("%s: %d vertices, %d triangles" % (label, len(whole.data.vertices), len(whole.data.polygons)))
-        source = mk.NormalSource(whole)
-        own = own_pixels(look)
-        if "whole" in options or check:
-            view = whole.copy()
-            view.data = whole.data.copy()
-            bpy.context.scene.collection.objects.link(view)
-            centres, normals = face_data(view)
-            assign(view, shades(centres, normals, paint, hollow), mats)
-            whole.hide_render = True
-            if check:
-                mk.compare("whole %s as the camera sees it (the ground left out)" % label,
-                           view_coverage([view], 48, 84, (0.0, 0.0)), own.tolist())
-            if "whole" in options:
-                mk.preview(options["whole"] + label, [view], size=(48, 84), scale=8, distance=1.4)
-                triangulate([view])
-                mk.export([view], options["whole"] + label + ".glb")
-            bpy.data.objects.remove(view)
-            whole.hide_render = False
-        for name, sprite, box, centre in pieces:
-            obj, rim = cut_piece(whole, box, name, mats[CAP])
-            if obj is None:
-                continue
-            whole.hide_render = True
-            decimate(obj, rim, TARGET)
-            shade_like(obj, source)
-            centres, normals = face_data(obj)
-            idx = shades(centres, normals, paint, hollow)
-            flags = np.empty(len(obj.data.polygons), np.int64)
-            obj.data.polygons.foreach_get("material_index", flags)
-            idx[flags == 1] = CAP
-            assign(obj, idx, mats)
-            mask = None
-            if check:
-                c0, r0 = int(centre[0] - 12 + 24), int(42 - centre[1] - 14)
-                mask = own[r0:r0 + 28, c0:c0 + 24].tolist()
-            export_piece(obj, "%s (M %d)" % (name, sprite), name, mask, centre, options, out)
-            bpy.data.objects.remove(obj)
-            whole.hide_render = False
-        bpy.data.objects.remove(whole)
+    jobs = [("rock_column", pic, False, [(name, sprite, box, centre) for name, sprite, _, box, centre in PIECES
+                                         if not only or name in only]),
+            ("rock_column_wreck", pic_dmg, True, [(dmg[0], dmg[1], box, centre) for _, _, dmg, box, centre in PIECES
+                                                  if dmg and (not only or dmg[0] in only)])]
+    for label, look, broken, pieces in jobs:
+        if not pieces and "whole" not in options:
+            continue
+        parts = build_column(m, look, broken, hollow_mask(pic, pic_dmg) if broken else None)
+        print("%s: %d parts, %d triangles" % (label, len(parts), mk.triangles(parts)))
+        if "check" in options:
+            mk.compare("whole %s as the camera sees it (the ground left out)" % label,
+                       mk.coverage(parts, 48, 84, (0.0, 0.0)), own_pixels(look).tolist())
+        if "whole" in options:
+            view = []
+            for p in parts:
+                c = p.copy()
+                c.data = p.data.copy()
+                bpy.context.scene.collection.objects.link(c)
+                shear_to_camera(c)
+                view.append(c)
+            for p in parts:
+                p.hide_render = True
+            mk.preview(options["whole"] + label, view, size=(48, 84), scale=8, distance=1.4)
+            for c in view:
+                bpy.data.objects.remove(c)
+            for p in parts:
+                p.hide_render = False
+        export_pieces(parts, pieces, look, options, out, label)
+        for p in parts:
+            bpy.data.objects.remove(p)
 
 
 if __name__ == "__main__":

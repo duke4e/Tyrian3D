@@ -1,667 +1,833 @@
 """GRYPHON's boss (sheet 0: its body and wings, 20 2x2 sprites; its neck, 0 91 beside 93; its head, 0 123 with the
-frames 121 119 129), polished (2026-10-22, round 37; it replaces wave3_ai_gryphon.py, reliefs inflated over the sprites'
-outlines with the shading embossed and round horns, and wave3_ar_beasts.py, its head rebuilt from each frame's pixels).
+frames 121 119 129), polished again (2026-10-23, round 38, the quality redo): rebuilt in place of round 37's version
+of this script (each picture one heightfield in the picture's plane, painted by the sprites' shades: a soft,
+washed-out relief next to the vivid sprites) as a creature of separate smooth solids.
 
-Where it appears: GRYPHON (episode 2) at t7100: the head, enemy 835 (0 123, armour 250, its gun 68 and launch 836 every
-71 frames when event 31 says so), at (125, y + 8), link 62; the body, custom enemies of bank 29 (sheet 0) on the top
-layer, link 61 (the boss bar's): 1 3 . 7 9 . 13 15 at y - 84, 39 41 43 45 47 49 51 53 at y - 56, . 79 81 83 85 87 89 at
-y - 28, the sheet's layout at x 40 + its column (24 apart), but 15 and 53 at x 202, 6 pixels left of their place over 13
-and 51 (the game's right wing is 6 pixels shorter than the left); 3 and 13 have armour 0, the rest 250 (bank 29's enemy
-0: one frame, no damaged look); the neck, 91 and 93 at (112, y - 20), (136, y - 20), link 62, eight rows over the body's
-last row. The events move links 61 and 62 together into place (t7170-7240) and sway them side to side; from t7360 the
-head and the neck (link 62) lunge down the screen and back again and again (90 to 120 pixels, 40-120 frames each,
-tools/content/EVENTS.md's acceleration rules), the neck sliding right off the body, which shows its own dark socket
-there, and the head's animation (123 121 121 121 119 119 119 129 129 129 119 119 119 121 121 121 123, animate 2: when it
-fires) drops its jaw. Episode 6's MIGRATION brings only GRYPHON's wave 51, the head alone (enemy 1619 twice, at its
-t4923 and 5103): there the head flies without body and neck (reported, not worked round: the head is whole in itself).
-No other enemy, launched ones included, shows any of these sprites (frame models are safe); none is another sprite's
-pixels mirrored, turned or in other ramps (the sheet's 5, 11 and 77 in the body's box are blank).
+Where it appears (found in round 37, kept): GRYPHON (episode 2) at t7100: the head, enemy 835 (0 123, armour 250, its
+gun 68 and launch 836 every 71 frames when event 31 says so), at (125, y + 8), link 62; the body, custom enemies of
+bank 29 (sheet 0) on the top layer, link 61 (the boss bar's): 1 3 . 7 9 . 13 15 at y - 84, 39 41 43 45 47 49 51 53 at
+y - 56, . 79 81 83 85 87 89 at y - 28, the sheet's layout at x 40 + its column (24 apart), but 15 and 53 at x 202, 6
+pixels left of their place over 13 and 51 (the game's right wing is 6 pixels shorter than the left); 3 and 13 have
+armour 0, the rest 250 (bank 29's enemy 0: one frame, no damaged look); the neck, 91 and 93 at (112, y - 20),
+(136, y - 20), link 62. The events move links 61 and 62 together into place (t7170-7240) and sway them side to side;
+from t7360 the head and the neck (link 62) lunge down the screen and back again and again (90 to 120 pixels), the neck
+sliding right off the body, which shows its own dark socket there, and the head's animation (123 121 121 121 119 119
+119 129 129 129 119 119 119 121 121 121 123, animate 2: when it fires) drops its jaw. Episode 6's MIGRATION brings only
+GRYPHON's wave 51, the head alone (enemy 1619 twice, at its t4923 and 5103): there the head flies without body and
+neck (reported, not worked round: the head is whole in itself). No other enemy, launched ones included, shows any of
+these sprites (frame models are safe); none is another sprite's pixels mirrored, turned or in other ramps.
 
-The sprites are mirror images of themselves: the body about its column 96 (outline 99.6 % symmetric), the neck about its
-column 24, the head about its column 11; in the game all three axes lie at x 130.5. Built symmetric: the body as the
-sheet lays it out (its right wing as long as its left), so the models of 15 and 53 hold their sheet columns and lie 6
-pixels right of the sprites' own place (their origins 6 pixels left of their boxes' middles): the game's 6 pixel short
-right wing (a level-design quirk that bunched its fingers) becomes the sheet's whole wing, its tip 1-2 pixels past 15's
-box.
+The sprites are mirror images of themselves (the body about its column 96, the neck about its column 24, the head
+about its column 11; in the game all three axes lie at x 130.5). Built symmetric as the sheet lays the body out, so
+the models of 15 and 53 hold their sheet columns and lie 6 pixels right of the sprites' own place (their origins 6
+pixels left of their boxes' middles): the game's 6 pixel short right wing becomes the sheet's whole wing.
 
-As the sprites draw it (blues of ramp 3, its claws in the greys of ramp 0, a black outline 0x01; columns and rows of the
-192 x 84 body picture, the left half: the right is its mirror image):
-- two long horns up the screen from its back (columns 82-95 of rows 0-44, their tips at column 87 of row 0), round,
-  dark down their outer sides and lit along their crests;
-- its torso between them (columns 82-111 of rows 40-69), the back scaled, a dark socket at its foot under the neck
-  (rows 64-84, columns 72-121, dark blues 0x30-0x34 in black: the body's own pixels the neck covers);
-- grey claws fanned at its shoulders (columns 61-83 of rows 42-58), five or six curved blades;
-- the wings spread out and up to grey claws at their tips (columns 4-11 of rows 11-30), their leading edge with three
-  finger tips (columns 11-17 of row 17, 19-24 of row 23, 36-47 of rows 31-37), ridged with light streaks, the trailing
-  edge running down from the wing's tip to a lobe at columns 41-57 of rows 70-75;
-- the neck (48 x 28): a blue column of vertebrae (columns 17-31) with two small horns at its top (columns 17-19 and
-  28-30 of rows 1-8), grey fins in two layers at its sides (columns 6-17 of rows 7-12 and 13-22, and their mirror
-  images), widening at its foot (rows 22-28) where the head hangs;
-- the head (24 x 28): a skull lit along its top (rows 0-8), red eyes at its sides (ramp 7, columns 3-5 and 17-19 of
-  rows 3-6), the snout narrowing to fangs over a dark maw (rows 7-12, the same in every frame) and the lower jaw (rows
-  13-18 in 123), which drops two rows a frame (121, 119, 129: 2, 4, 6 rows), the maw's dark throat and its side fangs
-  growing between them.
+As the sprites draw it (ramp 3's blues, the plates and claws in ramp 0's greys, red eyes in ramp 7; the body's
+picture's columns and rows, its left half): wings spread out and up the screen, their feathers lying along the span
+(the light streaks run parallel to the leading, lower edge, from the elbow's lobe at columns 41-57 of rows 69-75 out
+to the wrist), the trailing (upper) edge stepping out in three finger tips (columns 36-47 of rows 31-37, 19-24 of row
+23, 11-17 of row 17) to a grey claw at the wrist pointing up the screen (columns 4-11 of rows 11-30); the upper arm a
+lit band from the shoulder to the elbow (rows 62-69); grey fans of five blades at the shoulders (columns 61-83 of rows
+42-56); two long horns up the screen from its back (columns 82-95 of rows 0-44, bowed out a little, their tips at
+column 87 of row 0); the torso between them (columns 82-111 of rows 44-66), scaled, a spine down it; under its foot a
+dark shield (rows 63-85, columns 72-121: dark blues, dim ribs converging down it) that the neck covers at rest. The
+neck (48 x 28): a column of vertebrae (columns 17-31), two small horns at its top, three grey fins a side stacked down
+it (rows 7-12, 12-17, 17-22, their tips at columns 6-7), each lit along its top edge, its foot widening into the head;
+the head (24 x 28): a mask: a V of light brows from its upper corners to its middle (rows 1-6), slanted red eyes at its
+sides (columns 3-5 and 17-19 of rows 3-6), lit cheekbones sweeping down to the jaw, a snout's bridge down the middle,
+fangs at columns 9 and 13 (rows 9-11) over a dark maw, the lower jaw (rows 13-18 in 123) with three small teeth,
+dropping 2, 4 and 6 rows in 121, 119 and 129, the mouth's dark walls and side fangs showing as it opens.
 
-Built for the game's camera as the round 36 bosses are (polish_sheet9_kit): each picture (the body, the neck, each head
-frame) one heightfield in the picture's plane (gw.Plate, its grid STEP 0.5 apart with the sprites' edges on its lines,
-so a piece is the cells of its sprite's box: no mesh cutting; walls where cut, dark), its outline the sprite's (smoothed
-a little), sheared along the camera's line of sight (y - z tan 20) so the camera sees every point where the sprites draw
-it. Heights (z over the top layer's plane; the shapes defined for the left half, mirrored):
-- the body: the wings a membrane rounding up from the outline (WING: 2.1 at the tips to 3.4 at the body); it flies
-  down the screen, so the wing's thick arm runs along its lower (leading) edge from the shoulder to the elbow's lobe
-  and up to the wrist by the claw (ARM, 1.1-1.7 over the membrane), the fingers fan from the wrist to the scalloped
-  upper edge (FINGERS, 0.6-0.75 over it); the wing tips' claws round tubes (CLAW, to 4.5), the shoulders' claws a dome
-  of blades (FAN, 5.3), the torso a dome (TORSO, 7.4) with a spine (SPINE, 8.1), the horns round tubes (HORN, 3.0 at
-  the tips to 6.4 at the roots), under the neck a low saddle (SADDLE: 3.4 falling to 2.2) with the dark socket sunk
-  into it (SOCKET, 0.9), so the neck lies over it as the sprites draw it and the socket shows when it lunges;
-- the neck: a low plate (3.6) under the column, a round tube along the axis (7.8 falling to 5.9 at its foot), the small
-  horns (6.9), the fins blades in three layers (6.1 falling to 4.2 at their tips), its foot widening (5.4);
-- the head: the skull a dome (6.4) with brows over the eyes (6.6), the eyes glowing lenses in sockets (5.3), the snout
-  (5.5 falling to 4.5), the maw sunk (2.0) with the fangs standing in it (the frame's light pixels there), the lower
-  jaw a tube (4.6 to 3.0) moved down with the frame's drop (DROP); its dark lines and shading cut deeper (HEAD_CREASE,
-  HEAD_DETAIL: it is small);
-- where the neck meets the head neither outline rounds down (carried on JOIN_ROWS past them) and the head's top rows
-  take on the neck's foot's heights (JOIN_BLEND), so the two meet without a step (they always move together; in
-  MIGRATION the head's top edge is a wall facing up the screen, away from the camera);
-- everywhere the sprite's dark lines creased into the surface (CREASE 1.0) and its fine shading a little relief
-  (DETAIL).
-Painted by the sprite under each face (polish_sheet9_kit.Painter: each zone's shades filled outwards and blurred, a
-little lighter (the game reads palette colours darker), lighter where the game's sun lights a face less): the blues
-(0x32-0x3c, LIFT), the claws' greys (0x03-0x0c, GREY_LIFT), the sprite's black lines and outline (0x01: black, kept
-dark and rough), the socket's dark blues (0x31, 0x33, SOCKET_LIFT, rough), the eyes ramp 7 glowing in their own reds
-(0.3-0.55); the walls black; at most 15 materials a piece. The neck's surface stands over the body's saddle wherever
-they overlap (the body 1.3-3.4 there, the neck 3.6-7.8). Heights: the body 0-8.4, the neck 0-7.6, the head 0-7.2 (the
-player's plane is 6 over the top layer; the old models reached 10). Deterministic (md5 identical over runs, with and
-without --check): no random numbers, no booleans.
+Built from separate smooth solids (polish_sweep_kit: lofts along paths through superellipse sections, ellipsoids from
+explicit rings), each part its own material, modelled in the picture's plane (x, y where the sprites draw them, z up
+from the top layer) and sheared along the game camera's line of sight (y - z tan 20) so the camera sees each where the
+sprites draw it:
+- each wing: ROWS, 11 rows of long feathers (84) along the span in the wing's frame (WP: s along the span from the
+  elbow, t across it), each feather a vane narrow at its quill, widest past its middle, pointed, with a rachis, arched
+  and a little bent (fixed jitter), shingled (each lies over the root of the next one out, the rows nearer the leading
+  edge over those behind them: the wing falls from the arm, 4.4, to the trailing edge and the tip, about 1.5), the
+  rows converging a little to the tip, their last feathers drawing the trailing edge and its three finger tips; the web
+  under them (dark, seen in the gaps); the upper arm (UPPER_ARM) with seven covert feathers along it, the elbow's
+  lobe, the forearm along the leading edge to the wrist, the shoulder's flat mass; the wrist's talon (grey);
+- the shoulders' fans: five bony blades fanned from a hinge, each bowed and banked so the next one overlaps it;
+- the horns: tapering tubes along the sprite's bowed horns, ringed, rooted in the torso;
+- the torso: a loft (TORSO), two back muscles, seven rows of scales pointing up the screen (the rows nearer the head
+  over those behind), a crest of six knobs along the spine;
+- the socket: a low dark plate over the shield's outline, three dim ribs a side converging down it (the neck lies over
+  it at rest: the socket 0.4-2.6 high, the neck 1.6-7.8);
+- the neck: a column of vertebrae (NECK, swelling a little between its seven knobs), two lit bands beside the spine,
+  three bony fins a side (NECK_FINS: broad blades with a lit top edge, each lower one riding over the one above, their
+  tips drooping), two prongs at its top; its foot carried NECK_OVERLAP pixels over the head's top (they always move
+  together; alone in MIGRATION the head's top edge faces up the screen, away from the camera);
+- the head: the skull (SKULL: the cranium to the eyes, the snout narrowing over the maw), the dark face beside the
+  snout (MASK), the brows' chevron, the snout's bridge, the cheekbones, the eyes (glowing almonds in dark sockets), the
+  fangs, the side fangs at the maw's corners, the maw (longer as the jaw drops), the lower jaw (JAW, moved down DROP
+  rows a frame) with its chin ridge and three teeth; the open frames add the mouth's dark side walls.
+Materials (palette indices, metallic/roughness; nothing painted from the sprites' pixels, the shading is the
+geometry's and the game's light): feathers 0x37, web 0x31, arms 0x38, hide (torso, neck, skull) 0x37, the light plates
+(spine knobs, scales' crest, brows, bridge, cheekbones) 0x3a, horns 0x38 (all 0.18/0.2-0.24: a little metallic, so the
+highlights stay blue), the socket 0x33, the bony fans, fins and the talon 0x0a and 0x0b, the eyes 0x75 glowing 0.55
+with a core of 0x77 at 0.6, teeth 0x3c, the maw 0x30; cut faces 0x32 (blue parts) and 0x05 (grey parts). Heights over
+the top layer (undersides flattened at 0): the body 0-8.5 (the torso's crest; the horns 8.2, the wings 1-6.8), the
+neck 0.2-8.5, the head 0-7.8 (the old models reached 8.4-10; the player's plane is 6 over the top layer).
 
-Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: the top layer).
-The body's picture has its origin on its axis at its middle row (column c's middle at x = c - 96, row r's at y = 41.5 -
-r), the neck's (x = c - 24, y = 13.5 - r) and the head's (x = c - 11, y = 13.5 - r) likewise; each piece moved so its
-sprite's middle as the game draws it is its origin (models.cfg origin): a body sprite whose top left pixel is the
-picture's (c0, r0) at (c0 - 84.5, 28 - r0), 15 and 53 at (77.5, 14) and (77.5, -14) (6 left of their boxes' middles),
-the neck's at (-12.5, 0) and (11.5, 0), the head's at (0.5, 0).
+The pieces: the body built whole and cut in the picture's plane along the sprites' edges (polish_coral_manta.cut,
+caps in each part's inside colour, the faces' normals the uncut solids'), each piece checked against its sprite as the
+camera sees it, sheared, moved so its sprite's middle is its origin (15 and 53: 6 pixels left of their boxes' middles),
+triangulated (polish_k_pod.triangulate: the same output with and without --check) and joined (polish_deli_boss.join);
+the neck cut at x -0.5 (91 | 93); the head whole, one model a frame. A box holding nothing would get a blank model (one
+tiny triangle under the layer); none does. No random numbers, no booleans: md5 identical over runs, with and without
+--check.
 
-models.cfg: the model lines stay (gryphon_1 ... gryphon_89, gryphon_neck_91, gryphon_neck_93, gryphon_head; frame
-models gryphon_head_123, _121, _129; all origin); the sprite lines stay (yaw=0; the top layer); the frame lines stay
-(0 123, 121, 129; gryphon_head is 119's); only their comments change.
+Coordinates as in tyrkit: 1 unit = 1 game pixel, +X right, +Y up the screen, +Z towards the camera (z 0: the top
+layer). The body's picture: continuous column u and row v (pixel (c, r)'s middle at (c + 0.5, r + 0.5)), x = u - 96.5
+(its axis at x 0), y = 42 - v (BP); a body sprite whose top left pixel is the picture's (c0, r0) has its origin at
+(c0 - 84.5, 28 - r0), 15 and 53 at (77.5, 14) and (77.5, -14). The neck's: x = u - 24.5, y = 14 - v (NP), origins
+(-12.5, 0) and (11.5, 0); at rest its row 0 is the body's row 64. The head's: x = u - 11.5, y = 14 - v (HP), origin
+(0.5, 0); at rest its row 0 is the neck's row 28.
 
-Replaces wave3_ai_gryphon.py (all of it: delete it), wave3_ar_beasts.py (all of it: only the head's frames are left in
-it; delete it), their kits and pixels only they use: wave3_ai_kit.py and wave3_ai_art.py (only wave3_ai_gryphon.py
-imports the kit, only the kit the art), wave3_ar_kit.py and wave3_ar_art.py (only wave3_ar_beasts.py imports them),
-wave3_ab_kit.py (only wave3_ai_gryphon.py and wave3_ai_kit.py import it): delete them all.
+models.cfg: the model lines stay (gryphon_1 ... gryphon_89, gryphon_neck_91, gryphon_neck_93, gryphon_head; frame models
+gryphon_head_123, _121, _129; all origin); the sprite lines stay (yaw=0; the top layer); the frame lines stay (0 123,
+121, 129; gryphon_head is 119's); only the comments describing the build change.
 
-Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline against
-its sprite's pixels, as the picture's plane holds them), --preview <prefix>, --only <name,...> (or body, neck, head).
+Replaces round 37's version of this script (rewritten in place; it imported polish_sheet9_kit, which stays: other
+scripts use it). No old generator code is left to remove (round 37 removed it).
+
+Options after "--": --outdir <dir> (default assets/models/enemies), --check <sheets dir> (each piece's outline as the
+camera sees it against its sprite's pixels in enemy_0.png), --preview <prefix> with --pieces 1 (each model's top and
+3/4 views), --only <name,...> (or the groups body, neck, head), --whole <prefix> (the sheared, uncut body, neck and
+heads 123 and 129 as GLBs, for looking at).
 """
+import math
 import os
 import sys
 
 import bpy
-import numpy as np
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 import tyrkit as k  # noqa: E402
 import polish_machine_kit as mk  # noqa: E402
-import polish_sheet9_kit as nk  # noqa: E402
-from polish_sheet9_kit import Pic, parse, blur, smax, smoothstep, Region, Zone, Painter, round_rise  # noqa: E402
-
-# The pictures (rows top to bottom; each pixel its palette index in hex, '..' none; trailing transparent pixels left
-# out): the body as the sheet lays out its 20 sprites (192 x 84; the sheet's 91 in its lower right corner is the neck's,
-# left out), the neck (0 91 beside 93, 48 x 28), the head's four frames (24 x 28). 0xfe (an outline pixel) is read as
-# 0x01.
-BODY_ART = """
-..............................................................................................................................................................................01..................................01
-............................................................................................................................................................................0101..................................0101
-..........................................................................................................................................................................013301..................................013301
-..........................................................................................................................................................................013401..................................013401
-..........................................................................................................................................................................013401..................................013401
-..........................................................................................................................................................................013601..................................013601
-........................................................................................................................................................................01333701..................................01373301
-........................................................................................................................................................................01353701..................................01373501
-........................................................................................................................................................................01373801..................................01383701
-........................................................................................................................................................................01383801..................................01383801
-........................................................................................................................................................................01383801..................................01383801
-............0102......................................................................................................................................................0132383801..................................0138383201......................................................................................................................................................0201
-..........01090a01....................................................................................................................................................0134383801..................................0138383401....................................................................................................................................................010a0901
-........0103070e0401..................................................................................................................................................0136383801..................................0138383601..................................................................................................................................................01040e070301
-........0106080c0901..................................................................................................................................................0137383801..................................0138383701..................................................................................................................................................01090c080601
-........0107060c0b0901................................................................................................................................................0138383801..................................0138383801................................................................................................................................................01090b0c060701
-........0107070b0b0a02................................................................................................................................................0138383801..................................0138383801................................................................................................................................................020a0b0b070701
-........0107070b0b0a0201010101........................................................................................................................................0138373801..................................0138373801........................................................................................................................................01010101020a0b0b070701
-........0107070b0a0902343b343301....................................................................................................................................013338373801..................................013837383301....................................................................................................................................0133343b3402090a0b070701
-........0107070a0907313539323c3401..................................................................................................................................013438373801..................................013837383401..................................................................................................................................01343c3239353107090a070701
-........010607090805313539323a3301..................................................................................................................................013538373801..................................013837383501..................................................................................................................................01333a32393531050809070601
-........010507080735013436323a3301..................................................................................................................................01373837393301..............................01333937383701..................................................................................................................................01333a32363401350708070501
-........01040708073b3133383238343201................................................................................................................................01383836383401..............................01343836383801................................................................................................................................01323438323833313b0708070401
-........0103070607383431363334333901....010101......................................................................................................................01393736383501..............................01353836373901......................................................................................................................010101....0139333433363134380706070301
-..........01060606373631353434313a01..0132363401....................................................................................................................01393736383501..............................01353836373901....................................................................................................................0134363201..013a3134343531363706060601
-..........01050605353633323437013a3401303437353701..................................................................................................................01373735373601..............................01363735373701..................................................................................................................01373537343001343a0137343233363505060501
-..........0104060533393531373931373433013638353b01..................................................................................................................0139373538383301..........................0133383835373901..................................................................................................................013b353836013334373139373135393305060401
-............01040536373532303433343437303536343b3401................................................................................................................0136373537393501..........................0135393735373601................................................................................................................01343b3436353037343433343032353736050401
-............0103043635343632373a34333830363838363501................................................................................................................0139373536393701..........................0137393635373901................................................................................................................013536383836303833343a373236343536040301
-............010203363635353432353332393333363530343c01..............................................................................................................0137363535393801..........................0138393535363701..............................................................................................................013c34303536333339323335323435353636030201
-..............0103363738363432363935363434373a36343a3330............................................................................................................0138373637373a3301......................01333a373736373801............................................................................................................30333a34363a373434363539363234363837360301
-..............01033536373832343134323136323636373239343b01................0101010101................................................................................0136383637353a3601......................01363a353736383601................................................................................0101010101................013b3439323736363236313234313432383736350301
-................013534363834353236373435333538383536343a3501............0136383837350101............................................................................013a39363538383701......................013738383536393a01............................................................................0101353738383601............01353a34363538383533353437363235343836343501
-................0136343536353433323535313533353536353137353901..........01363836373c353301..........................................................................013738353538363901......................013936383535383701..........................................................................0133353c3736383601..........0139353731353635353335313535323334353635343601
-................013635353437373433333738353332373738363634393401..........0138383738353a3201........................................................................01343735353538393301..................01333938353535373401........................................................................01323a353837383801..........013439343636383737323335383733333437373435353601
-..................013438353738363532323534333532363636333237343701........01373837363539353301......................................................................01333938363539383401..................01343839353638393301......................................................................01333539353637383701........013734373233363636323533343532323536383735383401
-..................0132343636373636353334363733363337373737353237350101......013838363337353a01........................................................................30363536353a363601..................0136363a3536353630........................................................................013a35373336383801......0101353732353737373733363337363433353636373636343201
-....................013436363537363635343434333336343635363533343437340101..01353938373534393201......................................................................013839373438353a01..................013a35383437393801......................................................................01323934353738393501..010134373434333536353634363333343434353636373536363401
-....................013536353538373736353434363534343436383838363136353833010134393937343239343201....................................................................013536343436353a3501..............01353a35363434363501....................................................................013234393234373939340101333835363136383838363434343536343435363737383535363501
-......................0137363537363938353634343534343634343636373532343834360133343939383536353a3401..................................................................013739363234363a3601..............01363a36343236393701..................................................................01343a353635383939343301363438343235373636343436343435343436353839363735363701
-......................013436363735373b383635343438393c353534353738393535343734010138393635323239343601................................................................01343839353036383530..............30353836303539383401................................................................0136343932323536393801013437343535393837353435353c393834343536383b37353736363401
-........................0133363636373838373535373638353a3634343535333431313434350135383938373538353a3201..............................................................0136353537313636353a01..........013a353636313735353601..............................................................01323a3538353738393835013534343131343335353434363a353836373535373838373636363301
-........................0133343636373434363835333537363838353435353635343433323535303637373535323239343401....................................01010101................0135363835333234393732..........3237393432333538363501................01010101....................................0134343932323535373736303535323334343536353534353838363735333538363434373636343301
-..........................013334363635393a363735343633373638363434333435363532343535333637383838343333373330..........................010101..01080a080101....010101..013433373634313636373801......013837363631343637333401..010101....0101080a0801..010101..........................3033373333343838383736333535343235363534333434363836373336343537363a39353636343301
-............................0134343636383a36363636353237343835373435343333353636333434333537363535323038333730......................01060d0b0404080a0a0b0a01..010a090101333432333233323737383401010134383737323332333234330101090a01..010a0b0a0a0804040b0d0601......................303733383032353536373533343433363635333334353437353834373235363636363a383636343401
-..............................01333436363736373736373734343834353537383a3633353735343939363537383837343433383401............01010101010b09090a05080a09080a0a01050a090101333533363936313536363435343534363635313639363335330101090a05010a0a08090a08050a09090b0101010101............01343833343437383837353639393435373533363a3837353534383434373736373736373636343301
-................................013433363635353a3837363635343435363635383937353234393a3c3b38333436353432323635370101......010a0c0c0a070a07060606070b0909080b0a050c090601343537333333363036363635353535353636373637373431310106090c050a0b0809090b07060606070a070a0c0c0a01......010137353632323435363433383b3c3a3934323537393835363635343435363637383a35353636333401
-..................................013134363536373637373538383838373635373538393636373735383a3b37343537373734313834350101..010b08080b0705090b0b0805070a0909080b04070a0301353237353837360134363939363b3b3933353535363630333101030a07040b0809090a0705080b0b0905070b08080b01..010135343831343737373534373b3a38353737363639383537353637383838383537373637363536343101
-....................................0131343636373838383638393a3a39373637353735383335373534363b393a333135353532343437333001010a090608050a0908090c0806090a09080a0905063135393234353838363233353837353939383434353a383632353131020605090a08090a0906080c0908090a050806090a010130333734343235353531333a393b36343537353338353735373637393a3a393836383838373636343101
-......................................0132333636383a383636353536383938363537343739373435373337363a3a37353437373532363435330101010106050a0906070b0c07050a0b09080b0303313437343935383634333234383e36373837343234383635333631300103030b08090b0a05070c0b0706090a05060101010133353436323537373435373a3a363733373534373937343735363839383635353636383a383636333201
-........................................01313335363737393836353535353939373734373537363536383234383539393533343636343236343533350101030a0b0a06070a0c06070b09070a043535323733393c3635333333343b3c3b373936353333363535333301313301040a07090b07060c0a07060a0b0a0301013533353436323436363433353939353834323836353637353734373739393535353536383937373635333101
-..........................................0132333436363739363635353435363938353635343335373535353432363839383635373836343335333635363004050b0a08070a0c05080a0507053638343633383a393432343b333a3b3a37373c333231363b363336313333010507050a08050c0a07080a0b050430363536333533343638373536383938363234353535373533343536353839363534353536363937363634333201
-............................................013332343636363636383a3a353536383835343438393a3c393537383436373739383535373735363337353537383904050907070b07070a0608093638363a3536383a35013a3933393a39363a3b3832313439363235343733010508060a07070b070709050439383735353733363537373535383937373634383735393c3a393834343538383635353a3a38363636363634323301
-..............................................01013033363738383937393a3735363738333637363538363a343835343433353638353435373734373534343439393703090608080509080737363736393d3637383301383734393a3735393a3732313338343238333331310307080905080806090337393934343435373437373534353836353334343538343a3638353637363338373635373a3937393838373633300101
-................................................01010132353737383737383b36353536383436363537343a393435383638343435363432333437373435373634363838040a06070605080636343537383a3c3739323337363339373d363632353232303339343c37300131040608050607060a043838363436373534373734333234363534343836383534393a34373536363438363535363b3837373837373532010101
-....................................................010130343536363736373a373635363834363536353735393435353636373634363634333534353938373833353837050806060306043434363638393e38383233343533373a3839363235323431343a34373630303201040603060608053738353338373839353435333436363436373636353534393537353635363438363536373a37363736363534300101
-......................................................013132333639393a3837393836363536373736353635393934343535363636353539393838363738373738333535040604360303353734373432323834013001343634373738363636340130013438323133013232010303010406043435353338373738373638383939353536363635353434393935363536373736353636383937383a39393633323101
-........................................................0130323535373a3a39373837373538373a38373736383539373332333334353a393636363836353636373734353536373633323635373731013135300131013436333431353335363401310130353101300131323201010101013436353437373636353638363636393a35343333323337393538363737383a37383537373837393a3a373535323001
-..........................................................010132343536393a39373735353736383539373737353639383633333333383636363536383736353636363534343532323132343533300131340133323433363433013134353633343233013431013031313101010101353434353536363635363738363536363638333333333638393635373737393538363735353737393a39363534320101
-..............................................................0131333536383a393836353535383536353a38353537383938373432323334343435353737363636363635353533313234353334310130333533323434373533390131353734343233353330013133333433323133343535363636363636373735353434343332323437383938373535383a353635383535353638393a383635333101
-................................................................0130333535373a3a373635353635363538373834333637373938373433333333343435373837363636363636363636353432310101303136323234343838323a3531363834343232363130010131323435363636363636363636363738373534343333333334373839373736333438373835363536353536373a3a373535333001
-..................................................................0132333536383a393836353535353538353839343234353737383737373636353535353738373738393839383535320101010101010138333135383a38323a3735353a383531333801010101010101323535383938393a3837373837353535353636373737383737353432343938353835353535353638393a383635333201
-....................................................................01303334353839393938353535353635363638373333323333333435363636363635353535363836353332010130303030300131353a3332363b3c3833383834353c3b3632333a353101303030303001013233353636383635353535363636363635343333333233333738363635363535353538393939383534333001
-......................................................................0132323437383939393937353535353634353635343336383a3b3d3c3b3b3b3a393836353535353331013334333132333436383a35333134383b3732343330343b38343133353a38363433323133343301313335343535353638393a3b3b3b3c3d3b3a383633343536353436353535353739393939383734323201
-........................................................................01313234343839383639383736353533343433353739383939393939393939393837373634343231013334353534313032313233333131353636313432333536353131333332313230313435353433013132343334363737383939393939393939393839373533343433353536373839363839383434323101
-..........................................................................0101333234373837363739383833343433353737363636353535343434343535353636363332300130333335373737393533333231013135323332333335353101313233333539373737353333300130323335363636353535343434343535353636363737353334343338383937363738373432330101
-............................................................................013231323237373736373837393a393a3a383633333333333333333333333333343435343432300101013031343437383835323001303635353a3435393630013032353838373434313001010130323434353534343333333333333333333333333336383a3a393a39373837363737373232313201
-..............................................................................0130333332363736363737393a3a3a373633333332313131313131313232323232323232323230010101010101313138383634013236353b3935373a363201343638383131010101010101303232323230323232323232313131313131313233333336373a3a3a393737363637363233333001
-..............................................................................0101323534333635363636393a3b3733323333333131313131313130303031323131300130303001010101013101313337363432313230373936363934323234363733310131010101010130303001303031313231303030313131313131313333333233373b3a393636363536333435320101
-................................................................................0101343632333535333334353736313133330101010101010101010101010101010101010101013031300101010101343533323132303538373434333232333534010101010130313001010101010101010101010101010101010101010101333331313637353433333535333236340101
-..................................................................................0132343633333433353432333231333301..............................0101010101303132323230010101303433323331333137343432323332333430010101303232323130010101010101..............................0133333132333234353334333336343201
-....................................................................................01323133323334373b393231330101..................................0101013030313334353431010101333332313134333132323332313233330101013134353433313030010101....................................0101333132393b3734333233313201
-......................................................................................01333233323437373832320101........................................01303030313336353532010130333230303434303031363130323330010132353536333130303001..........................................01013232383737343233323301
-........................................................................................0101313132343434333301............................................0130303030323434343001013131303033323001353531303131010130343434323030303001..............................................0133333434343231310101
-............................................................................................010132323333333301..............................................013030303030333231010130323031333230313335323032300101313233303030303001................................................013333333332320101
-................................................................................................010101010101..................................................01303001303032300101303232010130300130320132323001013032303001303001....................................................010101010101
-................................................................................................................................................................0101010130323101010132303032333131303030303201010131323001010101
-..................................................................................................................................................................010101013232300101013230343532323130303201010130323201010101
-....................................................................................................................................................................01010132323130010101013233303031313001010130313232010101
-....................................................................................................................................................................01010130313001010101013001010131310101010101303130010101
-......................................................................................................................................................................0101010130300101010131010101010101010101303001010101
-........................................................................................................................................................................010101013030300101010101010101010130303001010101
-..........................................................................................................................................................................01010101013030303001013030303030300101010101
-............................................................................................................................................................................0101010101303030303030303030300101010101
-"""
-NECK_ART = """
-..........................................33..........32
-....................................01..320b34......330b01..30
-..................................013a02030a31....32030b01013431
-..................................333e03070a0201..01060a31013e3201
-................................333b3e01090903010130080908323b3501
-................................313c3e3b0409090139010a0703383c3301
-................................013b3c3e3207080137010806323b373101
-............010101010101013232..01393b3d3c320701380105323b3a37300101010101010101010101
-............020b0d0e0e0d0d0b06010101393a3c360401370103343c3735010201050a0a0b0b0b0a0901
-..............01010a0c0b0b0b0b0a07013739393b34013601323c373733020b0c0c0c0b0a09090101
-..................01010a090a09090a070137383838013601383c3737020b0909090909080101
-....................01010a0b0a090a0a04013637383236013b3836010b09080705040401
-..................01010103030303080a08060136360136013839040609060501010101010101
-................020d0c0b0b0b09070408080601370134390101390407060401090c0d0c0b0a0a01
-..............010a0a0a0a0a0a0b0a080407050237013a3c37013904070401080b0a08070707070501
-............01090909090909090909090605040238013b3b35013a050301050703050505050606070601
-............0108080808080808090908070301013901373a34013a030103050306060709070806060601
-..............01030303030303030807060403373b32343a33013b3602030205040201010101010101
-..............010b0c0a090808090306050503393b33333a320139360201020401090a0b0a0b0a0901
-................0101080806090808040405043a3b34013a32333836010103010706060605060601
-..................01050705040806090203033a3b35013a333437373401010407050405050601
-....................010507050406050632033a3c34333a3436373833310101020303060801
-......................010306363736353303383b35343a35373839333331310101060702
-........................0103363936363532363c37353936373a3a3333313101010301
-..........................01333332353633353d3b373836393b3634333030010101
-........................0132393e3a393734363a3c3939393a3a353536343531010101
-........................013635363534343635383b3a3a3a3a39353535323130313201
-........................01373939393a3c3535353c3a3a3a393836363b393838383734
-"""
-HEAD_119 = """
-3436363737363633353c3a3b3b3a38323332333434363601
-32333236383b3c39353a3e3b3b3c35373935363636363701
-323301323636373c38383a3d3c37383a3436380101313201
-33340170343636373b3a383a393639343436010101313201
-3036317472343636373c3937373b37353634737201343001
-013835717576343635393c3b3d39363635777471343601
-0134393370710101353a37393a39350101707034393401
-..31383634010101013a3835373a30010132353b3501
-..31363939363636303a3331353a0134363737333301
-..0101373a3a3831013b0101303a0131363634310101
-....013434373101013a0101013a01010132010101
-....01343438310101350101013501010134300101
-......0132340101010101010131010131340101
-........013232320101010101010132323201
-........010132360101010101010136320101
-..........01323301300101010101333201
-............3201313901010135010132
-............3230013501350134013101
-............30320131013b3030013401
-..............313030363b34013532
-..............303333383937353301
-................01323435353230
-..................3030300131
-..
-..
-..
-..
-..
-"""
-HEAD_121 = """
-3436363737363633353c3a3b3b3a38323332333434363601
-32333236383b3c39353a3e3b3b3c35373935363636363701
-323301323636373c38383a3d3c37383a3436380101313201
-33340170343636373b3a383a393639343436010101313201
-3036317472343636373c3937373b37353634737201343001
-013835717576343635393c3b3d39363635777471343601
-0134393370710101353a37393a39350101707034393401
-..31383634010101013a3835373a30010132353b3501
-..31363939363636303a3331353a0134363737333301
-..0101373a3a3831013b0101303a0131363634310101
-....013434373101013a0101013a01010132010101
-....01343438310101350101013501010134300101
-......0132340101010101010131010131340101
-........013232320101010101010132323201
-..........01320131390101013501013201
-............3230013501350134013101
-............30320131013b3030013401
-..............313030363b34013532
-..............303333383937353301
-................01323435353230
-..................3030300131
-..
-..
-..
-..
-..
-..
-..
-"""
-HEAD_123 = """
-3436363737363633353c3a3b3b3a38323332333434363601
-32333236383b3c39353a3e3b3b3c35373935363636363701
-323301323636373c38383a3d3c37383a3436380101313201
-33340170343636373b3a383a393639343436010101313201
-3036317472343636373c3937373b37353634737201343001
-013835717576343635393c3b3d39363635777471343601
-0134393370710101353a37393a39350101707034393401
-..31383634010101013a3835373a30010132353b3501
-..31363939363636303a3331353a0134363737333301
-..0101373a3a3831013b0101303a0131363634310101
-....013434373101013a0101013a01010132010101
-....01343438310101350101013501010134300101
-......0132340101010101010131010131340101
-........010132300135013501340131010101
-............30320131013b3030013401
-..............313030363b34013532
-..............303333383937353301
-................01323435353230
-..................3030300131
-..
-..
-..
-..
-..
-..
-..
-..
-..
-"""
-HEAD_129 = """
-3436363737363633353c3a3b3b3a38323332333434363601
-32333236383b3c39353a3e3b3b3c35373935363636363701
-323301323636373c38383a3d3c37383a3436380101313201
-33340170343636373b3a383a393639343436010101313201
-3036317472343636373c3937373b37353634737201343001
-013835717576343635393c3b3d39363635777471343601
-0134393370710101353a37393a39350101707034393401
-..31383634010101013a3835373a30010132353b3501
-..31363939363636303a3331353a0134363737333301
-..0101373a3a3831013b0101303a0131363634310101
-....013434373101013a0101013a01010132010101
-....01343438310101350101013501010134300101
-......0132340101010101010131010131340101
-........013232320101010101010132323201
-........010132300101010101010130323101
-..........01320101010101010101013201
-..........01323601010101010101363201
-..........01323301300101010101333201
-............3201313901010135010132
-............3230013501350134013101
-............30320131013b3030013401
-..............313030363b34013532
-..............303333383937353301
-................01323435353230
-..................3030300131
-..
-..
-..
-"""
+from polish_coral_manta import cut  # noqa: E402
+from polish_deli_boss import join, drop_unused  # noqa: E402
+from polish_k_pod import triangulate  # noqa: E402
+from polish_sweep_kit import (catmull, resample, section, set_smooth, sweep, ellipsoid, jitter,  # noqa: E402
+                              feather, interp, loft_sections, mirrored, flatten_below, shear_to_camera)
 
 
-# --- Shapes (columns u and rows v of each picture, continuous: pixel (c, r)'s middle is (c + 0.5, r + 0.5); the left
-# half's, mirrored about the axis) ------------------------------------------------------------------------------------
+# --- Materials: by part, each one palette index (the sprites' own ramps), the shading left to the geometry ----------
+# key: (palette index, metallic, roughness, emission strength in its own colour)
+MATS = {
+    "feather": (0x37, 0.18, 0.22, 0.0),   # the wings' feathers
+    "web": (0x31, 0.0, 0.7, 0.0),         # the wings' skin under them (seen in the gaps)
+    "arm": (0x38, 0.18, 0.22, 0.0),       # the wings' arms along their leading edges
+    "hide": (0x37, 0.18, 0.24, 0.0),      # the torso, the neck, the skull
+    "scute": (0x3a, 0.18, 0.2, 0.0),      # the plates along the spine, the brows
+    "horn": (0x38, 0.18, 0.2, 0.0),
+    "socket": (0x33, 0.0, 0.7, 0.0),      # the dark socket the neck lies in
+    "bone": (0x0a, 0.35, 0.32, 0.0),      # the silver plates: the shoulders' fans, the neck's fins
+    "claw": (0x0b, 0.3, 0.26, 0.0),
+    "inside": (0x32, 0.0, 0.85, 0.0),     # cut faces of the blue parts
+    "eye": (0x75, 0.0, 0.2, 0.55),        # the eyes, glowing in their own red
+    "eye_hot": (0x77, 0.0, 0.15, 0.6),
+    "tooth": (0x3c, 0.1, 0.25, 0.0),      # the fangs and teeth (the sprite's pale blues)
+    "maw": (0x30, 0.0, 0.8, 0.0),         # the mouth's dark inside
+    "bone_in": (0x05, 0.2, 0.6, 0.0),     # cut faces of the grey parts
+}
 
-BODY_AXIS = 96.5
-WING = (2.1, 3.4, 20.0, 76.0)     # the membrane's height at the tips and at the body, and between which columns
-# The arm along the wing's lower edge (it flies down the screen: its leading edge), from the shoulder to the elbow's
-# lobe and up to the wrist by the claw; the fingers fanning from the wrist to the scalloped upper edge (u, v,
-# half-width, rise over the membrane).
-ARM = [(77.0, 65.0, 3.2, 1.5), (66.0, 66.5, 3.4, 1.6), (56.0, 69.0, 3.6, 1.7), (47.0, 71.0, 3.6, 1.7),
-       (38.0, 66.5, 3.3, 1.6), (31.5, 60.5, 3.1, 1.5), (25.5, 53.5, 2.9, 1.4), (19.5, 46.0, 2.7, 1.3),
-       (14.5, 38.5, 2.5, 1.2), (11.0, 31.5, 2.3, 1.1)]
-WRIST = (11.5, 31.0)
-FINGERS = [((14.5, 18.5), 1.4, 0.8, 0.7), ((21.5, 24.5), 1.4, 0.8, 0.7), ((40.0, 33.0), 1.5, 0.9, 0.75),
-           ((54.0, 44.5), 1.5, 0.9, 0.6)]
-CLAW = [(7.0, 11.5, 0.9, 3.4), (7.6, 15.0, 2.6, 4.2), (8.3, 21.0, 2.8, 4.5), (9.2, 27.5, 2.2, 3.8)]
-FAN = ((73.0, 49.5), (11.0, 7.5), 5.3)
-TORSO = ((96.5, 51.0), (15.0, 13.5), 7.4)
-SPINE = [(96.5, 40.0, 2.2, 7.6), (96.5, 52.0, 2.6, 8.1), (96.5, 62.0, 2.2, 7.0)]
-HORN = [(87.5, 0.5, 0.2, 3.0), (86.5, 5.0, 1.0, 3.4), (86.0, 10.0, 1.5, 3.8), (85.5, 15.0, 2.0, 4.2),
-        (85.1, 20.0, 2.5, 4.6), (85.5, 25.0, 3.0, 5.0), (86.4, 30.0, 3.8, 5.5), (87.0, 35.0, 4.3, 5.9),
-        (88.0, 40.0, 4.4, 6.2), (89.0, 44.0, 4.8, 6.4)]
-SADDLE = ((72.0, 62.0), 3.4, 2.2, 70.0)   # under the neck (columns from, row from): height at its top, lower, from row
-SOCKET = ((96.5, 76.0), (13.0, 9.0), 0.9)  # the dark socket sunk into it: middle, radii, depth
-CREASE = 1.0                      # how deep the sprite's dark lines inside are creased (on the full height)
-DETAIL = (0.15, 0.45)             # the sprite's fine shading as relief: per shade, its limit (pixels)
 
-JOIN_ROWS = 4                     # how far the neck's and the head's outlines are carried on where they meet
-JOIN_BLEND = 3.0                  # rows of the head's top that blend into the neck's foot
-NECK_AXIS = 24.5
-NECK_COLUMN = [(24.5, 0.5, 6.8, 7.8), (24.5, 12.0, 6.6, 7.4), (24.5, 27.5, 6.0, 5.9)]
-NECK_HORN = [(18.6, 9.0, 1.7, 6.9), (18.4, 4.0, 1.2, 6.6), (18.7, 0.8, 0.5, 6.0)]
-NECK_FINS = [[(18.0, 10.4, 2.6, 6.1), (12.0, 9.6, 2.0, 5.4), (6.5, 8.6, 0.9, 4.4)],
-             [(18.0, 16.4, 3.4, 5.9), (12.5, 16.2, 2.8, 5.2), (7.5, 15.0, 1.2, 4.2)],
-             [(18.0, 20.5, 2.4, 5.2), (11.5, 20.0, 1.2, 4.4)]]
-NECK_FOOT = [(24.5, 22.0, 11.0, 5.0), (24.5, 27.5, 11.5, 5.4)]
+def materials():
+    pal = k.level_palette()
+    m = {}
+    for key, (index, metallic, roughness, glow) in MATS.items():
+        extra = dict(emission=pal[index], emission_strength=glow) if glow > 0 else {}
+        m[key] = k.material("gry_%s" % key, palette=index, metallic=metallic, roughness=roughness, **extra)
+    return m
 
-HEAD_AXIS = 11.5
-SKULL = ((11.5, 4.0), (12.5, 9.0), 6.4)
-BROW = [(2.5, 3.6, 1.1, 6.0), (6.5, 2.4, 1.3, 6.6), (9.5, 2.8, 1.0, 6.4)]
-EYE = ((4.6, 4.9), (1.7, 1.3), 5.3, 2.2)   # middle, radii, top, its socket's radius
-SNOUT = [(11.5, 6.5, 6.0, 5.5), (11.5, 12.5, 3.6, 4.5)]
-MAW = ((7.5, 9.0), 2.0)           # the maw: from column 7.5 inwards and row 9 down to the lower jaw, its floor height
-JAW = [(11.5, 13.5, 5.6, 4.6), (11.5, 17.5, 3.0, 3.6), (11.5, 18.8, 1.6, 3.0)]   # the lower jaw in 123 (drop 0)
-DROP = {123: 0, 121: 2, 119: 4, 129: 6}   # how many rows each frame's jaw is lowered
-FANG = (0.6, 9)                   # the maw's light pixels (shade >= the second) stand this much higher
-HEAD_CREASE, HEAD_DETAIL = 1.5, (0.32, 0.9)   # the head is small: its dark lines and its shading cut deeper
 
-LIFT = (0.8, 1.5)                 # the blues this many shades lighter, and lighter where the sun lights them less
-GREY_LIFT = (1.0, 1.8)            # the claws' greys
-GLOW = {0x72: 0.3, 0x74: 0.42, 0x76: 0.55}
-# Each zone's palette indices (a piece holds at most 15 materials: 8 + 4 + 2 or 8 + 3 + 2, so no shade is merged).
-SHADES = {"blue": [0x32, 0x33, 0x34, 0x35, 0x36, 0x38, 0x3a, 0x3c], "grey": [0x03, 0x06, 0x09, 0x0c],
-          "eye": [0x72, 0x74, 0x76], "black": [0x01, 0x31], "socket": [0x31, 0x33]}
-SOCKET_LIFT = (0.3, 0.6)          # the dark socket under the neck kept dark (its pixels: columns, first row)
-SOCKET_PIXELS = ((72, 121), 66)
-BLACK_LIFT = (0.2, 0.3)           # the black lines a little lighter (dark navy) where the sun lights them less
-FINISH = {"blue": (0.1, 0.55), "grey": (0.3, 0.36), "eye": (0.0, 0.2), "black": (0.0, 0.8), "socket": (0.0, 0.75)}
-WALL = ("black", 0x01)            # the walls where a piece is cut, seen only when a neighbour is gone
+# --- Coordinates ------------------------------------------------------------------------------------------------------
+# The body's picture (192 x 84, the sheet's layout of its 20 sprites): continuous column u and row v (pixel (c, r)'s
+# middle at (c + 0.5, r + 0.5)); x = u - 96.5 (its axis, column 96's middle, at x 0), y = 42 - v.
 
-# The body's pieces: sprite, its top left pixel in the body's picture; 15 and 53 drawn 6 pixels left of their place.
+def BP(u, v, z=0.0):
+    return Vector((u - 96.5, 42.0 - v, z))
+
+
+# The left wing's frame: s along the span from the elbow (u 48, v 72) out to the tip, t across it from the leading
+# (lower) edge towards the trailing (upper) one: the feathers lie along s.
+W_O = (48.0, 72.0)
+W_D = (-43.0 / math.hypot(43.0, 50.0), -50.0 / math.hypot(43.0, 50.0))
+W_N = (-W_D[1], W_D[0])
+
+
+def WP(s, t, z=0.0):
+    return BP(W_O[0] + s * W_D[0] + t * W_N[0], W_O[1] + s * W_D[1] + t * W_N[1], z)
+
+
+D3 = Vector((W_D[0], -W_D[1], 0.0))     # the frame's s and t directions in x, y
+N3 = Vector((W_N[0], -W_N[1], 0.0))
+
+
+# --- Curves and solids ------------------------------------------------------------------------------------------------
+
+
+# --- The feathers ---------------------------------------------------------------------------------------------------
+
+
+# The rows of feathers of the left wing, in the wing's frame: (t at the row's root, t at its end, s of its first
+# feather's root, s of its last feather's tip); the rows converge a little towards the tip. Their last feathers draw
+# the sprite's trailing edge and its three finger tips: row 5 the third (its tip at s 37.6), row 7 the second
+# (54.5), row 8 the first (65); rows 1-3 end under the shoulder's fan, rows 9-11 under the wrist's claw.
+ROWS = [(32.0, 31.0, -16.0, 7.5), (28.8, 28.0, -17.5, 9.5), (25.6, 25.0, -17.5, 11.0), (22.4, 21.0, -16.5, 33.0),
+        (19.2, 18.2, -14.5, 37.6), (16.0, 15.2, -12.0, 33.5), (12.8, 10.6, -9.5, 54.5), (9.6, 8.3, -7.5, 66.4),
+        (6.4, 4.6, -6.0, 66.0), (3.2, 1.4, -5.0, 63.0), (0.0, -1.6, -3.5, 60.0)]
+FEATHER_LEN, FEATHER_STEP, FEATHER_HW, FEATHER_HH = 14.0, 5.6, 2.45, 0.2
+
+
+def wing_z(s, t):
+    """The wing's height under its feathers: highest at the arm and the body, falling to the tip and the trailing
+    edge."""
+    return 4.4 - 0.075 * (t + 3.0) - 0.03 * (s + 5.0)
+
+
+UPPER_ARM = [(84.0, 62.4, 3.3, 4.2), (75.0, 63.6, 3.0, 3.6), (66.0, 65.0, 2.7, 3.1), (57.0, 67.2, 2.5, 2.8),
+             (50.5, 69.4, 2.4, 2.6)]
+
+
+def arm_row(u):
+    """The upper arm's middle row at column u."""
+    pts = UPPER_ARM
+    if u >= pts[0][0]:
+        return pts[0][1]
+    for (u0, v0, _, _), (u1, v1, _, _) in zip(pts, pts[1:]):
+        if u1 <= u <= u0:
+            return v0 + (v1 - v0) * (u0 - u) / (u0 - u1)
+    return pts[-1][1]
+
+
+def covered_from(t0, t1, s0, s1):
+    """Where a row comes out from under the upper arm and the elbow: the first s whose point lies above the arm's
+    middle (and off the elbow's lobe)."""
+    s = s0
+    while s < s1:
+        t = t0 + (t1 - t0) * (s - s0) / (s1 - s0)
+        p = WP(s, t)
+        u, v = p.x + 96.5, 42.0 - p.y
+        lobe = ((u - 49.2) / 7.4) ** 2 + ((v - 71.6) / 3.6) ** 2 < 0.8
+        if v < arm_row(u) - 0.6 and not lobe:
+            return s
+        s += 0.25
+    return s1
+
+
+def wing_feathers(m):
+    objs = []
+    for r, (t0, t1, s0, s1) in enumerate(ROWS):
+        def row_t(s):
+            return t0 + (t1 - t0) * (s - s0) / (s1 - s0)
+        s0 = max(s0, covered_from(t0, t1, s0, s1) - 2.0)
+        tips = []
+        s = s1
+        i = 0
+        while s - FEATHER_LEN > s0 - FEATHER_LEN * 0.5:
+            tips.append(s)
+            s -= FEATHER_STEP * (0.85 + 0.3 * jitter(r, i, 1))
+            i += 1
+        # inner feathers first: each lies over the root of the next one out
+        for i, st in enumerate(reversed(tips)):
+            last = i == len(tips) - 1
+            length = FEATHER_LEN * ((1.1 if last else 1.0) + 0.12 * (jitter(r, i, 2) - 0.5))
+            sr = st - length
+            root = WP(sr, row_t(sr), wing_z(sr, row_t(sr)) - 0.3)
+            tip = WP(st, row_t(st), wing_z(st, row_t(st)) + 0.35)
+            objs.append(feather("feather_%d_%d" % (r, i), root, tip, FEATHER_HW * (1.06 if last else 1.0),
+                                FEATHER_HH, m["feather"], bank=(N3, 0.12),
+                                bend=(N3, 0.5 * (jitter(r, i, 3) - 0.3))))
+    return objs
+
+
+# The wing's skin under the feathers: (s, t of its leading side, t of its trailing side), smoothed.
+WEB = [(-17.0, 20.5, 28.0), (-12.0, 17.0, 31.0), (-8.0, 12.0, 33.0), (-5.0, 1.5, 33.0), (-2.0, -2.0, 32.0),
+       (2.0, -3.4, 31.0), (8.0, -3.6, 28.0), (11.0, -3.6, 23.0), (14.0, -3.8, 21.4), (22.0, -4.6, 21.0),
+       (30.0, -5.8, 21.0), (33.0, -6.2, 19.0), (36.0, -6.4, 12.5), (40.0, -6.6, 10.8), (48.0, -6.4, 10.8),
+       (53.0, -5.4, 10.5), (56.0, -4.4, 7.0), (60.0, -3.0, 8.4), (63.0, -1.6, 7.6)]
+
+
+def wing_web(m):
+    pts = resample(catmull(WEB, 6), 60)
+    rings = []
+    seg = 16
+    for s, t0, t1 in pts:
+        mid, half = (t0 + t1) / 2, (t1 - t0) / 2
+        ring = []
+        for j in range(seg):
+            a = 2 * math.pi * j / seg
+            t = mid + half * math.cos(a)
+            z = wing_z(s, t) - 0.55 + 0.22 * math.sin(a)
+            ring.append(WP(s, t, z))
+        rings.append(ring)
+    s0, t00, t10 = pts[0]
+    s1, t01, t11 = pts[-1]
+    obj = k.loft("web", rings, m["web"], start_point=WP(s0 - 0.3, (t00 + t10) / 2, wing_z(s0, (t00 + t10) / 2) - 0.55),
+                 end_point=WP(s1 + 0.3, (t01 + t11) / 2, wing_z(s1, (t01 + t11) / 2) - 0.55))
+    return set_smooth(obj)
+
+
+def wing_arm(m):
+    """The arm: the upper arm from the shoulder to the elbow's lobe, the forearm along the leading edge to the wrist."""
+    objs = []
+    pts = resample(catmull(UPPER_ARM, 6), 20)
+    objs.append(sweep("upper_arm", [BP(u, v, z) for u, v, z, w in pts],
+                      [(w, w * 0.62, w * 0.62) for u, v, z, w in pts], m["arm"], segments=16))
+    objs.append(ellipsoid("elbow", BP(49.2, 71.6, 2.0), (7.4, 3.6, 2.3), m["arm"], 12, 24,
+                          axes=(Vector((1, 0.12, 0)).normalized(), Vector((-0.12, 1, 0)).normalized(),
+                                Vector((0, 0, 1)))))
+    # the coverts over the upper arm: short feathers pointing out to the elbow
+    pts = resample(catmull(UPPER_ARM, 6), 60)
+    for i in range(7):
+        f0 = 0.04 + 0.12 * i
+        a, b = pts[int(f0 * 59)], pts[min(59, int((f0 + 0.2) * 59))]
+        lift = a[3] * 0.62
+        root = BP(a[0], a[1] - 0.6, a[2] + lift - 0.15)
+        tip = BP(b[0], b[1] + 0.2, b[2] + b[3] * 0.62 + 0.25)
+        objs.append(feather("covert_%d" % i, root, tip, 2.2 - 0.08 * i, 0.3, m["feather"], arch=0.25,
+                            bank=(Vector((0.0, -1.0, 0.0)), 0.1)))
+    # the forearm, just inside the leading edge
+    fore = []
+    for s, t_lo, _ in WEB[4:]:
+        z = wing_z(s, t_lo + 2.6) + 0.1
+        fore.append((s, t_lo + 1.75, z, 2.6 - 0.012 * s))
+    pts = resample(catmull(fore, 6), 40)
+    objs.append(sweep("forearm", [WP(s, t, z) for s, t, z, w in pts], [(w, w * 0.7, w * 0.6) for s, t, z, w in pts],
+                      m["arm"], segments=12))
+    # the shoulder: a flat mass joining the upper arm, the fan's hinge and the torso's flank
+    objs.append(ellipsoid("shoulder", BP(81.0, 59.5, 2.2), (8.0, 5.6, 2.6), m["hide"], 12, 24,
+                          axes=(Vector((1, -0.35, 0)).normalized(), Vector((0.35, 1, 0)).normalized(),
+                                Vector((0, 0, 1)))))
+    return objs
+
+
+def wing_claw(m):
+    """The claw at the wrist: a grey talon pointing up the screen, broad at its middle."""
+    spec = [(8.4, 30.0, 3.4, 1.2), (7.6, 26.0, 4.0, 2.2), (7.3, 21.5, 4.5, 3.0), (7.3, 17.5, 4.7, 3.1),
+            (7.4, 14.5, 4.6, 2.5), (7.5, 12.4, 4.4, 1.5), (7.6, 11.2, 4.3, 0.7)]
+    pts = resample(catmull(spec, 6), 22)
+    return sweep("wing_claw", [BP(u, v, z) for u, v, z, w in pts],
+                 [(w, min(w * 0.75, 1.9), min(w * 0.55, 1.4)) for u, v, z, w in pts], m["claw"], segments=12,
+                 end=BP(7.6, 10.5, 4.2))
+
+
+def left_wing(m):
+    return [wing_web(m)] + wing_feathers(m) + wing_arm(m) + [wing_claw(m)]
+
+
+# --- The shoulders' fans (grey bony plates) ------------------------------------------------------------------------
+FAN_HINGE = (77.0, 57.2, 5.6)
+FAN_TIPS = [(61.6, 46.6, 4.7), (66.0, 44.2, 5.0), (71.4, 42.8, 5.3), (76.4, 42.6, 5.5), (81.0, 43.8, 5.6)]
+
+
+def shoulder_fan(m):
+    objs = []
+    hu, hv, hz = FAN_HINGE
+    for i, (tu, tv, tz) in enumerate(FAN_TIPS):
+        spec = []
+        for f, w in ((0.0, 0.9), (0.25, 1.7), (0.5, 2.4), (0.72, 2.75), (0.88, 2.6), (0.97, 1.7)):
+            u, v = hu + (tu - hu) * f, hv + (tv - hv) * f
+            # curved: bowed out to the left a little
+            bow = 1.2 * math.sin(math.pi * f)
+            u -= bow * 0.6
+            z = hz + (tz - hz) * f + 0.6 * math.sin(math.pi * f) + 0.12 * i
+            spec.append((u, v, z, w))
+        pts = resample(catmull(spec, 5), 16)
+        objs.append(sweep("fan_%d" % i, [BP(u, v, z) for u, v, z, w in pts], [(w, 0.55, 0.35) for u, v, z, w in pts],
+                          m["bone"], segments=10, ridge=0.25, bank=(Vector((1, 0, 0)), 0.18),
+                          end=BP(tu - 0.2, tv - 0.3, tz + 0.1)))
+    return objs
+
+
+# --- The horns ------------------------------------------------------------------------------------------------------
+HORN = [(88.6, 44.0, 4.6, 5.6), (88.0, 40.0, 4.9, 5.4), (86.7, 30.0, 5.2, 4.25), (85.4, 20.0, 5.3, 2.95),
+        (85.9, 10.0, 5.1, 1.8), (86.6, 3.0, 4.9, 1.1), (87.2, 0.5, 4.8, 0.45)]
+
+
+def horn(m):
+    pts = resample(catmull(HORN, 8), 48)
+    secs = []
+    for i, (u, v, z, w) in enumerate(pts):
+        f = i / (len(pts) - 1)
+        ring = 1.0 + 0.07 * math.cos(2 * math.pi * f * 11) * (1 - f)   # growth rings
+        secs.append((w * ring, min(w * 0.72, 3.4) * ring, min(w * 0.6, 3.0) * ring))
+    return sweep("horn", [BP(u, v, z) for u, v, z, w in pts], secs, m["horn"], segments=14,
+                 end=BP(87.4, -0.2, 4.8))
+
+
+# --- The torso -------------------------------------------------------------------------------------------------------
+# Its sections down the screen: (row, half-width, height of its top); the horns grow from its upper corners.
+TORSO = [(42.8, 5.0, 5.3), (45.0, 11.0, 6.5), (48.0, 14.0, 7.1), (53.0, 14.4, 7.3), (58.0, 13.2, 7.0),
+         (62.0, 11.4, 6.3), (65.5, 9.4, 4.9)]
+TORSO_POWER = 2.4
+
+
+def torso_z(x, v):
+    """The torso's top at x (from its axis) and row v."""
+    hw, top = interp(TORSO, v)
+    q = min(1.0, abs(x) / hw)
+    return 1.0 + (top - 1.0) * (1 - q ** TORSO_POWER) ** (1 / TORSO_POWER)
+
+
+def torso(m):
+    vs = [TORSO[0][0] + (TORSO[-1][0] - TORSO[0][0]) * i / 30 for i in range(31)]
+    rings = []
+    seg = 28
+    for v in vs:
+        hw, top = interp(TORSO, v)
+        ring = []
+        for j in range(seg):
+            x, z = section(j, seg, hw, top - 1.0, 1.0, power=TORSO_POWER)
+            ring.append(BP(96.5 + x, v, z + 1.0))
+        rings.append(ring)
+    obj = k.loft("torso", rings, m["hide"], start_point=BP(96.5, vs[0] - 0.6, 3.8),
+                 end_point=BP(96.5, vs[-1] + 0.6, 3.0))
+    return set_smooth(obj)
+
+
+# The back's muscles either side of the spine (from, to: column, row; half-width, height over the torso), the scales
+# over them in rows across the back (row, how many): each scale points up the screen, the rows nearer the head lying
+# over the roots of those behind them; along the spine a crest of knobs.
+MUSCLES = [((89.0, 44.5), (92.0, 62.0), 4.6, 0.75)]
+SCALE_ROWS = [(46.0, 6), (49.0, 7), (52.0, 7), (55.0, 7), (58.0, 6), (61.0, 5), (63.6, 4)]
+SCUTES = [44.0, 47.4, 50.8, 54.2, 57.6, 61.0]
+
+
+def back_z(x, v):
+    """The back's top: the torso with its muscles."""
+    z = torso_z(x, v)
+    for (u0, v0), (u1, v1), hw, h in MUSCLES:
+        if v0 <= v <= v1:
+            f = (v - v0) / (v1 - v0)
+            cx = (u0 + (u1 - u0) * f) - 96.5
+            for c in (cx, -cx):
+                q = min(1.0, abs(x - c) / hw)
+                z += h * (1 - q * q) * math.sin(math.pi * f) ** 0.5
+    return z
+
+
+def back(m):
+    objs = []
+    for i, ((u0, v0), (u1, v1), hw, h) in enumerate(MUSCLES):
+        for side in (1, -1):
+            path, secs = [], []
+            for j in range(10):
+                f = j / 9
+                u, v = u0 + (u1 - u0) * f, v0 + (v1 - v0) * f
+                x = side * (u - 96.5)
+                path.append(BP(96.5 + x, v, torso_z(x, v) - 0.6))
+                w = math.sin(math.pi * (0.06 + 0.88 * f)) ** 0.6
+                secs.append((hw * w, (h + 0.6) * w, 1.2))
+            objs.append(sweep("muscle_%d_%d" % (i, side), path, secs, m["hide"], segments=14))
+    for r, (v, count) in enumerate(SCALE_ROWS):
+        hw, _ = interp(TORSO, v)
+        span = hw - 2.6
+        for i in range(count):
+            x = -span + 2 * span * (i + 0.5) / count
+            if abs(x) < 1.8:
+                continue
+            root = BP(96.5 + x, v + 1.9, back_z(x, v + 1.9) - 0.1 + 0.03 * r)
+            tip = BP(96.5 + x * 1.03, v - 2.1, back_z(x, v - 2.1) + 0.2 + 0.03 * r)
+            objs.append(feather("scale_%d_%d" % (r, i), root, tip, 1.75, 0.24, m["hide"], arch=0.1))
+    for i, v in enumerate(SCUTES):
+        root = BP(96.5, v + 2.2, back_z(0.0, v + 2.2) - 0.15)
+        tip = BP(96.5, v - 2.0, back_z(0.0, v - 2.0) + 0.25)
+        path, secs = [], []
+        for f, w in ((0.0, 0.5), (0.25, 0.9), (0.55, 1.0), (0.8, 0.85), (0.95, 0.5)):
+            p = root.lerp(tip, f)
+            p.z += 0.3 * math.sin(math.pi * f)
+            path.append(p)
+            secs.append((1.9 * w, 0.5, 0.35))
+        objs.append(sweep("scute_%d" % i, path, secs, m["scute"], segments=12, ridge=0.3,
+                          end=tip + Vector((0, 0.2, -0.05))))
+    return objs
+
+
+# --- The socket the neck lies in -----------------------------------------------------------------------------------
+# Under the torso's foot the sprites draw a dark shield (rows 63-85: dark blues, dim ribs converging down it) that the
+# neck covers at rest and shows when it lunges: its sections down the screen (row, half-width, height of its top).
+SOCKET = [(62.5, 19.0, 2.6), (66.5, 22.0, 2.5), (70.0, 21.6, 2.4), (73.5, 18.6, 2.2), (77.0, 15.4, 2.0),
+          (80.5, 12.4, 1.8), (83.0, 9.6, 1.5), (84.7, 6.0, 1.1)]
+# its ribs (from, to: column, row) on the left half, mirrored
+SOCKET_RIBS = [((76.5, 67.5), (88.5, 82.0)), ((82.5, 65.5), (91.0, 81.0)), ((88.5, 64.5), (93.6, 79.5))]
+
+
+def socket_z(x, v):
+    vs = [row[0] for row in SOCKET]
+    v = min(max(v, vs[0]), vs[-1])
+    for (v0, w0, h0), (v1, w1, h1) in zip(SOCKET, SOCKET[1:]):
+        if v0 <= v <= v1:
+            f = (v - v0) / (v1 - v0)
+            hw, top = w0 + (w1 - w0) * f, h0 + (h1 - h0) * f
+            q = min(1.0, abs(x) / hw)
+            return 0.4 + (top - 0.4) * (1 - q ** 3) ** (1 / 3)
+    return 0.4
+
+
+def socket(m):
+    """The shield: a low plate over the outline, dim ribs along it converging to its foot."""
+    objs = []
+    pts = resample(catmull(SOCKET, 6), 26)
+    rings = []
+    seg = 24
+    for v, hw, top in pts:
+        ring = []
+        for j in range(seg):
+            x, z = section(j, seg, hw, top - 0.4, 0.4, power=3.0)
+            ring.append(BP(96.5 + x, v, z + 0.4))
+        rings.append(ring)
+    floor = k.loft("socket_floor", rings, m["socket"], start_point=BP(96.5, pts[0][0] - 0.4, 1.4),
+                   end_point=BP(96.5, pts[-1][0] + 0.4, 0.8))
+    objs.append(set_smooth(floor))
+    for i, ((u0, v0), (u1, v1)) in enumerate(SOCKET_RIBS):
+        path, secs = [], []
+        for j in range(12):
+            f = j / 11
+            u, v = u0 + (u1 - u0) * f, v0 + (v1 - v0) * f
+            path.append(BP(u, v, socket_z(u - 96.5, v) - 0.1))
+            w = 1.0 * math.sin(math.pi * (0.08 + 0.84 * f)) ** 0.5
+            secs.append((w, 0.3 * w + 0.05, 0.3))
+        for side in (1, -1):
+            pp = [Vector((side * q.x, q.y, q.z)) for q in path]
+            objs.append(sweep("socket_rib_%d_%d" % (i, side), pp, secs, m["socket"], segments=10))
+    return objs
+
+
+# --- The neck --------------------------------------------------------------------------------------------------------
+# Its picture (48 x 28: 0 91 beside 93): continuous column u and row v; x = u - 24.5 (its axis, column 24's middle),
+# y = 14 - v. At rest its top lies over the body's socket (its row 0 is the body's row 64), its foot over the head's
+# top (its row 28 is the head's row 0).
+
+def NP(u, v, z=0.0):
+    return Vector((u - 24.5, 14.0 - v, z))
+
+
+# The column down its middle (row, half-width, height of its top): vertebrae, a spine of knobs along it.
+NECK = [(0.6, 4.6, 6.0), (3.0, 6.0, 6.6), (8.0, 6.6, 7.0), (14.0, 6.4, 7.0), (19.0, 6.8, 6.8), (21.5, 8.6, 6.5),
+        (24.0, 10.8, 6.15), (26.5, 12.2, 5.9), (29.5, 12.2, 5.75)]
+NECK_KNOBS = [3.0, 6.6, 10.2, 13.8, 17.4, 21.0, 24.6]
+# The fins (bony silver plates) at the left side, top to bottom: root (column, row), tip (column, row), half-width
+# across, height at the root and the tip; each lower one rides over the bottom edge of the one above.
+NECK_FINS = [((19.5, 10.4), (6.2, 9.4), 3.2, 5.7, 4.3), ((19.5, 15.0), (6.0, 15.0), 3.5, 5.9, 4.4),
+             ((19.5, 19.8), (7.2, 19.4), 3.4, 6.1, 4.6)]
+NECK_PRONG = [(20.4, 8.6, 5.8, 2.4), (19.6, 6.0, 6.3, 2.2), (19.6, 3.2, 6.5, 1.6), (20.4, 1.2, 6.4, 0.9),
+              (21.0, 0.2, 6.2, 0.35)]
+
+
+def neck_z(x, v):
+    hw, top = interp(NECK, v)
+    q = min(1.0, abs(x) / hw)
+    return 1.6 + (top - 1.6) * (1 - q ** 2.6) ** (1 / 2.6)
+
+
+def neck_whole(m):
+    objs = []
+    vs = [NECK[0][0] + (NECK[-1][0] - NECK[0][0]) * i / 30 for i in range(31)]
+    rings = []
+    seg = 26
+    for v in vs:
+        hw, top = interp(NECK, v)
+        # vertebrae: the column swells a little between its knobs
+        swell = 1.0 + 0.05 * math.cos(2 * math.pi * (v - 3.0) / 3.6) if v < 22 else 1.0
+        ring = []
+        for j in range(seg):
+            x, z = section(j, seg, hw * swell, (top - 1.6) * swell, 1.4, power=2.6)
+            ring.append(NP(24.5 + x, v, z + 1.6))
+        rings.append(ring)
+    col = k.loft("neck", rings, m["hide"], start_point=NP(24.5, vs[0] - 0.5, 4.6),
+                 end_point=NP(24.5, vs[-1] + 0.3, 3.5))
+    objs.append(set_smooth(col))
+    # the column's lit sides: two bands either side of the spine
+    for side in (1, -1):
+        path, secs = [], []
+        for j in range(14):
+            v = 2.0 + 19.5 * j / 13
+            x = side * 3.4
+            path.append(NP(24.5 + x, v, neck_z(x, v) - 0.35))
+            w = math.sin(math.pi * (0.05 + 0.9 * j / 13)) ** 0.5
+            secs.append((2.0 * w, 0.6 * w + 0.1, 0.5))
+        objs.append(sweep("neck_band_%d" % side, path, secs, m["hide"], segments=12))
+    for i, v in enumerate(NECK_KNOBS):
+        root = NP(24.5, v + 1.5, neck_z(0.0, v + 1.5) - 0.2)
+        tip = NP(24.5, v - 1.7, neck_z(0.0, v - 1.7) + 0.2)
+        path, secs = [], []
+        for f, w in ((0.0, 0.5), (0.3, 0.95), (0.6, 1.0), (0.85, 0.75), (0.97, 0.4)):
+            q = root.lerp(tip, f)
+            q.z += 0.3 * math.sin(math.pi * f)
+            path.append(q)
+            secs.append((1.5 * w, 0.45, 0.3))
+        objs.append(sweep("neck_knob_%d" % i, path, secs, m["scute"], segments=10, ridge=0.25,
+                          end=tip + Vector((0, 0.15, -0.05))))
+    left = []
+    for i, ((u0, v0), (u1, v1), hw, z0, z1) in enumerate(NECK_FINS):
+        path, secs = [], []
+        for j in range(12):
+            f = j / 11
+            u, v = u0 + (u1 - u0) * f, v0 + (v1 - v0) * f
+            v -= 0.6 * math.sin(math.pi * f)      # bowed up the screen a little
+            # each lower fin a little higher (it rides over the one above); the tip drooping
+            path.append(NP(u, v, z0 + (z1 - z0) * f + 0.35 * math.sin(math.pi * f) - 0.5 * f ** 3 + 0.18 * i))
+            w = [0.85, 0.96, 1.0, 1.0, 0.98, 0.95, 0.9, 0.83, 0.74, 0.62, 0.45, 0.24][j]
+            secs.append((hw * w, 0.42, 0.3))
+        left.append(sweep("neck_fin_%d" % i, path, secs, m["bone"], segments=12, ridge=0.2,
+                          up=(0.0, -0.35, 1.0), bank=(Vector((0.0, 1.0, 0.0)), 0.32),
+                          end=NP(u1 - 0.5, v1 - 0.2, z1)))
+    pts = resample(catmull(NECK_PRONG, 6), 14)
+    left.append(sweep("neck_prong", [NP(u, v, z) for u, v, z, w in pts],
+                      [(w, w * 0.8, w * 0.7) for u, v, z, w in pts], m["horn"], segments=12,
+                      end=NP(21.2, -0.4, 6.1)))
+    objs += left + mirrored(left)
+    flatten_below(objs)
+    for o in objs:
+        o["cap"] = "bone_in" if o.data.materials[0].name.startswith("gry_bone") else "inside"
+    return objs
+
+
+# --- The head ---------------------------------------------------------------------------------------------------------
+# Its picture (24 x 28: 0 123 and its frames): x = u - 11.5 (its axis, column 11's middle), y = 14 - v; its origin
+# (its sprite's middle) at x 0.5. The lower jaw drops DROP rows in the frames.
+DROP = {123: 0, 121: 2, 119: 4, 129: 6}
+
+
+def HP(u, v, z=0.0):
+    return Vector((u - 11.5, 14.0 - v, z))
+
+
+# The skull's sections (row, half-width, height of its top): the cranium to the eyes, then the snout narrowing to its
+# tip over the maw.
+SKULL = [(-0.6, 11.2, 5.5), (1.5, 11.6, 6.3), (3.5, 11.0, 6.6), (5.5, 8.0, 6.4), (7.0, 4.4, 6.1), (9.5, 3.3, 5.6),
+         (11.2, 2.8, 5.0), (12.6, 2.2, 4.4)]
+# The dark mask under it, seen beside the snout between the cheekbones (row, half-width, height).
+MASK = [(5.0, 9.4, 4.4), (7.5, 8.6, 4.0), (10.0, 7.4, 3.5), (12.6, 6.0, 3.0)]
+# The lower jaw's sections (row in 123, half-width, height).
+JAW = [(12.6, 7.4, 4.0), (14.0, 6.4, 4.4), (15.5, 4.8, 4.3), (17.0, 3.2, 3.9), (18.6, 1.6, 3.3)]
+# The brow: a chevron from the skull's upper corners down to its apex over the snout (left arm); the snout's bridge
+# from the apex down; the cheekbones sweeping down from the cranium's sides to tusks.
+BROW = [(2.2, 1.0, 6.4, 1.9), (5.3, 2.4, 6.95, 2.1), (8.5, 4.3, 7.05, 1.95), (11.5, 6.1, 6.85, 1.6)]
+BRIDGE = [(11.5, 5.8, 6.9, 1.4), (11.5, 8.0, 6.5, 1.25), (11.5, 10.2, 5.9, 1.05), (11.5, 12.2, 5.1, 0.8)]
+CHEEK = [(0.9, 3.6, 4.8, 1.5), (1.4, 6.2, 5.3, 1.9), (2.4, 8.8, 5.2, 1.8), (3.6, 11.0, 4.7, 1.4), (4.7, 12.8, 4.1, 0.8),
+         (5.3, 13.8, 3.6, 0.3)]
+EYE = ((4.6, 4.6), 2.8, 1.35, 5.75, -50.0)    # middle, half-length, half-width, height, slant (degrees)
+
+
+def head_whole(m, drop):
+    objs = []
+    objs.append(loft_sections("skull", SKULL, lambda x, v, z: HP(11.5 + x, v, z), m["hide"], power=2.0, bottom=1.2,
+                              start=HP(11.5, -0.9, 3.8), end=HP(11.5, 13.0, 3.0)))
+    objs.append(loft_sections("mask", MASK, lambda x, v, z: HP(11.5 + x, v, z), m["maw"], seg=20, power=2.6,
+                              bottom=1.0, start=HP(11.5, 4.6, 3.0), end=HP(11.5, 13.0, 2.0), steps=12))
+    # the maw: the dark inside between the snout's fangs and the lower jaw, longer as the jaw drops
+    maw = [(9.0, 4.2, 3.0), (11.0, 4.8, 3.0), (13.0 + drop, 5.4 if drop else 4.6, 2.8), (14.5 + drop, 3.2, 2.6)]
+    objs.append(loft_sections("maw", maw, lambda x, v, z: HP(11.5 + x, v, z), m["maw"], seg=18, power=2.6,
+                              bottom=0.8, start=HP(11.5, 8.6, 2.0), end=HP(11.5, 14.9 + drop, 1.8), steps=10))
+    jaw = [(v + drop, w, h) for v, w, h in JAW]
+    objs.append(loft_sections("jaw", jaw, lambda x, v, z: HP(11.5 + x, v, z), m["hide"], seg=22, power=2.1,
+                              bottom=1.0, start=HP(11.5, 12.2 + drop, 3.0), end=HP(11.5, 19.0 + drop, 2.6), steps=14))
+    if drop > 0:
+        wall = [(5.2, 12.0, 3.4, 1.1), (5.0, 12.8 + drop * 0.5, 3.2, 1.2), (5.4, 13.4 + drop, 3.3, 1.0)]
+        for side in (1, -1):
+            pts = resample(catmull(wall, 6), 10)
+            objs.append(sweep("mouth_wall_%d" % side, [HP(11.5 + side * (u - 11.5), v, z) for u, v, z, w in pts],
+                              [(w, w * 0.6, w * 0.6) for u, v, z, w in pts], m["socket"], segments=10))
+    pts = resample(catmull(BRIDGE, 6), 12)
+    objs.append(sweep("bridge", [HP(u, v, z) for u, v, z, w in pts], [(w, w * 0.5, w * 0.6) for u, v, z, w in pts],
+                      m["scute"], segments=12, ridge=0.2, end=HP(11.5, 12.9, 4.7)))
+    left = []
+    pts = resample(catmull(BROW, 6), 14)
+    left.append(sweep("brow", [HP(u, v, z) for u, v, z, w in pts], [(w * 0.7, w * 0.3, w * 0.5) for u, v, z, w in pts],
+                      m["scute"], segments=12, ridge=0.15, end=HP(11.9, 6.4, 6.7)))
+    pts = resample(catmull(CHEEK, 6), 14)
+    left.append(sweep("cheek", [HP(u, v, z) for u, v, z, w in pts],
+                      [(w * 0.8, w * 0.65, w * 0.6) for u, v, z, w in pts],
+                      m["scute"], segments=12, ridge=0.12, end=HP(5.5, 14.3, 3.4)))
+    (eu, ev), el, ew, ez, slant = EYE
+    a = math.radians(slant)
+    ax = Vector((math.cos(a), math.sin(a), 0.0))
+    ay = Vector((-math.sin(a), math.cos(a), 0.0))
+    up = Vector((0, 0, 1))
+    left.append(ellipsoid("eye_socket", HP(eu, ev, ez - 0.75), (el + 0.75, ew + 0.65, 0.95), m["maw"], 10, 20,
+                          axes=(ax, ay, up)))
+    left.append(ellipsoid("eye", HP(eu, ev, ez), (el, ew, 0.6), m["eye"], 10, 20, axes=(ax, ay, up)))
+    left.append(ellipsoid("eye_hot", HP(eu + 0.3, ev + 0.15, ez + 0.32), (el * 0.42, ew * 0.38, 0.3), m["eye_hot"],
+                          8, 14,
+                          axes=(ax, ay, up)))
+    # the upper fangs beside the snout's tip, the side fangs at the maw's corners, the lower jaw's teeth
+    left.append(sweep("fang", [HP(8.9, 8.4, 4.9), HP(9.0, 10.2, 4.6), HP(9.3, 12.0, 4.2), HP(9.7, 13.4, 3.8)],
+                      [(0.95, 0.75, 0.7), (0.85, 0.66, 0.6), (0.6, 0.48, 0.45), (0.28, 0.24, 0.22)], m["tooth"],
+                      segments=10, end=HP(9.9, 14.1, 3.6)))
+    left.append(sweep("side_fang", [HP(6.2, 11.0, 3.6), HP(6.4, 12.6, 3.4), HP(6.7, 14.0, 3.0), HP(7.0, 15.2, 2.7)],
+                      [(0.8, 0.6, 0.6), (0.7, 0.55, 0.55), (0.45, 0.35, 0.35), (0.2, 0.15, 0.15)], m["tooth"],
+                      segments=10, end=HP(7.1, 15.8, 2.6)))
+    objs += left + mirrored(left)
+    # the lower jaw's three teeth (the sprite's columns 9, 11 and 13 of its row 13), standing up from its front edge
+    for i, u in enumerate((9.5, 11.5, 13.5)):
+        v = 13.5 + drop + (0.25 if i == 1 else 0.0)
+        objs.append(sweep("tooth_%d" % i, [HP(u, v + 0.3, 3.7), HP(u, v, 4.2), HP(u, v - 0.25, 4.6)],
+                          [(0.45, 0.4, 0.4), (0.36, 0.32, 0.32), (0.18, 0.16, 0.16)], m["tooth"], segments=8,
+                          end=HP(u, v - 0.4, 4.85)))
+    objs.append(sweep("chin", [HP(11.5, 13.8 + drop, 4.5), HP(11.5, 15.6 + drop, 4.5), HP(11.5, 17.6 + drop, 3.9)],
+                      [(0.9, 0.45, 0.4), (0.8, 0.45, 0.4), (0.4, 0.3, 0.3)], m["scute"], segments=10,
+                      end=HP(11.5, 18.4 + drop, 3.5)))
+    flatten_below(objs)
+    for o in objs:
+        o["cap"] = "inside"
+    return objs
+
+
+# --- The whole body ---------------------------------------------------------------------------------------------------
+
+
+def body_whole(m):
+    left = left_wing(m) + shoulder_fan(m) + [horn(m)]
+    whole = left + mirrored(left) + [torso(m)] + back(m) + socket(m)
+    flatten_below(whole)
+    for o in whole:
+        o["cap"] = "bone_in" if o.data.materials[0].name.startswith("gry_bone") or \
+            o.data.materials[0].name.startswith("gry_claw") else "inside"
+    return whole
+
+
+def export_whole(objs, path):
+    copies = []
+    for o in objs:
+        c = o.copy()
+        c.data = o.data.copy()
+        bpy.context.scene.collection.objects.link(c)
+        copies.append(c)
+    shear_to_camera(copies)
+    triangulate(copies)
+    obj = join(copies, "whole")
+    mk.report("whole", [obj], path)
+    bpy.data.objects.remove(obj)
+
+
+# --- Pieces -----------------------------------------------------------------------------------------------------------
 BODY_SPRITES = [1, 3, 7, 9, 13, 15, 39, 41, 43, 45, 47, 49, 51, 53, 79, 81, 83, 85, 87, 89]
-SHIFTED = {15: 6.0, 53: 6.0}
-NECK_PIECES = [("gryphon_neck_91", 91, 0), ("gryphon_neck_93", 93, 24)]
+SHIFTED = {15: 6.0, 53: 6.0}      # the events draw 15 and 53 this far left of the sheet's place (see the docstring)
+NECK_PIECES = [("gryphon_neck_91", 91, (-24.5, -0.5)), ("gryphon_neck_93", 93, (-0.5, 23.5))]
+NECK_OVERLAP = 2.0                # the neck's pieces hold this much of its foot over the head's top
 HEADS = [("gryphon_head", 119), ("gryphon_head_123", 123), ("gryphon_head_121", 121), ("gryphon_head_129", 129)]
 
 
-def picture(text, width, left, top):
-    rows = [[0x01 if v == 0xfe else v for v in row] for row in parse(text)]
-    return Pic([row + [None] * (width - len(row)) for row in rows], left, top)
+def body_pieces():
+    out = []
+    for n in BODY_SPRITES:
+        c0, r0 = (n - 1) % 19 * 12, (n - 1) // 19 * 14
+        box = (c0 - 96.5, c0 - 72.5, 14.0 - r0, 42.0 - r0)
+        centre = ((box[0] + box[1]) / 2, (box[2] + box[3]) / 2)
+        out.append(("gryphon_%d" % n, n, box, (centre[0] - SHIFTED.get(n, 0.0), centre[1]), centre))
+    return out
 
 
-def tube_uv(u, v, points):
-    """gw.tube in picture columns and rows (points: (u, v, half-width, height))."""
-    return nk.tube(u, -v, [(pu, -pv, hw, h) for pu, pv, hw, h in points])
+def blank(name):
+    """A sprite whose box holds nothing of the model: one tiny triangle under the layer (the renderer refuses a GLB
+    with no triangles)."""
+    obj = k.mesh_object(name, [(0, 0, -0.2), (0.01, 0, -0.2), (0, 0.01, -0.2)], [(0, 1, 2)])
+    return obj
 
 
-def dome_uv(u, v, centre, radii, height, power=0.5):
-    return nk.dome(u, -v, (centre[0], -centre[1]), radii, height, power=power)
-
-
-class Picture:
-    """One of the boss's pictures: its pixels, its outline (a smooth region), the shading fields of its relief."""
-
-    def __init__(self, text, width, left, top, axis, extend=None):
-        self.pic = pic = picture(text, width, left, top)
-        a = pic.a
-        self.own = a >= 0
-        self.axis = axis
-        self.region = Region(pic, self.own, sigma=0.5)
-        # The outline the heights round down to: the picture's own, or carried on past its foot ("below") or its top
-        # ("above") where the neck and the head meet, so that they meet at their full heights.
-        self.shape = self.region
-        if extend is not None:
-            rows = self.own.tolist()
-            more = JOIN_ROWS
-            if extend == "below":
-                ext = Pic([[0 if m else None for m in row] for row in rows + [rows[-1]] * more], left, top)
-            else:
-                ext = Pic([[0 if m else None for m in row] for row in [rows[0]] * more + rows], left, top + more)
-            self.shape = Region(ext, ext.a >= 0, sigma=0.5)
-        shade = np.where(self.own, a & 15, 0).astype(float)
-        dark = self.own & (a == 0x01)
-        h, w = a.shape
-        p = np.pad(self.own, 1)
-        surrounded = np.ones_like(self.own)
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            surrounded &= p[1 + dr:1 + dr + h, 1 + dc:1 + dc + w]
-        self.crease = blur((dark & surrounded).astype(float), 0.5)
-        self.socket = None
-        self.soft = blur(nk.fill(shade, self.own), 0.75)
-        self.broad = blur(nk.fill(shade, self.own), 2.5)
-
-    def uv(self, X, Y):
-        """Picture columns (mirrored to the left half) and rows of plane points."""
-        u = np.asarray(X, float) - self.pic.left
-        v = self.pic.top - np.asarray(Y, float)
-        return np.minimum(u, 2 * self.axis - u), v
-
-    def finish_heights(self, X, Y, z, d, crease=CREASE, detail=DETAIL, fall=0.9):
-        pic = self.pic
-        z = z - crease * pic.sample(self.crease, X, Y) * np.clip(z / 4.0, 0.0, 1.0)
-        fine = pic.sample(self.soft, X, Y) - pic.sample(self.broad, X, Y)
-        z = z + np.clip(detail[0] * fine, -detail[1], detail[1]) * smoothstep(0.8, 2.5, z)
-        z = z * round_rise(d, fall)
-        return np.where(d > 0, np.maximum(z, 0.0), 0.0)
-
-
-class Body(Picture):
-    def __init__(self):
-        super().__init__(BODY_ART, 192, -BODY_AXIS, 42.0, BODY_AXIS)
-        self.socket = SOCKET_PIXELS
-
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        u, v = self.uv(X, Y)
-        d = self.region.depth(X, Y)
-        w0, w1, c0, c1 = WING
-        wing = (w0 + (w1 - w0) * smoothstep(c0, c1, u)) * round_rise(d, 1.4)
-        ridge = tube_uv(u, v, [(pu, pv, hw, rise) for pu, pv, hw, rise in ARM])
-        wu, wv = WRIST
-        for (eu, ev), hw0, hw1, rise in FINGERS:
-            ridge = np.maximum(ridge, tube_uv(u, v, [(wu, wv, hw0, rise), (eu, ev, hw1, rise * 0.7)]))
-        z = wing + ridge * smoothstep(0.2, 1.0, wing)
-        z = smax(z, tube_uv(u, v, CLAW), 0.4)
-        (fu, fv), (fa, fb), fh = FAN
-        z = smax(z, dome_uv(u, v, (fu, fv), (fa, fb), fh, power=0.6), 0.5)
-        (tu, tv), (ta, tb), th = TORSO
-        z = smax(z, dome_uv(u, v, (tu, tv), (ta, tb), th, power=0.55), 0.8)
-        z = smax(z, tube_uv(u, v, SPINE), 0.6)
-        z = smax(z, tube_uv(u, v, HORN), 0.5)
-        (su, sv), s_top, s_low, s_from = SADDLE
-        saddle = s_top + (s_low - s_top) * smoothstep(sv, s_from, v)
-        under = smoothstep(su - 1.5, su + 1.5, u) * smoothstep(sv - 1.5, sv + 1.0, v)
-        z = z * (1.0 - under) + np.minimum(z, saddle) * under
-        (ou, ov), (oa, ob), depth = SOCKET
-        z = z - depth * dome_uv(u, v, (ou, ov), (oa, ob), 1.0, power=1.0)
-        return self.finish_heights(X, Y, z, d)
-
-
-class Neck(Picture):
-    def __init__(self):
-        super().__init__(NECK_ART, 48, -NECK_AXIS, 14.0, NECK_AXIS, extend="below")
-
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        u, v = self.uv(X, Y)
-        d = self.shape.depth(X, Y)
-        z = 3.6 * round_rise(d, 1.2)
-        z = smax(z, tube_uv(u, v, NECK_COLUMN), 0.6)
-        z = smax(z, tube_uv(u, v, NECK_HORN), 0.4)
-        for fin in NECK_FINS:
-            z = smax(z, tube_uv(u, v, fin), 0.4)
-        z = smax(z, tube_uv(u, v, NECK_FOOT), 0.6)
-        return self.finish_heights(X, Y, z, d, fall=0.8)
-
-
-class Head(Picture):
-    def __init__(self, frame, neck=None):
-        super().__init__(globals()["HEAD_%d" % frame], 24, -HEAD_AXIS, 14.0, HEAD_AXIS, extend="above")
-        self.drop = DROP[frame]
-        self.neck = neck          # the neck it hangs from: its top rows take on the neck's foot's heights
-
-    def heights(self, X, Y):
-        X, Y = np.asarray(X, float), np.asarray(Y, float)
-        u, v = self.uv(X, Y)
-        d = self.shape.depth(X, Y)
-        drop = self.drop
-        z = 3.2 * round_rise(d, 1.0)
-        (cu, cv), (ca, cb), ch = SKULL
-        z = smax(z, dome_uv(u, v, (cu, cv), (ca, cb), ch, power=0.6) * (v < 10.0), 0.5)
-        z = smax(z, tube_uv(u, v, BROW), 0.4)
-        z = smax(z, tube_uv(u, v, SNOUT), 0.6)
-        (eu, ev), (ea, eb), etop, socket = EYE
-        dist = np.hypot(u - eu, v - ev) / socket
-        z = np.where(dist < 1.0, np.minimum(z, etop - 0.9 + 0.9 * smoothstep(0.75, 1.0, dist)), z)
-        z = smax(z, dome_uv(u, v, (eu, ev), (ea, eb), etop), 0.2)
-        mu, mv = MAW[0]
-        inside = smoothstep(mu - 0.5, mu + 0.5, u)
-        rows = smoothstep(mv - 0.5, mv + 0.5, v) * smoothstep(13.5 + drop + 0.5, 13.5 + drop - 0.5, v)
-        z = z * (1.0 - inside * rows) + MAW[1] * inside * rows
-        z = smax(z, tube_uv(u, v, [(pu, pv + drop, hw, h) for pu, pv, hw, h in JAW]) * (v > 12.5 + drop), 0.4)
-        pic = self.pic
-        light = pic.sample(self.light, X, Y)
-        z = z + FANG[0] * light * inside * smoothstep(mv - 0.5, mv + 0.5, v)
-        z = self.finish_heights(X, Y, z, d, crease=HEAD_CREASE, detail=HEAD_DETAIL, fall=0.8)
-        if self.neck is not None:
-            # Where it meets the neck the two surfaces have the same heights (the neck's foot, carried down JOIN_BLEND
-            # rows into the head), so that no step shows between them.
-            foot = self.neck.heights(X, np.full_like(X, -14.0))
-            t = smoothstep(0.0, JOIN_BLEND, v)
-            z = np.where((z > 0) & (foot > 0), z * t + foot * (1.0 - t), z)
-        return z
-
-    def prepare(self):
-        a = self.pic.a
-        self.light = blur(((a >= 0) & (a >> 4 == 3) & ((a & 15) >= FANG[1])).astype(float), 0.4)
-
-
-# --- Painting and pieces ----------------------------------------------------------------------------------------------
-
-def painter_of(part, prefix, sigma=(0.55, 0.6, 0.4)):
-    """The painter of a picture: its blues, its claws' greys, its black lines and outline (dark navy and black: the
-    sprite's 0x01, kept dark), its red eyes; the walls black."""
-    pic, own = part.pic, part.own
-    a = pic.a
-    grey = own & (a >> 4 == 0) & ((a & 15) >= 2)
-    black = own & (a == 0x01)
-    blue = own & (a >> 4 == 3)
-    socket = np.zeros_like(own)
-    if part.socket is not None:
-        (c0, c1), r0 = part.socket
-        socket[r0:, c0:c1] = True
-        socket &= blue
-        blue = blue & ~socket
-    zones = [Zone("blue", blue, SHADES["blue"], FINISH["blue"], sigma=sigma[0], lift=LIFT[0], comp=LIFT[1]),
-             Zone("grey", grey, SHADES["grey"], FINISH["grey"], sigma=sigma[1], lift=GREY_LIFT[0], comp=GREY_LIFT[1]),
-             Zone("black", black, SHADES["black"], FINISH["black"], sigma=sigma[2], lift=BLACK_LIFT[0],
-                  comp=BLACK_LIFT[1])]
-    if socket.any():
-        zones.append(Zone("socket", socket, SHADES["socket"], FINISH["socket"], sigma=sigma[0], lift=SOCKET_LIFT[0],
-                          comp=SOCKET_LIFT[1]))
-    eye = own & (a >> 4 == 7)
-    if eye.any():
-        zones.append(Zone("eye", eye, SHADES["eye"], FINISH["eye"], glow=GLOW, sigma=0.45, lift=0.6, comp=0.4))
-    return Painter(pic, zones, prefix)
-
-
-def keys_fn(painter):
-    def keys(obj, kinds, wall_z):
-        centres, normals = nk.face_data(obj)
-        near = painter.zone_at(centres[:, 0], centres[:, 1])
-        out_ = painter.keys(obj, zones=["black" if kinds[i] != 0 else near[i] for i in range(len(kinds))])
-        return [WALL if kinds[i] != 0 else key for i, key in enumerate(out_)]
-    return keys
-
-
-def export_piece(name, part, plate, painter, box, origin, check_box, options, out):
-    """A piece: the plate's cells in box, checked against its sprite's pixels (check_box: its sprite's top left pixel in
-    the picture), sheared, moved to its origin and exported."""
-    pic = part.pic
-    parts = nk.piece_parts(plate, keys_fn(painter), [], box, nk.box_owner(box), name, painter, WALL)
-    if "check" in options:
-        c0, r0, w, h = check_box
-        mask = nk.sprite_mask(pic, c0, r0, w, h)
-        centre = (pic.left + c0 + w / 2.0, pic.top - r0 - h / 2.0)
+def export_piece(name, sprite, parts, origin, centre, m, options, sheet, results):
+    out = mk.outdir(options)
+    if not parts:
+        parts = [blank(name)]
+        parts[0].data.materials.append(m["inside"])
+    drop_unused(parts)
+    score = None
+    if sheet is not None:
         bpy.context.view_layer.update()
-        mk.compare(name, mk.coverage(parts, w, h, centre=centre), mask)
-    piece = nk.finish(name, parts, box, out, options, painter, origin=origin)
-    bpy.data.objects.remove(piece)
+        score = mk.compare("%s (0 %d), as the camera sees it" % (name, sprite),
+                           mk.coverage(parts, 24, 28, centre=centre), k.sprite_mask(sheet, sprite))
+    shear_to_camera(parts)
+    mk.transform(parts, Matrix.Translation((-origin[0], -origin[1], 0.0)))
+    bpy.context.view_layer.update()
+    triangulate(parts)
+    obj = join(parts, name)
+    obj.data.name = name
+    mk.report(name, [obj], os.path.join(out, name + ".glb"))
+    results[name] = (score, mk.triangles([obj]), len(obj.data.materials))
+    if "preview" in options and options.get("pieces") == "1":
+        mk.preview(options["preview"] + name, [obj])
+    bpy.data.objects.remove(obj)
 
 
-def wanted(only, group, names):
-    return only is None or group in only or any(n in only for n in names)
+def cut_all(whole, box, m):
+    bpy.context.view_layer.update()
+    parts = []
+    for src in whole:
+        p = cut(src, box, m[src["cap"]])
+        if p is not None:
+            parts.append(p)
+    return parts
+
+
+def hide(objs, state):
+    for o in objs:
+        o.hide_render = state
 
 
 def build():
     options = k.args()
-    out = mk.outdir(options)
     only = set(options["only"].split(",")) if "only" in options else None
-    names = ["gryphon_%d" % s for s in BODY_SPRITES]
-    if wanted(only, "body", names):
+    sheet = None
+    if "check" in options:
+        sheets = options["check"]
+        sheet = os.path.join(sheets, "enemy_0.png") if os.path.isdir(sheets) else sheets
+    results = {}
+
+    def wanted(group, name):
+        return only is None or group in only or name in only
+
+    k.reset()
+    m = materials()
+    bpy.context.scene.view_settings.view_transform = "Standard"
+    if "whole" in options:
+        export_whole(body_whole(m), options["whole"] + "body.glb")
         k.reset()
-        body = Body()
-        painter = painter_of(body, "gryphon")
-        plate = nk.gw.Plate((-BODY_AXIS, 192 - BODY_AXIS, -42.0, 42.0), body.heights, cells=body.region.inside)
-        for sprite in BODY_SPRITES:
-            name = "gryphon_%d" % sprite
-            if only is not None and "body" not in only and name not in only:
-                continue
-            c0, r0 = (sprite - 1) % 19 * 12, (sprite - 1) // 19 * 14
-            box = nk.sprite_box(body.pic, c0, r0)
-            origin = ((box[0] + box[1]) / 2 - SHIFTED.get(sprite, 0.0), (box[2] + box[3]) / 2)
-            export_piece(name, body, plate, painter, box, origin, (c0, r0, 24, 28), options, out)
-    if wanted(only, "neck", [n for n, _, _ in NECK_PIECES]):
+        m = materials()
+        export_whole(neck_whole(m), options["whole"] + "neck.glb")
+        for frame in (123, 129):
+            k.reset()
+            m = materials()
+            export_whole(head_whole(m, DROP[frame]), options["whole"] + "head_%d.glb" % frame)
+        return
+    pieces = [p for p in body_pieces() if wanted("body", p[0])]
+    if pieces:
+        whole = body_whole(m)
+        for name, sprite, box, origin, centre in pieces:
+            parts = cut_all(whole, (box[0], box[1], box[2], box[3]), m)
+            hide(whole, True)
+            export_piece(name, sprite, parts, origin, centre, m, options, sheet, results)
+            hide(whole, False)
+    pieces = [p for p in NECK_PIECES if wanted("neck", p[0])]
+    if pieces:
         k.reset()
-        neck = Neck()
-        painter = painter_of(neck, "gryphon_neck")
-        plate = nk.gw.Plate((-NECK_AXIS, 48 - NECK_AXIS, -14.0, 14.0), neck.heights, cells=neck.region.inside)
-        for name, sprite, c0 in NECK_PIECES:
-            if only is not None and "neck" not in only and name not in only:
-                continue
-            box = nk.sprite_box(neck.pic, c0, 0)
-            export_piece(name, neck, plate, painter, box, ((box[0] + box[1]) / 2, 0.0), (c0, 0, 24, 28), options, out)
+        m = materials()
+        whole = neck_whole(m)
+        for name, sprite, (x0, x1) in pieces:
+            parts = cut_all(whole, (x0, x1, -14.0 - NECK_OVERLAP, 14.0), m)
+            hide(whole, True)
+            origin = ((x0 + x1) / 2, 0.0)
+            export_piece(name, sprite, parts, origin, origin, m, options, sheet, results)
+            hide(whole, False)
     for name, frame in HEADS:
-        if only is not None and "head" not in only and name not in only:
+        if not wanted("head", name):
             continue
         k.reset()
-        head = Head(frame, Neck())
-        head.prepare()
-        painter = painter_of(head, "gryphon_head", sigma=(0.4, 0.5, 0.35))
-        plate = nk.gw.Plate((-HEAD_AXIS, 24 - HEAD_AXIS, -14.0, 14.0), head.heights, cells=head.region.inside)
-        box = (-HEAD_AXIS, 24 - HEAD_AXIS, -14.0, 14.0)
-        export_piece(name, head, plate, painter, box, (0.5, 0.0), (0, 0, 24, 28), options, out)
+        m = materials()
+        parts = head_whole(m, DROP[frame])
+        export_piece(name, frame, parts, (0.5, 0.0), (0.5, 0.0), m, options, sheet, results)
+    print("== summary")
+    for name, (score, tris, mats) in results.items():
+        print("   %-18s overlap %s  %6d triangles  %2d materials" % (
+            name, "%.3f" % score if score is not None else "  -  ", tris, mats))
 
 
 if __name__ == "__main__":
