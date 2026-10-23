@@ -216,6 +216,15 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 // Keys for the motion of enemies' 3D objects (l3d_key_last_object), by slot.
 #define ENEMY_MOTION_KEY(slot) (L3D_KEY_ENEMY + (Uint32)(slot))
 
+// Tyrian3D: the object each enemy is a piece of, for the 3D view (L3DObject.group: the pieces of one
+// object stand at one height on raised ground). The level's events make an object's pieces at one time
+// (a large enemy's parts, an ore tug and its load: they need not share a link), or row by row as the map
+// scrolls, with one link (CAMANIS's boss): an enemy an event makes is tagged with the event's time (+ 1)
+// and the link it was made with; what takes an enemy's place (its damaged look, event 59) keeps its
+// tags; the others (launched, random) have none (0). Only the 3D view reads them.
+static Uint32 enemy_group[100];
+static Uint8 enemy_group_link[100];
+
 // The forecast (draw_coming_enemies' key) an event's enemy takes the place of, by slot, till it is
 // first drawn: it fades in on from there (l3d_key_continue). Only the 3D view's.
 static Uint32 enemy_forecast[100];
@@ -520,7 +529,10 @@ static bool draw_enemy_model(unsigned int i)
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
 	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
 	if (added)
+	{
 		l3d_enemy_last_object(sheet, first_sprite);
+		l3d_group_last_object(enemy_group[i], enemy_group_link[i]);
+	}
 	if (added && look.layer > 0)
 		l3d_layer_last_object((L3DLayerType)(look.layer - 1));  // a piece of an object on another layer
 	float vx, vy;
@@ -569,7 +581,7 @@ typedef struct
 } ComingLook;
 
 static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, float dx, float dy, float ticks, int map_x_ofs,
-                              bool from_below)
+                              bool from_below, Uint32 group, Uint8 link)
 {
 	if (ticks < 0)
 		return;
@@ -606,6 +618,7 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 	if (added)
 	{
 		l3d_enemy_last_object(letter, what.graphic);
+		l3d_group_last_object(group, link);  // (as the enemy will be: enemy_group)
 		l3d_key_last_object(key, NULL, NULL);
 		l3d_appear_last_object(l3d_key_shown(key));  // (one first shown in sight fades in)
 	}
@@ -1067,7 +1080,8 @@ static void draw_coming_enemies(int enemy_offset)
 			const float dy = own_dy + carried;
 			const Uint32 key = COMING_KEY + (Uint32)(e * 4 + part) * 4 + (eDatI & 3);
 			if (bottom_y != 0 ? dy < 0 : dy > 0)
-				draw_coming_enemy(key, what, ex + dat->xmove, ey + dy, dat->xmove, dy, ticks, map_x_ofs, bottom_y != 0);
+				draw_coming_enemy(key, what, ex + dat->xmove, ey + dy, dat->xmove, dy, ticks, map_x_ofs, bottom_y != 0,
+				                  (Uint32)ev->eventtime + 1, (Uint8)ev->eventdat4);
 		}
 	}
 }
@@ -2367,7 +2381,7 @@ level_loop:
 		JE_darkenBackground(neat);
 	}
 
-	l3d_phase(L3D_BG3);
+	l3d_phase(L3D_BG3_LOW);  // (Tyrian3D: drawn here, under the sky enemies, it stands below them in 3D)
 	if (background3over == 2)
 		draw_background_3(VGAScreen);
 
@@ -2659,6 +2673,8 @@ level_loop:
 											b = JE_newEnemy(enemy_offset, tempW, 0);
 											if (b != 0)
 											{
+												enemy_group[b-1] = enemy_group[temp2];  // (Tyrian3D: in its place)
+												enemy_group_link[b-1] = enemy_group_link[temp2];
 												if ((superArcadeMode != SA_NONE) && (enemy[b-1].evalue > 30000))
 												{
 													superArcadePowerUp++;
@@ -4948,6 +4964,8 @@ Sint16 JE_newEnemy(int enemyOffset, Uint16 eDatI, Sint16 uniqueShapeTableI)
 		if (enemyAvail[i] == 1)
 		{
 			enemyAvail[i] = JE_makeEnemy(&enemy[i], eDatI, uniqueShapeTableI);
+			enemy_group[i] = 0;  // (Tyrian3D: a piece of no object, unless the caller says)
+			enemy_group_link[i] = 0;
 			return i + 1;
 		}
 	}
@@ -5268,6 +5286,8 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	tempW = eventRec[eventLoc-1].eventdat + enemyTypeOfs;
 
 	enemyAvail[b-1] = JE_makeEnemy(&enemy[b-1], tempW, uniqueShapeTableI);
+	enemy_group[b-1] = (Uint32)eventRec[eventLoc-1].eventtime + 1;  // (Tyrian3D)
+	enemy_group_link[b-1] = (Uint8)eventRec[eventLoc-1].eventdat4;
 
 	// When T2000 gives an X position of -200, what it actually wants is a random X position...
 	if (eventRec[eventLoc-1].eventdat2 == -200)
@@ -6113,6 +6133,8 @@ void JE_eventSystem(void)
 				{
 					enemy[b-1].ex = enemy[temp].ex;
 					enemy[b-1].ey = enemy[temp].ey;
+					enemy_group[b-1] = enemy_group[temp];  // (Tyrian3D: in its place)
+					enemy_group_link[b-1] = enemy_group_link[temp];
 				}
 
 				enemyAvail[temp] = 1;

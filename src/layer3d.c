@@ -69,6 +69,8 @@ static const struct
 	[L3D_EXPLOSION]    = { "explosion",   46.0f },
 	[L3D_BG2_OVER]     = { "bg2-over",    52.0f },
 	[L3D_BG3_OVER]     = { "bg3-over",    56.0f },
+	// (under the sky enemies, as the game draws it then: between background 2 and them)
+	[L3D_BG3_LOW]      = { "bg3-low",     13.0f },
 	[L3D_OVERLAY]      = { "overlay",      0.0f },
 };
 
@@ -480,6 +482,15 @@ void l3d_enemy_last_object(char sheet, unsigned int first_sprite)
 	}
 }
 
+void l3d_group_last_object(Uint32 group, Uint8 link)
+{
+	if (l3d_capturing && l3d_frame.object_count > 0)
+	{
+		l3d_frame.objects[l3d_frame.object_count - 1].group = group;
+		l3d_frame.objects[l3d_frame.object_count - 1].group_link = link;
+	}
+}
+
 void l3d_pointer_last_object(void)
 {
 	if (l3d_capturing && l3d_frame.object_count > 0)
@@ -776,6 +787,7 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	glow->size = size;
 	glow->strength = strength;
 	glow->layer = (Uint8)phase_type;
+	glow->phase = phase_number;
 	glow->color = color;
 	glow->has_rgb = false;
 	glow->pointer = false;

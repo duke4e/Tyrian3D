@@ -47,6 +47,9 @@
 // Layer heights increase in draw order by at least this much, so layers of equal nominal height
 // don't fight in the depth buffer (with room for the background tiles just below each layer).
 #define LAYER_STEP 0.1f
+// Background tiles sit this far below their layer, so that the captured layer, which is exact
+// inside the playfield (filters and all), is drawn over them.
+#define TILE_BELOW_LAYER 0.05f
 
 // Background map tiles and starfield pixels drawn per frame, at most.
 #define MAX_TILES 6144
@@ -204,7 +207,7 @@ static Uint32 water_mask(Uint32 color)
 static bool background_layer(L3DLayerType type)
 {
 	return type == L3D_GROUND || type == L3D_BG2_LOW || type == L3D_BG2 || type == L3D_BG3 ||
-	       type == L3D_BG2_OVER || type == L3D_BG3_OVER;
+	       type == L3D_BG2_OVER || type == L3D_BG3_OVER || type == L3D_BG3_LOW;
 }
 
 // Backgrounds' surfaces with the Effects setting: the sun's glints on water (where mask says), and
@@ -1504,8 +1507,9 @@ static float solid_top(int set);
 static const B3DTerrain *frame_terrains[B3D_SETS + 1];
 static const L3DBackground *lift_ground = NULL;  // this frame's ground when it is terrain (present_3d)
 static const B3DTerrain *lift_terrain = NULL;    // and its terrain
-static float terrain_lift(float x, float y);
-static float object_lifts[L3D_MAX_OBJECTS];  // the frame's objects' terrain_lift (compute_object_lifts)
+static float stand_lift(float x, float y, float base, const float footprint[4]);
+static float object_lifts[L3D_MAX_OBJECTS];  // how high the frame's objects stand on the ground (compute_object_lifts)
+static float object_bases[L3D_MAX_OBJECTS];  // and the heights their layers put them at (layer_base)
 
 // The ground is terrain over the game's stars with no holes for them to show through (its map has
 // no black space: MINERS): they don't show at all.
@@ -2508,6 +2512,7 @@ float rgpu_playfield_scale(void)
 
 static Uint64 profile_rows_ticks = 0;  // (TYR3D_PROFILE: time making terrain rows)
 static int profile_rows = 0;
+static Uint64 profile_lift_ticks = 0;  // (and finding where objects stand: setup_stand, compute_object_lifts)
 
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
@@ -2523,12 +2528,14 @@ void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Re
 	if (++frames == 300)
 	{
 		if (SDL_getenv("TYR3D_PROFILE") != NULL)
-			printf("3d present: %.2f ms/frame, at most %.2f (%d layers); terrain rows: %d, %.2f ms/frame\n",
+			printf("3d present: %.2f ms/frame, at most %.2f (%d layers); terrain rows: %d, %.2f ms/frame; lifts %.3f ms/frame\n",
 			       (double)total_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames,
 			       (double)most_ticks * 1000.0 / SDL_GetPerformanceFrequency(), frame->layer_count, profile_rows,
-			       (double)profile_rows_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames);
+			       (double)profile_rows_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames,
+			       (double)profile_lift_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames);
 		profile_rows = 0;
 		profile_rows_ticks = 0;
+		profile_lift_ticks = 0;
 		total_ticks = most_ticks = 0;
 		frames = 0;
 	}
@@ -2705,6 +2712,37 @@ static float appear_alpha(Uint8 step)
 	return (float)step / (L3D_APPEAR_STEPS + 1);
 }
 
+// A model object's transform at the given height (its translation's), on its plane before aligned():
+// where it is drawn, turned, scaled and centred (add_object_batches; wrecks slump, and what would
+// sink is raised, after this).
+static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded, bool mirror, float height)
+{
+	const M3DModel *model = &m3d_models[object->model];
+	const float scale = (model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f) *
+	                    (object->scale > 0 ? object->scale : 1.0f);
+	Mat4 mirror_x = mat4_identity();
+	if (mirror)
+		mirror_x.m[0] = -1;
+	// Seen from the side (l3d_sideways), every model lies on its side, its top towards
+	// the window's top: the level's craft are seen in profile.
+	const Mat4 chain[] = {
+		mat4_translation(object_x(object), height, object_y(object)),
+		mirror_x,
+		mat4_rotation(2, l3d_sideways ? SIDE_ROLL : 0.0f),
+		mat4_rotation(1, -object->yaw),
+		mat4_rotation(2, -object->roll),
+		mat4_rotation(1, model->yaw),
+		mat4_rotation(0, model->pitch),
+		mat4_rotation(2, model->roll),
+		mat4_scaling(scale),
+		// Models authored in game pixels keep their origin (the sprite's centre) on the
+		// screen; others are centred on their bounds. Both are centred in height.
+		mat4_translation(model->size > 0 ? -loaded->center[0] : 0.0f, model->keep_origin ? 0.0f : -loaded->center[1],
+		                 model->size > 0 ? -loaded->center[2] : 0.0f),
+	};
+	return mat4_chain((int)COUNTOF(chain), chain);
+}
+
 static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
                                int *batch_count)
 {
@@ -2736,40 +2774,18 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					continue;
 
 				const M3DModel *model = &m3d_models[model_index];
-				const float scale = (model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f) *
-				                    (object->scale > 0 ? object->scale : 1.0f);
-				const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
-				                     object_lifts[o];
-				Mat4 mirror_x = mat4_identity();
-				if (mirror)
-					mirror_x.m[0] = -1;
-				// Seen from the side (l3d_sideways), every model lies on its side, its top towards
-				// the window's top: the level's craft are seen in profile.
-				const Mat4 chain[] = {
-					mat4_translation(object_x(object), height, object_y(object)),
-					mirror_x,
-					mat4_rotation(2, l3d_sideways ? SIDE_ROLL : 0.0f),
-					mat4_rotation(1, -object->yaw),
-					mat4_rotation(2, -object->roll),
-					mat4_rotation(1, model->yaw),
-					mat4_rotation(0, model->pitch),
-					mat4_rotation(2, model->roll),
-					mat4_scaling(scale),
-					// Models authored in game pixels keep their origin (the sprite's centre) on the
-					// screen; others are centred on their bounds. Both are centred in height.
-					mat4_translation(model->size > 0 ? -loaded->center[0] : 0.0f, model->keep_origin ? 0.0f : -loaded->center[1],
-					                 model->size > 0 ? -loaded->center[2] : 0.0f),
-				};
-				Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
+				const float height = object_bases[o] + object->height + object_lifts[o];
+				Mat4 transform = object_transform(object, loaded, mirror, height);
 				if (object->wreck)  // slumped to under half its height
 					for (int k = 1; k < 12; k += 4)
 						transform.m[k] *= WRECK_SLUMP;
 				// Nothing sinks into the ground: models centred on their layer's height (items on
-				// the ground enemies' layer) are lifted by what their turned bounds reach below it.
+				// the ground enemies' layer) are lifted by what their turned bounds reach below it
+				// (the ground under them: as high above it as they would stand above a flat ground).
 				const float reach = fabsf(transform.m[1]) * loaded->half[0] + fabsf(transform.m[5]) * loaded->half[1] +
 				                    fabsf(transform.m[9]) * loaded->half[2];
-				if (!model->keep_origin && height - reach < 0.3f)
-					transform.m[13] += 0.3f - (height - reach);
+				if (!model->keep_origin && height - reach < 0.3f + object_lifts[o])
+					transform.m[13] += 0.3f + object_lifts[o] - (height - reach);
 				write_instance(instances + *instance_count * 24, &transform, object->wreck ? WRECK_SHADE : 1.0f);
 				++*instance_count;
 				if (clip_log)  // (where it is drawn)
@@ -3219,8 +3235,7 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
 				continue;
 
-			const float height = l3d_layer_height(object->layer) * rgpu_camera.height_scale + object->height +
-			                     object_lifts[p];
+			const float height = object_bases[p] + object->height + object_lifts[p];
 			const Mat4 chain[] = {
 				mat4_translation(object_x(object), height, object_y(object)),
 				mat4_rotation(1, -object->yaw),
@@ -4222,9 +4237,8 @@ static float terrain_hole_depth(bool solid, float height)
 	return solid ? height * 1.5f + 8.0f : TERRAIN_HOLE_DEPTH;
 }
 
-// What stands on the ground (its enemies, their explosions) stands on the terrain: the terrain's
-// height at a game position, 0 over a hole or off the map. Their game positions stay as they are
-// (aligned scales by height).
+// The ground's terrain as stored at a game position (0 over a hole or off the map), not as drawn (what
+// the lift was before stand_lift; TYR3D_LOG_CLIP=2 prints it beside the lift).
 static float terrain_lift(float x, float y)
 {
 	const B3DTerrain *t = lift_terrain;
@@ -4244,10 +4258,398 @@ static float terrain_lift(float x, float y)
 	return (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
 }
 
+/*
+ * What stands on the ground (its enemies, their wrecks, explosions and lights) stands on the ground as
+ * it is drawn. The ground's terrain rows are drawn aligned on their plane (aligned(): k times as large
+ * about the point below the camera, so the relief is drawn k times as high, about 1.23), and an object
+ * is aligned at its own height, a little less enlarged: the world point under it is the drawn ground of
+ * a game position nearer the point below the camera than its own (on a 28 pixel plateau some 10 % of
+ * the way there: up to 30 pixels at the screen's top). An object's lift is how far above background 1's
+ * plane the ground is drawn under it (0 on a flat ground), found in a few steps (the point under it moves
+ * with the lift): it stands as high above what is drawn under it as it would above a flat ground. Game
+ * positions stay as they are.
+ *
+ * The ground: the ground's terrain (background 1's, or that of a background 2 covering the ground),
+ * else background 1 flat; a flat background 2 drawn under the ground enemies (the game draws them over
+ * it) lifts what stands where it has a pixel onto its plane (APPROACH's sea, 2 pixels up).
+ */
+#define STAND_STEPS 3
+// On a slope a thing stands on the ground drawn under the edge of its footprint that the camera sees, but
+// at most this much relief (game pixels) above or below the ground under its middle (by a cliff).
+#define STAND_FOOTPRINT_RISE 4.0f
+
+typedef struct
+{
+	const L3DBackground *background;
+	bool valid;
+	float x, z;       // a tile's top-left corner, game screen coordinates at the tick
+	int row, column;  // its place in the map (map_row, map_column)
+} MapAnchor;
+
+static struct
+{
+	bool on;                          // set up for the frame (setup_stand)
+	const L3DBackground *background;  // the ground: its terrain's background, else background 1 (flat); NULL: none
+	const B3DTerrain *terrain;        // its terrain, or NULL: flat
+	float height, k;                  // its plane (its rows' and tiles') and align_scale there
+	float plane;                      // background 1's plane, which the lifts are reckoned from
+	float rise;                       // the ground's plane above it (a background 2 covering the ground)
+	float shift;                      // how far the ground has scrolled on since the tick (game pixels)
+	const L3DBackground *low;         // a flat background 2 drawn under the ground enemies, or NULL
+	float low_k, low_rise, low_shift; // its align_scale, its plane above background 1's, its scroll
+	Uint32 stamp;                     // (the frame's anchors, stand_anchor)
+} stand;
+
+// The tile of a background under the game point x, y as drawn (scrolled on by shift since the tick):
+// its rows and columns go on from it for points nearby. Kept for each row of tiles for the frame.
+static bool stand_anchor(const L3DBackground *b, float shift, float x, float y, MapAnchor *anchor)
+{
+	enum { CACHED = 32 };
+	static struct
+	{
+		Uint32 stamp;
+		const L3DBackground *background;
+		int row;
+		MapAnchor anchor;
+	} cache[CACHED];
+	const float gy = y - shift;
+	const int row = (int)floorf((gy - b->top_y) / B3D_TILE_H);
+	const int slot = row & (CACHED - 1);
+	if (cache[slot].stamp == stand.stamp && cache[slot].background == b && cache[slot].row == row)
+	{
+		*anchor = cache[slot].anchor;
+		return anchor->valid;
+	}
+	B3DTile tiles[32];
+	const int count = b3d_collect_tiles(b, true, x, gy, x, gy, tiles, (int)COUNTOF(tiles));
+	anchor->background = b;
+	anchor->valid = false;
+	for (int i = 0; i < count && !anchor->valid; ++i)
+		if (gy >= tiles[i].z && gy < tiles[i].z + B3D_TILE_H)
+		{
+			anchor->valid = true;
+			anchor->x = tiles[i].x;
+			anchor->z = tiles[i].z;
+			anchor->row = tiles[i].map_row;
+			anchor->column = tiles[i].map_column;
+		}
+	cache[slot].stamp = stand.stamp;
+	cache[slot].background = b;
+	cache[slot].row = row;
+	cache[slot].anchor = *anchor;
+	return anchor->valid;
+}
+
+// The ground's relief (its terrain's own height; over holes, and beyond its columns, its plane) at the
+// game point x, y of its plane as drawn, by a tile near it: between the samples as its rows' triangles
+// have it (build_terrain_row). Off its rows (before the level's start, past its end) nothing is drawn:
+// false.
+static bool stand_relief_at(const MapAnchor *a, float x, float y, float *relief)
+{
+	const B3DTerrain *t = stand.terrain;
+	*relief = 0.0f;
+	if (t == NULL || !a->valid)
+		return false;
+	const int per_x = B3D_TILE_W / t->sample;
+	const float mx = a->column * B3D_TILE_W + (x - a->x), my = a->row * B3D_TILE_H + (y - stand.shift - a->z);
+	const float fx = mx / t->sample + (float)(t->side_columns * per_x), fy = my / t->sample;
+	if (!(fy >= 0 && fy < (float)(t->height - 1)))
+		return false;
+	if (!(fx >= 0 && fx < (float)((t->width - 1) / per_x * per_x)))
+		return true;  // (flat tiles beyond its columns)
+	const int sx = (int)fx, sy = (int)fy;
+	const float ax = fx - sx, ay = fy - sy;
+	float h[4];  // the cell's corners a (sx, sy), b (sx + 1, sy), d (sx, sy + 1), e (sx + 1, sy + 1)
+	for (int c = 0; c < 4; ++c)
+	{
+		const Sint8 value = t->heights[(sy + (c >> 1)) * t->width + sx + (c & 1)];
+		h[c] = t->holes && value == B3D_TERRAIN_HOLE ? 0.0f : (float)value;
+	}
+	// (its triangles a b e and a e d)
+	*relief = ax >= ay ? h[0] + ax * (h[1] - h[0]) + ay * (h[3] - h[1]) : h[0] + ay * (h[2] - h[0]) + ax * (h[3] - h[2]);
+	return true;
+}
+
+static float stand_relief(const MapAnchor *a, float x, float y)
+{
+	float relief;
+	stand_relief_at(a, x, y, &relief);
+	return relief;
+}
+
+// Whether a flat background has a pixel at the game point x, y of its plane as drawn (scrolled on by
+// shift since the tick), by a tile near it.
+static bool plane_has_pixel(const MapAnchor *a, float shift, float x, float y)
+{
+	if (!a->valid)
+		return false;
+	const float mx = a->column * B3D_TILE_W + (x - a->x), my = a->row * B3D_TILE_H + (y - shift - a->z);
+	const int column = (int)floorf(mx / B3D_TILE_W), row = (int)floorf(my / B3D_TILE_H);
+	bool flipped;
+	const int cell = b3d_map_cell(a->background->set, row, column, &flipped);
+	if (cell < 0 || cell >= B3D_CELLS)
+		return false;
+	const Uint8 *pixels = b3d_tile_pixels(cell / B3D_TILES_PER_SET + 1, cell % B3D_TILES_PER_SET);
+	if (pixels == NULL)
+		return false;
+	const int px = SDL_clamp((int)floorf(mx - column * B3D_TILE_W), 0, B3D_TILE_W - 1);
+	const int py = SDL_clamp((int)floorf(my - row * B3D_TILE_H), 0, B3D_TILE_H - 1);
+	return pixels[py * B3D_TILE_W + (flipped ? B3D_TILE_W - 1 - px : px)] != 0;
+}
+
+// The frame's ground for standing on (present_3d, once heights and the camera are known).
+static void setup_stand(const L3DFrame *frame, const bool *composed, const float *heights)
+{
+	const Uint32 stamp = stand.stamp + 1;
+	memset(&stand, 0, sizeof(stand));
+	stand.stamp = stamp;
+	stand.on = true;
+	const L3DBackground *ground = NULL;
+	for (int i = 0; i < frame->background_count; ++i)
+		if (frame->backgrounds[i].set == 1)
+			ground = &frame->backgrounds[i];
+	stand.plane = ground != NULL ? heights[ground->layer] - TILE_BELOW_LAYER : -TILE_BELOW_LAYER;
+	stand.background = lift_ground != NULL ? lift_ground : ground;
+	stand.terrain = lift_ground != NULL ? lift_terrain : NULL;
+	stand.height = lift_ground != NULL ? heights[lift_ground->layer] - TILE_BELOW_LAYER : stand.plane;
+	stand.k = align_scale(stand.height);
+	stand.rise = stand.height - stand.plane;
+	stand.shift = stand.background != NULL ? background_speed[stand.background->set & 3] * ahead : 0.0f;
+	for (int i = 0; i < frame->background_count; ++i)
+	{
+		const L3DBackground *b = &frame->backgrounds[i];
+		if (b == lift_ground || b->set < 2 || b->blend || frame->layers[b->layer].type != L3D_BG2_LOW)
+			continue;
+		const float height = heights[b->layer] - TILE_BELOW_LAYER - (composed[i] ? 0.1f : 0.0f);
+		stand.low = b;
+		stand.low_k = align_scale(height);
+		stand.low_rise = height - stand.plane;
+		stand.low_shift = background_speed[b->set & 3] * ahead;
+	}
+}
+
+// How far above background 1's plane the ground is drawn under a thing standing at the game point x, y
+// (as drawn) when it stands at `base + lift` (it is aligned there, which places the world point under
+// it): the ground's under the edge of its footprint the camera sees (stand_lift), or a flat background
+// 2 drawn under the ground enemies where it has a pixel under it.
+typedef struct
+{
+	MapAnchor ground, low;
+	bool on_ground, on_low;
+	float x, y, base;
+	const float *footprint;  // {x0, y0, x1, y1} round x, y (game pixels as drawn), or NULL for a point
+} StandQuery;
+
+static float stand_under(const StandQuery *q, float lift)
+{
+	static const float point[4] = { 0, 0, 0, 0 };
+	const float *f = q->footprint != NULL ? q->footprint : point;
+	const int samples = q->footprint != NULL ? 3 : 1;
+	const float kb = align_scale(q->base + lift);
+	float under = stand.rise;
+	if (q->on_ground)
+	{
+		// The game points of the ground's plane under it: its own, a little nearer the point below
+		// the camera.
+		const float r = kb / stand.k;
+		const float gx = align.cx + (q->x - align.cx) * r, gy = align.cz + (q->y - align.cz) * r;
+		const float mx = gx + (f[0] + f[2]) / 2 * r, my = gy + (f[1] + f[3]) / 2 * r;
+		const float middle = stand_relief(&q->ground, mx, my);
+		// On a slope, on the ground under the edge of its footprint that faces the camera (towards the
+		// point below the camera; its three samples' mean): no gap shows under that edge, nor ground over
+		// it; its far side floats or sinks behind it.
+		float front = middle;
+		if (samples > 1)
+		{
+			const float dx = align.cx - mx, dz = align.cz - my;
+			const bool rows = fabsf(dz) >= fabsf(dx);
+			float sum = 0;
+			int counted = 0;  // (not where nothing is drawn)
+			for (int n = 0; n < 3; ++n)
+			{
+				const int i = rows ? n : dx > 0 ? 2 : 0, j = rows ? (dz > 0 ? 2 : 0) : n;
+				float relief;
+				if (stand_relief_at(&q->ground, gx + (f[0] + (f[2] - f[0]) * i / 2) * r, gy + (f[1] + (f[3] - f[1]) * j / 2) * r,
+				                    &relief))
+				{
+					sum += relief;
+					++counted;
+				}
+			}
+			if (counted > 0)
+				front = sum / counted;
+		}
+		under += stand.k * SDL_clamp(front, middle - STAND_FOOTPRINT_RISE, middle + STAND_FOOTPRINT_RISE);
+	}
+	if (q->on_low)
+	{
+		const float r = kb / stand.low_k;
+		const float gx = align.cx + (q->x - align.cx) * r, gy = align.cz + (q->y - align.cz) * r;
+		bool over = false;
+		for (int j = 0; j < samples && !over; ++j)
+			for (int i = 0; i < samples && !over; ++i)
+			{
+				const float u = samples > 1 ? (f[0] + (f[2] - f[0]) * i / 2) : 0.0f;
+				const float v = samples > 1 ? (f[1] + (f[3] - f[1]) * j / 2) : 0.0f;
+				over = plane_has_pixel(&q->low, stand.low_shift, gx + u * r, gy + v * r);
+			}
+		if (over)
+			under = SDL_max(under, stand.low_rise);
+	}
+	return under;
+}
+
+// How high a thing standing at the game point x, y (as drawn) stands on the ground: how far above
+// background 1's plane the ground is drawn under it, when its height before the lift is `base` (where
+// its translation is). footprint: what it covers round x, y (game pixels as drawn, relative: x0, y0, x1,
+// y1), or NULL for a point. Where it stands depends on how high it
+// stands (the point under it moves with its height), so a few steps find where the two agree; by the far
+// edge of raised ground they may never agree (placed at the plateau's height the point under it is past
+// the edge, placed lower it is not): then the lowest height at which the ground drawn under it is no
+// higher than its base (it hugs the cliff rather than sink into it).
+#define STAND_SEARCH 6       // halvings of the search between the last two steps
+#define STAND_TOLERANCE 0.05f
+
+static float stand_lift(float x, float y, float base, const float footprint[4])
+{
+	if (!stand.on || stand.background == NULL)
+		return 0.0f;
+	StandQuery q;
+	q.on_ground = stand.terrain != NULL && stand_anchor(stand.background, stand.shift, x, y, &q.ground);
+	q.on_low = stand.low != NULL && stand_anchor(stand.low, stand.low_shift, x, y, &q.low);
+	if (!q.on_ground && !q.on_low)
+		return stand.rise;
+	q.x = x;
+	q.y = y;
+	q.base = base;
+	q.footprint = footprint;
+	// (first guess: the ground drawn at its own game position)
+	float lift = stand.rise + (q.on_ground ? stand.k * stand_relief(&q.ground, x, y) : 0.0f);
+	float next = lift;
+	for (int step = 0; step < STAND_STEPS; ++step)
+	{
+		next = stand_under(&q, lift);
+		if (fabsf(next - lift) < STAND_TOLERANCE)
+			return next;
+		if (step + 1 < STAND_STEPS)
+			lift = next;
+	}
+	float low = SDL_min(lift, next), high = SDL_max(lift, next);
+	if (stand_under(&q, low) <= low + STAND_TOLERANCE)
+		return low;
+	if (stand_under(&q, high) > high + STAND_TOLERANCE)
+		return high;
+	for (int n = 0; n < STAND_SEARCH; ++n)
+	{
+		const float middle = (low + high) / 2;
+		if (stand_under(&q, middle) > middle + STAND_TOLERANCE)
+			low = middle;
+		else
+			high = middle;
+	}
+	return high;
+}
+
+// How far above background 1's plane the ground is drawn under a world point (x, z): the ground's
+// lift there (TYR3D_LOG_CLIP's float).
+static float stand_ground_at(float x, float z)
+{
+	if (!stand.on || stand.background == NULL)
+		return 0.0f;
+	float under = stand.rise;
+	MapAnchor a;
+	if (stand.terrain != NULL)
+	{
+		const float gx = align.cx + (x - align.cx) / stand.k, gy = align.cz + (z - align.cz) / stand.k;
+		if (stand_anchor(stand.background, stand.shift, gx, gy, &a))
+			under += stand.k * stand_relief(&a, gx, gy);
+	}
+	if (stand.low != NULL)
+	{
+		const float gx = align.cx + (x - align.cx) / stand.low_k, gy = align.cz + (z - align.cz) / stand.low_k;
+		if (stand_anchor(stand.low, stand.low_shift, gx, gy, &a) && plane_has_pixel(&a, stand.low_shift, gx, gy))
+			under = SDL_max(under, stand.low_rise);
+	}
+	return under;
+}
+
+// The height a layer puts what is drawn in it at (an object, a glow): l3d_layer_height; but what
+// flies, drawn after a flat background that the 3D view puts higher (background 3 drawn under the
+// player or over it before the sky or top enemies are: events 21 and 29, 73), stands above that
+// background as far as it stands above the one under it in the usual order (background 2 for the sky
+// enemies, background 3 for the top enemies), not under its plane. phase: the draw phase it was
+// recorded in (L3DObject.phase).
+static float layer_base(const L3DFrame *frame, const float *heights, L3DLayerType layer, int phase)
+{
+	const float hs = rgpu_camera.height_scale;
+	float base = l3d_layer_height(layer) * hs;
+	const L3DLayerType under = layer == L3D_SKY_ENEMY ? L3D_BG2 : layer == L3D_TOP_ENEMY ? L3D_BG3 : L3D_OVERLAY;
+	if (under == L3D_OVERLAY)
+		return base;
+	const float over = (l3d_layer_height(layer) - l3d_layer_height(under)) * hs;
+	for (int i = 0; i < frame->background_count; ++i)
+	{
+		const L3DBackground *b = &frame->backgrounds[i];
+		// (Solids stand low, below what flies.)
+		if (b->phase >= phase || l3d_layer_height(frame->layers[b->layer].type) <= l3d_layer_height(layer) ||
+		    (b->set > 1 && terrain_background(frame, b) && b != lift_ground))
+			continue;
+		base = SDL_max(base, heights[b->layer] + over);
+	}
+	return base;
+}
+
+// What an object covers of the ground round its position (game pixels as drawn, relative: x0, y0, x1,
+// y1) and how high it is (footprint[4], before alignment): a model's bounds as it is turned and scaled,
+// a volumetric sprite's sprite (nearly flat). False: nothing known.
+static bool object_footprint(const L3DObject *object, bool mirror, float footprint[5])
+{
+	if (object->model == L3D_VOLUME)
+	{
+		const float w = object->large ? 12.0f : 6.0f, h = object->large ? 14.0f : 7.0f;
+		footprint[0] = -w;
+		footprint[1] = -h;
+		footprint[2] = w;
+		footprint[3] = h;
+		footprint[4] = 2.0f;
+		return true;
+	}
+	const LoadedModel *loaded = object->model >= 0 && object->model < m3d_model_count ? get_model(object->model) : NULL;
+	if (loaded == NULL)
+		return false;
+	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	footprint[0] = footprint[1] = INFINITY;
+	footprint[2] = footprint[3] = -INFINITY;
+	float y0 = INFINITY, y1 = -INFINITY;
+	for (int c = 0; c < 8; ++c)
+	{
+		const float p[3] = { loaded->center[0] + ((c & 1) ? loaded->half[0] : -loaded->half[0]),
+		                     loaded->center[1] + ((c & 2) ? loaded->half[1] : -loaded->half[1]),
+		                     loaded->center[2] + ((c & 4) ? loaded->half[2] : -loaded->half[2]) };
+		const float x = t.m[0] * p[0] + t.m[4] * p[1] + t.m[8] * p[2] + t.m[12] - object_x(object);
+		const float y = t.m[1] * p[0] + t.m[5] * p[1] + t.m[9] * p[2];
+		const float z = t.m[2] * p[0] + t.m[6] * p[1] + t.m[10] * p[2] + t.m[14] - object_y(object);
+		footprint[0] = SDL_min(footprint[0], x);
+		footprint[1] = SDL_min(footprint[1], z);
+		footprint[2] = SDL_max(footprint[2], x);
+		footprint[3] = SDL_max(footprint[3], z);
+		y0 = SDL_min(y0, y);
+		y1 = SDL_max(y1, y);
+	}
+	footprint[4] = (y1 - y0) * (object->wreck ? WRECK_SLUMP : 1.0f);
+	return true;
+}
+
+// Pieces with one link made this many ticks apart at most are one object (a row of 28 pixels every 28
+// ticks at a pixel a tick, longer on slow maps).
+#define PIECES_LINK_TICKS 100
+
+// A piece of one object: a ground enemy whose model is drawn at its own origin, side by side with the
+// others' on the sprites' grid (L3DObject.group: which object).
 static bool lifted_piece(const L3DObject *object)
 {
-	return object->layer == L3D_GROUND_ENEMY && object->model >= 0 && object->model < m3d_model_count &&
-	       m3d_models[object->model].keep_origin;
+	return object->layer == L3D_GROUND_ENEMY && object->group != 0 && !object->wreck && object->model >= 0 &&
+	       object->model < m3d_model_count && m3d_models[object->model].keep_origin;
 }
 
 static int lift_group_root(int *group, int o)
@@ -4257,50 +4659,72 @@ static int lift_group_root(int *group, int o)
 	return o;
 }
 
-// The frame's objects' terrain_lift. The pieces of one object (ground enemies whose models are drawn
-// at their own origins, side by side on the sprites' grid, moving alike: MINERS's ore tug and its
-// load, eight enemies) stand at one height, the terrain's under their middle, so that they don't
-// come apart where the ground under them changes height.
-static void compute_object_lifts(const L3DFrame *frame)
+// The heights the frame's objects' layers put them at (layer_base), and how high those on the ground
+// stand on it (stand_lift). The pieces of one object (L3DObject.group, group_link: made by the level's
+// events at one time, or with one link not long apart; side by side on the sprites' grid, moving alike:
+// MINERS's ore tug and its load, eight enemies; CAMANIS's boss, made row by row) stand at one height,
+// so that they don't come apart where the ground under them changes height: their lifts' mean, but no
+// piece sunk more than half its height (by a cliff, part of it overhangs rather than be buried; their
+// highest lift floated whole bosses over uneven ground). Pieces of different objects never join, however
+// near and alike (TYRIAN's walkers did, into one chain lifted at its middle).
+static void compute_object_lifts(const L3DFrame *frame, const float *heights, bool mirror)
 {
-	static int group[L3D_MAX_OBJECTS], pieces[L3D_MAX_OBJECTS], count[L3D_MAX_OBJECTS];
-	static float sum_x[L3D_MAX_OBJECTS], sum_y[L3D_MAX_OBJECTS];
+	static int group[L3D_MAX_OBJECTS], pieces[L3D_MAX_OBJECTS];
+	static float piece_heights[L3D_MAX_OBJECTS];
 	int piece_count = 0;
 	for (int o = 0; o < frame->object_count; ++o)
 	{
+		const L3DObject *object = &frame->objects[o];
 		group[o] = o;
-		sum_x[o] = sum_y[o] = 0.0f;
-		count[o] = 0;
+		object_bases[o] = layer_base(frame, heights, object->layer, object->phase);
 		object_lifts[o] = 0.0f;
-		if (lift_ground != NULL && lifted_piece(&frame->objects[o]))
+		if (object->layer != L3D_GROUND_ENEMY || !stand.on || stand.background == NULL)
+			continue;
+		if (stand.terrain == NULL && stand.low == NULL)
+		{
+			object_lifts[o] = stand.rise;  // (a flat ground)
+			continue;
+		}
+		float footprint[5];
+		const bool covers = object_footprint(object, mirror, footprint);
+		piece_heights[o] = covers ? footprint[4] * align_scale(object_bases[o] + object->height) : 0.0f;
+		object_lifts[o] = stand_lift(object_x(object), object_y(object), object_bases[o] + object->height,
+		                             covers ? footprint : NULL);
+		if (lifted_piece(object))
 			pieces[piece_count++] = o;
 	}
-	if (lift_ground == NULL)
-		return;
-	// Neighbours on the 24 x 28 grid (a few pixels' slack: events shift some pieces) moving alike.
+	// Neighbours on the 24 x 28 grid (a few pixels' slack: events shift some pieces) moving alike, made
+	// at one time, or with one link not long apart (a boss made row by row as the map scrolls).
 	for (int i = 0; i < piece_count; ++i)
 		for (int j = i + 1; j < piece_count; ++j)
 		{
 			const L3DObject *a = &frame->objects[pieces[i]], *b = &frame->objects[pieces[j]];
-			if (fabsf(a->x - b->x) <= 28.0f && fabsf(a->y - b->y) <= 32.0f && fabsf(a->vx - b->vx) < 0.01f &&
+			const bool together = a->group == b->group ||
+			                      (a->group_link != 0 && a->group_link == b->group_link &&
+			                       abs((int)a->group - (int)b->group) <= PIECES_LINK_TICKS);
+			if (together && fabsf(a->x - b->x) <= 28.0f && fabsf(a->y - b->y) <= 32.0f && fabsf(a->vx - b->vx) < 0.01f &&
 			    fabsf(a->vy - b->vy) < 0.01f)
 				group[lift_group_root(group, pieces[j])] = lift_group_root(group, pieces[i]);
 		}
+	static float sum[L3D_MAX_OBJECTS], least[L3D_MAX_OBJECTS];
+	static int n[L3D_MAX_OBJECTS];
+	for (int i = 0; i < piece_count; ++i)
+	{
+		least[pieces[i]] = -INFINITY;
+		sum[pieces[i]] = 0;
+		n[pieces[i]] = 0;
+	}
 	for (int i = 0; i < piece_count; ++i)
 	{
 		const int root = lift_group_root(group, pieces[i]);
-		sum_x[root] += frame->objects[pieces[i]].x;
-		sum_y[root] += frame->objects[pieces[i]].y;
-		++count[root];
+		least[root] = SDL_max(least[root], object_lifts[pieces[i]] - piece_heights[pieces[i]] / 2);
+		sum[root] += object_lifts[pieces[i]];
+		++n[root];
 	}
-	for (int o = 0; o < frame->object_count; ++o)
+	for (int i = 0; i < piece_count; ++i)
 	{
-		const L3DObject *object = &frame->objects[o];
-		if (object->layer != L3D_GROUND_ENEMY)
-			continue;
-		const int root = lift_group_root(group, o);
-		object_lifts[o] = count[root] > 1 ? terrain_lift(sum_x[root] / count[root], sum_y[root] / count[root])
-		                                  : terrain_lift(object->x, object->y);
+		const int root = lift_group_root(group, pieces[i]);
+		object_lifts[pieces[i]] = SDL_max(sum[root] / n[root], least[root]);
 	}
 }
 
@@ -4481,10 +4905,6 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map
 }
 
 /* --- Background maps ----------------------------------------------------------------------- */
-
-// Background tiles sit this far below their layer, so that the captured layer, which is exact
-// inside the playfield (filters and all), is drawn over them.
-#define TILE_BELOW_LAYER 0.05f
 
 // HD textures: three mip levels (down to the tiles' own size, where their cells' borders are a
 // pixel wide as in tile_atlas), blended between when filtered.
@@ -5806,6 +6226,12 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
  *                         the enemy: the point is below the plane and its pixel hides it
  *   bg2-over, bg3-over    the same, the game drawing them over the enemy: the point shows above the
  *                         plane where the plane has a pixel, which in the game covers the enemy
+ *   float                 a ground enemy on a ground that isn't flat (terrain, or a background 2 drawn
+ *                         under the ground enemies): its lowest points the camera sees (CLIP_FLOAT_BAND
+ *                         of the lowest) stand higher above the ground drawn under them than they would
+ *                         above a flat ground (its lift against the ground's under them, stand_ground_at);
+ *                         area: the share of those points; and its gap: how far above that ground the
+ *                         worst of them is
  * (Parts of a model inside the ground that nothing shows, such as its underside, don't count.)
  * A line for each kind that reaches deeper than CLIP_LOG_MIN somewhere: the deepest, in the model's
  * game pixels (how far below the terrain the way to the camera passes, or how far the point is from
@@ -5814,14 +6240,16 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
  * by raised ground in front of it); where its middle is in the window (0 to 1 across and down, to find it in a frame dump: the
  * "dump:" lines say which 3D frame a dump shows):
  *   clip: <kind> frame <3D frame> layer <layer> sheet <sheet> sprite <first sprite> model <name>
- *         at <x>,<y> depth <pixels> of <pixels> area <percent> inside <percent> screen <x>,<y>
+ *         at <x>,<y> depth <pixels> of <pixels> area <percent> inside <percent> screen <x>,<y> [gap <pixels>]
  * TYR3D_LOG_CLIP=2 also prints where the deepest point of each is:
  *   clip-cell: <kind> point <world x,y,z> (<x>,<z> from the middle, game pixels) of <cells seen>,
  *              <cells affected> deep, base <the model's translation height>, lift <compute_object_lifts'>
- *              (the terrain where it is <terrain_lift at its own position>)
+ *              (the ground drawn under its middle <stand_ground_at>, the terrain stored at its position
+ *              <terrain_lift>)
  */
 #define CLIP_LOG_EVERY 10
 #define CLIP_LOG_MIN 2.0f
+#define CLIP_FLOAT_BAND 1.5f  // the lowest points seen of a model: this far above its lowest (game pixels)
 #define CLIP_GRID_MAX 128   // cells across at most (larger models get larger cells)
 
 enum { CLIP_TERRAIN, CLIP_BG2_SOLID, CLIP_BG3_SOLID, CLIP_GROUND, CLIP_BG2_PLANE, CLIP_BG3_PLANE, CLIP_BG2_OVER, CLIP_BG3_OVER,
@@ -6236,7 +6664,10 @@ static void log_clipping(const L3DFrame *frame)
 			tops[count] = top;
 			over[count++] = drawn_over;
 		}
-		const ClipMesh *mesh = count > 0 ? clip_mesh(object->model) : NULL;
+		// (Ground enemies on a ground that isn't flat may float.)
+		const bool may_float = object->layer == L3D_GROUND_ENEMY && stand.on && stand.background != NULL &&
+		                       (stand.terrain != NULL || stand.low != NULL);
+		const ClipMesh *mesh = count > 0 || may_float ? clip_mesh(object->model) : NULL;
 		// (cells of about two thirds of a game pixel where the playfield's bottom edge is)
 		if (mesh == NULL || !clip_view_model(&view, mesh, &world, vp, window_w, window_h, window_w / l3d_field_w() / 1.5f))
 			continue;
@@ -6309,29 +6740,62 @@ static void log_clipping(const L3DFrame *frame)
 			}
 		}
 
-		for (int kind = 0; kind < CLIP_KINDS; ++kind)
+		// Floating: the lowest points of it the camera sees (within CLIP_FLOAT_BAND of the lowest), against
+		// the ground drawn under each: how much higher above it they stand than they would above a flat
+		// ground (its lift, against the ground's there).
+		float floats_by = -INFINITY, gap = 0;
+		int bottom = 0, floating = 0, floating_cell = 0;
+		if (may_float)
 		{
-			if (!(deepest[kind] > CLIP_LOG_MIN * k) || cells_of[kind] == 0)
+			float lowest = INFINITY;
+			for (int c = 0; c < view.w * view.h; ++c)
+				if (view.depth[c] != INFINITY)
+					lowest = SDL_min(lowest, view.point[c][1]);
+			for (int c = 0; c < view.w * view.h; ++c)
+			{
+				if (view.depth[c] == INFINITY || view.point[c][1] > lowest + CLIP_FLOAT_BAND * k)
+					continue;
+				const float under = stand_ground_at(view.point[c][0], view.point[c][2]);
+				const float excess = object_lifts[o] - under;
+				++bottom;
+				if (excess > floats_by)
+				{
+					floats_by = excess;
+					gap = view.point[c][1] - (stand.plane + under);
+					floating_cell = c;
+				}
+				floating += excess > CLIP_LOG_MIN * k;
+			}
+		}
+
+		// Where its middle is in the window (as rgpu_playfield_to_window finds it).
+		float clip[4];
+		for (int r = 0; r < 4; ++r)
+			clip[r] = vp[r] * middle[0] + vp[4 + r] * middle[1] + vp[8 + r] * middle[2] + vp[12 + r];
+		const float w = clip[3] > 1e-6f ? clip[3] : 1e-6f;
+		char sheet[8];
+		for (int kind = 0; kind <= CLIP_KINDS; ++kind)
+		{
+			const bool is_float = kind == CLIP_KINDS;  // (after the surfaces' kinds)
+			if (is_float ? !(floats_by > CLIP_LOG_MIN * k) : !(deepest[kind] > CLIP_LOG_MIN * k) || cells_of[kind] == 0)
 				continue;
-			// Where its middle is in the window (as rgpu_playfield_to_window finds it).
-			float clip[4];
-			for (int r = 0; r < 4; ++r)
-				clip[r] = vp[r] * middle[0] + vp[4 + r] * middle[1] + vp[8 + r] * middle[2] + vp[12 + r];
-			const float w = clip[3] > 1e-6f ? clip[3] : 1e-6f;
-			char sheet[8];
-			printf("clip: %s frame %u layer %s sheet %s sprite %u model %s at %.0f,%.0f depth %.1f of %.1f area %.1f inside %.0f screen %.3f,%.3f\n",
-			       clip_kind_names[kind], l3d_frame_number, l3d_layer_name(object->layer),
+			printf("clip: %s frame %u layer %s sheet %s sprite %u model %s at %.0f,%.0f depth %.1f of %.1f area %.1f inside %.0f screen %.3f,%.3f",
+			       is_float ? "float" : clip_kind_names[kind], l3d_frame_number, l3d_layer_name(object->layer),
 			       clip_sheet_name(object->enemy_sheet, sheet), (unsigned int)object->enemy_sprite,
-			       m3d_models[object->model].name, object->x, object->y, deepest[kind] / k, 2 * reach / k,
-			       100.0f * cells_of[kind] / SDL_max(seen, 1), 100.0f * inside_of[kind] / cells_of[kind], (clip[0] / w + 1) / 2,
-			       (1 - clip[1] / w) / 2);
+			       m3d_models[object->model].name, object->x, object->y, (is_float ? floats_by : deepest[kind]) / k, 2 * reach / k,
+			       is_float ? 100.0f * floating / SDL_max(bottom, 1) : 100.0f * cells_of[kind] / SDL_max(seen, 1),
+			       is_float ? 0.0f : 100.0f * inside_of[kind] / cells_of[kind], (clip[0] / w + 1) / 2, (1 - clip[1] / w) / 2);
+			if (is_float)
+				printf(" gap %.1f", gap / k);
+			printf("\n");
 			if (verbose)
 			{
-				const float *p = view.point[deepest_cell[kind]];
+				const float *p = view.point[is_float ? floating_cell : deepest_cell[kind]];
 				printf("clip-cell: %s point %.2f,%.2f,%.2f (%.1f,%.1f from the middle, game pixels) of %d seen, %d deep, base %.2f, "
-				       "lift %.1f (the terrain where it is %.1f)\n",
-				       clip_kind_names[kind], p[0], p[1], p[2], (p[0] - middle[0]) / k, (p[2] - middle[2]) / k, seen,
-				       cells_of[kind], clip_transforms[o].m[13], object_lifts[o], terrain_lift(object->x, object->y));
+				       "lift %.1f (the ground drawn under its middle %.1f, the terrain stored at its position %.1f)\n",
+				       is_float ? "float" : clip_kind_names[kind], p[0], p[1], p[2], (p[0] - middle[0]) / k, (p[2] - middle[2]) / k,
+				       is_float ? bottom : seen, is_float ? floating : cells_of[kind], clip_transforms[o].m[13], object_lifts[o],
+				       stand_ground_at(middle[0], middle[2]), terrain_lift(object->x, object->y));
 			}
 			printed = true;
 		}
@@ -6656,9 +7120,9 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			}
 			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
 			transform.m[12] = p->x + p->vx * age;
-			transform.m[13] = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale +
-			                  (p->air ? l3d_terrain_headroom : terrain_lift(p->x, p->y));
 			transform.m[14] = p->y + (p->vy + explodeMove) * age;
+			const float height = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale;
+			transform.m[13] = height + (p->air ? l3d_terrain_headroom : stand_lift(transform.m[12], transform.m[14], height, NULL));
 			float *instance = instances + *instance_count * 24;
 			write_instance(instance, &transform, 1.0f);
 			for (int c = 0; c < 3; ++c)
@@ -6690,7 +7154,8 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 // Shots and items glow (L3DGlow): additive light around each, in its colour, a little above its
 // layer.
 
-static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int *instance_count, int *batch_count)
+static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], const float *heights, int *instance_count,
+                           int *batch_count)
 {
 	const int first = *instance_count;
 	for (int g = 0; g < frame->glow_count && *instance_count < MAX_INSTANCES; ++g)
@@ -6699,8 +7164,10 @@ static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], int 
 		Mat4 transform = mat4_identity();
 		transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
 		transform.m[12] = glow->x + (glow->pointer ? l3d_pointer_lead[0] : glow->vx * ahead);
-		transform.m[13] = l3d_layer_height(glow->layer) * rgpu_camera.height_scale + 0.5f;
 		transform.m[14] = glow->y + (glow->pointer ? l3d_pointer_lead[1] : glow->vy * ahead);
+		// As high as what glows: its layer's height in the game's order, on the ground as drawn.
+		const float base = layer_base(frame, heights, (L3DLayerType)glow->layer, glow->phase) + 0.5f;
+		transform.m[13] = base + (glow->layer == L3D_GROUND_ENEMY ? stand_lift(transform.m[12], transform.m[14], base, NULL) : 0.0f);
 		float *instance = instances + *instance_count * 24;
 		write_instance(instance, &transform, 1.0f);
 		const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
@@ -6754,12 +7221,13 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame 
 		const float energy = p3d_light_energy(l, ahead);
 		if (energy <= 0.02f)
 			continue;
-		const float height = l->height * rgpu_camera.height_scale + (l->air ? l3d_terrain_headroom : terrain_lift(l->x, l->y));
+		const float y = l->y + explodeMove * ahead;
+		const float own = l->height * rgpu_camera.height_scale;
+		const float height = own + (l->air ? l3d_terrain_headroom : stand_lift(l->x, y, own, NULL));
 		const float k = align_scale(height);
 		PointLight *out = &candidates[candidate_count];
 		out->position[0] = align.on ? align.cx + (l->x - align.cx) * k : l->x;
 		out->position[1] = height;
-		const float y = l->y + explodeMove * ahead;
 		out->position[2] = align.on ? align.cz + (y - align.cz) * k : y;
 		out->radius = l->radius * k;
 		for (int c = 0; c < 3; ++c)
@@ -7149,7 +7617,6 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			lift_ground = cover;
 			lift_terrain = frame_terrains[cover->set];
 		}
-		compute_object_lifts(frame);
 		if (SDL_getenv("TYR3D_LOG_GROUND_MODE") != NULL)
 			log_ground(frame, composed_now);
 		l3d_terrain_headroom = any ? TERRAIN_HEADROOM : 0.0f;
@@ -7295,6 +7762,14 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways);
 	set_alignment(&camera, reference_height);
 	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
+	bool composed[L3D_MAX_BACKGROUNDS];
+	b3d_composed_backgrounds(frame, composed);
+	// What stands on the ground stands on it as drawn, the layers' objects in the game's order
+	// (stand_lift, layer_base): with the planes' heights and the camera known.
+	const Uint64 lift_start = SDL_GetPerformanceCounter();
+	setup_stand(frame, composed, heights);
+	compute_object_lifts(frame, heights, upside_down);
+	profile_lift_ticks += SDL_GetPerformanceCounter() - lift_start;
 	add_outside_shade(&camera, reference_height, layout.panel[2] > 0 ? layout.panel[0] : logical_w, logical_w, logical_h);
 	prepare_tile_atlas();
 
@@ -7335,8 +7810,6 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			set_glints(b, layer_water);
 	}
 
-	bool composed[L3D_MAX_BACKGROUNDS];
-	b3d_composed_backgrounds(frame, composed);
 	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, tile_colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
@@ -7363,7 +7836,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	if (settings3d.effects)
 	{
 		add_particle_batches(&instance_count, &batch_count);
-		add_glow_batch(frame, colors, &instance_count, &batch_count);
+		add_glow_batch(frame, colors, heights, &instance_count, &batch_count);
 	}
 	for (int i = first_particle_batch; i < batch_count; ++i)
 		casts_shadow[i] = 0;

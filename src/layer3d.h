@@ -43,6 +43,7 @@ typedef enum
 	L3D_EXPLOSION,
 	L3D_BG2_OVER,      // background 2 drawn over explosions
 	L3D_BG3_OVER,      // background 3 drawn over the player
+	L3D_BG3_LOW,       // background 3 drawn under the sky enemies (event 42), just above background 2
 	L3D_OVERLAY,       // in-playfield text and gauges, shown flat in screen space
 	L3D_LAYER_TYPE_COUNT
 } L3DLayerType;
@@ -85,6 +86,8 @@ typedef struct
 	Uint8 phase;          // the draw phase it was recorded in (L3DBackground.phase)
 	char enemy_sheet;     // an enemy's shape file letter (M3D_SHEET_* for coins and power-ups) and the
 	Uint16 enemy_sprite;  // first sprite of its animation, as models.cfg names it; 0 for other objects
+	Uint32 group;         // the object an enemy is a piece of (l3d_group_last_object): the time of the
+	Uint8 group_link;     // events that made it + 1 (0: none) and the link it was made with (0: none)
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
@@ -138,6 +141,7 @@ typedef struct
 	float size, strength;  // diameter in game pixels; fraction of the colour added at the centre
 	float vx, vy;          // how far it moved since the last frame (game pixels)
 	Uint8 layer;
+	Uint8 phase;           // the draw phase it was recorded in (as L3DObject.phase)
 	Uint8 color;
 	bool has_rgb;          // the colour is rgb (sRGB), not a palette index
 	Uint8 rgb[3];
@@ -270,6 +274,11 @@ void l3d_layer_last_object(L3DLayerType type);
 // The last object added is an enemy of this sheet (the shape file's letter, M3D_SHEET_*) and first
 // sprite (L3DObject.enemy_sheet; TYR3D_LOG_CLIP names it so).
 void l3d_enemy_last_object(char sheet, unsigned int first_sprite);
+// The last object added is a piece of an object (L3DObject.group, group_link): the level's events made it
+// at that time (+ 1; 0: not by events) with that link (0: none). Pieces made at one time, or with one
+// link a little apart in time (a boss's rows), side by side and moving alike, are one object and stand
+// at one height on raised ground (render_gpu.c compute_object_lifts); other pieces never join.
+void l3d_group_last_object(Uint32 group, Uint8 link);
 extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).
