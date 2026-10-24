@@ -192,8 +192,9 @@ static BTBHGPUTexture *tile_water = NULL;
 static BTBHGPUTexture *composed_water = NULL;
 #define CLOUD_TEXELS 512   // canvas size in texels
 #define CLOUD_SCALE 3      // game pixels per texel
+#define CLOUD_FINE 2       // the texture's texels a canvas texel, each way
 #define MAX_CLOUD_CANVASES 2
-static BTBHGPUTexture *cloud_texture = NULL;  // CLOUD_TEXELS x CLOUD_TEXELS * MAX_CLOUD_CANVASES
+static BTBHGPUTexture *cloud_texture = NULL;  // CLOUD_TEXELS x CLOUD_TEXELS * MAX_CLOUD_CANVASES, CLOUD_FINE times that
 static BTBHGPUTexture *puff_texture = NULL;   // a cumulus puff (create_puff_texture)
 static Uint32 layer_water_rgba[L3D_WIDTH * ATLAS_H];
 static float glint_time = 0;  // seconds of game time, for the waves
@@ -698,8 +699,8 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	composed_texture = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB);
 	composed_water = create_texture(COMPOSED_SIZE, COMPOSED_SIZE * L3D_MAX_BACKGROUNDS, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	puff_texture = create_puff_texture();
-	cloud_texture = create_texture_filtered(CLOUD_TEXELS, CLOUD_TEXELS * MAX_CLOUD_CANVASES, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB,
-	                                        BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	cloud_texture = create_texture_filtered(CLOUD_TEXELS * CLOUD_FINE, CLOUD_TEXELS * CLOUD_FINE * MAX_CLOUD_CANVASES,
+	                                        BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
 	const Uint32 white = 0xffffffff;
 	btbh_gpu_texture_update_rgba8(white_texture, (const uint8_t *)&white, 0, 0, 1, 1);
 	quad_mesh = create_quad_mesh(1, 1);
@@ -4108,10 +4109,18 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 
 /*
  * Cloud tiles (b3d_tile_is_cloud) of backgrounds 2 and 3 are soft clouds: add_background_batches
- * collects them instead of drawing them, and for each background they are drawn into a canvas at
- * half resolution, blurred into soft edges and shaded by their thickness from the light's side.
- * The canvas is drawn as two translucent slices at the background's height (some depth in
- * perspective) and once more, dark and faint, on the ground where the sun casts its shadow.
+ * leaves them out of the tiles it draws, and collect_cloud_tiles takes them from the map over the view
+ * and a margin round it (as far as their soft edges, puffs and shadows reach into the view), so that
+ * clouds are whole before they come into view. For each background they are drawn into a canvas,
+ * blurred into soft edges and shaded by their thickness from the light's side, worked out every
+ * CLOUD_SCALE game pixels on a lattice fixed to the map (each texel is made of the same pixels of the
+ * map every time the canvas is made again), then put into the texture at CLOUD_FINE times that, the
+ * edges' ramps smooth (build_cloud_canvas). The canvas is drawn as two translucent slices at the
+ * background's height (some depth in perspective), and once more, dark and faint, where the sun casts
+ * its shadow, over the highest ground drawn under it (on the plane, raised ground would hide it).
+ * Puffs heaped on the canvas give the clouds volume. The clouds stay above the ground drawn under them,
+ * and solids that the game draws over the clouds but the 3D view below them clear the clouds where they
+ * stand (note_cloud_ground).
  */
 typedef struct
 {
@@ -4123,17 +4132,35 @@ typedef struct
 	int map_row, map_column;  // where in the map (the puffs' places are fixed to it)
 } CloudTile;
 
-#define MAX_CLOUD_TILES 1024
+#define MAX_CLOUD_TILES 2048
 static CloudTile cloud_tiles[MAX_CLOUD_TILES];
 static int cloud_tile_count = 0;
 static Uint32 cloud_page_colors[4][256];  // by set: the colours its tiles are drawn in
+// By set: the view its clouds were collected for and what they were collected over (game pixels at
+// the tick: the view and the margins), how far the sun moves their shadow, and where its map's first
+// column and row are on the screen (the canvas's lattice and its noise go with the map).
+static float cloud_view[4][4], cloud_rect[4][4], cloud_shift[4][2], cloud_origin[4][2];
+
+// Room round the view whose clouds are made too (game pixels): their soft edges, wander and puffs
+// reach this far into it, their shadows as far again from the side the sun shines from. What is seen
+// of them is worked out a little further than the view (CLOUD_SEEN; their shadows' too): puffs reach
+// that far into it.
+#define CLOUD_MARGIN 60.0f
+#define CLOUD_SEEN 30.0f
+// How far above the highest ground drawn under them the clouds float at least (their lower slice and
+// puffs reach 1.5 below their height).
+#define CLOUD_CLEARANCE 4.0f
+// The canvas's coarse fields (its noise, the depth inside its clouds, their colours) are worked out
+// every CLOUD_COARSE texels: the lattice the canvas is fixed to the map by.
+#define CLOUD_COARSE 4
 
 static struct
 {
 	bool used, blended;
 	int set, layer;
 	float x0, z0;  // game pixels, the canvas's top left
-	int w, h;      // texels
+	int w, h;      // texels (CLOUD_SCALE game pixels; CLOUD_FINE times as many in the texture)
+	float base;    // the height its clouds float at (cloud_base)
 	// A tile of the map the canvas was made with, and where it was then and is now (the canvas is
 	// remade every other tick; between, it moves with the map).
 	int ref_row, ref_column;
@@ -4144,7 +4171,7 @@ static struct
 typedef struct
 {
 	float x, z;        // game pixels, where the canvas was made
-	float rise;        // above the clouds' layer
+	float rise;        // above the clouds' height
 	float radius;      // game pixels
 	float color[3];    // linear
 	float alpha;
@@ -4154,13 +4181,23 @@ typedef struct
 static CloudPuff cloud_puffs[MAX_CLOUD_PUFFS];
 static int cloud_puff_count = 0;
 
+// What the frame draws under its clouds (note_cloud_ground): the top of the highest ground (the
+// ground's terrain or relief, solids; world height), and the solids (backgrounds 2 and 3 as terrain,
+// below what flies), which the game may draw over clouds that the 3D view draws above them.
+typedef struct
+{
+	const L3DBackground *background;
+	float top;
+} CloudSolid;
+
+static float cloud_ground_top = -1e9f;
+static CloudSolid cloud_solids[L3D_MAX_BACKGROUNDS];
+static int cloud_solid_count = 0;
+
 static bool clouds_enabled(void)
 {
 	return m3d_enabled;
 }
-
-// How far each map has scrolled (game pixels, by set), so the clouds' detail stays with the map.
-static float map_scroll[4];
 
 // Smooth value noise, 0-1, with a lattice of `cell` pixels.
 static float cloud_noise(float x, float z, float cell, Uint32 seed)
@@ -4189,9 +4226,9 @@ static float cloud_billows(float x, float z)
 	return 0.5f * cloud_noise(x, z, 26.0f, 1) + 0.3f * cloud_noise(x, z, 11.0f, 2) + 0.2f * cloud_noise(x, z, 5.0f, 3);
 }
 
-// The clouds' noise fields over a canvas, worked out every CLOUD_COARSE texels and filled in
-// between (the noise is smooth at that scale; per texel it would cost a frame's time).
-#define CLOUD_COARSE 4
+// The clouds' noise fields over a canvas (x0, z0: its top left on the map), worked out every
+// CLOUD_COARSE texels and filled in between (the noise is smooth at that scale; per texel it would
+// cost a frame's time); with `live` (by CLOUD_COARSE x CLOUD_COARSE texels, `qw` across), only there.
 enum { CLOUD_WARP_X, CLOUD_WARP_Z, CLOUD_ERODE, CLOUD_BILLOW };
 
 static float cloud_field_at(int which, float x, float z)
@@ -4205,10 +4242,10 @@ static float cloud_field_at(int which, float x, float z)
 	}
 }
 
-static void cloud_field(float *out, int w, int h, float x0, float z0, int which)
+static void cloud_field(float *out, int w, int h, float x0, float z0, int which, const Uint8 *live, int qw)
 {
 	enum { MAX_COARSE = CLOUD_TEXELS / CLOUD_COARSE + 2 };
-	static float coarse[MAX_COARSE * MAX_COARSE];
+	static float coarse[MAX_COARSE * MAX_COARSE], row[MAX_COARSE];
 	const int gw = w / CLOUD_COARSE + 2, gh = h / CLOUD_COARSE + 2;
 	for (int gy = 0; gy < gh; ++gy)
 		for (int gx = 0; gx < gw; ++gx)
@@ -4216,15 +4253,22 @@ static void cloud_field(float *out, int w, int h, float x0, float z0, int which)
 			                                      z0 + (gy * CLOUD_COARSE + 0.5f) * CLOUD_SCALE);
 	for (int y = 0; y < h; ++y)
 	{
-		const int gy = y / CLOUD_COARSE;
-		const float ty = (y % CLOUD_COARSE) / (float)CLOUD_COARSE;
-		for (int x = 0; x < w; ++x)
+		// (between the lattice's rows, then along the row a lattice step at a time)
+		const float ty = (y % CLOUD_COARSE) * (1.0f / CLOUD_COARSE);
+		const float *top = &coarse[y / CLOUD_COARSE * gw], *bottom = top + gw;
+		for (int g = 0; g < gw; ++g)
+			row[g] = top[g] + (bottom[g] - top[g]) * ty;
+		float *o = &out[y * w];
+		const Uint8 *live_row = live != NULL ? &live[y / CLOUD_COARSE * qw] : NULL;
+		for (int x = 0, g = 0; x < w; x += CLOUD_COARSE, ++g)
 		{
-			const int gx = x / CLOUD_COARSE;
-			const float tx = (x % CLOUD_COARSE) / (float)CLOUD_COARSE;
-			const float *c = &coarse[gy * gw + gx];
-			const float top = c[0] + (c[1] - c[0]) * tx, bottom = c[gw] + (c[gw + 1] - c[gw]) * tx;
-			out[y * w + x] = top + (bottom - top) * ty;
+			if (live_row != NULL && !live_row[g])
+				continue;
+			const float step = (row[g + 1] - row[g]) * (1.0f / CLOUD_COARSE);
+			const int end = x + CLOUD_COARSE < w ? x + CLOUD_COARSE : w;
+			float value = row[g];
+			for (int k = x; k < end; ++k, value += step)
+				o[k] = value;
 		}
 	}
 }
@@ -4289,29 +4333,191 @@ static void box_blur(float *values, float *scratch, int w, int h, int radius)
 	}
 }
 
-// Draws one background's cloud tiles into canvas `c` (on the game's ticks).
-static void build_cloud_canvas(int c, int set, int layer, bool blended)
+// Where the clouds of a layer float: at its height, but above the ground drawn under them.
+static float cloud_base(const float *heights, int layer)
 {
-	enum { N = CLOUD_TEXELS * CLOUD_TEXELS };
-	static float cover[N], red[N], green[N], blue[N], scratch[N];
-	static float sharp_cover[N], sharp_red[N], sharp_green[N], sharp_blue[N], wide[N], field_a[N], field_b[N];
-	static Uint32 rgba[N];
+	return SDL_max(heights[layer], cloud_ground_top + CLOUD_CLEARANCE);
+}
 
+// How far the sun's light moves a cloud's shadow from under it (game pixels across and down the
+// screen), for a cloud `drop` above the ground.
+static void cloud_shadow_shift(float drop, float shift[2])
+{
+	const float down = SDL_max(-sun_direction[1], 0.05f);
+	shift[0] = sun_direction[0] * drop / down;
+	shift[1] = sun_direction[2] * drop / down;
+}
+
+// Takes a background's cloud tiles from its map, over the view (game pixels at the tick) and the
+// margins round it, for its canvas; `drop`: how high its clouds are above the ground their shadows
+// fall on.
+static void collect_cloud_tiles(const L3DBackground *background, const float view[4], float drop)
+{
+	static B3DTile found[MAX_CLOUD_TILES * 2];
+	const int set = background->set & 3;
+	float shift[2];
+	cloud_shadow_shift(drop, shift);
+	memcpy(cloud_view[set], view, sizeof(cloud_view[set]));
+	memcpy(cloud_shift[set], shift, sizeof(cloud_shift[set]));
+	float *rect = cloud_rect[set];
+	rect[0] = view[0] - CLOUD_MARGIN - SDL_max(shift[0], 0.0f);
+	rect[1] = view[1] - CLOUD_MARGIN - SDL_max(shift[1], 0.0f);
+	rect[2] = view[2] + CLOUD_MARGIN + SDL_max(-shift[0], 0.0f);
+	rect[3] = view[3] + CLOUD_MARGIN + SDL_max(-shift[1], 0.0f);
+	const int count = b3d_collect_tiles(background, false, rect[0], rect[1], rect[2], rect[3], found, (int)COUNTOF(found));
+	for (int t = 0; t < count; ++t)
+	{
+		const B3DTile *tile = &found[t];
+		if (t == 0)
+		{
+			// (From the rows the game drew, which follow each other in the map.)
+			cloud_origin[set][0] = tile->x - tile->map_column * B3D_TILE_W;
+			cloud_origin[set][1] = tile->z - tile->map_row * B3D_TILE_H;
+		}
+		const int index = tile->cell % B3D_TILES_PER_SET;
+		if (tile->cell >= B3D_CELLS || tile->cell / B3D_TILES_PER_SET + 1 != background->set ||
+		    !b3d_tile_is_cloud(background->set, index) || cloud_tile_count == MAX_CLOUD_TILES)
+			continue;
+		cloud_tiles[cloud_tile_count++] = (CloudTile){
+			(Uint8)background->set, (Uint8)index, tile->flipped, background->blend, background->layer,
+			tile->x, tile->z, cloud_page_colors[background->set], tile->map_row, tile->map_column };
+	}
+}
+
+// Puts a tile's pixels at the texels' middles onto a canvas of w x h texels (the tile's top left
+// `left`, `top` game pixels from the canvas's): 1 into `cover` where it has a pixel; with `tint`,
+// their colours and how many into its sums by CLOUD_COARSE x CLOUD_COARSE texels (`qw` across), and
+// their brightness into `light`.
+static void cloud_point_raster(const Uint8 *data, bool flipped, int left, int top, int w, int h, float *cover,
+                               float *const tint[4], float *light, const Uint32 *colors, int qw)
+{
+	enum { MID = CLOUD_SCALE / 2 };  // (the pixel at a texel's middle)
+	const int x_first = SDL_max(0, (int)ceilf((left - MID) / (float)CLOUD_SCALE));
+	const int x_last = SDL_min(w - 1, (int)floorf((left + B3D_TILE_W - 1 - MID) / (float)CLOUD_SCALE));
+	const int y_first = SDL_max(0, (int)ceilf((top - MID) / (float)CLOUD_SCALE));
+	const int y_last = SDL_min(h - 1, (int)floorf((top + B3D_TILE_H - 1 - MID) / (float)CLOUD_SCALE));
+	for (int ty = y_first; ty <= y_last; ++ty)
+	{
+		const Uint8 *row = &data[(ty * CLOUD_SCALE + MID - top) * B3D_TILE_W];
+		float *out = &cover[ty * w], *bright = light != NULL ? &light[ty * w] : NULL;
+		const int q_row = ty / CLOUD_COARSE * qw;
+		for (int tx = x_first; tx <= x_last; ++tx)
+		{
+			const int px = tx * CLOUD_SCALE + MID - left;
+			const Uint8 value = row[flipped ? B3D_TILE_W - 1 - px : px];
+			if (value == 0)
+				continue;
+			out[tx] = 1.0f;
+			if (tint != NULL)
+			{
+				const Uint8 *rgb = (const Uint8 *)&colors[value];
+				const int q = q_row + tx / CLOUD_COARSE;
+				tint[0][q] += rgb[0];
+				tint[1][q] += rgb[1];
+				tint[2][q] += rgb[2];
+				tint[3][q] += 1;
+				bright[tx] = 0.299f * rgb[0] + 0.587f * rgb[1] + 0.114f * rgb[2];
+			}
+		}
+	}
+}
+
+// Marks (0-1, blurred) where on a canvas the solids stand that the game draws over the clouds of
+// `layer` while the 3D view draws them lower than the clouds (at `base`): the clouds clear there, as
+// the game shows those solids over them. False when there is none.
+static bool cloud_solid_mask(int layer, float base, float x0, float z0, int w, int h, float *mask, float *scratch)
+{
+	static B3DTile tiles[MAX_CLOUD_TILES * 2];
+	bool any = false;
+	for (int s = 0; s < cloud_solid_count; ++s)
+	{
+		const CloudSolid *solid = &cloud_solids[s];
+		if (solid->background->layer <= layer || solid->top > base - 1.5f)
+			continue;
+		if (!any)
+			memset(mask, 0, sizeof(float) * (size_t)(w * h));
+		any = true;
+		const int count = b3d_collect_tiles(solid->background, false, x0, z0, x0 + w * CLOUD_SCALE, z0 + h * CLOUD_SCALE,
+		                                    tiles, (int)COUNTOF(tiles));
+		for (int t = 0; t < count; ++t)
+		{
+			const B3DTile *tile = &tiles[t];
+			const Uint8 *data = tile->cell < B3D_CELLS
+			                        ? b3d_tile_pixels(tile->cell / B3D_TILES_PER_SET + 1, tile->cell % B3D_TILES_PER_SET)
+			                        : NULL;
+			if (data != NULL)
+				cloud_point_raster(data, tile->flipped, (int)lroundf(tile->x - x0), (int)lroundf(tile->z - z0), w, h, mask,
+				                   NULL, NULL, NULL, 0);
+		}
+	}
+	if (any)
+		box_blur(mask, scratch, w, h, 2);
+	return any;
+}
+
+// A canvas row upsampled across into the texture's CLOUD_FINE (2) texels a texel: the alpha's ramp
+// (field 0) through a quadratic B-spline (weights 0.28125, 0.6875, 0.03125 for the texture texel a
+// quarter of a texel left of the middle, mirrored right of it: smooth, so that magnified no texel's
+// edge shows), the colours (fields 1-3) linearly. A row that isn't `live` is clear.
+_Static_assert(CLOUD_FINE == 2, "cloud_upsample_row makes two texture texels of a canvas texel");
+
+static void cloud_upsample_row(float *const fields[4], int w, int y, bool live, float out[4][CLOUD_TEXELS * CLOUD_FINE])
+{
+	if (!live)  // (far from the clouds: clear)
+	{
+		memset(out[0], 0, sizeof(float) * (size_t)(w * CLOUD_FINE));
+		return;
+	}
+	for (int k = 0; k < 4; ++k)
+	{
+		const float *f = fields[k] + y * w;
+		float *o = out[k];
+		const float a = k == 0 ? 0.28125f : 0.25f, b = k == 0 ? 0.6875f : 0.75f, c = k == 0 ? 0.03125f : 0.0f;
+		float left = f[0], mid = f[0];
+		for (int x = 0; x < w; ++x)
+		{
+			const float right = f[x + 1 < w ? x + 1 : x];
+			o[2 * x] = a * left + b * mid + c * right;
+			o[2 * x + 1] = c * left + b * mid + a * right;
+			left = mid;
+			mid = right;
+		}
+	}
+}
+
+// Draws one background's cloud tiles into canvas `c` (on the game's ticks); `base`: where its clouds
+// float (cloud_base).
+static void build_cloud_canvas(int c, int set, int layer, bool blended, float base)
+{
+	enum { N = CLOUD_TEXELS * CLOUD_TEXELS, Q = CLOUD_COARSE, QS = CLOUD_TEXELS / CLOUD_COARSE + 1, FW = CLOUD_TEXELS * CLOUD_FINE };
+	static float cover[N], scratch[N], wide[N], field_a[N], field_b[N], solid[N], ramp[N], red[N], green[N], blue[N];
+	static float light[N], local[N];
+	static float small[QS * QS], small_scratch[QS * QS], tint_sums[4][QS * QS];
+	static Uint8 live[QS * QS], nearby[QS * QS];
+	static float up[3][4][FW];
+	static Uint32 rgba[N * CLOUD_FINE * CLOUD_FINE];
+
+	// What the canvas covers: its tiles and room for their soft edges round them, as far as the clouds
+	// were collected (beyond, they don't reach into the view).
 	float x0 = 1e9f, z0 = 1e9f, x1 = -1e9f, z1 = -1e9f;
+	int ref = -1;
 	for (int t = 0; t < cloud_tile_count; ++t)
 		if (cloud_tiles[t].set == set)
 		{
+			if (ref < 0)
+				ref = t;
 			x0 = SDL_min(x0, cloud_tiles[t].x);
 			z0 = SDL_min(z0, cloud_tiles[t].z);
 			x1 = SDL_max(x1, cloud_tiles[t].x + B3D_TILE_W);
 			z1 = SDL_max(z1, cloud_tiles[t].z + B3D_TILE_H);
 		}
-	const int margin = 40;  // room for the soft edges and their wander (game pixels)
-	x0 -= margin;
-	z0 -= margin;
-	x1 += margin;
-	z1 += margin;
-	const float size = CLOUD_TEXELS * CLOUD_SCALE;
+	const float *rect = cloud_rect[set & 3];
+	const float margin = 40;  // room for the soft edges and their wander (game pixels)
+	x0 = SDL_max(x0 - margin, rect[0]);
+	z0 = SDL_max(z0 - margin, rect[1]);
+	x1 = SDL_min(x1 + margin, rect[2]);
+	z1 = SDL_min(z1 + margin, rect[3]);
+	const float size = CLOUD_TEXELS * CLOUD_SCALE - CLOUD_SCALE * CLOUD_COARSE;  // (room to snap to the lattice)
 	if (x1 - x0 > size)
 	{
 		const float centre = l3d_field_x() + l3d_field_w() / 2.0f;
@@ -4320,187 +4526,240 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 	}
 	if (z1 - z0 > size)
 		z0 = z1 - size;  // keep the near part
+	// On the lattice fixed to the map.
+	const float lattice = CLOUD_SCALE * CLOUD_COARSE, ox = cloud_origin[set & 3][0], oz = cloud_origin[set & 3][1];
+	x0 = ox + floorf((x0 - ox) / lattice) * lattice;
+	z0 = oz + floorf((z0 - oz) / lattice) * lattice;
 	const int w = SDL_min(CLOUD_TEXELS, (int)ceilf((x1 - x0) / CLOUD_SCALE));
 	const int h = SDL_min(CLOUD_TEXELS, (int)ceilf((z1 - z0) / CLOUD_SCALE));
-	cloud_canvases[c].used = true;
-	cloud_canvases[c].blended = blended;
 	cloud_canvases[c].set = set;
 	cloud_canvases[c].layer = layer;
-	cloud_canvases[c].x0 = floorf(x0);
-	cloud_canvases[c].z0 = floorf(z0);
+	cloud_canvases[c].used = ref >= 0 && w > 0 && h > 0;
+	if (!cloud_canvases[c].used)
+		return;
+	cloud_canvases[c].blended = blended;
+	cloud_canvases[c].x0 = x0;
+	cloud_canvases[c].z0 = z0;
 	cloud_canvases[c].w = w;
 	cloud_canvases[c].h = h;
+	cloud_canvases[c].base = base;
 	cloud_canvases[c].dx = cloud_canvases[c].dz = 0;
-	for (int t = 0; t < cloud_tile_count; ++t)
-		if (cloud_tiles[t].set == set)
-		{
-			cloud_canvases[c].ref_row = cloud_tiles[t].map_row;
-			cloud_canvases[c].ref_column = cloud_tiles[t].map_column;
-			cloud_canvases[c].ref_x = cloud_tiles[t].x;
-			cloud_canvases[c].ref_z = cloud_tiles[t].z;
-			break;
-		}
-	x0 = floorf(x0);
-	z0 = floorf(z0);
+	cloud_canvases[c].ref_row = cloud_tiles[ref].map_row;
+	cloud_canvases[c].ref_column = cloud_tiles[ref].map_column;
+	cloud_canvases[c].ref_x = cloud_tiles[ref].x;
+	cloud_canvases[c].ref_z = cloud_tiles[ref].z;
+	const float map_x0 = x0 - ox, map_z0 = z0 - oz;  // the canvas's top left on the map
 
-	memset(cover, 0, sizeof(float) * w * h);
-	memset(red, 0, sizeof(float) * w * h);
-	memset(green, 0, sizeof(float) * w * h);
-	memset(blue, 0, sizeof(float) * w * h);
+	// The tiles' pixels at the texels' middles, their colours by CLOUD_COARSE x CLOUD_COARSE texels.
+	const int qw = (w + Q - 1) / Q, qh = (h + Q - 1) / Q;
+	float *const tint[4] = { tint_sums[0], tint_sums[1], tint_sums[2], tint_sums[3] };
+	memset(cover, 0, sizeof(float) * (size_t)(w * h));
+	memset(light, 0, sizeof(float) * (size_t)(w * h));
+	for (int k = 0; k < 4; ++k)
+		memset(tint[k], 0, sizeof(float) * (size_t)(qw * qh));
 	for (int t = 0; t < cloud_tile_count; ++t)
 	{
 		const CloudTile *tile = &cloud_tiles[t];
 		const Uint8 *data = tile->set == set ? b3d_tile_pixels(tile->set, tile->tile) : NULL;
-		if (data == NULL)
-			continue;
-		for (int y = 0; y < B3D_TILE_H; ++y)
-		{
-			const int ty = (int)(tile->z + y - z0) / CLOUD_SCALE;
-			if (ty < 0 || ty >= h)
-				continue;
-			for (int x = 0; x < B3D_TILE_W; ++x)
-			{
-				const Uint8 value = data[y * B3D_TILE_W + (tile->flipped ? B3D_TILE_W - 1 - x : x)];
-				const int tx = (int)(tile->x + x - x0) / CLOUD_SCALE;
-				if (value == 0 || tx < 0 || tx >= w)
-					continue;
-				const Uint8 *color = (const Uint8 *)&tile->colors[value];
-				const int i = ty * w + tx;
-				cover[i] += 1.0f / (CLOUD_SCALE * CLOUD_SCALE);
-				red[i] += color[0];
-				green[i] += color[1];
-				blue[i] += color[2];
-			}
-		}
+		if (data != NULL)
+			cloud_point_raster(data, tile->flipped, (int)lroundf(tile->x - x0), (int)lroundf(tile->z - z0), w, h, cover, tint,
+			                   light, tile->colors, qw);
 	}
-	// Soft edges: the cover blurred (about a gaussian); colours blurred by cover, so that the edges
-	// take their neighbours' colours.
+	// The tiles' own light and shade, lightly softened: how bright they are round each texel, and how
+	// much of it they cover.
+	memcpy(local, cover, sizeof(float) * (size_t)(w * h));
+	box_blur(local, scratch, w, h, 1);
+	box_blur(light, scratch, w, h, 1);
 	for (int i = 0; i < w * h; ++i)
-	{
-		const float n = cover[i] * CLOUD_SCALE * CLOUD_SCALE;
-		if (n > 0)
+		light[i] = local[i] > 0.2f ? light[i] / local[i] : 0.0f;
+	// Soft edges: the cover blurred (about a gaussian).
+	box_blur(cover, scratch, w, h, 2);
+	box_blur(cover, scratch, w, h, 2);
+	// How deep inside the cloud: its cover blurred widely (at a quarter of the resolution: it is wide
+	// and smooth); the clouds' colours, as widely (with the cover's edges eaten away and wandering
+	// below, the tiles' own colours at a texel need not be the cloud's there).
+	for (int qy = 0; qy < qh; ++qy)
+		for (int qx = 0; qx < qw; ++qx)
 		{
-			red[i] = red[i] / n * cover[i];
-			green[i] = green[i] / n * cover[i];
-			blue[i] = blue[i] / n * cover[i];
+			const int y_end = SDL_min(qy * Q + Q, h), x_end = SDL_min(qx * Q + Q, w);
+			float sum = 0;
+			for (int y = qy * Q; y < y_end; ++y)
+				for (int x = qx * Q; x < x_end; ++x)
+					sum += cover[y * w + x];
+			small[qy * qw + qx] = sum / ((y_end - qy * Q) * (x_end - qx * Q));
 		}
-	}
-	// The cloud's own texture, lightly softened, inside; widely blurred colours at the soft edges.
-	memcpy(sharp_cover, cover, sizeof(float) * w * h);
-	memcpy(sharp_red, red, sizeof(float) * w * h);
-	memcpy(sharp_green, green, sizeof(float) * w * h);
-	memcpy(sharp_blue, blue, sizeof(float) * w * h);
-	box_blur(sharp_cover, scratch, w, h, 1);
-	box_blur(sharp_red, scratch, w, h, 1);
-	box_blur(sharp_green, scratch, w, h, 1);
-	box_blur(sharp_blue, scratch, w, h, 1);
-	for (int pass = 0; pass < 2; ++pass)
+	// What is worked out: blocks of CLOUD_COARSE x CLOUD_COARSE texels as near a cloud as its edges'
+	// wander and shading reach (4 blocks), where they can be seen (the view, and where their shadows
+	// fall in it, a little beyond: CLOUD_SEEN); the rest of the canvas stays clear.
+	memset(nearby, 0, (size_t)(qw * qh));
+	for (int qy = 0; qy < qh; ++qy)
+		for (int qx = 0; qx < qw; ++qx)
+			if (small[qy * qw + qx] > 1e-4f)
+				memset(&nearby[qy * qw + SDL_max(qx - 4, 0)], 1, (size_t)(SDL_min(qx + 4, qw - 1) - SDL_max(qx - 4, 0) + 1));
+	for (int qy = 0; qy < qh; ++qy)
+		for (int qx = 0; qx < qw; ++qx)
+		{
+			Uint8 any = 0;
+			for (int k = SDL_max(qy - 4, 0); k <= SDL_min(qy + 4, qh - 1) && !any; ++k)
+				any = nearby[k * qw + qx];
+			live[qy * qw + qx] = any;
+		}
 	{
-		box_blur(red, scratch, w, h, 2);
-		box_blur(green, scratch, w, h, 2);
-		box_blur(blue, scratch, w, h, 2);
-		box_blur(cover, scratch, w, h, 2);
-	}
-	// How deep inside the cloud: its cover blurred widely. The edges (where it is low) are eaten
-	// away by large noise, so that clouds don't keep the tiles' straight borders.
-	// (Blurred at a quarter of the resolution: it is wide and smooth.)
-	{
-		enum { Q = 4 };
-		const int qw = (w + Q - 1) / Q, qh = (h + Q - 1) / Q;
-		static float small[(CLOUD_TEXELS / Q + 1) * (CLOUD_TEXELS / Q + 1)], small_scratch[(CLOUD_TEXELS / Q + 1) * (CLOUD_TEXELS / Q + 1)];
+		const float *view = cloud_view[set & 3], *shift = cloud_shift[set & 3];
+		const float seen[4] = { SDL_min(view[0], view[0] - shift[0]) - CLOUD_SEEN, SDL_min(view[1], view[1] - shift[1]) - CLOUD_SEEN,
+		                        SDL_max(view[2], view[2] - shift[0]) + CLOUD_SEEN, SDL_max(view[3], view[3] - shift[1]) + CLOUD_SEEN };
+		const float block = CLOUD_SCALE * Q;
 		for (int qy = 0; qy < qh; ++qy)
 			for (int qx = 0; qx < qw; ++qx)
-			{
-				float sum = 0;
-				int n = 0;
-				for (int y = qy * Q; y < SDL_min(qy * Q + Q, h); ++y)
-					for (int x = qx * Q; x < SDL_min(qx * Q + Q, w); ++x, ++n)
-						sum += cover[y * w + x];
-				small[qy * qw + qx] = n ? sum / n : 0;
-			}
-		for (int pass = 0; pass < 3; ++pass)
-			box_blur(small, small_scratch, qw, qh, 1);
+				if (x0 + (qx + 1) * block < seen[0] || x0 + qx * block > seen[2] || z0 + (qy + 1) * block < seen[1] ||
+				    z0 + qy * block > seen[3])
+					live[qy * qw + qx] = 0;
+	}
+	for (int pass = 0; pass < 3; ++pass)
+	{
+		box_blur(small, small_scratch, qw, qh, 1);
+		for (int k = 0; k < 4; ++k)
+			box_blur(tint[k], small_scratch, qw, qh, 1);
+	}
+	{
+		double all[4] = { 0, 0, 0, 0 };  // (where no tile is near: the canvas's colour)
+		for (int q = 0; q < qw * qh; ++q)
+			for (int k = 0; k < 4; ++k)
+				all[k] += tint[k][q];
+		for (int q = 0; q < qw * qh; ++q)
+		{
+			const float n = tint[3][q];
+			for (int k = 0; k < 3; ++k)
+				tint[k][q] = n > 0.02f ? tint[k][q] / n : all[3] > 0 ? (float)(all[k] / all[3]) : 255.0f;
+		}
+	}
+	{
+		// (bilinearly: between rows first, then along them, the columns' weights worked out once)
+		static int column[CLOUD_TEXELS];
+		static float across[CLOUD_TEXELS], between[QS];
+		for (int x = 0; x < w; ++x)
+		{
+			float fx = (x + 0.5f) / Q - 0.5f;
+			fx = fx < 0 ? 0 : fx > qw - 1 ? (float)(qw - 1) : fx;
+			column[x] = SDL_min((int)fx, qw - 2 > 0 ? qw - 2 : 0);
+			across[x] = qw > 1 ? fx - column[x] : 0.0f;
+		}
+		const float *const quarter[4] = { small, tint[0], tint[1], tint[2] };
+		float *const full[4] = { wide, red, green, blue };
 		for (int y = 0; y < h; ++y)
 		{
-			const float fy = SDL_clamp((y + 0.5f) / Q - 0.5f, 0.0f, (float)(qh - 1));
+			const Uint8 *live_row = &live[y / Q * qw];
+			float fy = (y + 0.5f) / Q - 0.5f;
+			fy = fy < 0 ? 0 : fy > qh - 1 ? (float)(qh - 1) : fy;
 			const int y0 = (int)fy, y1 = SDL_min(y0 + 1, qh - 1);
 			const float ty = fy - y0;
-			for (int x = 0; x < w; ++x)
+			for (int k = 0; k < 4; ++k)
 			{
-				const float fx = SDL_clamp((x + 0.5f) / Q - 0.5f, 0.0f, (float)(qw - 1));
-				const int x0i = (int)fx, x1 = SDL_min(x0i + 1, qw - 1);
-				const float tx = fx - x0i;
-				const float top = small[y0 * qw + x0i] + (small[y0 * qw + x1] - small[y0 * qw + x0i]) * tx;
-				const float bottom = small[y1 * qw + x0i] + (small[y1 * qw + x1] - small[y1 * qw + x0i]) * tx;
-				wide[y * w + x] = top + (bottom - top) * ty;
+				const float *a = quarter[k] + y0 * qw, *b = quarter[k] + y1 * qw;
+				for (int g = 0; g < qw; ++g)
+					between[g] = a[g] + (b[g] - a[g]) * ty;
+				between[qw] = between[qw - 1];
+				float *o = full[k] + y * w;
+				for (int x = 0; x < w; ++x)
+					if (live_row[x / Q])
+					{
+						const float *v = &between[column[x]];
+						o[x] = v[0] + (v[1] - v[0]) * across[x];
+					}
 			}
 		}
 	}
-	// The edges wander too: the cover is looked up a little way off, by noise (up to 12 texels).
-	memcpy(scratch, cover, sizeof(float) * w * h);
-	const float map_z0 = z0 - map_scroll[set & 3];
-	cloud_field(field_a, w, h, x0, map_z0, CLOUD_WARP_X);
-	cloud_field(field_b, w, h, x0, map_z0, CLOUD_WARP_Z);
-	for (int i = 0; i < w * h; ++i)
-	{
-		const int wx = (int)lroundf((field_a[i] - 0.5f) * 48.0f / CLOUD_SCALE);
-		const int wz = (int)lroundf((field_b[i] - 0.5f) * 48.0f / CLOUD_SCALE);
-		const int sx = SDL_clamp(i % w + wx, 0, w - 1), sz = SDL_clamp(i / w + wz, 0, h - 1);
-		cover[i] = scratch[sz * w + sx];
-	}
-	cloud_field(field_a, w, h, x0, map_z0, CLOUD_ERODE);
-	cloud_field(field_b, w, h, x0 + glint_time * 3.0f, map_z0, CLOUD_BILLOW);
-	for (int i = 0; i < w * h; ++i)
-	{
-		const float erode = field_a[i];
-		cover[i] = SDL_max(0.0f, cover[i] - 0.7f * erode * (1 - SDL_min(1.0f, wide[i])) * SDL_min(1.0f, cover[i] * 3));
-		// Nothing at the canvas's edges (where a cloud the canvas cuts off would end in a line).
-		const int edge = SDL_min(SDL_min(i % w, w - 1 - i % w), SDL_min(i / w, h - 1 - i / w));
-		cover[i] *= SDL_clamp(edge / 6.0f, 0.0f, 1.0f);
-	}
+	// The tiles' own light and shade as a factor on the clouds' colour, where the tiles are (`light`).
 	for (int y = 0; y < h; ++y)
+	{
+		const Uint8 *live_row = &live[y / Q * qw];
 		for (int x = 0; x < w; ++x)
 		{
 			const int i = y * w + x;
-			const float thickness = cover[i];
-			if (thickness < 0.02f)
-			{
-				rgba[i] = 0;
+			if (!live_row[x / Q])
 				continue;
-			}
-			// Billows: thicker and thinner patches that drift slowly with the wind, fixed to the map.
-			const float billow = field_b[i];
-			// Lit from the upper left: brighter where the cloud thins towards the light, darker on the
-			// far side; thin parts let more of the ground through.
-			const float towards = cover[SDL_max(y - 3, 0) * w + SDL_max(x - 3, 0)];
-			const float away = cover[SDL_min(y + 3, h - 1) * w + SDL_min(x + 3, w - 1)];
-			const float shade = SDL_clamp(1.0f + 1.8f * (away - towards), 0.68f, 1.25f) * (0.8f + 0.4f * billow);
-			const float t = SDL_clamp((thickness * (0.55f + 0.9f * billow) - 0.06f) / 0.55f, 0.0f, 1.0f);
-			const float alpha = t * t * (3 - 2 * t) * 0.85f;
-			Uint8 *out = (Uint8 *)&rgba[i];
-			float base[3] = { red[i] / thickness, green[i] / thickness, blue[i] / thickness };
-			if (sharp_cover[i] > 0.15f)
+			float inside = (local[i] - 0.35f) * 2.0f, factor = 1;
+			if (inside > 0)
 			{
-				const float k = SDL_min(1.0f, (sharp_cover[i] - 0.15f) / 0.3f);
-				base[0] += (sharp_red[i] / sharp_cover[i] - base[0]) * k;
-				base[1] += (sharp_green[i] / sharp_cover[i] - base[1]) * k;
-				base[2] += (sharp_blue[i] / sharp_cover[i] - base[2]) * k;
+				inside = inside < 1 ? inside * inside * (3 - 2 * inside) : 1;
+				const float own = 0.299f * red[i] + 0.587f * green[i] + 0.114f * blue[i];
+				float ratio = light[i] / (own > 1 ? own : 1);
+				ratio = ratio < 0.6f ? 0.6f : ratio > 1.4f ? 1.4f : ratio;
+				factor = 1 + (ratio - 1) * inside;
 			}
-			for (int k = 0; k < 3; ++k)
-			{
-				const float whiter = base[k] + (255.0f - base[k]) * 0.3f;  // clouds whiter than the tiles
-				out[k] = (Uint8)SDL_clamp(whiter * shade, 0.0f, 255.0f);
-			}
-			out[3] = (Uint8)(alpha * 255.0f);
+			light[i] = factor;
 		}
-	btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)rgba, 0, c * CLOUD_TEXELS, w, h);
+	}
+	// The edges wander too: the cover is looked up a little way off, by noise (up to 8 texels), between
+	// texels (looked up at the nearest, its edges would step); the tiles' light and shade with it.
+	memcpy(scratch, cover, sizeof(float) * (size_t)(w * h));
+	memset(cover, 0, sizeof(float) * (size_t)(w * h));
+	cloud_field(field_a, w, h, map_x0, map_z0, CLOUD_WARP_X, live, qw);
+	cloud_field(field_b, w, h, map_x0, map_z0, CLOUD_WARP_Z, live, qw);
+	const float reach = 48.0f / CLOUD_SCALE, right = (float)(w - 1), bottom_row = (float)(h - 1);
+	for (int y = 0; y < h; ++y)
+	{
+		const float *warp_x = &field_a[y * w], *warp_z = &field_b[y * w];
+		const Uint8 *live_row = &live[y / Q * qw];
+		float *out = &cover[y * w];
+		for (int x = 0; x < w; ++x)
+		{
+			if (!live_row[x / Q])
+				continue;
+			float sx = x + (warp_x[x] - 0.5f) * reach, sz = y + (warp_z[x] - 0.5f) * reach;
+			sx = sx < 0 ? 0 : sx > right ? right : sx;
+			sz = sz < 0 ? 0 : sz > bottom_row ? bottom_row : sz;
+			const int ix = (int)sx, iz = (int)sz;
+			const int ix1 = ix + 1 < w ? ix + 1 : ix, iz1 = iz + 1 < h ? iz + 1 : iz;
+			const float fx = sx - ix, fz = sz - iz;
+			const int a = iz * w + ix, b = iz * w + ix1, d = iz1 * w + ix, e = iz1 * w + ix1;
+			const float wa = (1 - fx) * (1 - fz), wb = fx * (1 - fz), wd = (1 - fx) * fz, we = fx * fz;
+			out[x] = scratch[a] * wa + scratch[b] * wb + scratch[d] * wd + scratch[e] * we;
+			ramp[y * w + x] = light[a] * wa + light[b] * wb + light[d] * wd + light[e] * we;
+		}
+	}
+	// The edges (where it is low) are eaten away by large noise, so that clouds don't keep the tiles'
+	// straight borders. Nothing at the canvas's edges (where a cloud the canvas cuts off would end in a
+	// line), and the clouds fade out towards the furthest drawn row as the tiles do.
+	cloud_field(field_a, w, h, map_x0, map_z0, CLOUD_ERODE, live, qw);
+	cloud_field(field_b, w, h, map_x0 + glint_time * 3.0f, map_z0, CLOUD_BILLOW, live, qw);
+	for (int y = 0; y < h; ++y)
+	{
+		float far = (BACKGROUND_AHEAD + z0 + (y + 0.5f) * CLOUD_SCALE) * (1.0f / BACKGROUND_FADE);
+		far = far < 0 ? 0 : far > 1 ? 1 : far;
+		const float edge_y = SDL_min(y, h - 1 - y) * (1.0f / 6);  // (6 texels in from the edges)
+		float *out = &cover[y * w];
+		const float *erode = &field_a[y * w], *deep = &wide[y * w];
+		const Uint8 *live_row = &live[y / Q * qw];
+		for (int x = 0; x < w; ++x)
+		{
+			if (!live_row[x / Q])
+				continue;
+			const float c0 = out[x], outer = deep[x] < 1 ? 1 - deep[x] : 0, thin = c0 * 3 < 1 ? c0 * 3 : 1;
+			const float thick = c0 - 0.7f * erode[x] * outer * thin;
+			float edge = SDL_min(x, w - 1 - x) * (1.0f / 6);
+			edge = edge < edge_y ? edge : edge_y;
+			out[x] = thick <= 0 ? 0 : thick * (edge < 1 ? edge : 1) * far;
+		}
+	}
+	// Clear where solids stand that the game draws over these clouds (a little round them too).
+	const bool cleared = cloud_solid_mask(layer, base, x0, z0, w, h, solid, scratch);
+	if (cleared)
+		for (int i = 0; i < w * h; ++i)
+		{
+			const float k = SDL_clamp((solid[i] - 0.12f) / 0.4f, 0.0f, 1.0f);
+			cover[i] *= 1 - k * k * (3 - 2 * k);
+		}
 
 	// Puffs where the cloud is thick, at places fixed to the map: a few per tile, jittered, heaped
-	// highest in the middle of the cloud (`wide`), small and sparse at its edges.
+	// highest in the middle of the cloud (`wide`), small and sparse at its edges; those that can reach
+	// into the view.
+	const float *view = cloud_view[set & 3];
 	for (int t = 0; t < cloud_tile_count; ++t)
 	{
 		const CloudTile *tile = &cloud_tiles[t];
-		if (tile->set != set)
+		if (tile->set != set || tile->x + B3D_TILE_W < view[0] - CLOUD_SEEN || tile->x > view[2] + CLOUD_SEEN ||
+		    tile->z + B3D_TILE_H < view[1] - CLOUD_SEEN || tile->z > view[3] + CLOUD_SEEN)
 			continue;
 		for (int k = 0; k < 4 && cloud_puff_count < MAX_CLOUD_PUFFS; ++k)
 		{
@@ -4517,7 +4776,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 			const int i = tz * w + tx;
 			const float thickness = cover[i], heap = SDL_min(1.0f, wide[i]);
 			// Ragged edges: where the cloud thins, only some places get a puff.
-			const float edge_noise = cloud_noise(px, pz - map_scroll[set & 3], 19.0f, 5);
+			const float edge_noise = cloud_noise(px - ox, pz - oz, 19.0f, 5);
 			if (thickness < 0.35f + 0.35f * edge_noise * (1 - heap))
 				continue;
 			CloudPuff *puff = &cloud_puffs[cloud_puff_count++];
@@ -4527,7 +4786,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 			puff->radius = 5.0f + 11.0f * heap + 3.0f * jr;
 			for (int ch = 0; ch < 3; ++ch)
 			{
-				const float value = (ch == 0 ? red[i] : ch == 1 ? green[i] : blue[i]) / thickness;
+				const float value = ch == 0 ? red[i] : ch == 1 ? green[i] : blue[i];
 				puff->color[ch] = srgb_to_linear((Uint8)SDL_clamp(value + (255.0f - value) * 0.45f, 0.0f, 255.0f));
 			}
 			puff->alpha = SDL_clamp((thickness - 0.35f) * 2.0f, 0.0f, 1.0f) * (0.55f + 0.45f * heap) * (blended ? 0.5f : 0.7f);
@@ -4539,17 +4798,91 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended)
 		}
 	}
 
+	// Each texel's alpha ramp (into `scratch`) and colour: the clouds' colour, with the tiles' own light
+	// and shade (`ramp`). Billows: thicker and thinner patches that drift slowly with the wind, fixed to
+	// the map. Lit from the upper left: brighter where the cloud thins towards the light, darker on the
+	// far side; thin parts let more of the ground through.
+	memset(scratch, 0, sizeof(float) * (size_t)(w * h));
+	for (int y = 0; y < h; ++y)
+	{
+		const float *towards_row = &cover[(y >= 3 ? y - 3 : 0) * w], *away_row = &cover[(y + 3 < h ? y + 3 : h - 1) * w];
+		const Uint8 *live_row = &live[y / Q * qw];
+		for (int x = 0; x < w; ++x)
+		{
+			if (!live_row[x / Q])
+				continue;
+			const int i = y * w + x;
+			float r = red[i] * ramp[i], g = green[i] * ramp[i], b = blue[i] * ramp[i];
+			const float thickness = cover[i], billow = field_b[i];
+			const float towards = towards_row[x >= 3 ? x - 3 : 0], away = away_row[x + 3 < w ? x + 3 : w - 1];
+			float light = 1.0f + 1.8f * (away - towards);
+			light = light < 0.68f ? 0.68f : light > 1.25f ? 1.25f : light;
+			const float shade = light * (0.8f + 0.4f * billow);
+			float t = (thickness * (0.55f + 0.9f * billow) - 0.06f) * (1 / 0.55f);
+			scratch[i] = t < 0 ? 0 : t > 1 ? 1 : t;
+			// Clouds whiter than the tiles.
+			r = (r + (255.0f - r) * 0.3f) * shade;
+			g = (g + (255.0f - g) * 0.3f) * shade;
+			b = (b + (255.0f - b) * 0.3f) * shade;
+			red[i] = r < 255 ? r : 255;
+			green[i] = g < 255 ? g : 255;
+			blue[i] = b < 255 ? b : 255;
+		}
+	}
+	// Into the texture at CLOUD_FINE times the resolution (cloud_upsample_row across, the same down).
+	const int fw = w * CLOUD_FINE, fh = h * CLOUD_FINE;
+	float *const fields[4] = { scratch, red, green, blue };
+	static Uint8 row_live[QS];
+	for (int qy = 0; qy < qh; ++qy)
+		row_live[qy] = memchr(&live[qy * qw], 1, (size_t)qw) != NULL;
+	for (int y = 0; y < h && y < 2; ++y)
+		cloud_upsample_row(fields, w, y, row_live[y / Q], up[y]);
+	for (int y = 0; y < h; ++y)
+	{
+		if (y >= 1 && y + 1 < h)
+			cloud_upsample_row(fields, w, y + 1, row_live[(y + 1) / Q], up[(y + 1) % 3]);
+		float(*above)[FW] = up[SDL_max(y - 1, 0) % 3], (*mid)[FW] = up[y % 3], (*below)[FW] = up[SDL_min(y + 1, h - 1) % 3];
+		const float *ta = above[0], *tm = mid[0], *tb = below[0];
+		const float *ra = above[1], *rm = mid[1], *rb = below[1], *ga = above[2], *gm = mid[2], *gb = below[2];
+		const float *ba = above[3], *bm = mid[3], *bb = below[3];
+		Uint32 *upper_row = &rgba[(size_t)(2 * y) * fw];
+		memset(upper_row, 0, sizeof(Uint32) * (size_t)(2 * fw));
+		const Uint8 *live_row = &live[y / Q * qw];
+		for (int qx = 0; qx < qw; ++qx)
+		{
+			if (!live_row[qx])
+				continue;
+			const int x_end = SDL_min((qx + 1) * Q * CLOUD_FINE, fw);
+			for (int x = qx * Q * CLOUD_FINE; x < x_end; ++x)
+			{
+				Uint8 *upper = (Uint8 *)&upper_row[x], *lower = (Uint8 *)&upper_row[fw + x];
+				// (alpha: the ramp smoothed, at most 0.85)
+				float t = 0.28125f * ta[x] + 0.6875f * tm[x] + 0.03125f * tb[x];
+				upper[3] = (Uint8)(t * t * (3 - 2 * t) * (0.85f * 255.0f) + 0.5f);
+				t = 0.03125f * ta[x] + 0.6875f * tm[x] + 0.28125f * tb[x];
+				lower[3] = (Uint8)(t * t * (3 - 2 * t) * (0.85f * 255.0f) + 0.5f);
+				upper[0] = (Uint8)(0.25f * ra[x] + 0.75f * rm[x] + 0.5f);
+				lower[0] = (Uint8)(0.75f * rm[x] + 0.25f * rb[x] + 0.5f);
+				upper[1] = (Uint8)(0.25f * ga[x] + 0.75f * gm[x] + 0.5f);
+				lower[1] = (Uint8)(0.75f * gm[x] + 0.25f * gb[x] + 0.5f);
+				upper[2] = (Uint8)(0.25f * ba[x] + 0.75f * bm[x] + 0.5f);
+				lower[2] = (Uint8)(0.75f * bm[x] + 0.25f * bb[x] + 0.5f);
+			}
+		}
+	}
+	btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)rgba, 0, c * CLOUD_TEXELS * CLOUD_FINE, fw, fh);
 	// A clear texel beyond the canvas's right and bottom edges, so filtering there fades out.
-	static Uint32 clear[CLOUD_TEXELS + 1];
-	if (w < CLOUD_TEXELS)
-		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, w, c * CLOUD_TEXELS, 1, SDL_min(h + 1, CLOUD_TEXELS));
-	if (h < CLOUD_TEXELS)
-		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, 0, c * CLOUD_TEXELS + h, SDL_min(w + 1, CLOUD_TEXELS), 1);
+	static Uint32 clear[CLOUD_TEXELS * CLOUD_FINE + 1];
+	if (fw < CLOUD_TEXELS * CLOUD_FINE)
+		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, fw, c * CLOUD_TEXELS * CLOUD_FINE, 1,
+		                              SDL_min(fh + 1, CLOUD_TEXELS * CLOUD_FINE));
+	if (fh < CLOUD_TEXELS * CLOUD_FINE)
+		btbh_gpu_texture_update_rgba8(cloud_texture, (const uint8_t *)clear, 0, c * CLOUD_TEXELS * CLOUD_FINE + fh,
+		                              SDL_min(fw + 1, CLOUD_TEXELS * CLOUD_FINE), 1);
 	if (SDL_getenv("TYR3D_LOG_CLOUDS") != NULL)
-		printf("clouds: canvas %d set %d layer %d at %.0f,%.0f, %dx%d texels (frame %u)\n", c, set, layer, x0, z0, w, h,
-		       l3d_frame_number);
+		printf("clouds: canvas %d set %d layer %d at %.0f,%.0f, %dx%d texels, height %.1f over ground %.1f%s (frame %u)\n", c,
+		       set, layer, x0, z0, w, h, base, cloud_ground_top, cleared ? ", solids over it" : "", l3d_frame_number);
 }
-
 static void add_cloud_quad(int c, float height, float x_shift, float z_shift, float shade, float alpha, int *instance_count,
                            int *batch_count)
 {
@@ -4585,7 +4918,7 @@ static void add_cloud_quad(int c, float height, float x_shift, float z_shift, fl
 static float srgb_to_linear(Uint8 value);
 
 // The puffs, farthest first (they are blended), as billboards facing the camera.
-static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *instance_count, int *batch_count)
+static void add_cloud_puffs(const Camera3D *camera, int *instance_count, int *batch_count)
 {
 	if (cloud_puff_count == 0 || *batch_count >= MAX_BATCHES)
 		return;
@@ -4598,17 +4931,14 @@ static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *i
 		const float speed = background_speed[cloud_canvases[puff->canvas].set & 3] * ahead;
 		// Drifting a little with the wind, bobbing slowly.
 		position[i][0] = puff->x + cloud_canvases[puff->canvas].dx + sinf(glint_time * 0.4f + puff->z * 0.05f) * 1.2f;
-		position[i][1] = heights[cloud_canvases[puff->canvas].layer] + puff->rise;
-		// Under background 3's solids (drawn over the clouds), the puffs stay below their tops.
-		if (cloud_canvases[puff->canvas].set == 2 && frame_terrains[3] != NULL)
-			position[i][1] = SDL_min(position[i][1], solid_top(3) - 1.5f - puff->radius * 0.5f);
+		position[i][1] = cloud_canvases[puff->canvas].base + puff->rise;
 		position[i][2] = puff->z + cloud_canvases[puff->canvas].dz + speed;
 		const float d[3] = { position[i][0] - camera->position[0], position[i][1] - camera->position[1],
 		                     position[i][2] - camera->position[2] };
 		depth[i] = d[0] * camera->forward[0] + d[1] * camera->forward[1] + d[2] * camera->forward[2];
 		order[i] = i;
 	}
-	// Farthest first (insertion sort: the order changes little from frame to frame).
+	// Farthest first (insertion sort: they are made in about that order, compare_cloud_puffs).
 	for (int i = 1; i < cloud_puff_count; ++i)
 	{
 		const int o = order[i];
@@ -4658,6 +4988,13 @@ static void add_cloud_puffs(const float *heights, const Camera3D *camera, int *i
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
 }
 
+// The puffs by how far up the screen they are: about the order of their depth.
+static int compare_cloud_puffs(const void *a, const void *b)
+{
+	const float za = ((const CloudPuff *)a)->z, zb = ((const CloudPuff *)b)->z;
+	return za < zb ? -1 : za > zb;
+}
+
 static void add_cloud_batches(const float *heights, const Camera3D *camera, bool new_frame, int *instance_count,
                               int *batch_count)
 {
@@ -4703,7 +5040,8 @@ static void add_cloud_batches(const float *heights, const Camera3D *camera, bool
 			if (!done)
 			{
 				const Uint64 start = SDL_GetTicksNS();
-				build_cloud_canvas(canvases, cloud_tiles[t].set, cloud_tiles[t].layer, cloud_tiles[t].blended);
+				build_cloud_canvas(canvases, cloud_tiles[t].set, cloud_tiles[t].layer, cloud_tiles[t].blended,
+				                   cloud_base(heights, cloud_tiles[t].layer));
 				if (SDL_getenv("TYR3D_PROFILE") != NULL)
 				{
 					static Uint64 total = 0;
@@ -4717,20 +5055,24 @@ static void add_cloud_batches(const float *heights, const Camera3D *camera, bool
 				++canvases;
 			}
 		}
+		qsort(cloud_puffs, (size_t)cloud_puff_count, sizeof(cloud_puffs[0]), compare_cloud_puffs);
 	}
 
-	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
-	                           sun_direction[2] * sun_direction[2]);
-	const float sun[3] = { sun_direction[0] / length, sun_direction[1] / length, sun_direction[2] / length };
 	for (int c = 0; c < MAX_CLOUD_CANVASES; ++c)
 	{
 		if (!cloud_canvases[c].used)
 			continue;
-		const float height = heights[cloud_canvases[c].layer];
-		// The shadow on the ground, where the sun's light through the cloud lands.
-		const float ground = heights[0] + 0.15f, drop = height - ground + 30.0f;  // clouds float higher than their layer
-		add_cloud_quad(c, ground, sun[0] * drop / -sun[1], sun[2] * drop / -sun[1], 0.0f, cloud_canvases[c].blended ? 0.22f : 0.3f,
-		               instance_count, batch_count);
+		// Where the clouds float: above the ground drawn under them.
+		const float height = cloud_base(heights, cloud_canvases[c].layer);
+		cloud_canvases[c].base = height;
+		// The shadow, where the sun's light through the cloud lands on the ground (as from clouds floating
+		// higher than their layer), drawn over the highest ground under it: on the plane, raised ground
+		// would hide it.
+		const float ground = heights[0] + 0.15f;
+		float shift[2];
+		cloud_shadow_shift(height - ground + 30.0f, shift);
+		add_cloud_quad(c, SDL_max(ground, SDL_min(cloud_ground_top + 0.5f, height - 3.0f)), shift[0], shift[1], 0.0f,
+		               cloud_canvases[c].blended ? 0.22f : 0.3f, instance_count, batch_count);
 		// The cloud: two slices, a little apart, for some depth; clouds the game blends with what is
 		// below let about half of it through.
 		const float opacity = cloud_canvases[c].blended ? 0.42f : 0.7f;
@@ -4738,7 +5080,26 @@ static void add_cloud_batches(const float *heights, const Camera3D *camera, bool
 		add_cloud_quad(c, height + 1.5f, 0, 0, 1.0f, opacity, instance_count, batch_count);
 	}
 	// Their volume: puffs heaped on them.
-	add_cloud_puffs(heights, camera, instance_count, batch_count);
+	add_cloud_puffs(camera, instance_count, batch_count);
+}
+
+static float relief_height(void);
+
+// Notes what the frame draws of a background under the clouds (add_background_batches): its plane at
+// `height` as terrain (its relief drawn align_scale times as high about the plane), in relief by tiles,
+// or flat; and whether it is a solid. The ground, background 2 drawn with it and the solids are under
+// the clouds (the clouds stay above them, their shadows over them).
+static void note_cloud_ground(const L3DFrame *frame, const L3DBackground *background, float height, bool solid, bool relief)
+{
+	float top = height;
+	if (terrain_background(frame, background))
+		top += SDL_max(frame_terrains[background->set]->highest, 0) * align_scale(height);
+	else if (relief)
+		top += relief_height() * align_scale(height);
+	if (background->set == 1 || solid || frame->layers[background->layer].type == L3D_BG2_LOW)
+		cloud_ground_top = SDL_max(cloud_ground_top, top);
+	if (solid && cloud_solid_count < (int)COUNTOF(cloud_solids))
+		cloud_solids[cloud_solid_count++] = (CloudSolid){ background, top };
 }
 
 /* --- Terrain relief --------------------------------------------------------------------------- */
@@ -7277,6 +7638,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
                                    const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
 	cloud_tile_count = 0;
+	cloud_ground_top = -1e9f;
+	cloud_solid_count = 0;
 	if (clip_log_on())
 		clip_surface_count = 0;
 	if (frame->background_count == 0)
@@ -7327,6 +7690,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const bool solid = background->set > 1 && terrain_background(frame, background) && background != lift_ground;
 		if (solid)
 			height = SDL_min(height, solid_top(background->set));
+		note_cloud_ground(frame, background, height, solid, relief_ground && background->set == 1);  // (the clouds stay above)
 		const float shift = background_speed[background->set & 3] * ahead;
 		float rect[4];
 		plane_footprint(camera, height, rect);
@@ -7392,7 +7756,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const int first = tile_count;
 		tile_count += b3d_collect_tiles(background, ground_zero, rect[0], rect[1], rect[2], rect[3],
 		                                tiles + tile_count, capacity - tile_count);
-		// Cloud tiles are clouds (add_cloud_batches).
+		// Cloud tiles are clouds (add_cloud_batches), taken over the view and a margin round it.
 		if (cloud_background(background, composed[i]))
 		{
 			memcpy(cloud_page_colors[background->set], page_colors, sizeof(page_colors));
@@ -7402,16 +7766,12 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				const int tile = tiles[t].cell % B3D_TILES_PER_SET;
 				if (tiles[t].cell < B3D_CELLS && tiles[t].cell / B3D_TILES_PER_SET + 1 == background->set &&
 				    b3d_tile_is_cloud(background->set, tile))
-				{
-					if (cloud_tile_count < MAX_CLOUD_TILES && !low_background(background))
-						cloud_tiles[cloud_tile_count++] = (CloudTile){
-							(Uint8)background->set, (Uint8)tile, tiles[t].flipped, background->blend, background->layer,
-							tiles[t].x, tiles[t].z, cloud_page_colors[background->set], tiles[t].map_row, tiles[t].map_column };
 					continue;
-				}
 				tiles[kept++] = tiles[t];
 			}
 			tile_count = kept;
+			if (!low_background(background))
+				collect_cloud_tiles(background, rect, cloud_base(heights, background->layer) - (heights[0] + 0.15f) + 30.0f);
 		}
 		// Terrain: the map's rows are meshes (the tiles beyond its columns stay tiles).
 		if (terrain_background(frame, background))
@@ -9152,8 +9512,6 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		background_speed[1] = backMove;
 		background_speed[2] = backMove2;
 		background_speed[3] = backMove3;
-		for (int set = 0; set < 4; ++set)
-			map_scroll[set] += background_speed[set];
 		for (int l = 0; l < frame->layer_count; ++l)
 			layer_speed[l] = frame->layers[l].type == L3D_EXPLOSION ? explodeMove : 0;
 		for (int i = 0; i < frame->background_count; ++i)
