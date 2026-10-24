@@ -1,0 +1,1941 @@
+{
+  "about": "Tyrian3D data cube voices: every speaker of the cubes, the cubes each one reads, how it should sound and its ElevenLabs voice. tools/voices/export_cubes.py assigns the cubes (match: cubes, then titles, then sender lines; cube_rules first) and writes each speaker's usage; tools/voices/generate.py designs the voices (voice_prompt) and renders the script. voice_of: the part is played by another speaker's voice (with its own settings), so the cast needs fewer voice slots; give it its own voice_id to recast it. settings: stability 0.0/0.5/1.0 are eleven_v3's Creative/Natural/Robust (other values are rounded for v3); style is used by eleven_multilingual_v2 only; speed is applied by the API where the model takes it, otherwise by ffmpeg when the cube is assembled (no credits).",
+  "defaults": {
+    "model_id": "eleven_v3",
+    "design_model_id": "eleven_ttv_v3",
+    "output_format": "pcm_24000",
+    "language_code": "en",
+    "apply_text_normalization": "auto",
+    "settings": {
+      "stability": 0.5,
+      "similarity_boost": 0.75,
+      "style": 0.0,
+      "use_speaker_boost": true,
+      "speed": 1.0
+    },
+    "pronunciation": "alias",
+    "max_segment_chars": 2500,
+    "audio": {
+      "format": "ima_adpcm",
+      "loudness_lufs": -18.0,
+      "true_peak_db": -1.5,
+      "lra": 11.0,
+      "pause_ms": {
+        "section": 1000,
+        "paragraph": 550,
+        "inline": 250,
+        "speaker_change": 450
+      },
+      "lead_in_ms": 120,
+      "tail_ms": 350,
+      "trim_db": -50.0
+    }
+  },
+  "portraits": {
+    "1": "a pilot in a white helmet and mask (the writers' note: miscellaneous reporters); Javi's messages, many data and ad cubes",
+    "2": "the same pilot, greyer (miscellaneous reporters); Harble Wom, archives, ads",
+    "3": "a grinning man with sunglasses and black hair: the Savara merchant; also guidebook, ads, archives",
+    "4": "a dark gas-mask helmet (the writers: Mondus, random scientist); Mondus, Trent's first log, Borogar",
+    "5": "a green, mottled face (the writers: dying person, unused); Emperor Milktoe, the WANTED ad, Muldar",
+    "6": "a rugged dark-haired man with stubble: Reid",
+    "7": "a hooded figure: Vykromod; also the 1:21 threat and the anonymous pamphlet",
+    "8": "a bald old man with a red collar: Transon Lohk",
+    "9": "a black-masked ninja: Nanol",
+    "10": "a man with an eye-patch and long blond hair: Captain Nob",
+    "11": "a red-haired grinning young man: Dougan",
+    "12": "a heavy man with goggles and a red flight jacket: Beppo",
+    "13": "a moustached man in red (Tyrian 2000): Baker Bob",
+    "14": "a dark armoured head (Tyrian 2000): news",
+    "15": "an armoured alien with orange plates (Tyrian 2000): the Zinglonite leader, Buce",
+    "16": "a cartoon face with a red cap (Tyrian 2000): XSIV Games",
+    "17": "a robot head with goggles (Tyrian 2000): the Collector",
+    "18": "a bald man with sunglasses (Tyrian 2000): the Collector, the Zinglonite leader"
+  },
+  "speakers": {
+    "transon": {
+      "name": "Transon Lohk",
+      "role": "Chancellor of the Gencore tech alliance on Deliani; in episode 4 commands the relief fleet from the command ship IcoStar II. The one who keeps sending Trent out.",
+      "description": "An old, bald statesman who calls himself 'a boring old man'. Formal and courteous, a natural commander who speaks in measured, complete sentences and carries the weight of every life he could not save. Under strain he turns urgent and clipped (a planet heating up, then freezing); once he is plainly irate and shouts (3:19); in the off-air chatter with his ensign (4:39, 4:48) he is dry, sarcastic and a little manipulative, chuckling that Trent will save the universe again for him. Male, about 65-70.",
+      "voice_prompt": "An American man in his late sixties with a deep, slightly gravelly, warm voice. A weary but dignified chancellor and fleet commander: formal, deliberate and authoritative, with quiet compassion and a trace of guilt behind his words, and a dry sarcastic wit in private. Measured pace, clear diction, steady low pitch. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.3,
+        "speed": 0.97
+      },
+      "match": {
+        "senders": [
+          "Transon"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:11",
+          "1:19",
+          "1:22",
+          "3:19",
+          "4:5",
+          "4:6",
+          "4:17",
+          "4:18",
+          "4:22",
+          "4:23",
+          "4:26",
+          "4:29",
+          "4:39",
+          "4:48"
+        ],
+        "segments": 25,
+        "characters": 13758,
+        "portraits": [
+          8
+        ]
+      }
+    },
+    "javi": {
+      "name": "Javi Onukala",
+      "role": "Gencore's security chief who briefs Trent in episode 2; unmasked as a Hazudra traitor under Microsol's holographic mind control; in episode 4 commands the Microsol fleet from his dreadnought.",
+      "description": "First a crisp, efficient military briefer (orders, warnings about Torm's dragons and pirates), polite and in control. Unmasked he is cold, smug and amused, mocking Trent's and Transon's trust; at the end he loses control and screams. Male, about 40; a Hazudra raised among humans, so a faint, unplaceable precision.",
+      "voice_prompt": "A man around forty with a smooth, precise, mid-pitched voice and a faintly unplaceable intonation. A security chief who sounds professional and trustworthy at first, then cold, smug and contemptuous, capable of sudden unhinged fury. Crisp, controlled delivery with clipped consonants and a slight sneer. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.35,
+        "speed": 1.0
+      },
+      "match": {
+        "senders": [
+          "Javi"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "2:1",
+          "2:2",
+          "2:4",
+          "2:5",
+          "2:7",
+          "2:9",
+          "3:20",
+          "3:21",
+          "4:25",
+          "4:27",
+          "4:31"
+        ],
+        "segments": 11,
+        "characters": 4622,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "vykromod": {
+      "name": "Vykromod",
+      "role": "Microsol's hooded overlord behind the fleet and the Gravitium plot.",
+      "description": "A cloaked, faceless villain: slow, cold menace and contempt ('you insignificant scum'). In the Tyrian X joke cube (3:15) he turns hammy and cackling. After Trent's blast leaves him without a body (4:46, 4:47) he speaks in halting, frightened fragments, then rises to horror. The 1:21 threat signed '????????' shows his portrait. Male, older, deep.",
+      "voice_prompt": "A deep, resonant voice of a man in his fifties, cold and imperious. A hooded overlord who speaks slowly with chilling contempt and quiet menace, savouring every threat; he can slip into theatrical cackling, and into a broken, frightened whisper. Low pitch, dark timbre, deliberate pacing with weighty pauses. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.45,
+        "speed": 0.92
+      },
+      "match": {
+        "senders": [
+          "Vykromod"
+        ],
+        "cubes": [
+          "1:21"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:21",
+          "2:12",
+          "3:4",
+          "3:8",
+          "3:15",
+          "4:46",
+          "4:47"
+        ],
+        "segments": 9,
+        "characters": 1858,
+        "portraits": [
+          7
+        ]
+      }
+    },
+    "reid": {
+      "name": "Reid",
+      "role": "Head of the rebel Mendivian and Anti-Microsol league in Asteroid City; later acting President of Savara.",
+      "description": "An earnest, principled resistance leader: urgent and direct in his warnings, grave and sincere when he grieves for Trent's parents. His messages are often hurried or cut off (jamming, an incoming squadron). Male, 40s, dark-haired and rugged.",
+      "voice_prompt": "A rugged American man in his mid forties with a warm, slightly husky baritone. A sincere rebel leader: earnest, urgent and steady, with grave compassion; he sounds like someone who has carried people through hard times. Natural, direct delivery at a brisk pace. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.3,
+        "speed": 1.02
+      },
+      "match": {
+        "senders": [
+          "Reid"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "2:8",
+          "3:1",
+          "3:3",
+          "3:5",
+          "4:63"
+        ],
+        "segments": 5,
+        "characters": 2549,
+        "portraits": [
+          6
+        ]
+      }
+    },
+    "dougan": {
+      "name": "Dougan",
+      "role": "Trent's friend from Torm with a fancy, unarmed little ship and a heavy sensor grid.",
+      "description": "Easygoing, teasing and loyal ('Well, well, well...'), a practical fixer who finds the homing device and feeds Trent the dreadnought's weak points; stays cool but hurried under fire. Red-haired and grinning, about 30.",
+      "voice_prompt": "A young American man around thirty with a bright, friendly tenor and a grin in his voice. A wisecracking smuggler and loyal friend: relaxed, teasing, quick-witted and cool under pressure. Casual, quick delivery with lively intonation. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "speed": 1.06
+      },
+      "match": {
+        "senders": [
+          "Dougan"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "2:3",
+          "4:33",
+          "4:37",
+          "4:62"
+        ],
+        "segments": 4,
+        "characters": 2894,
+        "portraits": [
+          11
+        ]
+      }
+    },
+    "beppo": {
+      "name": "Beppo",
+      "role": "A pirate from Torm who works for the outworlders and installs their weapons; later 'the clone of that nasty old pirate', dealing in stolen goods.",
+      "description": "Jolly, dim and boisterous (the writers' own note calls him stupid): chummy broken English and simple enthusiasms; as the clone he hams up a stage-pirate brogue and ends with 'Arrrrr!'. Male, 50s, a heavy-set goggled aviator.",
+      "voice_prompt": "A heavy-set man in his fifties with a thick, gravelly, jovial voice and a broad comic seafaring intonation. A boisterous, dim-witted space pirate and weapons dealer: loud, chummy and delighted with himself, laughing between words. Fast, bouncy delivery with exaggerated vowels. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.75,
+        "style": 0.6,
+        "speed": 1.08
+      },
+      "match": {
+        "senders": [
+          "Beppo"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "3:7",
+          "3:16"
+        ],
+        "segments": 2,
+        "characters": 754,
+        "portraits": [
+          12
+        ]
+      }
+    },
+    "nob": {
+      "name": "Captain Nob",
+      "role": "Microsol officer: the captain at Station Gryphon, then of Ixmucane Task Force Alpha, finally a self-proclaimed admiral and 'Supreme Intergalactic Ruler of Everything'.",
+      "description": "Arrogant, blustering and cowardly (he would rather flee than face Trent himself), petty and spiteful; at last a ridiculous megalomaniac who keeps upgrading his own title and fumbles with his keypad. Eye-patch and long blond hair; male, 40s.",
+      "voice_prompt": "A man in his forties with a brash, nasal, self-important voice. A pompous military captain who is a bully and a coward: sneering and blustering, easily flustered, with grandiose outbursts that tip into comedy. Loud, punchy delivery that speeds up when he gets excited. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.75,
+        "style": 0.55,
+        "speed": 1.02
+      },
+      "match": {
+        "senders": [
+          "Captain",
+          "Admiral"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "3:2",
+          "4:9",
+          "4:19",
+          "4:20",
+          "4:49"
+        ],
+        "segments": 7,
+        "characters": 1839,
+        "portraits": [
+          10
+        ]
+      }
+    },
+    "ninja": {
+      "name": "Nanol, the ninja",
+      "role": "A masked figure from beyond the Stargate (the outworlders' messenger) with a stealth ship; Trent's 'old friend' by episode 4. The writers' portrait note: 'Ninja - mysterious person'.",
+      "description": "Never shows a face. First a cold, alien warning ('Your life is forfeit, human'), then a solemn ally who sends Trent to Camanis, then gentle and melancholic, signing 'Your pal, Nanol', resigned to doom yet chatting about hot dogs. Calm, measured, deadpan. Dougan calls him 'that weird ninja guy': male, ageless.",
+      "voice_prompt": "A calm, quiet male voice of indeterminate age, low and breathy with a soft, otherworldly smoothness. A masked, mysterious warrior from beyond the stars: measured, solemn and deadpan, menacing when cold and gently melancholic when friendly. Slow, even pacing with deliberate pauses. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.2,
+        "speed": 0.94
+      },
+      "match": {
+        "senders": [
+          "Ninja"
+        ],
+        "cubes": [
+          "2:6",
+          "3:6",
+          "3:12"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "2:6",
+          "3:6",
+          "3:12",
+          "4:32",
+          "4:36"
+        ],
+        "segments": 5,
+        "characters": 2504,
+        "portraits": [
+          9
+        ]
+      }
+    },
+    "merchant": {
+      "name": "the Savara merchant",
+      "role": "Trent's friend, a trader at Midway on Savara who equips and hides him and points him to Transon.",
+      "description": "Fast-talking, cheerful and street-smart: rattles off his stock, owes Trent a favour (a hula lamp); turns gentle and serious about Trent's parents. Black hair, sunglasses, a grin; male, 30s.",
+      "voice_prompt": "A man in his thirties with a lively, slightly raspy voice and a big grin in it. A street-smart trader and loyal friend: fast-talking, upbeat and persuasive, with real warmth when things turn serious. Quick, energetic delivery with casual phrasing. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.4,
+        "speed": 1.1
+      },
+      "match": {
+        "senders": [
+          "Merchant"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:8",
+          "1:10"
+        ],
+        "segments": 2,
+        "characters": 1733,
+        "portraits": [
+          3
+        ]
+      }
+    },
+    "milktoe": {
+      "name": "Emperor Milktoe",
+      "role": "The cowardly emperor of Savara who flees the planet; later wanted for treason.",
+      "description": "Pompous and self-important but a coward: broadcasts a planetary emergency between coughs and leaves on the royal shuttle; writes a prissy complaint to the network. A green, mottled, sickly face (the writers' note: a dying person): wheezing, coughing, aristocratic. Male, 60s.",
+      "voice_prompt": "An elderly man in his sixties with a thin, wheezy, aristocratic voice and a sickly rasp, prone to coughing. A pompous, cowardly emperor: self-important and fussy, quick to panic and whine. Prissy, over-enunciated delivery that rushes when he is frightened. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.75,
+        "style": 0.5,
+        "speed": 1.0
+      },
+      "match": {
+        "senders": [
+          "Milktoe"
+        ],
+        "cubes": [
+          "1:37"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:20",
+          "1:37"
+        ],
+        "segments": 3,
+        "characters": 1189,
+        "portraits": [
+          5
+        ]
+      }
+    },
+    "harble": {
+      "name": "Harble Wom",
+      "role": "Tech IX9204, a Downstar (Gencore) agent trapped in level 12 of Ixmucane; his last words reach Trent through Transon.",
+      "description": "A blue-collar technician in over his head: panicky and frantic, shouting in capitals, but brave, sarcastic and practical, calls Trent 'buddy'. Male, 30s.",
+      "voice_prompt": "An American man in his thirties with a scrappy, slightly hoarse working-class voice. A frantic, panicky technician trapped deep underground: breathless, sarcastic and desperate, swinging between nervous mumbling and shouting. Fast, uneven delivery with urgent intonation. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.75,
+        "style": 0.5,
+        "speed": 1.1
+      },
+      "match": {
+        "senders": [
+          "Tech"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:4",
+          "4:7",
+          "4:17",
+          "4:21",
+          "4:22"
+        ],
+        "segments": 5,
+        "characters": 3208,
+        "portraits": [
+          2
+        ]
+      }
+    },
+    "mondus": {
+      "name": "Mondus",
+      "role": "Head of Deliani Control, an android; sealed in the command center's escape pod while Javi takes the planet.",
+      "description": "Composed, formal and exact even under siege; dignified and loyal to Transon, with a buried feeling ('Make them suffer, Transon. I... would.'). His last message breaks up and stops mid-word. A male-voiced android.",
+      "voice_prompt": "A composed, formal male voice with a smooth, slightly synthetic precision and a mid-low pitch. A dignified android administrator under siege: calm, exact and economical, with a faint suppressed emotion behind the control. Even, measured delivery with crisp articulation. Perfect audio quality.",
+      "settings": {
+        "stability": 1.0,
+        "similarity_boost": 0.85,
+        "style": 0.1,
+        "speed": 0.96
+      },
+      "match": {
+        "senders": [
+          "Mondus"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:24",
+          "4:28"
+        ],
+        "segments": 2,
+        "characters": 2395,
+        "portraits": [
+          4
+        ]
+      }
+    },
+    "collector": {
+      "name": "the Collector",
+      "role": "A Hazudra who sends Trent on with a bomb strapped to his ship in episode 5; in episode 6 one of those who 'open' worlds.",
+      "description": "Courteous, cultivated and cold: apologizes for the bomb, praises Trent's flying, speaks for a collective 'we'. In episode 6 the politeness thins into quiet, absolute menace. Alien, ageless; reads as male.",
+      "voice_prompt": "A smooth, cultivated male voice with an ageless, faintly alien calm and a mid-low pitch. A courteous but cold emissary of an alien collective: polite, unhurried and formal, with quiet, absolute menace beneath the courtesy. Soft, precise delivery with gentle pauses. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.25,
+        "speed": 0.93
+      },
+      "match": {
+        "senders": [
+          "Collector"
+        ],
+        "cubes": [
+          "5:8"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "5:8",
+          "5:11",
+          "6:1",
+          "6:11",
+          "6:18",
+          "6:19"
+        ],
+        "segments": 6,
+        "characters": 2533,
+        "portraits": [
+          17,
+          18
+        ]
+      }
+    },
+    "trent": {
+      "name": "Trent Hawkins",
+      "role": "The player: a terraformation pilot from Savara turned reluctant hero. Heard only in his own logs.",
+      "description": "In 1:1 a practical pilot plotting a safe course into Tyrian orbit, a little nervous; in 4:52 tired and wry, joking with himself about saving the universe again and again, ending in a frustrated yell. Male, late 20s.",
+      "voice_prompt": "An American man in his late twenties with a clear, natural, slightly husky voice. A capable starfighter pilot and reluctant hero: dry, self-deprecating humour, a little weary, quietly determined. Relaxed, conversational delivery at a natural pace. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.3,
+        "speed": 1.02
+      },
+      "match": {
+        "senders": [
+          "Self"
+        ],
+        "cubes": [
+          "1:1"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:1",
+          "4:52"
+        ],
+        "segments": 2,
+        "characters": 1231,
+        "portraits": [
+          4
+        ]
+      }
+    },
+    "arugo": {
+      "name": "Graphim Arugo",
+      "role": "The archaeologist on Savara who dug up the grey books from Earth; episode 6's field logs.",
+      "description": "A scholar whose logs move from careful observation to awe and dread as he decodes the keepers' machine; in the later logs he speaks to Trent directly, urgent but composed. Male, late 50s.",
+      "voice_prompt": "A thoughtful man in his late fifties with a warm, slightly husky, scholarly voice and a soft British intonation. An archaeologist recording field notes: careful and precise, full of quiet wonder that turns into urgent dread. Measured, intimate delivery, as if speaking into a recorder late at night. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.25,
+        "speed": 0.97
+      },
+      "match": {
+        "titles": [
+          "^DATACUBE: ARUGO"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "6:2",
+          "6:5",
+          "6:8",
+          "6:12",
+          "6:22",
+          "6:24"
+        ],
+        "segments": 6,
+        "characters": 1458,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "mom": {
+      "name": "Mom (Mrs. Hawkins)",
+      "role": "Trent's mother in Midway, Savara (1:5); also plays the Alambusol testimonial.",
+      "description": "Warm, doting and chatty: proud of her son and of Papa's new job with Microsol, hoping he comes home, innocently cheerful about the 'welcoming party' that will get them killed. Female, 60s.",
+      "voice_prompt": "A warm American woman in her sixties with a soft, motherly voice. A doting, chatty mother writing to her son: affectionate, proud, a little fussy and innocently cheerful. Gentle, unhurried delivery with a smile in her voice. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.35,
+        "speed": 0.98
+      },
+      "match": {
+        "senders": [
+          "Mom"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:5"
+        ],
+        "segments": 1,
+        "characters": 864,
+        "portraits": []
+      }
+    },
+    "archive": {
+      "name": "Archive (data narrator)",
+      "role": "Reads the data and archive entries: system datafluxes, weapon notes, ARCHIVE DATA references, sensor reports, logs and ledgers. Also plays the network editor.",
+      "description": "An encyclopedia entry read aloud: neutral, informed and unhurried, with a very dry deadpan for the entries 'Rated: Not Funny' and the absurd ones (hot dog generators, people pretzel dough). Female, 40s, a contrast to the many male characters.",
+      "voice_prompt": "A woman in her forties with a clear, cool, articulate voice. A reference archive's narrator: neutral, knowledgeable and composed, with a very dry, understated deadpan for the absurd entries. Even, unhurried delivery with precise diction, like a documentary narrator. Perfect audio quality.",
+      "settings": {
+        "stability": 1.0,
+        "similarity_boost": 0.8,
+        "style": 0.15,
+        "speed": 1.0
+      },
+      "match": {
+        "senders": [
+          "Data",
+          "ARCHIVE DATA"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:6",
+          "1:7",
+          "1:17",
+          "1:18",
+          "1:28",
+          "2:11",
+          "3:10",
+          "3:11",
+          "3:14",
+          "3:18",
+          "4:8",
+          "4:10",
+          "4:11",
+          "4:12",
+          "4:13",
+          "4:14",
+          "4:15",
+          "4:16",
+          "5:2",
+          "6:4",
+          "6:16",
+          "6:17",
+          "6:21",
+          "6:23"
+        ],
+        "segments": 24,
+        "characters": 20182,
+        "portraits": [
+          1,
+          2,
+          3,
+          14
+        ]
+      }
+    },
+    "editor": {
+      "name": "the network's editor",
+      "role": "The datacube network's cuts and stage directions: the notes where a message was cut for taste, the ads' scene notes, '[The Editor]'.",
+      "description": "A prim, bored censor's aside: flat and quick. Short lines, so eleven_multilingual_v2 like the comm system.",
+      "voice_of": "archive",
+      "settings": {
+        "stability": 1.0,
+        "speed": 1.05
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:14",
+          "1:36",
+          "1:37",
+          "4:30",
+          "4:65"
+        ],
+        "segments": 8,
+        "characters": 367,
+        "portraits": []
+      },
+      "model_id": "eleven_multilingual_v2"
+    },
+    "guidebook": {
+      "name": "the Guidebook ('Scenic guide to the universe')",
+      "role": "Travel-guide narrator for the planets (sender 'Guidebook'; 'Windy' on four entries in episode 4). Also plays Pib the cat and Zinglon in the Eleven Commandments trailer.",
+      "description": "Breezy travel-show patter that cheerfully recommends deadly places: wry, sardonic, deadpan delivery of terrible advice; in one entry the writer steps out of the guide to wonder about a sequel. Male, late 40s.",
+      "voice_prompt": "A British man in his late forties with a rich, genial, plummy voice. A travel-guide host who cheerfully recommends terrible places: wry, sardonic and deadpan, delighted with his own dry wit. Smooth, lilting delivery with a twinkle, at a relaxed pace. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.35,
+        "speed": 1.03
+      },
+      "match": {
+        "senders": [
+          "Guidebook",
+          "Windy"
+        ],
+        "titles": [
+          "^Scenic guide to the universe"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:23",
+          "1:24",
+          "1:25",
+          "1:26",
+          "1:27",
+          "1:29",
+          "4:55",
+          "4:56",
+          "4:57",
+          "4:58",
+          "4:67"
+        ],
+        "segments": 11,
+        "characters": 16456,
+        "portraits": [
+          3
+        ]
+      }
+    },
+    "newsreader": {
+      "name": "News reader",
+      "role": "The holovid releases and the L-line agents' datacube dispatches; also plays Clara.",
+      "description": "A crisp, professional news voice: brisk and authoritative, with gravity for disasters and a hint of irony for the cult and pretzel stories. Female, late 30s.",
+      "voice_prompt": "A woman in her late thirties with a crisp, confident, polished broadcast voice. A professional news anchor reading wire reports: brisk, neutral and authoritative, with a hint of dry irony. Clean, even delivery with clear emphasis on headlines. Perfect audio quality.",
+      "settings": {
+        "stability": 1.0,
+        "similarity_boost": 0.8,
+        "style": 0.2,
+        "speed": 1.04
+      },
+      "match": {
+        "senders": [
+          "News",
+          "Historical"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:2",
+          "1:9",
+          "5:3",
+          "5:4",
+          "5:5",
+          "6:3",
+          "6:14"
+        ],
+        "segments": 9,
+        "characters": 3839,
+        "portraits": [
+          1,
+          2
+        ]
+      }
+    },
+    "rob_neither": {
+      "name": "Rob Neither",
+      "role": "Anchor of HOLO NEWS (episodes 4-6); also plays Microsol's Prime Chair and Steffan Tommas.",
+      "description": "A seasoned, smooth anchor ('This is Rob Neither with the daily news') who, on air with Clara, turns cynical and bitter about a war he thinks is fake. Male, early 50s.",
+      "voice_prompt": "An American man in his early fifties with a smooth, resonant, classic anchorman voice. A veteran news anchor: polished and confident on air, with a world-weary, cynical streak that leaks out in banter. Steady, professional delivery with a wry edge. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.3,
+        "speed": 1.0
+      },
+      "match": {
+        "titles": [
+          "^HOLO NEWS"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "4:50",
+          "5:1",
+          "6:10"
+        ],
+        "segments": 5,
+        "characters": 2089,
+        "portraits": [
+          1,
+          14
+        ]
+      }
+    },
+    "designer": {
+      "name": "the game's designer",
+      "role": "The 'Game' cubes (how to play, strategy and reminders for the bonus games): the developers talking to the player. Also plays Eclipse's XSIV promo and Borogar.",
+      "description": "Friendly, enthusiastic and a little nerdy: explains the minigames, brags about his high score and admits even the designer struggles. Male, early 30s.",
+      "voice_prompt": "A friendly American man in his early thirties with an upbeat, slightly nerdy voice. A game designer talking straight to the player: enthusiastic, playful and a bit boastful, like a fun developer commentary. Casual, bright delivery at a lively pace. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.35,
+        "speed": 1.05
+      },
+      "match": {
+        "senders": [
+          "Game"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:33",
+          "1:34",
+          "1:35",
+          "4:53",
+          "4:54",
+          "4:59",
+          "4:60",
+          "4:61"
+        ],
+        "segments": 9,
+        "characters": 7826,
+        "portraits": []
+      }
+    },
+    "ad_announcer": {
+      "name": "Ad announcer",
+      "role": "The commercials (Beno Crackers, the WANTED poster, Gruel: The Modern Way, Ressurectos, Alambusol's close, the Deliani property listing); also plays Hank's ads, Jacob Riitwiit and DJ MiMi Jeff.",
+      "description": "A classic booming commercial announcer: cheesy, upbeat, over-the-top sincere about absurd products. Male, 40s.",
+      "voice_prompt": "An American man in his forties with a big, booming, golden-throated announcer voice. A cheesy commercial and radio announcer: upbeat, over the top and relentlessly enthusiastic about absurd products. Punchy, energetic delivery with exaggerated emphasis and a showman's smile. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.75,
+        "style": 0.6,
+        "speed": 1.06
+      },
+      "match": {
+        "senders": [
+          "Ad"
+        ],
+        "cubes": [
+          "6:15"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "4:30",
+          "4:34",
+          "4:35",
+          "4:45",
+          "4:65",
+          "4:66",
+          "6:15"
+        ],
+        "segments": 9,
+        "characters": 2126,
+        "portraits": [
+          1,
+          3,
+          5,
+          14
+        ]
+      }
+    },
+    "trailer": {
+      "name": "Fluxnet 21 trailer voice",
+      "role": "The FLUXNET 21 PRESENTS spots and the Tyrian holo-movie ad; also reads the keepers' words in episode 6.",
+      "description": "The epic movie-trailer voice, deep and portentous, selling a parasitic dog, a family of cheese mold and a sloth as blockbusters; deadpan grandeur.",
+      "voice_prompt": "A man in his fifties with a very deep, rich, gravelly bass voice. An epic movie-trailer narrator: grand, portentous and dramatic, lending absurd television shows an air of blockbuster importance. Slow, weighty delivery with sweeping intonation. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.85,
+        "style": 0.45,
+        "speed": 0.92
+      },
+      "match": {
+        "titles": [
+          "^FLUXNET 21 PRESENTS",
+          "^TYRIAN - THE HOLO MOVIE"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "4:41",
+          "4:42",
+          "4:43",
+          "4:44",
+          "4:51"
+        ],
+        "segments": 13,
+        "characters": 2652,
+        "portraits": [
+          3
+        ]
+      }
+    },
+    "singer": {
+      "name": "Jingle singer",
+      "role": "Sung lines: the gnomes' gruel jingle (1:36), the songs of the Top Ten (1:30), the Beno Crackers jingle (4:35).",
+      "description": "Bright, theatrical and a little silly. eleven_v3 sings on the [sings] direction (the generator adds it); a Voice Library voice that is known to sing may suit better than a designed one.",
+      "voice_prompt": "A woman in her thirties with a bright, clear, musical voice. A cheerful jingle singer and showtune performer: playful, theatrical and bouncy, singing silly lyrics with total commitment. Sing-song, rhythmic delivery with a big smile. Perfect audio quality.",
+      "sings": true,
+      "v3_prefix": "[sings] ",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.7,
+        "style": 0.7,
+        "speed": 1.0
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:30",
+          "1:36",
+          "4:35"
+        ],
+        "segments": 9,
+        "characters": 1213,
+        "portraits": []
+      }
+    },
+    "system": {
+      "name": "Comm system",
+      "role": "The ship's comm computer: tightbeam headers, end-of-transmission notes, computer logs, the feline translation note, the Station 23 beacon. Also plays MagVend's bot.",
+      "description": "A neutral, efficient synthetic voice with flat affect. Its lines are short notices, so it uses eleven_multilingual_v2, steadier than eleven_v3 on very short texts and with nothing to act; MagVend, which borrows the voice, follows (set its own model_id to eleven_v3 for a livelier bot).",
+      "voice_prompt": "A neutral female computer voice with a clean, slightly synthetic, robotic tone. A starship communications system announcing headers and status notices: calm, flat, efficient and precise. Even, mechanical delivery with crisp consonants and no emotion. Perfect audio quality.",
+      "settings": {
+        "stability": 1.0,
+        "similarity_boost": 0.85,
+        "style": 0.0,
+        "speed": 1.0
+      },
+      "match": {
+        "cubes": [
+          "5:6"
+        ]
+      },
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:13",
+          "1:15",
+          "1:30",
+          "3:5",
+          "4:4",
+          "4:6",
+          "4:7",
+          "4:9",
+          "4:19",
+          "4:20",
+          "4:21",
+          "4:24",
+          "4:28",
+          "4:38",
+          "4:39",
+          "4:48",
+          "4:50",
+          "5:6"
+        ],
+        "segments": 21,
+        "characters": 1479,
+        "portraits": [
+          2
+        ]
+      },
+      "model_id": "eleven_multilingual_v2"
+    },
+    "yimbo": {
+      "name": "Grand Moolah Yimbo (Order of Zinglon)",
+      "role": "The Order of Zinglon's decree and scripture (1:31, 1:32); also plays the space-fruit pamphlet and the episode 5 cult leader.",
+      "description": "A pompous, sanctimonious high priest who reads holy decrees about fruit and crackers with absolute solemnity; ridiculous self-importance that can turn to zealous fury. Male, 60s.",
+      "voice_prompt": "An older man in his sixties with a booming, sonorous, sanctimonious voice. A pompous high priest of a strange cult: solemn, grandiose and self-important, intoning absurd decrees as sacred law, capable of zealous fury. Slow, ceremonial delivery with rolling emphasis. Perfect audio quality.",
+      "settings": {
+        "stability": 0.0,
+        "similarity_boost": 0.8,
+        "style": 0.55,
+        "speed": 0.93
+      },
+      "match": {
+        "senders": [
+          "Decree",
+          "Story"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:31",
+          "1:32"
+        ],
+        "segments": 2,
+        "characters": 2600,
+        "portraits": [
+          2
+        ]
+      }
+    },
+    "mycroft": {
+      "name": "Mycroft Dalo",
+      "role": "Microsol Research Control: the confidential Camanis memo (4:64). Also plays an anonymous SCI quoted in an archive entry and the Alambusol doctor.",
+      "description": "A dry, clipped corporate scientist reporting on Project Thermos; bureaucratic and secretive. Male, 50s.",
+      "voice_prompt": "A man in his fifties with a dry, nasal, clipped voice. A secretive corporate research director dictating a confidential memo: precise, bureaucratic, a little smug and self-satisfied. Brisk, matter-of-fact delivery. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.2,
+        "speed": 1.02
+      },
+      "match": {
+        "senders": [
+          "TOP SECRET"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:64"
+        ],
+        "segments": 1,
+        "characters": 732,
+        "portraits": []
+      }
+    },
+    "muldar": {
+      "name": "Muldar",
+      "role": "A trader whose distress call from Gyges (4:38) lures Trent in; then the one who 'controls the fleets now' (4:40).",
+      "description": "Same portrait (5) and the same cough as Emperor Milktoe, and the WANTED ad has Milktoe on the run: read as Milktoe in hiding, gone from coward to schemer. First desperate, then gloating between coughs.",
+      "voice_of": "milktoe",
+      "settings": {
+        "stability": 0.5,
+        "speed": 0.97
+      },
+      "match": {
+        "senders": [
+          "Muldar"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:38",
+          "4:40"
+        ],
+        "segments": 4,
+        "characters": 953,
+        "portraits": [
+          5
+        ]
+      }
+    },
+    "zinglonite": {
+      "name": "the Zinglonite leader",
+      "role": "Leader of the cult of Zinglon in episode 5 (5:9, 5:10). The sender line says 'Zinglon', but he speaks of Zinglon as 'our god'.",
+      "description": "A fanatic high priest: zealous, venomous and sermonizing; cold resolve.",
+      "voice_of": "yimbo",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.5,
+        "speed": 0.92
+      },
+      "match": {
+        "senders": [
+          "Zinglon"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "5:9",
+          "5:10"
+        ],
+        "segments": 2,
+        "characters": 593,
+        "portraits": [
+          15,
+          18
+        ]
+      }
+    },
+    "anonymous": {
+      "name": "Anonymous (church of Zinglon)",
+      "role": "The Perils of Space-Fruit pamphlet (3:13), paid for by the church of Zinglon.",
+      "description": "A melodramatic, hand-wringing sermon ('I beseech thee, gentle reader').",
+      "voice_of": "yimbo",
+      "settings": {
+        "stability": 0.0,
+        "style": 0.6,
+        "speed": 0.97
+      },
+      "match": {
+        "senders": [
+          "Anonymous"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "3:13"
+        ],
+        "segments": 1,
+        "characters": 1158,
+        "portraits": [
+          7
+        ]
+      }
+    },
+    "zinglon_god": {
+      "name": "Zinglon (in the trailer)",
+      "role": "The god's lines in the Fluxnet 21 epic 'The Eleven Commandments' (4:44).",
+      "description": "A deity who is bored and fed up ('Take it and leave me alone'); grand words, no patience.",
+      "voice_of": "guidebook",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.45,
+        "speed": 0.95
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:44"
+        ],
+        "segments": 4,
+        "characters": 418,
+        "portraits": []
+      }
+    },
+    "monses": {
+      "name": "Monses",
+      "role": "The prophet in 'The Eleven Commandments' (4:44).",
+      "description": "An earnest, bewildered everyman ('Huh?').",
+      "voice_of": "dougan",
+      "settings": {
+        "stability": 0.5,
+        "speed": 1.0
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:44"
+        ],
+        "segments": 4,
+        "characters": 186,
+        "portraits": []
+      }
+    },
+    "almos": {
+      "name": "Almos, the ensign ('Unknown ID')",
+      "role": "Transon's hapless ensign, overheard after his messages (4:39, 4:48).",
+      "description": "Timid, apologetic and dim ('Sorry, Commander.').",
+      "voice_of": "harble",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.3,
+        "speed": 1.0
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:39",
+          "4:48"
+        ],
+        "segments": 9,
+        "characters": 460,
+        "portraits": []
+      }
+    },
+    "clara": {
+      "name": "Clara",
+      "role": "Rob Neither's co-reporter (4:50).",
+      "description": "Chatty and skeptical, sure the war is a hoax; startled at the end that they are still on the air. Female, 30s.",
+      "voice_of": "newsreader",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.4,
+        "speed": 1.05
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:50"
+        ],
+        "segments": 3,
+        "characters": 282,
+        "portraits": []
+      }
+    },
+    "prime_chair": {
+      "name": "the Prime Chair of Microsol",
+      "role": "Quoted in the holovid releases: the Prime Chair at a convention (1:2) and Microsol's new Prime Chair Durril on the Midway blast (1:9).",
+      "description": "A smooth corporate politician: reassuring, self-congratulating, faintly sinister.",
+      "voice_of": "rob_neither",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.35,
+        "speed": 0.97
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:2",
+          "1:9"
+        ],
+        "segments": 2,
+        "characters": 1167,
+        "portraits": []
+      }
+    },
+    "steffan": {
+      "name": "Steffan Tommas",
+      "role": "A friend from Ganymede (WAR, the robot league) who sends Dougan with supplies (1:16).",
+      "description": "Cultured, confident and amiable, an old sparring partner with formal courtesy.",
+      "voice_of": "rob_neither",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.3,
+        "speed": 0.98
+      },
+      "match": {
+        "senders": [
+          "Steffan"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:16"
+        ],
+        "segments": 1,
+        "characters": 644,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "sci": {
+      "name": "an anonymous SCI",
+      "role": "A Microsol scientist quoted in the Tunnel World archive entry (4:15).",
+      "description": "A smug, obsessive academic, thrilled about a dating technique.",
+      "voice_of": "mycroft",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.4
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:15"
+        ],
+        "segments": 1,
+        "characters": 136,
+        "portraits": []
+      }
+    },
+    "doctor": {
+      "name": "the Alambusol doctor",
+      "role": "The doctor in the Alambusol ad (4:65).",
+      "description": "A reassuring TV doctor in a very modern office.",
+      "voice_of": "mycroft",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.4
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:65"
+        ],
+        "segments": 1,
+        "characters": 191,
+        "portraits": []
+      }
+    },
+    "testimonial": {
+      "name": "the Alambusol testimonial",
+      "role": "The satisfied customer in the Alambusol ad's cheerful living room (4:65).",
+      "description": "A cheerful, sincere ad testimonial.",
+      "voice_of": "mom",
+      "settings": {
+        "style": 0.5,
+        "speed": 1.03
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "4:65"
+        ],
+        "segments": 1,
+        "characters": 229,
+        "portraits": [
+          2
+        ]
+      }
+    },
+    "hank": {
+      "name": "Hank's Emporium ads",
+      "role": "Hank's Used Shuttle and Holo-Tractor Emporium (1:4) and the Deliani Emporium, Hank out of jail (3:17).",
+      "description": "A fast-talking used-shuttle salesman's pitch: breathless, hard-selling, shameless.",
+      "voice_of": "ad_announcer",
+      "settings": {
+        "stability": 0.0,
+        "style": 0.7,
+        "speed": 1.12
+      },
+      "match": {
+        "cubes": [
+          "1:4",
+          "3:17"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:4",
+          "3:17"
+        ],
+        "segments": 2,
+        "characters": 1512,
+        "portraits": [
+          3
+        ]
+      }
+    },
+    "jacob": {
+      "name": "Jacob Riitwiit",
+      "role": "Head of gruel research at ICBG, host of the gruel ad (1:36).",
+      "description": "A folksy, gushing infomercial host who truly loves gruel.",
+      "voice_of": "ad_announcer",
+      "settings": {
+        "stability": 0.0,
+        "style": 0.6,
+        "speed": 1.04
+      },
+      "match": {
+        "cubes": [
+          "1:36"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:36"
+        ],
+        "segments": 2,
+        "characters": 586,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "mimi_jeff": {
+      "name": "MiMi Jeff",
+      "role": "DJ at Eclipse Central counting down the Top Ten (1:30); the songs go to the singer.",
+      "description": "A hyper radio DJ. The name could be a woman's; read as a man here.",
+      "voice_of": "ad_announcer",
+      "settings": {
+        "stability": 0.0,
+        "style": 0.6,
+        "speed": 1.1
+      },
+      "match": {
+        "senders": [
+          "Music"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:30"
+        ],
+        "segments": 9,
+        "characters": 476,
+        "portraits": [
+          2
+        ]
+      }
+    },
+    "eclipse": {
+      "name": "Eclipse (XSIV Games)",
+      "role": "An XSIV Games promo for Pretzel Pete (1:12).",
+      "description": "Chummy promo patter from the developers.",
+      "voice_of": "designer",
+      "settings": {
+        "speed": 1.06
+      },
+      "match": {
+        "senders": [
+          "Eclipse"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:12"
+        ],
+        "segments": 1,
+        "characters": 420,
+        "portraits": [
+          16
+        ]
+      }
+    },
+    "borogar": {
+      "name": "Borogar",
+      "role": "Congratulates Trent on winning and announces Tyrian X (3:9), inviting him to try for the title again.",
+      "description": "A playful, teasing developer voice with a sly 'heh, heh'.",
+      "voice_of": "designer",
+      "match": {
+        "senders": [
+          "Borogar"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "3:9"
+        ],
+        "segments": 1,
+        "characters": 307,
+        "portraits": [
+          4
+        ]
+      }
+    },
+    "magvend": {
+      "name": "MagVend 004-55506",
+      "role": "A sweepstakes spam bot (1:14, 2:10).",
+      "description": "A chirpy, insincere automated marketing voice.",
+      "voice_of": "system",
+      "settings": {
+        "stability": 0.0,
+        "style": 0.5,
+        "speed": 1.05
+      },
+      "match": {
+        "senders": [
+          "MagVend"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:14",
+          "2:10"
+        ],
+        "segments": 3,
+        "characters": 871,
+        "portraits": [
+          1,
+          2
+        ]
+      }
+    },
+    "pib": {
+      "name": "Pib the cat",
+      "role": "A cat dictating its demands through a translation program (1:13).",
+      "description": "Imperious, disdainful and put-upon; a deadpan 'Meow.'",
+      "voice_of": "guidebook",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.5,
+        "speed": 0.92
+      },
+      "match": {
+        "senders": [
+          "Pib"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:13"
+        ],
+        "segments": 1,
+        "characters": 264,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "nortaneous": {
+      "name": "General Nortaneous",
+      "role": "An intercepted report to Mantori about anomalies on Tyrian (1:15).",
+      "description": "A clipped, mechanical military report full of alien jargon.",
+      "voice_of": "mondus",
+      "settings": {
+        "stability": 1.0,
+        "speed": 1.0
+      },
+      "match": {
+        "senders": [
+          "Nort"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "1:15"
+        ],
+        "segments": 1,
+        "characters": 516,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "baker_bob": {
+      "name": "Baker Bob",
+      "role": "The baker robbed by Pretzel Pete (5:7) who chases his stolen ovens (6:9, 6:25).",
+      "description": "Flustered, fussy and earnest; comic. Portrait 13, a moustached man in red.",
+      "voice_of": "beppo",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.5,
+        "speed": 1.05
+      },
+      "match": {
+        "cubes": [
+          "5:7",
+          "6:9",
+          "6:25"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "5:7",
+          "6:9",
+          "6:25"
+        ],
+        "segments": 3,
+        "characters": 772,
+        "portraits": [
+          13
+        ]
+      }
+    },
+    "buce": {
+      "name": "Buce",
+      "role": "Trent's late Hazudra friend: a recording four years old (6:7).",
+      "description": "Sad, earnest and urgent; a friend's last warning.",
+      "voice_of": "reid",
+      "settings": {
+        "stability": 0.5,
+        "style": 0.35,
+        "speed": 0.95
+      },
+      "match": {
+        "cubes": [
+          "6:7"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "6:7"
+        ],
+        "segments": 1,
+        "characters": 208,
+        "portraits": [
+          15
+        ]
+      }
+    },
+    "keepers": {
+      "name": "the keepers",
+      "role": "The builders of Tyrian's shell; their words in the grey books, translated (6:20).",
+      "description": "An ancient warning, solemn and grave; slower and quieter than the trailers.",
+      "voice_of": "trailer",
+      "settings": {
+        "stability": 1.0,
+        "speed": 0.88
+      },
+      "match": {
+        "cubes": [
+          "6:20"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "6:20"
+        ],
+        "segments": 1,
+        "characters": 185,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "dig_crew": {
+      "name": "Savara dig crew",
+      "role": "The dig crew's notes on the grey books (6:13).",
+      "description": "A laconic, wry worker's log.",
+      "voice_of": "harble",
+      "settings": {
+        "stability": 0.5,
+        "speed": 1.02
+      },
+      "match": {
+        "cubes": [
+          "6:13"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "6:13"
+        ],
+        "segments": 1,
+        "characters": 288,
+        "portraits": [
+          1
+        ]
+      }
+    },
+    "hazudra_band": {
+      "name": "Hazudra band (intercepted)",
+      "role": "Intercepted Hazudra radio (6:6, 6:26).",
+      "description": "A cold, factual field report. The sender line says Collector, but the text speaks of the Collector in the third person, so it may be someone else on his band.",
+      "voice_of": "collector",
+      "settings": {
+        "stability": 1.0,
+        "speed": 0.95
+      },
+      "match": {
+        "cubes": [
+          "6:6",
+          "6:26"
+        ]
+      },
+      "voice_id": "",
+      "usage": {
+        "cubes": [
+          "6:6",
+          "6:26"
+        ],
+        "segments": 2,
+        "characters": 400,
+        "portraits": [
+          18
+        ]
+      }
+    }
+  },
+  "cube_rules": {
+    "1:2": {
+      "quotes": "prime_chair",
+      "why": "a news release quoting the Prime Chair"
+    },
+    "1:3": {
+      "skip": "placeholder ('No Title', 'No Message'), never listed by the episode script"
+    },
+    "1:9": {
+      "quotes": "prime_chair",
+      "why": "a news release quoting Prime Chair Durril"
+    },
+    "1:30": {
+      "paragraphs": {
+        "singer": [
+          2,
+          4,
+          8,
+          10,
+          14,
+          16,
+          19
+        ],
+        "system": [
+          6
+        ]
+      },
+      "why": "the DJ reads the chart, the songs are sung; the computer-generated song by the computer; the countdown and the songs are rendered as dialogues",
+      "dialogue": {
+        "stability": 0.0
+      }
+    },
+    "1:36": {
+      "paragraphs": {
+        "singer": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ]
+      },
+      "why": "Jacob's ad with the gnomes' jingle; stage directions to the editor"
+    },
+    "4:15": {
+      "quotes": "sci",
+      "why": "an archive entry quoting an anonymous SCI"
+    },
+    "4:17": {
+      "quotes": "harble",
+      "why": "Transon quotes Harble's last transmission"
+    },
+    "4:22": {
+      "quotes": "harble",
+      "why": "Transon quotes Harble's last transmission"
+    },
+    "4:30": {
+      "inline": [
+        [
+          "\\[The Editor\\]",
+          "editor"
+        ]
+      ],
+      "why": "the editor's signed aside"
+    },
+    "4:35": {
+      "paragraphs": {
+        "singer": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "why": "the Beno Crackers jingle; rendered as one dialogue",
+      "dialogue": {
+        "stability": 0.0
+      }
+    },
+    "4:39": {
+      "labels": [
+        [
+          "\\[Unknown [iI][dD]:\\]",
+          "almos"
+        ]
+      ],
+      "why": "Transon and his ensign overheard; the overheard exchange is rendered as one dialogue",
+      "dialogue": {
+        "from": 1
+      }
+    },
+    "4:44": {
+      "quotes": {
+        "by_name": {
+          "Monses": "monses",
+          "Zinglon": "zinglon_god"
+        }
+      },
+      "why": "the trailer quotes Monses and Zinglon; rendered as one dialogue",
+      "dialogue": true
+    },
+    "4:48": {
+      "labels": [
+        [
+          "\\[Unknown [iI][dD]:\\]",
+          "almos"
+        ],
+        [
+          "\\[Transon:\\]",
+          "transon"
+        ]
+      ],
+      "why": "Transon and his ensign overheard; the overheard exchange is rendered as one dialogue",
+      "dialogue": {
+        "from": 1
+      }
+    },
+    "4:50": {
+      "labels": [
+        [
+          "\\[Clara, Co-reporter \\[CC\\]\\]",
+          "clara"
+        ],
+        [
+          "\\[CC\\]",
+          "clara"
+        ],
+        [
+          "\\[Rob, Reporter \\[RR\\]\\]",
+          "rob_neither"
+        ],
+        [
+          "\\[RR\\]",
+          "rob_neither"
+        ]
+      ],
+      "why": "Rob and Clara on air; rendered as one dialogue",
+      "dialogue": true
+    },
+    "4:65": {
+      "speaker": "testimonial",
+      "paragraphs": {
+        "doctor": [
+          4
+        ],
+        "ad_announcer": [
+          6
+        ]
+      },
+      "why": "testimonial, doctor and announcer in three scenes"
+    }
+  },
+  "ambiguous": [
+    {
+      "cubes": [
+        "1:1"
+      ],
+      "chosen": "trent",
+      "note": "Sender 'Data', portrait 4 (the writers' 'random scientist'), but a first-person plan for a course into Tyrian orbit from 'my landing platform': read as Trent's own log. Alternative: archive."
+    },
+    {
+      "cubes": [
+        "1:21"
+      ],
+      "chosen": "vykromod",
+      "note": "Sender '????????', title UNKNOWN; Vykromod's hooded portrait (7). Alternative: an unnamed Microsol agent."
+    },
+    {
+      "cubes": [
+        "2:6",
+        "3:6",
+        "3:12"
+      ],
+      "chosen": "ninja",
+      "note": "Sender '???' with the ninja's portrait (9); 3:12 is signed 'Your pal, Nanol' and talks hot dogs like the ninja in 4:36. 2:6 is hostile ('Your life is forfeit, human'): read as the same outworlder before he learns Trent is not with Microsol."
+    },
+    {
+      "cubes": [
+        "3:13"
+      ],
+      "chosen": "anonymous",
+      "note": "Vykromod's hooded portrait (7), but an anonymous pamphlet paid for by the church of Zinglon: given the cult's voice (yimbo), not Vykromod's."
+    },
+    {
+      "cubes": [
+        "3:9"
+      ],
+      "chosen": "borogar",
+      "note": "'Borogar' (portrait 4) congratulates Trent on winning and announces Tyrian X, inviting him to try for the title again: read as the developers, the designer's voice. Never listed by the episode script."
+    },
+    {
+      "cubes": [
+        "3:2"
+      ],
+      "chosen": "nob",
+      "note": "Sender 'Captain' at Station Gryphon, portrait 10: taken to be Captain Nob, who has the same portrait at Ixmucane and asks 'Don't I recognize you?' (4:9)."
+    },
+    {
+      "cubes": [
+        "4:49"
+      ],
+      "chosen": "nob",
+      "note": "Sender 'Admiral': Captain Nob, who has just made himself admiral."
+    },
+    {
+      "cubes": [
+        "3:19"
+      ],
+      "chosen": "transon",
+      "note": "Sender Transon, though the angry text is about Savara's Z-29 defence ship; Javi's next message speaks of 'a rather irate Transon Lohk', so it is Transon, irate."
+    },
+    {
+      "cubes": [
+        "4:38",
+        "4:40"
+      ],
+      "chosen": "muldar (voice of milktoe)",
+      "note": "Muldar has Emperor Milktoe's portrait (5) and his cough, and the WANTED ad has Milktoe on the run: Milktoe in hiding. If Muldar is someone else, give muldar its own voice_id."
+    },
+    {
+      "cubes": [
+        "4:55",
+        "4:56",
+        "4:57",
+        "4:58"
+      ],
+      "chosen": "guidebook",
+      "note": "Sender 'Windy' on four 'Scenic guide to the universe' entries (the others say 'Guidebook'; Windy is also a level of episode 1): the same guide narrator."
+    },
+    {
+      "cubes": [
+        "4:64"
+      ],
+      "chosen": "mycroft",
+      "note": "Sender 'TOP SECRET': the memo is signed 'Mycroft Dalo, Microsol Research Control'."
+    },
+    {
+      "cubes": [
+        "5:8"
+      ],
+      "chosen": "collector",
+      "note": "'Computer Recording', sender 'Message', portrait 17 (the Collector's); the Collector apologizes for 'setting you on this dangerous course' in 5:11."
+    },
+    {
+      "cubes": [
+        "5:9",
+        "5:10"
+      ],
+      "chosen": "zinglonite",
+      "note": "Sender 'Zinglon', but the speaker calls Zinglon 'our god': a cult leader. Different portraits (18, 15); read as one person."
+    },
+    {
+      "cubes": [
+        "6:6",
+        "6:26"
+      ],
+      "chosen": "hazudra_band (voice of collector)",
+      "note": "Intercepted Hazudra radio, sender 'Collector', but it speaks of the Collector in the third person: someone on his band. Played by the Collector's voice; give hazudra_band its own voice to tell them apart."
+    },
+    {
+      "cubes": [
+        "1:2",
+        "1:9"
+      ],
+      "chosen": "prime_chair",
+      "note": "1:2 quotes 'the Prime Chair', 1:9 'Microsol's new Prime Chair Durril': perhaps two people; one speaker here."
+    },
+    {
+      "cubes": [
+        "6:15"
+      ],
+      "chosen": "ad_announcer",
+      "note": "Sender 'News', but a property listing ('For lease: the old quarter'): the ad announcer."
+    },
+    {
+      "cubes": [
+        "6:20"
+      ],
+      "chosen": "keepers (voice of trailer)",
+      "note": "'From the grey books, translated', sender 'Data': the keepers' own words. Alternative: Arugo reading his translation."
+    },
+    {
+      "cubes": [
+        "4:65"
+      ],
+      "chosen": "testimonial, doctor, ad_announcer",
+      "note": "Alambusol: three scenes; the closing 'So transmit a bottle...' goes to the announcer rather than the doctor."
+    },
+    {
+      "cubes": [
+        "1:30"
+      ],
+      "chosen": "mimi_jeff (voice of ad_announcer)",
+      "note": "'MiMi Jeff' could be a woman's name; read as a man. The songs go to the singer, the computer-generated song to the comm system."
+    },
+    {
+      "cubes": [
+        "1:36"
+      ],
+      "chosen": "jacob",
+      "note": "The opening 'Twas brillig...' line goes to the host, Jacob Riitwiit, not to the gnomes' jingle."
+    }
+  ]
+}

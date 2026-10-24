@@ -1,0 +1,619 @@
+{
+  "about": "How the game's proper nouns are said. 'say' is a respelling tools/voices/generate.py substitutes in the text it sends (whole words, case-sensitive; null: leave the word as written, the voices read it right). 'ipa' feeds the optional ElevenLabs pronunciation dictionary (generate.py dictionary; phoneme rules work with eleven_v3, eleven_v4 and eleven_flash_v2 only). Audition a word with generate.py try --speaker <key> \"text\". Longer terms are applied first.",
+  "terms": [
+    {
+      "term": "Tyrian",
+      "say": "Tirrian",
+      "ipa": "ˈtɪɹiən",
+      "note": "TEER-ee-an, as in Tyrian purple; never TIE-ree-an",
+      "kind": "place"
+    },
+    {
+      "term": "Savara",
+      "say": "Savahra",
+      "ipa": "səˈvɑɹə",
+      "note": "sa-VAH-ra",
+      "kind": "place"
+    },
+    {
+      "term": "Deliani",
+      "say": "Delli-ahni",
+      "ipa": "ˌdɛliˈɑni",
+      "note": "del-ee-AH-nee",
+      "kind": "place"
+    },
+    {
+      "term": "Torm",
+      "say": null,
+      "ipa": "tɔɹm",
+      "note": "as written",
+      "kind": "place"
+    },
+    {
+      "term": "Gyges",
+      "say": "Jye-jeez",
+      "ipa": "ˈdʒaɪdʒiz",
+      "note": "JYE-jeez, as the Gyges of Greek legend",
+      "kind": "place"
+    },
+    {
+      "term": "Gyganian",
+      "say": "Jye-gaynian",
+      "ipa": "dʒaɪˈɡeɪniən",
+      "note": "jye-GAY-nee-an",
+      "kind": "place"
+    },
+    {
+      "term": "Ixmucane",
+      "say": "Eesh-moo-kahneh",
+      "ipa": "ˌiʃmuˈkɑneɪ",
+      "note": "eesh-moo-KAH-neh, after the Maya grandmother goddess Ixmucane",
+      "kind": "place"
+    },
+    {
+      "term": "Camanis",
+      "say": "Kamahnis",
+      "ipa": "kəˈmɑnɪs",
+      "note": "ka-MAH-nis",
+      "kind": "place"
+    },
+    {
+      "term": "Gryphon",
+      "say": null,
+      "ipa": "ˈɡɹɪfən",
+      "note": "GRIF-on, like griffin",
+      "kind": "place"
+    },
+    {
+      "term": "Remus",
+      "say": null,
+      "ipa": "ˈɹiməs",
+      "note": "REE-mus",
+      "kind": "place"
+    },
+    {
+      "term": "Fauchi",
+      "say": "Fowchee",
+      "ipa": "ˈfaʊtʃi",
+      "note": "FOW-chee",
+      "kind": "place"
+    },
+    {
+      "term": "Tonchus",
+      "say": "Tonkus",
+      "ipa": "ˈtɑŋkəs",
+      "note": "TON-kus",
+      "kind": "place"
+    },
+    {
+      "term": "Soh Jin",
+      "say": "Soe Jin",
+      "ipa": "ˈsoʊ ˈdʒɪn",
+      "note": "SO JIN",
+      "kind": "place"
+    },
+    {
+      "term": "Portoch",
+      "say": "Portock",
+      "ipa": "ˈpɔɹtɑk",
+      "note": "POR-tock",
+      "kind": "place"
+    },
+    {
+      "term": "Severnai",
+      "say": "Sevurnye",
+      "ipa": "səˈvɝnaɪ",
+      "note": "se-VUR-nye",
+      "kind": "place"
+    },
+    {
+      "term": "Mendivian",
+      "say": null,
+      "ipa": "mɛnˈdɪviən",
+      "note": "men-DIV-ee-an",
+      "kind": "place"
+    },
+    {
+      "term": "Tallok",
+      "say": null,
+      "ipa": "ˈtælək",
+      "note": "TAL-uk",
+      "kind": "place"
+    },
+    {
+      "term": "Sti-5",
+      "say": "Stee-five",
+      "note": "the Sti-5 sector",
+      "kind": "place"
+    },
+    {
+      "term": "Ploo",
+      "say": null,
+      "ipa": "plu",
+      "note": "PLOO",
+      "kind": "place"
+    },
+    {
+      "term": "Microsol",
+      "say": null,
+      "ipa": "ˈmaɪkɹoʊsɑl",
+      "note": "MY-kro-sol",
+      "kind": "organisation"
+    },
+    {
+      "term": "Gencore",
+      "say": "Jen-core",
+      "ipa": "ˈdʒɛnkɔɹ",
+      "note": "JEN-core, soft G",
+      "kind": "organisation"
+    },
+    {
+      "term": "Hazudra",
+      "say": "Hazoodra",
+      "ipa": "həˈzudɹə",
+      "note": "ha-ZOO-dra",
+      "kind": "people"
+    },
+    {
+      "term": "Omara",
+      "say": "Oh-mahra",
+      "ipa": "oʊˈmɑɹə",
+      "note": "oh-MAH-ra",
+      "kind": "organisation"
+    },
+    {
+      "term": "XSIV",
+      "say": "Excessive",
+      "note": "the game company's name is a pun: 'excessive'",
+      "kind": "organisation"
+    },
+    {
+      "term": "MagVend",
+      "say": "Mag-Vend",
+      "note": "MAG-vend",
+      "kind": "organisation"
+    },
+    {
+      "term": "USP",
+      "say": "U.S.P.",
+      "note": "spelled out: Uncorporated Systems Personnel",
+      "kind": "acronym"
+    },
+    {
+      "term": "ICBG",
+      "say": "I.C.B.G.",
+      "note": "spelled out: I Can't Believe it's Gruel",
+      "kind": "acronym"
+    },
+    {
+      "term": "ICOM",
+      "say": "Eye-com",
+      "note": "the IceCream-O-Matic",
+      "kind": "acronym"
+    },
+    {
+      "term": "IcoStar II",
+      "say": "Eyeco-star Two",
+      "ipa": "ˈaɪkoʊstɑɹ",
+      "note": "EYE-co-star Two, Gencore's command ship",
+      "kind": "ship"
+    },
+    {
+      "term": "Nova III",
+      "say": "Nova Three",
+      "kind": "ship"
+    },
+    {
+      "term": "Mark VII",
+      "say": "Mark Seven",
+      "kind": "thing"
+    },
+    {
+      "term": "Damenoes",
+      "say": "Dahmenoes",
+      "ipa": "ˈdɑmənoʊz",
+      "note": "a pun on Domino's",
+      "kind": "organisation"
+    },
+    {
+      "term": "Alambusol",
+      "say": "Ah-lambyoosol",
+      "ipa": "əˈlæmbjəsɑl",
+      "note": "ah-LAM-byoo-sol",
+      "kind": "product"
+    },
+    {
+      "term": "Ressurectos",
+      "say": "Rezzurectos",
+      "ipa": "ˌɹɛzəˈɹɛktoʊs",
+      "note": "rez-uh-REK-tohs",
+      "kind": "product"
+    },
+    {
+      "term": "Vykromod",
+      "say": "Vye-kromod",
+      "ipa": "ˈvaɪkɹoʊmɑd",
+      "note": "VYE-kro-mod (VIK-ro-mod is the other reading; pick one and keep it)",
+      "kind": "person"
+    },
+    {
+      "term": "Transon",
+      "say": null,
+      "ipa": "ˈtɹænsən",
+      "note": "TRAN-sun",
+      "kind": "person"
+    },
+    {
+      "term": "Lohk",
+      "say": "Loke",
+      "ipa": "loʊk",
+      "note": "LOKE, rhymes with joke, not lock",
+      "kind": "person"
+    },
+    {
+      "term": "Javi",
+      "say": "Jahvee",
+      "ipa": "ˈdʒɑvi",
+      "note": "JAH-vee (the Spanish HAH-vee is the other reading)",
+      "kind": "person"
+    },
+    {
+      "term": "Onukala",
+      "say": "Oh-noo-kahla",
+      "ipa": "ˌoʊnuˈkɑlə",
+      "note": "oh-noo-KAH-la",
+      "kind": "person"
+    },
+    {
+      "term": "Dougan",
+      "say": "Doogan",
+      "ipa": "ˈduɡən",
+      "note": "DOO-gan",
+      "kind": "person"
+    },
+    {
+      "term": "Beppo",
+      "say": null,
+      "ipa": "ˈbɛpoʊ",
+      "note": "BEP-oh",
+      "kind": "person"
+    },
+    {
+      "term": "Nanol",
+      "say": "Nannol",
+      "ipa": "ˈnænəl",
+      "note": "NAN-ul",
+      "kind": "person"
+    },
+    {
+      "term": "Milktoe",
+      "say": null,
+      "ipa": "ˈmɪlktoʊ",
+      "note": "MILK-toe (a pun on milquetoast)",
+      "kind": "person"
+    },
+    {
+      "term": "Muldar",
+      "say": null,
+      "ipa": "ˈmʌldɑɹ",
+      "note": "MUL-dar",
+      "kind": "person"
+    },
+    {
+      "term": "Harble",
+      "say": null,
+      "ipa": "ˈhɑɹbəl",
+      "note": "HAR-bul",
+      "kind": "person"
+    },
+    {
+      "term": "Mondus",
+      "say": null,
+      "ipa": "ˈmɑndəs",
+      "note": "MON-dus",
+      "kind": "person"
+    },
+    {
+      "term": "Graphim",
+      "say": "Graffim",
+      "ipa": "ˈɡɹæfɪm",
+      "note": "GRAF-im",
+      "kind": "person"
+    },
+    {
+      "term": "Arugo",
+      "say": "Aroogo",
+      "ipa": "əˈɹuɡoʊ",
+      "note": "a-ROO-go",
+      "kind": "person"
+    },
+    {
+      "term": "Buce",
+      "say": "Booce",
+      "ipa": "bus",
+      "note": "BOOSE, rhymes with juice",
+      "kind": "person"
+    },
+    {
+      "term": "Durril",
+      "say": null,
+      "ipa": "ˈdʊɹɪl",
+      "note": "DUR-il",
+      "kind": "person"
+    },
+    {
+      "term": "Gopenhagen",
+      "say": null,
+      "ipa": "ˈɡoʊpənˌheɪɡən",
+      "note": "a pun on Copenhagen",
+      "kind": "person"
+    },
+    {
+      "term": "Nortaneous",
+      "say": "Nortaynius",
+      "ipa": "nɔɹˈteɪniəs",
+      "note": "nor-TAY-nee-us",
+      "kind": "person"
+    },
+    {
+      "term": "Mantori",
+      "say": null,
+      "ipa": "mænˈtɔɹi",
+      "note": "man-TOR-ee",
+      "kind": "person"
+    },
+    {
+      "term": "Riitwiit",
+      "say": "Reetweet",
+      "ipa": "ˈɹitwit",
+      "note": "REET-weet",
+      "kind": "person"
+    },
+    {
+      "term": "Monses",
+      "say": "Monsez",
+      "ipa": "ˈmɑnsɛz",
+      "note": "MON-sez (a pun on Moses)",
+      "kind": "person"
+    },
+    {
+      "term": "Yimbo",
+      "say": null,
+      "ipa": "ˈjɪmboʊ",
+      "note": "YIM-bo",
+      "kind": "person"
+    },
+    {
+      "term": "MiMi",
+      "say": "Mimi",
+      "ipa": "ˈmimi",
+      "note": "MEE-mee",
+      "kind": "person"
+    },
+    {
+      "term": "Almos",
+      "say": null,
+      "ipa": "ˈælmoʊs",
+      "note": "AL-mos",
+      "kind": "person"
+    },
+    {
+      "term": "Borogar",
+      "say": null,
+      "ipa": "ˈbɔɹəɡɑɹ",
+      "note": "BOR-uh-gar",
+      "kind": "person"
+    },
+    {
+      "term": "Zinglon",
+      "say": null,
+      "ipa": "ˈzɪŋɡlɑn",
+      "note": "ZING-lon",
+      "kind": "person"
+    },
+    {
+      "term": "Dai-Zan",
+      "say": "Dye-zan",
+      "ipa": "ˈdaɪzæn",
+      "note": "DYE-zan",
+      "kind": "person"
+    },
+    {
+      "term": "Daizan",
+      "say": "Dyezan",
+      "ipa": "ˈdaɪzæn",
+      "note": "DYE-zan",
+      "kind": "person"
+    },
+    {
+      "term": "Zica",
+      "say": "Zeeka",
+      "ipa": "ˈzikə",
+      "note": "ZEE-ka, the ancient tunnel-world race",
+      "kind": "people"
+    },
+    {
+      "term": "Inzia",
+      "say": null,
+      "ipa": "ˈɪnziə",
+      "note": "IN-zee-a",
+      "kind": "people"
+    },
+    {
+      "term": "Zingala",
+      "say": "Zing-gahla",
+      "ipa": "zɪŋˈɡɑlə",
+      "note": "a pun on Galaga",
+      "kind": "thing"
+    },
+    {
+      "term": "Gravitium",
+      "say": null,
+      "ipa": "ɡɹəˈvɪtiəm",
+      "note": "gra-VIT-ee-um",
+      "kind": "thing"
+    },
+    {
+      "term": "Protron",
+      "say": null,
+      "ipa": "ˈpɹoʊtɹɑn",
+      "note": "PRO-tron",
+      "kind": "thing"
+    },
+    {
+      "term": "Dralictite",
+      "say": null,
+      "ipa": "dɹəˈlɪktaɪt",
+      "note": "dra-LICK-tite",
+      "kind": "thing"
+    },
+    {
+      "term": "Morenzinum",
+      "say": null,
+      "ipa": "ˌmɔɹɛnˈzinəm",
+      "note": "mor-en-ZEE-num",
+      "kind": "thing"
+    },
+    {
+      "term": "Brussee",
+      "say": "Broosee",
+      "ipa": "ˈbɹusi",
+      "note": "BROO-see",
+      "kind": "thing"
+    },
+    {
+      "term": "Blottes",
+      "say": "Blotts",
+      "ipa": "blɑts",
+      "note": "BLOTS (blood cells)",
+      "kind": "thing"
+    },
+    {
+      "term": "Tokkies",
+      "say": null,
+      "ipa": "ˈtɑkiz",
+      "note": "TOCK-eez",
+      "kind": "thing"
+    },
+    {
+      "term": "Zeeblex",
+      "say": null,
+      "ipa": "ˈziblɛks",
+      "note": "ZEE-blex",
+      "kind": "thing"
+    },
+    {
+      "term": "rubniks",
+      "say": null,
+      "ipa": "ˈɹʌbnɪks",
+      "note": "RUB-niks",
+      "kind": "thing"
+    },
+    {
+      "term": "rubnik",
+      "say": null,
+      "ipa": "ˈɹʌbnɪk",
+      "note": "RUB-nik",
+      "kind": "thing"
+    },
+    {
+      "term": "SCIs",
+      "say": "S.C.I.s",
+      "note": "spelled out",
+      "kind": "acronym"
+    },
+    {
+      "term": "SCI",
+      "say": "S.C.I.",
+      "note": "spelled out",
+      "kind": "acronym"
+    },
+    {
+      "term": "HARs",
+      "say": "H.A.R.s",
+      "note": "spelled out (the robots of One Must Fall)",
+      "kind": "acronym"
+    },
+    {
+      "term": "WAR",
+      "say": "War",
+      "note": "the robot league of One Must Fall, said as the word",
+      "kind": "acronym"
+    },
+    {
+      "term": "AEU",
+      "say": "A.E.U.",
+      "note": "astral explosion units",
+      "kind": "acronym"
+    },
+    {
+      "term": "FPP",
+      "say": "F.P.P.",
+      "note": "Forced Particle Packing",
+      "kind": "acronym"
+    },
+    {
+      "term": "VLR",
+      "say": "V.L.R.",
+      "kind": "acronym"
+    },
+    {
+      "term": "TQ930",
+      "say": "T.Q. nine thirty",
+      "kind": "code"
+    },
+    {
+      "term": "IX9204",
+      "say": "I.X. ninety-two oh four",
+      "kind": "code"
+    },
+    {
+      "term": "00329",
+      "say": "zero zero three two nine",
+      "kind": "code"
+    },
+    {
+      "term": "TDCam",
+      "say": "T.D. Cam",
+      "kind": "code"
+    },
+    {
+      "term": "GT",
+      "say": "G.T.",
+      "kind": "acronym"
+    },
+    {
+      "term": "IR",
+      "say": "I.R.",
+      "note": "infrared",
+      "kind": "acronym"
+    },
+    {
+      "term": "A1",
+      "say": "A-one",
+      "note": "the A1 uplink",
+      "kind": "code"
+    },
+    {
+      "term": "004-55506B",
+      "say": "zero zero four, five five five zero six B",
+      "kind": "code"
+    },
+    {
+      "term": "004-55506W",
+      "say": "zero zero four, five five five zero six W",
+      "kind": "code"
+    },
+    {
+      "term": "004-55506",
+      "say": "zero zero four, five five five zero six",
+      "kind": "code"
+    },
+    {
+      "term": "FILE0001",
+      "say": "FILE zero zero zero one",
+      "note": "the secret code",
+      "kind": "code"
+    }
+  ]
+}
