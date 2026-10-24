@@ -93,6 +93,123 @@ void JE_drawTextWindow(const char *text)
 	JE_outText(VGAScreenSeg, 20, 190, text, 0, 4);
 }
 
+static void plain_label(char *out, const char *in, size_t size);
+
+/*
+ * Tyrian3D: the story text being shown (JE_displayText), for the modern UI: its picture (the screen
+ * before the text), which line the original reveals and how far, published before each frame shows.
+ */
+static struct
+{
+	bool on;
+	int kind, score_lines;
+	int line;              // the line being revealed (levelWarningLines: all, the prompt)
+	int chars;             // and its characters revealed
+	SDL_Surface *picture;  // the screen as it was before the text
+} story;
+
+static void story_publish(void)
+{
+	if (!ui_modern() || story.picture == NULL)
+		return;
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_STORY, "");
+	UIStory *s = &ui->story;
+	s->kind = (UIStoryKind)story.kind;
+	s->line_count = SDL_min((int)levelWarningLines, UI_STORY_LINES);
+	for (int i = 0; i < s->line_count; ++i)
+		SDL_strlcpy(s->lines[i], levelWarningText[i], sizeof(s->lines[i]));
+	s->shown_line = SDL_min(story.line, s->line_count);
+	s->shown_chars = story.chars;
+	s->prompt = story.line >= levelWarningLines;
+	s->top = warningRed;
+	s->score_lines = story.score_lines;
+	if (story.kind == UI_STORY_ENDING && episodeNum >= 1 && episodeNum <= EPISODE_MAX)
+	{
+		// The episode's name: "Episode 1: Escape" as its number and its name.
+		const char *name = episode_name[episodeNum];
+		const char *colon = strchr(name, ':');
+		SDL_strlcpy(ui->title, colon != NULL ? colon + 1 : name, sizeof(ui->title));
+		while (ui->title[0] == ' ')
+			memmove(ui->title, ui->title + 1, strlen(ui->title));
+		for (int i = (int)strlen(ui->title) - 1; i >= 0 && ui->title[i] == ' '; --i)
+			ui->title[i] = '\0';
+		snprintf(ui->crumb, sizeof(ui->crumb), "EPISODE %d COMPLETE", episodeNum);
+	}
+	ui->selected = -1;
+	ui->wheel = UI_WHEEL_NONE;
+	ui_menu_publish(ui, VGAScreen, story.picture);
+}
+
+void story_begin(int kind, int score_lines)
+{
+	story.on = ui_modern();
+	if (!story.on)
+		return;
+	story.kind = kind;
+	story.score_lines = score_lines;
+	story.line = 0;
+	story.chars = 0;
+	if (story.picture == NULL)
+		story.picture = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8);
+	if (story.picture != NULL)
+		for (int y = 0; y < 200; ++y)
+			memcpy((Uint8 *)story.picture->pixels + y * story.picture->pitch, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+}
+
+void story_line(int line)
+{
+	story.line = line;
+	story.chars = 0;
+}
+
+void story_end(void)
+{
+	story.on = false;
+}
+
+void story_refresh(void)
+{
+	if (story.on)
+		story_publish();
+}
+
+// The characters of the line being revealed so far, published as the frame shows.
+static void story_shown(int chars)
+{
+	if (!story.on)
+		return;
+	story.chars = chars;
+	story_publish();
+}
+
+void card_publish(const char *crumb, const char *title, const char *const *lines, const char *code, const void *icon_sheet,
+                  int icon_sprite, bool prompt, bool large)
+{
+	if (!ui_modern())
+		return;
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_CARD, "");
+	while (crumb != NULL && *crumb == ' ')
+		++crumb;
+	while (title != NULL && *title == ' ')
+		++title;
+	plain_label(ui->crumb, crumb != NULL ? crumb : "", sizeof(ui->crumb));
+	for (char *k = ui->crumb; *k != '\0'; ++k)
+		*k = (char)SDL_toupper(*k);
+	plain_label(ui->title, title != NULL ? title : "", sizeof(ui->title));
+	UICard *c = &ui->card;
+	for (int i = 0; lines != NULL && lines[i] != NULL && c->line_count < UI_CARD_LINES; ++i)
+		plain_label(c->lines[c->line_count++], lines[i], sizeof(c->lines[0]));
+	if (code != NULL)
+		plain_label(c->code, code, sizeof(c->code));
+	c->icon_sheet = icon_sheet;
+	c->icon_sprite = icon_sprite;
+	c->prompt = prompt;
+	c->large = large;
+	ui->selected = -1;
+	ui->wheel = UI_WHEEL_NONE;
+	ui_menu_publish(ui, VGAScreen, VGAScreen);
+}
+
 void JE_outCharGlow(JE_word x, JE_word y, const char *s)
 {
 	JE_integer maxloc, loc, z;
@@ -111,6 +228,7 @@ void JE_outCharGlow(JE_word x, JE_word y, const char *s)
 	if (frameCountMax == 0)
 	{
 		JE_textShade(VGAScreen, x, y, s, bank, 0, PART_SHADE);
+		story_shown((int)strlen(s));  // Tyrian3D: the modern UI's (above)
 		JE_showVGA();
 	}
 	else
@@ -175,6 +293,7 @@ void JE_outCharGlow(JE_word x, JE_word y, const char *s)
 					SDL_Delay(16);
 				} while (!(getDelayTicks() == 0 || ESCPressed));
 
+				story_shown(SDL_min(loc + 1, maxloc));  // Tyrian3D: the modern UI's (above)
 				JE_showVGA();
 			}
 		}
@@ -204,6 +323,7 @@ void JE_helpSystem(JE_byte startTopic)
 {
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer sprites
+	ui_take_press();  // (Tyrian3D: no click from before)
 
 	Uint8 topic = startTopic;
 
@@ -258,6 +378,38 @@ void JE_helpSystem(JE_byte startTopic)
 		}
 
 		mouseCursor = MOUSE_POINTER_NORMAL;
+
+		// Tyrian3D: the topics for the modern UI (ui.h), as setup's pages.
+		if (ui_modern())
+		{
+			static const char *const hints[] = {
+				"The store's menu in a game of one player.",
+				"The menu between levels in a game of two players.",
+				"Buying ships, weapons, shields, generators and sidekicks.",
+				"Sound, the controls, loading and saving.",
+				"Back to the title screen.",
+			};
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_SETUP, "");
+			plain_label(ui->title, topicName[0], sizeof(ui->title));
+			plain_label(ui->crumb, menuText[3], sizeof(ui->crumb));
+			for (char *c = ui->crumb; *c != '\0'; ++c)
+				*c = (char)SDL_toupper(*c);
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				char label[48];
+				plain_label(label, topicName[i + 1], sizeof(label));
+				// ("EXIT HELP" as the others: only its first letter large.)
+				if (label[0] != '\0' && SDL_isupper((unsigned char)label[1]))
+					for (char *c = label + 1; *c != '\0'; ++c)
+						*c = (char)SDL_tolower(*c);
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, label, xCenter - wMenuItem[i] / 2, yMenuItems + dyMenuItems * (int)i, wMenuItem[i],
+				                         hMenuItem);
+				if (i < COUNTOF(hints))
+					SDL_strlcpy(it->hint, hints[i], sizeof(it->hint));
+			}
+			ui->selected = (int)selectedIndex;
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);
+		}
 
 		if (restart)
 		{
@@ -384,6 +536,7 @@ void JE_helpSystem(JE_byte startTopic)
 		if (done)
 		{
 			fade_black(15);
+			ui_screen_done();  // Tyrian3D
 
 			return;
 		}
@@ -496,6 +649,47 @@ static bool helpSystemPage(Uint8 *topic, bool *restart)
 		helpBoxBrightness = 1;
 		verticalHeight = 7;
 
+		// Tyrian3D: the page for the modern UI (ui.h): its help texts (as the boxes above: their titles the
+		// texts' highlighted words), its number; the original takes a click on either half of the screen.
+		if (ui_modern())
+		{
+			static const Uint8 boxes[MAX_PAGE][5] = { { 2, 5, 21, 1, 28 }, { 1, 2, 21, 28 }, { 5, 6, 7 }, { 8, 9, 10, 11, 13 },
+			                                          { 14, 15, 16 }, { 17, 18, 20 }, { 21, 22, 23, 24 }, { 25, 26, 27, 28, 29 } };
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_HELP, "");
+			plain_label(ui->title, text, sizeof(ui->title));
+			plain_label(ui->crumb, menuText[3], sizeof(ui->crumb));
+			for (char *c = ui->crumb; *c != '\0'; ++c)
+				*c = (char)SDL_toupper(*c);
+			for (int b = 0; b < 5 && page >= 1 && page <= MAX_PAGE && boxes[page - 1][b] != 0 && ui->help.count < UI_HELP_PARTS; ++b)
+			{
+				const char *help = helpTxt[boxes[page - 1][b] - 1];
+				char title[40] = "";
+				const char *open = strchr(help, '~');
+				const char *close = open != NULL ? strchr(open + 1, '~') : NULL;
+				// (A title only where the text starts with its highlighted words.)
+				if (open != NULL && close != NULL && open - help <= 1)
+				{
+					SDL_strlcpy(title, open + 1, SDL_min((size_t)(close - open), sizeof(title)));
+					help = close + 1;
+				}
+				const int k = ui->help.count++;
+				plain_label(ui->help.title[k], title, sizeof(ui->help.title[k]));
+				while (*help != '\0' && (unsigned char)*help <= ' ')
+					++help;
+				plain_label(ui->help.text[k], help, sizeof(ui->help.text[k]));
+			}
+			UIPaging *pg = &ui->paging;
+			pg->index = page - 1;
+			pg->count = MAX_PAGE;
+			pg->prev = pg->next = true;
+			pg->hit_prev = (SDL_Rect){ 40, 90, 40, 20 };
+			pg->hit_next = (SDL_Rect){ 240, 90, 40, 20 };
+			snprintf(pg->label, sizeof(pg->label), "%s %d of %d", miscText[25], page, MAX_PAGE);
+			ui->selected = -1;
+			ui->wheel = UI_WHEEL_LEFT_RIGHT;
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);
+		}
+
 		if (*restart)
 		{
 			fade_palette(colors, 10, 0, 255);
@@ -583,6 +777,7 @@ static bool helpSystemPage(Uint8 *topic, bool *restart)
 		if (done)
 		{
 			fade_black(15);
+			ui_screen_done();  // Tyrian3D
 
 			return false;
 		}
@@ -641,6 +836,7 @@ bool JE_loadScreen(void)
 {
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer and arrow sprites
+	ui_take_press();  // (Tyrian3D: no click from before)
 
 	bool restart = true;
 
@@ -730,6 +926,50 @@ bool JE_loadScreen(void)
 		helpBoxColor = 15;
 		JE_helpBox(VGAScreen, 103, 182, miscText[55], 25);
 
+		// Tyrian3D: the slots for the modern UI (ui.h): the players' pages as tabs, each slot where the
+		// original takes the mouse on it.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_LOAD, "");
+			plain_label(ui->title, miscText[38 + playersIndex], sizeof(ui->title));
+			plain_label(ui->crumb, menuText[1], sizeof(ui->crumb));
+			for (char *c = ui->crumb; *c != '\0'; ++c)
+				*c = (char)SDL_toupper(*c);
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				const int y = yMenuItems + dyMenuItems * (int)i;
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, "", xMenuItem, y, wMenuItem, hMenuItem);
+				if (i == menuItemsCount - 1)
+				{
+					plain_label(it->label, miscText[33], sizeof(it->label));
+					continue;
+				}
+				const JE_SaveFileType *const saveFile = &saveFiles[playersIndex * 11 + i];
+				if (saveFile->level == 0)
+				{
+					plain_label(it->label, miscText[2], sizeof(it->label));
+					it->disabled = true;
+					continue;
+				}
+				plain_label(it->label, saveFile->name, sizeof(it->label));
+				plain_label(it->value, saveFile->levelName, sizeof(it->value));
+				snprintf(it->value2, sizeof(it->value2), "%s%u", miscTextB[0], saveFile->episode);
+			}
+			ui->selected = (int)selectedIndex;
+			UIPaging *pg = &ui->paging;
+			pg->index = (int)playersIndex;
+			pg->count = 2;
+			plain_label(pg->tab[0], miscText[46], sizeof(pg->tab[0]));
+			plain_label(pg->tab[1], miscText[47], sizeof(pg->tab[1]));
+			pg->tabs_click = true;
+			pg->prev = leftControlVisible;
+			pg->next = rightControlVisible;
+			pg->hit_prev = (SDL_Rect){ xLeftControl, yControls, wControl, 200 - yControls };
+			pg->hit_next = (SDL_Rect){ xRightControl, yControls, wControl, 200 - yControls };
+			plain_label(ui->hint, miscText[55], sizeof(ui->hint));
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);  // (the picture without the paging's arrows)
+		}
+
 		if (restart)
 		{
 			mouseCursor = MOUSE_POINTER_NORMAL;
@@ -765,6 +1005,14 @@ bool JE_loadScreen(void)
 		bool rightAction = false;
 		bool action = false;
 		bool done = false;
+
+		// Tyrian3D: the other players' tab clicked on the modern UI (its own: ui.h); the pages toggle.
+		const int tab = ui_take_press() - UI_ACTION_PAGE;
+		if (tab >= 0 && tab < 2 && (size_t)tab != playersIndex)
+		{
+			JE_playSampleNum(S_CURSOR);
+			leftAction = true;
+		}
 
 		if (mouseMoved || newmouse)
 		{
@@ -918,6 +1166,7 @@ bool JE_loadScreen(void)
 					JE_operation(saveFileIndex + 1);
 
 					fade_black(15);
+					ui_screen_done();  // Tyrian3D
 
 					return gameLoaded;
 				}
@@ -927,6 +1176,7 @@ bool JE_loadScreen(void)
 		if (done)
 		{
 			fade_black(15);
+			ui_screen_done();  // Tyrian3D
 
 			return false;
 		}
@@ -1034,6 +1284,15 @@ void JE_nextEpisode(void)
 	JE_dString(VGAScreen, JE_fontCenter(episode_name[episodeNum], SMALL_FONT_SHAPES), 130, episode_name[episodeNum], SMALL_FONT_SHAPES);
 	JE_dString(VGAScreen, JE_fontCenter(miscText[5-1], SMALL_FONT_SHAPES), 185, miscText[5-1], SMALL_FONT_SHAPES);
 
+	// Tyrian3D: the modern UI's card: "Episode 2: Treachery" as its number over its name.
+	{
+		const char *name = episode_name[episodeNum];
+		const char *colon = strchr(name, ':');
+		char crumb[32] = "";
+		if (colon != NULL)
+			SDL_strlcpy(crumb, name, SDL_min((size_t)(colon - name) + 1, sizeof(crumb)));
+		card_publish(crumb, colon != NULL ? colon + 1 : name, NULL, NULL, NULL, 0, !constantPlay, true);
+	}
 	JE_showVGA();
 	fade_palette(colors, 15, 0, 255);
 
@@ -1049,6 +1308,7 @@ void JE_nextEpisode(void)
 	}
 
 	fade_black(15);
+	ui_screen_done();
 }
 
 void JE_initPlayerData(void)
@@ -1127,10 +1387,79 @@ void JE_sortHighScores(void)
 	}
 }
 
+// Tyrian3D: a number with its thousands apart ("12 345").
+static void group_digits(unsigned long value, char *out, size_t size)
+{
+	char digits[32];
+	snprintf(digits, sizeof(digits), "%lu", value);
+	const int n = (int)strlen(digits);
+	size_t k = 0;
+	for (int i = 0; i < n && k + 2 < size; ++i)
+	{
+		if (i > 0 && (n - i) % 3 == 0)
+			out[k++] = ' ';
+		out[k++] = digits[i];
+	}
+	out[k] = '\0';
+}
+
+// Tyrian3D: a table of the high scores for the modern UI (ui.h): its three entries of a board.
+static void scores_table(UIScoreTable *t, const char *heading, int board)
+{
+	plain_label(t->heading, heading, sizeof(t->heading));
+	for (char *c = t->heading; *c != '\0'; ++c)
+		*c = (char)SDL_toupper(*c);
+	t->count = UI_SCORE_ROWS;
+	for (int i = 0; i < UI_SCORE_ROWS; ++i)
+	{
+		const T2KHighScoreType *h = &t2kHighScores[board][i];
+		group_digits((unsigned long)SDL_max(h->score, 0), t->score[i], sizeof(t->score[i]));
+		plain_label(t->name[i], h->playerName, sizeof(t->name[i]));
+		const int rank = h->difficulty <= 10 ? h->difficulty : 0;
+		plain_label(t->rank[i], difficultyNameB[rank], sizeof(t->rank[i]));
+		t->tier[i] = rank;
+	}
+}
+
+// Tyrian3D: the high scores' board as the modern UI shows it: its name, its tables, the boards as tabs
+// (index of count; count 1: this one alone), the original's paging controls.
+static UIMenu *scores_menu(const char *board, int index, int count, bool prev, bool next)
+{
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_SCORES, "");
+	plain_label(ui->title, board, sizeof(ui->title));
+	plain_label(ui->crumb, miscText[50], sizeof(ui->crumb));
+	for (char *c = ui->crumb; *c != '\0'; ++c)
+		*c = (char)SDL_toupper(*c);
+	UIPaging *pg = &ui->paging;
+	pg->index = index;
+	pg->count = count;
+	if (count > 1)
+	{
+		// The episodes and the timed battles.
+		for (int i = 0; i < count && i < UI_PAGES; ++i)
+		{
+			if (i < 5)
+				snprintf(pg->tab[i], sizeof(pg->tab[i]), "%s %d", miscTextB[1], i + 1);
+			else
+				plain_label(pg->tab[i], timed_battle_name[i - 4], sizeof(pg->tab[i]));
+		}
+		pg->tabs_click = true;
+	}
+	pg->prev = prev;
+	pg->next = next;
+	pg->hit_prev = (SDL_Rect){ 83, 179, 24, 21 };
+	pg->hit_next = (SDL_Rect){ 213, 179, 24, 21 };
+	ui->scores.new_table = ui->scores.new_row = -1;
+	ui->selected = -1;
+	ui->wheel = UI_WHEEL_LEFT_RIGHT;
+	return ui;
+}
+
 void JE_highScoreScreen(void)
 {
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer and arrow sprites
+	ui_take_press();  // (Tyrian3D: no click from before)
 
 	bool restart = true;
 
@@ -1240,6 +1569,22 @@ void JE_highScoreScreen(void)
 		helpBoxColor = 15;
 		JE_helpBox(VGAScreen, 103, 182, miscText[56], 25);
 
+		// Tyrian3D: the board for the modern UI (ui.h).
+		if (ui_modern())
+		{
+			UIMenu *ui = scores_menu(buffer, (int)episodeIndex, (int)episodeCount, leftControlVisible, rightControlVisible);
+			if (episodeIndex < 5)
+				snprintf(ui->title, sizeof(ui->title), "%s", episode_name[episodeIndex + 1]);
+			else
+				snprintf(ui->title, sizeof(ui->title), "%s %s", timed_battle_name[0], timed_battle_name[episodeIndex - 4]);
+			plain_label(ui->title, ui->title, sizeof(ui->title));
+			scores_table(&ui->scores.table[ui->scores.table_count++], miscText[46], boardOnePlayer);
+			if (boardTwoPlayer >= 0)
+				scores_table(&ui->scores.table[ui->scores.table_count++], miscText[47], boardTwoPlayer);
+			plain_label(ui->hint, miscText[56], sizeof(ui->hint));
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);  // (the picture without the paging's arrows)
+		}
+
 		if (restart)
 		{
 			mouseCursor = MOUSE_POINTER_NORMAL;
@@ -1268,6 +1613,15 @@ void JE_highScoreScreen(void)
 		bool leftAction = false;
 		bool rightAction = false;
 		bool done = false;
+
+		// Tyrian3D: a board's tab clicked on the modern UI (its own: ui.h).
+		const int tab = ui_take_press() - UI_ACTION_PAGE;
+		if (tab >= 0 && tab < (int)episodeCount)
+		{
+			JE_playSampleNum(S_CURSOR);
+			episodeIndex = (size_t)tab;
+			continue;
+		}
 
 		if (newmouse)
 		{
@@ -1354,6 +1708,7 @@ void JE_highScoreScreen(void)
 		if (done)
 		{
 			fade_black(15);
+			ui_screen_done();  // Tyrian3D
 
 			return;
 		}
@@ -2477,6 +2832,12 @@ void JE_highScoreCheck(void)
 				if (timedBattleMode)
 					JE_loadPic(VGAScreen, 13, false);
 
+				// Tyrian3D: the screen before the question's box, as the modern UI's picture under it.
+				static SDL_Surface *name_picture = NULL;
+				if (ui_modern() && (name_picture != NULL || (name_picture = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8)) != NULL))
+					for (int y = 0; y < 200; ++y)
+						memcpy((Uint8 *)name_picture->pixels + y * name_picture->pitch, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+
 				JE_barShade(VGAScreen, 65, 55, 255, 155);
 
 				do
@@ -2516,6 +2877,36 @@ void JE_highScoreCheck(void)
 						JE_barShade(VGAScreen, tempW + 2, 90, tempW + 6, 95);
 						fill_rectangle_xy(VGAScreen, tempW + 1, 89, tempW + 5, 94, flash);
 
+						// Tyrian3D: the question for the modern UI (ui.h): the score large, the name typed,
+						// its buttons the UI's own (the original's mouse check reads a position never set).
+						if (ui_modern())
+						{
+							UIMenu *ui = ui_menu_begin(UI_SCREEN_SCORE_NAME, "");
+							UIDialog *d = &ui->dialog;
+							d->on = true;
+							d->actions = true;
+							d->selected = -1;
+							plain_label(d->title, miscText[51], sizeof(d->title));
+							char said[96];
+							if (twoPlayerMode)
+								snprintf(said, sizeof(said), "%s %s %s", miscText[57 + p], miscText[48 + p], miscText[53]);
+							else
+								snprintf(said, sizeof(said), "%s %s", miscText[52], miscText[53]);
+							plain_label(d->text, said, sizeof(d->text));
+							plain_label(d->note_label, miscText[37], sizeof(d->note_label));
+							for (char *c = d->note_label; *c != '\0'; ++c)
+								*c = (char)SDL_toupper(*c);
+							group_digits((unsigned long)SDL_max(temp_score, 0), d->note, sizeof(d->note));
+							d->field_on = true;
+							SDL_strlcpy(d->field, tempstr, sizeof(d->field));
+							d->caret = flash == 8 * 16 + 10;
+							plain_label(d->yes, miscText[9], sizeof(d->yes));
+							plain_label(d->no, miscText[10], sizeof(d->no));
+							ui->selected = -1;
+							ui->wheel = UI_WHEEL_NONE;
+							ui_menu_publish(ui, VGAScreen, name_picture != NULL ? name_picture : VGAScreen);
+						}
+
 						for (int i = 0; i < 14; i++)
 						{
 							setDelay(1);
@@ -2540,6 +2931,13 @@ void JE_highScoreCheck(void)
 
 					if (!playing)
 						play_song(31);
+
+					// Tyrian3D: the modern UI's buttons (above).
+					const int pressed = ui_take_press();
+					if (pressed == UI_ACTION_YES)
+						quit = true;
+					else if (pressed == UI_ACTION_NO)
+						quit = cancel = true;
 
 					if (mouseButton > 0)
 					{
@@ -2619,6 +3017,19 @@ void JE_highScoreCheck(void)
 					}
 				}
 
+				// Tyrian3D: the board with the new entry for the modern UI (ui.h), shown while its texts
+				// glow in (hold), then waiting for a key.
+				UIMenu *board_ui = NULL;
+				if (ui_modern())
+				{
+					board_ui = scores_menu(timedBattleMode ? timed_battle_name[timeBattleSelection] : episode_name[episodeNum], 0, 1, false, false);
+					scores_table(&board_ui->scores.table[board_ui->scores.table_count++], twoPlayerMode ? miscText[47] : miscText[46], table);
+					board_ui->scores.new_table = 0;
+					board_ui->scores.new_row = slot;
+					board_ui->hold = true;
+					ui_menu_publish(board_ui, VGAScreen, VGAScreen);
+				}
+
 				JE_showVGA();
 
 				fade_palette(colors, 15, 0, 255);
@@ -2635,12 +3046,23 @@ void JE_highScoreCheck(void)
 				textGlowBrightness = 10;
 				JE_outTextGlow(VGAScreenSeg, JE_fontCenter(miscText[4], TINY_FONT), 180, miscText[4]);
 
+				if (board_ui != NULL && ui_modern())
+				{
+					board_ui = scores_menu(timedBattleMode ? timed_battle_name[timeBattleSelection] : episode_name[episodeNum], 0, 1, false, false);
+					scores_table(&board_ui->scores.table[board_ui->scores.table_count++], twoPlayerMode ? miscText[47] : miscText[46], table);
+					board_ui->scores.new_table = 0;
+					board_ui->scores.new_row = slot;
+					board_ui->scores.prompt = true;
+					board_ui->hold = true;
+					ui_menu_publish(board_ui, VGAScreen, VGAScreen);
+				}
 				JE_showVGA();
 
 				if (frameCountMax != 0)
 					wait_input(true, true, true);
 
 				fade_black(15);
+				ui_screen_done();  // Tyrian3D
 			}
 
 		}
@@ -3017,6 +3439,19 @@ void JE_playCredits(void)
 
 		blit_sprite2x2(VGAScreen, shipx / 40, 184 - (ticks % 200), spriteSheet9, ship_sprite);
 
+		// Tyrian3D: the screen before its texts (with the bars the original puts over them), the modern UI's
+		// picture under its own lines (below).
+		static SDL_Surface *credits_picture = NULL;
+		if (ui_modern() && (credits_picture != NULL || (credits_picture = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8)) != NULL))
+			for (int row = 0; row < 200; ++row)
+			{
+				Uint8 *to = (Uint8 *)credits_picture->pixels + row * credits_picture->pitch;
+				if (row <= 10 || row >= 190)
+					memset(to, 0, 320);
+				else
+					memcpy(to, (const Uint8 *)VGAScreen->pixels + row * VGAScreen->pitch, 320);
+			}
+
 		const int bottom_line = (ticks / 3) / 20;
 		int y = 20 - ((ticks / 3) % 20);
 
@@ -3045,6 +3480,31 @@ void JE_playCredits(void)
 		if (currentpic == sprite_table[EXTRA_SHAPES].count - 1)
 			JE_outTextAdjust(VGAScreen, 5, 180, miscText[54], 2, -2, SMALL_FONT_SHAPES, false);  // levels-in-episode
 
+		// Tyrian3D: the lines on the screen for the modern UI (ui.h), where they are (smoothly between the
+		// original's steps); a block's first line is its name.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_CREDITS, "");
+			UICredits *c = &ui->credits;
+			const float top = 20.0f - (ticks % 60) / 3.0f;
+			for (int line = bottom_line - 10, k = 0; line < bottom_line; ++line, ++k)
+			{
+				if (line < 0 || line >= lines_max || strcmp(credstr[line], ".") == 0 || strlen(credstr[line]) == 0 || c->count >= UI_CREDIT_LINES)
+					continue;
+				const int i = c->count++;
+				plain_label(c->text[i], &credstr[line][1], sizeof(c->text[i]));
+				c->x[i] = 110;
+				c->y[i] = top + 20 * k;
+				const bool first = line == 0 || strcmp(credstr[line - 1], ".") == 0 || credstr[line - 1][0] == '\0';
+				c->colour[i] = first ? -1 : credstr[line][0] - 65;
+			}
+			if (currentpic == sprite_table[EXTRA_SHAPES].count - 1)
+				plain_label(c->note, miscText[54], sizeof(c->note));
+			ui->selected = -1;
+			ui->wheel = UI_WHEEL_NONE;
+			ui_menu_publish(ui, VGAScreen, credits_picture != NULL ? credits_picture : VGAScreen);
+		}
+
 		if (bottom_line == lines_max - 8)
 			fade_song();
 
@@ -3065,6 +3525,7 @@ void JE_playCredits(void)
 	}
 
 	fade_black(10);
+	ui_screen_done();  // Tyrian3D
 
 	free_sprites(EXTRA_SHAPES);
 }

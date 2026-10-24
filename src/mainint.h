@@ -70,6 +70,20 @@ ulong JE_totalScore(const Player *);
 void JE_drawPortConfigButtons(void);
 void JE_outCharGlow(JE_word x, JE_word y, const char *s);
 
+// Tyrian3D: a story text between levels (JE_displayText's levelWarningText) for the modern UI (ui.h):
+// story_begin before it is drawn (its picture is the screen as it is then: kind UIStoryKind, the
+// ending's first lines its scores), story_line as each line (all: levelWarningLines) is revealed,
+// story_end once it waits no more (it shows until the screen changes or the next screen).
+void story_begin(int kind, int score_lines);
+void story_line(int line);
+void story_end(void);
+// The screen changed under the story (the warning's bars): published again as it shows now.
+void story_refresh(void);
+// A title card (ui.h UICard) for the modern UI, over the screen as it is now: crumb, title, lines
+// (NULL-ended), a code word, a sprite of the game (2x2) or NULL, whether it waits for a key.
+void card_publish(const char *crumb, const char *title, const char *const *lines, const char *code, const void *icon_sheet,
+                  int icon_sprite, bool prompt, bool large);
+
 void JE_playCredits(void);
 void JE_endLevelAni(void);
 void JE_drawCube(SDL_Surface * screen, JE_word x, JE_word y, JE_byte filter, JE_byte brightness);

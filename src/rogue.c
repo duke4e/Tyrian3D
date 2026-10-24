@@ -25,6 +25,7 @@
 #include "player.h"
 #include "sndmast.h"
 #include "sprite.h"
+#include "ui.h"
 #include "varz.h"
 #include "vga256d.h"
 #include "video.h"
@@ -932,6 +933,122 @@ static bool inside(Sint32 px, Sint32 py, int x, int y, int w, int h)
 	return px >= x && px < x + w && py >= y && py < y + h;
 }
 
+/* --- The modern UI's view of the screens (ui.h) --------------------------------------------- */
+
+// A number with its thousands apart ("10 000").
+static void ui_group(unsigned long value, char *out, size_t size)
+{
+	char digits[24];
+	snprintf(digits, sizeof(digits), "%lu", value);
+	const int n = (int)strlen(digits);
+	size_t k = 0;
+	for (int i = 0; i < n && k + 2 < size; ++i)
+	{
+		if (i > 0 && (n - i) % 3 == 0)
+			out[k++] = ' ';
+		out[k++] = digits[i];
+	}
+	out[k] = '\0';
+}
+
+static void ui_stat(UIRogue *r, const char *label, const char *format, long value)
+{
+	if (r->stat_count >= UI_ROGUE_STATS)
+		return;
+	SDL_strlcpy(r->stat_label[r->stat_count], label, sizeof(r->stat_label[0]));
+	char grouped[24];
+	ui_group((unsigned long)(value < 0 ? -value : value), grouped, sizeof(grouped));
+	// format is "%ld" with what goes round it ("+%ld").
+	const char *at = strstr(format, "%ld");
+	char out[32];
+	snprintf(out, sizeof(out), "%.*s%s%s%s", at != NULL ? (int)(at - format) : 0, format, value < 0 ? "-" : "", grouped,
+	         at != NULL ? at + 3 : "");
+	SDL_strlcpy(r->stat_value[r->stat_count], out, sizeof(r->stat_value[0]));
+	++r->stat_count;
+}
+
+// The run's chips: lives, credits, the experience's level, the cores earned.
+static void ui_run_stats(UIRogue *r)
+{
+	ui_stat(r, "LIVES", "%ld", 1 + run.lives);
+	ui_stat(r, "CREDITS", "%ld", (long)player[0].cash);
+	ui_stat(r, "XP LEVEL", "%ld", run.xp_level);
+	ui_stat(r, "CORES", "+%ld", run.cores);
+}
+
+static UIMenu *ui_rogue(UIRoguePage page, const char *title)
+{
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_ROGUE, title);
+	ui->rogue.page = page;
+	SDL_strlcpy(ui->crumb, "ROGUE RUN", sizeof(ui->crumb));
+	return ui;
+}
+
+// A card's icon as card_icon draws it: the item's sprite (ships, the store's items, specials).
+static void ui_card_icon(UIItem *it, const Card *card)
+{
+	const PlayerItems *items = &player[0].items;
+	int kind = -1, id = 0;
+	switch (card->kind)
+	{
+	case CARD_ITEM:
+		kind = card->item_kind, id = card->id;
+		break;
+	case CARD_POWER_FRONT:
+		kind = ITEM_FRONT, id = items->weapon[FRONT_WEAPON].id;
+		break;
+	case CARD_POWER_REAR:
+		kind = ITEM_REAR, id = items->weapon[REAR_WEAPON].id;
+		break;
+	case CARD_LIFE:
+		kind = ITEM_SHIP, id = items->ship;
+		break;
+	default:
+		SDL_strlcpy(it->value2, card->kind == CARD_CASH ? "$" : "?", sizeof(it->value2));
+		return;
+	}
+	it->icon_large = true;
+	int graphic = 0;
+	switch (kind)
+	{
+	case ITEM_SHIP:
+		if (id > 0 && id <= 90)
+		{
+			it->icon_sheet = ships[id].shipgraphic > 500 ? &spriteSheetT2000 : &spriteSheet9;
+			it->icon_sprite = ships[id].shipgraphic > 500 ? ships[id].shipgraphic - 500 : ships[id].shipgraphic;
+		}
+		return;
+	case ITEM_FRONT:
+	case ITEM_REAR:
+		graphic = weaponPort[id].itemgraphic;
+		break;
+	case ITEM_LEFT:
+	case ITEM_RIGHT:
+		graphic = options[id].itemgraphic;
+		break;
+	case ITEM_SHIELD:
+		graphic = shields[id].itemgraphic;
+		break;
+	case ITEM_GENERATOR:
+		graphic = powerSys[id].itemgraphic;
+		break;
+	default:
+		if (spriteSheet10.data != NULL && special[id].itemgraphic > 0)
+		{
+			it->icon_sheet = &spriteSheet10;
+			it->icon_sprite = special[id].itemgraphic;
+		}
+		return;
+	}
+	if (id > 0 && graphic > 0)
+	{
+		it->icon_sheet = &shopSpriteSheet;
+		it->icon_sprite = graphic;
+	}
+	else
+		SDL_strlcpy(it->value2, "?", sizeof(it->value2));
+}
+
 /* --- Screens ------------------------------------------------------------------------------- */
 
 static void status_line(SDL_Surface *s, int y)
@@ -970,6 +1087,33 @@ static bool card_screen(const char *heading, const char *subheading, int count, 
 			draw_card(VGAScreen, &cards[i], x0 + i * (w + gap), y0, w, h, i == selected, merchant);
 		text(VGAScreen, 160, 176, merchant ? "Enter: buy    Esc: leave" : "Enter: take the card    Esc: skip (+1000 credits)",
 		     small_font, centered, HUE_TEXT, -2);
+		// Tyrian3D: the cards for the modern UI (ui.h), each where the original takes the mouse on it.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_rogue(UI_ROGUE_CARDS, heading);
+			UIRogue *r = &ui->rogue;
+			SDL_strlcpy(r->subheading, subheading, sizeof(r->subheading));
+			r->merchant = merchant;
+			if (merchant)
+				ui_run_stats(r);
+			for (int i = 0; i < count; ++i)
+			{
+				const char *title, *name;
+				char detail[64];
+				card_texts(&cards[i], &title, &name, detail, sizeof(detail));
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, name, x0 + i * (w + gap), y0, w, h);
+				SDL_strlcpy(it->badge, title, sizeof(it->badge));
+				SDL_strlcpy(it->hint, detail, sizeof(it->hint));
+				it->tier = cards[i].tier;
+				it->owned = cards[i].sold;
+				ui_group(cards[i].price, it->value, sizeof(it->value));
+				it->unaffordable = !cards[i].sold && cards[i].price > player[0].cash;
+				ui_card_icon(it, &cards[i]);
+			}
+			ui->selected = selected;
+			ui->wheel = UI_WHEEL_LEFT_RIGHT;
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);  // (over the stars without the original's cards)
+		}
 		show_screen();
 		if (first)
 		{
@@ -1053,6 +1197,7 @@ static bool card_screen(const char *heading, const char *subheading, int count, 
 		}
 	}
 	fade_black(10);
+	ui_screen_done();  // Tyrian3D
 	return picked;
 }
 
@@ -1134,7 +1279,7 @@ static void draw_node(SDL_Surface *s, int row, int col, bool selected, bool can_
 	const Sint8 value = selected ? 4 : can_go ? 1 : visited ? -1 : -4;
 	// The selection's frame first, around the planet and its labels (a line through a text would
 	// keep it from turning into the TrueType one).
-	if (selected)
+	if (selected && !ui_modern())  // (Tyrian3D: the modern UI rings it its own way)
 	{
 		const int ph = n->kind == NODE_MERCHANT ? 14 : get_sprite_height(PLANET_SHAPES, n->planet) /
 		               (n->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, n->planet) > 30 ? 2 : 1);
@@ -1229,6 +1374,50 @@ static bool map_screen(void)
 		snprintf(info, sizeof(info), "%s: %s", node_name(next_row, choices[selected]), what[n->kind]);
 		text(VGAScreen, 160, 176, info, small_font, centered, HUE_GOLD, 4);
 		text(VGAScreen, 160, 188, "Up/Down: choose    Enter: go    Esc: abandon the run", small_font, centered, HUE_TEXT, 0);
+		// Tyrian3D: the map for the modern UI (ui.h): its nodes (where, what, their state), the choices
+		// where the original takes the mouse on them, the selected one's line.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_rogue(UI_ROGUE_MAP, acts[run.act].name);
+			UIRogue *r = &ui->rogue;
+			ui_run_stats(r);
+			SDL_strlcpy(r->info, info, sizeof(r->info));
+			for (int row = 0; row < run.rows; ++row)
+				for (int c = 0; c < run.width[row] && r->node_count < UI_ROGUE_NODES; ++c)
+				{
+					const Node *node = node_at(row, c);
+					int x, y;
+					node_position(row, c, &x, &y);
+					bool can_go = false, is_selected = false;
+					for (int i = 0; i < count; ++i)
+						if (row == next_row && choices[i] == c)
+							can_go = true, is_selected = i == selected;
+					const int k = r->node_count++;
+					r->nodes[k].x = (float)x;
+					r->nodes[k].y = (float)y;
+					if (node->kind == NODE_MERCHANT)
+						r->nodes[k].r = 9;
+					else
+					{
+						const int scale = node->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, node->planet) > 30 ? 2 : 1;
+						r->nodes[k].r = SDL_max(get_sprite_width(PLANET_SHAPES, node->planet), get_sprite_height(PLANET_SHAPES, node->planet)) /
+						                (2.0f * scale);
+					}
+					SDL_strlcpy(r->nodes[k].name, trimmed(node_name(row, c)), sizeof(r->nodes[k].name));
+					r->nodes[k].kind = node->kind == NODE_ELITE ? 1 : node->kind == NODE_MERCHANT ? 2 : node->kind == NODE_BOSS ? 3 : 0;
+					r->nodes[k].can_go = can_go;
+					r->nodes[k].selected = is_selected;
+					r->nodes[k].visited = row < run.row || (row == run.row && c == run.col);
+				}
+			for (int i = 0; i < count; ++i)
+			{
+				int x, y;
+				node_position(next_row, choices[i], &x, &y);
+				ui_menu_add(ui, UI_ITEM_ACTION, node_name(next_row, choices[i]), x - 22, y - 18, 44, 36);
+			}
+			ui->selected = selected;
+			ui_menu_publish(ui, VGAScreen, VGAScreen);
+		}
 		show_screen();
 		if (first)
 		{
@@ -1241,6 +1430,7 @@ static bool map_screen(void)
 			run.row = next_row;
 			run.col = choices[rnd_below(count)];
 			fade_black(10);
+			ui_screen_done();  // Tyrian3D
 			return true;
 		}
 
@@ -1284,6 +1474,7 @@ static bool map_screen(void)
 				if (JE_quitRequest())
 				{
 					fade_black(10);
+					ui_screen_done();  // Tyrian3D
 					return false;
 				}
 				break;
@@ -1297,6 +1488,7 @@ static bool map_screen(void)
 			run.row = next_row;
 			run.col = choices[selected];
 			fade_black(10);
+			ui_screen_done();  // Tyrian3D
 			return true;
 		}
 	}
@@ -1310,6 +1502,15 @@ static void message_screen(const char *title, const char *const *lines, int line
 	for (int i = 0; i < line_count; ++i)
 		text(VGAScreen, 160, 80 + 12 * i, lines[i], normal_font, centered, HUE_TEXT, 1);
 	text(VGAScreen, 160, 180, "Press a key", small_font, centered, HUE_TEXT, -3);
+	// Tyrian3D: as a card in the modern UI (mainint.h).
+	{
+		const char *shown[UI_CARD_LINES + 1];
+		int n = 0;
+		for (; n < line_count && n < UI_CARD_LINES; ++n)
+			shown[n] = lines[n];
+		shown[n] = NULL;
+		card_publish("ROGUE RUN", title, shown, NULL, NULL, 0, !automatic(), false);
+	}
 	JE_showVGA();
 	fade_palette(colors, 10, 0, 255);
 	if (automatic())
@@ -1320,6 +1521,7 @@ static void message_screen(const char *title, const char *const *lines, int line
 		wait_input(true, true, true);
 	}
 	fade_black(10);
+	ui_screen_done();  // Tyrian3D
 }
 
 /* --- The run's flow ------------------------------------------------------------------------ */
@@ -1552,7 +1754,7 @@ static void unlocks_screen(void)
 		{
 			const bool owned = (profile.unlocked >> i) & 1;
 			const int y = 36 + 14 * i;
-			if (i == selected)
+			if (i == selected && !ui_modern())  // (Tyrian3D: the modern UI has its own)
 				panel(VGAScreen, 30, y - 2, 260, 13, 255);
 			text(VGAScreen, 40, y, unlocks[i].title, normal_font, left_aligned, HUE_TEXT, i == selected ? 4 : owned ? -2 : 1);
 			snprintf(line, sizeof(line), owned ? "Owned" : "%d cores", unlocks[i].cost);
@@ -1562,6 +1764,23 @@ static void unlocks_screen(void)
 		if (unlock_count > 0)
 			text(VGAScreen, 160, 166, unlocks[selected].text, small_font, centered, HUE_TEXT, 2);
 		text(VGAScreen, 160, 186, "Enter: unlock    Esc: back", small_font, centered, HUE_TEXT, -3);
+		// Tyrian3D: the unlocks for the modern UI (ui.h).
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_rogue(UI_ROGUE_UNLOCKS, "Unlocks");
+			ui_stat(&ui->rogue, "CORES", "%ld", profile.cores);
+			for (int i = 0; i < unlock_count; ++i)
+			{
+				const bool owned = (profile.unlocked >> i) & 1;
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, unlocks[i].title, 30, 34 + 14 * i, 260, 13);
+				it->owned = owned;
+				snprintf(it->value, sizeof(it->value), "%d cores", unlocks[i].cost);
+				it->unaffordable = !owned && unlocks[i].cost > profile.cores;
+				SDL_strlcpy(it->hint, unlocks[i].text, sizeof(it->hint));
+			}
+			ui->selected = selected;
+			ui_menu_publish(ui, VGAScreen, VGAScreen);
+		}
 		show_screen();
 		if (first)
 		{
@@ -1607,6 +1826,7 @@ static void unlocks_screen(void)
 	}
 	JE_playSampleNum(S_SPRING);
 	fade_black(10);
+	ui_screen_done();  // Tyrian3D
 }
 
 bool rogue_menu(void)
@@ -1632,6 +1852,27 @@ bool rogue_menu(void)
 		text(VGAScreen, 160, 69, "One life: dying ends the run. Cores buy unlocks.", small_font, centered, HUE_TEXT, 0);
 		for (int i = 0; i < 3; ++i)
 			text(VGAScreen, 160, 100 + 20 * i, items[i], normal_font, centered, HUE_TEXT, i == selected ? 4 : -2);
+		// Tyrian3D: the menu for the modern UI (ui.h): the profile's chips, the items as cards.
+		if (ui_modern())
+		{
+			static const char *const hints[] = { "A new run: three acts, a card after every level.",
+			                                     "Spend cores on weapons, ships and better starts.", "Back to the game types." };
+			UIMenu *ui = ui_rogue(UI_ROGUE_MENU, "Rogue Run");
+			UIRogue *r = &ui->rogue;
+			ui_stat(r, "CORES", "%ld", profile.cores);
+			ui_stat(r, "RUNS", "%ld", profile.runs);
+			ui_stat(r, "WINS", "%ld", profile.wins);
+			ui_stat(r, "BEST ACT", "%ld", profile.best_act);
+			SDL_strlcpy(r->text[0], "Three acts, a map with branches, a card after every level.", sizeof(r->text[0]));
+			SDL_strlcpy(r->text[1], "One life: dying ends the run. Cores buy unlocks.", sizeof(r->text[1]));
+			for (int i = 0; i < 3; ++i)
+			{
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, items[i], 100, 98 + 20 * i, 120, 16);
+				SDL_strlcpy(it->hint, hints[i], sizeof(it->hint));
+			}
+			ui->selected = selected;
+			ui_menu_publish(ui, VGAScreen, VGAScreen);
+		}
 		show_screen();
 		if (first)
 		{
@@ -1666,6 +1907,7 @@ bool rogue_menu(void)
 			continue;
 		JE_playSampleNum(selected == 2 ? S_SPRING : S_SELECT);
 		fade_black(10);
+		ui_screen_done();  // Tyrian3D
 		if (selected == 0)
 		{
 			start_run((Uint32)SDL_GetTicksNS() | 1u);

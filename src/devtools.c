@@ -6,6 +6,7 @@
 #include "config.h"
 #include "debugmode.h"
 #include "episodes.h"
+#include "joystick.h"
 #include "layer3d.h"
 #include "mtrand.h"
 #include "palette.h"
@@ -297,7 +298,8 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
  * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
  * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long; MouseTo<x>x<y>
  * moves the pointer to that window point, where the mouse buttons then click; WheelUp, WheelDown turn
- * the mouse wheel a notch) when that frame is
+ * the mouse wheel a notch; Joy<key> presses the key as a joystick's: joystick.h; Type<text> types the text)
+ * when that frame is
  * presented, then each next one so many milliseconds after the one before (menus wait for keys
  * without presenting frames). The list may be any length.
  */
@@ -393,13 +395,31 @@ static void press_key(const char *name)
 		SDL_PushEvent(&event);
 		return;
 	}
+	// Type<text>: the text typed (a text input event: names, the title's codes).
+	if (strncmp(name, "Type", 4) == 0 && name[4] != '\0')
+	{
+		printf("devtools: typing %s\n", name + 4);
+		SDL_Event event = { 0 };
+		event.type = SDL_EVENT_TEXT_INPUT;
+		event.text.windowID = SDL_GetWindowID(main_window);
+		event.text.text = SDL_strdup(name + 4);  // (kept: the event is taken later)
+		SDL_SetAtomicInt(&key_pending, 1);
+		SDL_PushEvent(&event);
+		return;
+	}
+	// Joy<key>: the key as a joystick's (push_joysticks_as_keyboard's: the modern UI shows its buttons).
+	const bool from_joystick = strncmp(name, "Joy", 3) == 0 && name[3] != '\0';
+	if (from_joystick)
+		name += 3;
 	const SDL_Scancode scancode = SDL_GetScancodeFromName(name);
 	if (scancode == SDL_SCANCODE_UNKNOWN)
 	{
 		fprintf(stderr, "devtools: no key %s\n", name);
 		return;
 	}
-	printf("devtools: pressing %s\n", name);
+	printf("devtools: pressing %s%s\n", name, from_joystick ? " (as a joystick's)" : "");
+	if (from_joystick)
+		++joystick_keys_pushed;
 	SDL_SetAtomicInt(&key_pending, 1);
 	SDL_Event event = { 0 };
 	event.type = SDL_EVENT_KEY_DOWN;

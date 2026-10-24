@@ -226,6 +226,10 @@ void service_SDL_events(JE_boolean clear_new)
 
 			case SDL_EVENT_KEY_DOWN:
 				dev_input_taken();  // (TYR3D_DUMP_KEYS)
+				// Tyrian3D: a joystick's (push_key) or the keyboard's (joystick.h).
+				joystick_last_input = joystick_keys_pushed > 0;
+				if (joystick_keys_pushed > 0)
+					--joystick_keys_pushed;
 				/* <alt><enter> toggle fullscreen */
 				if (ev.key.mod & SDL_KMOD_ALT && ev.key.scancode == SDL_SCANCODE_RETURN)
 				{
@@ -295,6 +299,7 @@ void service_SDL_events(JE_boolean clear_new)
 					{
 						lastmouse_x = button_x;
 						lastmouse_y = button_y;
+						ui_note_press(ev.button.button);  // Tyrian3D: on a modern UI's own widget (ui.h)
 					}
 				}
 				if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
@@ -345,10 +350,11 @@ void service_SDL_events(JE_boolean clear_new)
 				// Tyrian3D: over a modern UI's menu (ui.h) the wheel moves through its items, as the
 				// up and down keys do.
 				const float y = ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -ev.wheel.y : ev.wheel.y;
-				if (ui_wheel_moves(y))
+				SDL_Scancode wheel_key;
+				if (ui_wheel_moves(y, &wheel_key))
 				{
 					newkey = true;
-					lastkey_scan = y > 0 ? SDL_SCANCODE_UP : SDL_SCANCODE_DOWN;
+					lastkey_scan = wheel_key;
 					lastkey_mod = SDL_KMOD_NONE;
 					return;
 				}
@@ -359,6 +365,7 @@ void service_SDL_events(JE_boolean clear_new)
 			}
 
 			case SDL_EVENT_TEXT_INPUT:
+				dev_input_taken();  // (TYR3D_DUMP_KEYS)
 				SDL_strlcpy(last_text, ev.text.text, COUNTOF(last_text));
 				new_text = true;
 				break;

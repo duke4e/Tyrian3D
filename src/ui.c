@@ -6,11 +6,13 @@
 #include "config.h"
 #include "episodes.h"
 #include "helptext.h"
+#include "joystick.h"
 #include "keyboard.h"
 #include "layer3d.h"
 #include "mainint.h"
 #include "models3d.h"
 #include "mouse.h"
+#include "musmast.h"
 #include "palette.h"
 #include "player.h"
 #include "render_gpu.h"
@@ -24,6 +26,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* --- Switches ------------------------------------------------------------------------------- */
@@ -383,6 +386,21 @@ static void text_mid(int font, const char *s, Box b, float pad, float cap, Colou
 	text(font, s, x, b.y + (b.h - cap) / 2, cap, c, align);
 }
 
+// A text of the game without its highlight marks ('~'), its leading and trailing spaces and a colon at
+// its end (in and out may be the same).
+static void plain_label_ui(char *out, const char *in, size_t size)
+{
+	while (*in == ' ')
+		++in;
+	size_t n = 0;
+	for (; *in != '\0' && n + 1 < size; ++in)
+		if (*in != '~')
+			out[n++] = *in;
+	out[n] = '\0';
+	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == ':'))
+		out[--n] = '\0';
+}
+
 // A string cut to fit a width, ending in "..." if cut.
 static void fit_text(int font, const char *s, float cap, float width, char *out, size_t size)
 {
@@ -458,31 +476,78 @@ static void triangle(float x0, float y0, float x1, float y1, float x2, float y2,
 	quad(x, y, cc);
 }
 
-typedef enum { KEY_TEXT, KEY_UP_DOWN, KEY_LEFT_RIGHT } KeyGlyph;
+// A filled disc (a joystick's button), of `sides` sides.
+static void disc(float cx, float cy, float r, Colour c)
+{
+	const int sides = 20;
+	for (int i = 0; i < sides; ++i)
+	{
+		const float a0 = i * 2 * (float)M_PI / sides, a1 = (i + 1) * 2 * (float)M_PI / sides;
+		triangle(cx, cy, cx + r * cosf(a0), cy + r * sinf(a0), cx + r * cosf(a1), cy + r * sinf(a1), c);
+	}
+}
 
-// A key's cap with its name or arrows, and what it does after it; returns the width taken.
+// KEY_PAD_*, KEY_BUTTON: a joystick's (the key hints when the joystick was the last input).
+typedef enum { KEY_TEXT, KEY_UP_DOWN, KEY_LEFT_RIGHT, KEY_PAD_UP_DOWN, KEY_PAD_LEFT_RIGHT, KEY_BUTTON } KeyGlyph;
+
+static float glyph_width(KeyGlyph glyph, const char *key, float cap)
+{
+	const float h = cap * 2.1f;
+	switch (glyph)
+	{
+	case KEY_TEXT:
+		return SDL_max(text_w(FONT_SEMIBOLD, key, cap) + cap * 1.4f, h);
+	case KEY_UP_DOWN:
+	case KEY_LEFT_RIGHT:
+		return cap * 3.2f;
+	default:
+		return h;
+	}
+}
+
+// A key's cap with its name or arrows (or a joystick's pad or button), and what it does after it;
+// returns the width taken.
 static float key_hint(float x, float y, KeyGlyph glyph, const char *key, const char *action, Colour c)
 {
 	const float cap = CAP_KEY(), h = cap * 2.1f, small = CAP_SMALL();
-	float w = glyph == KEY_TEXT ? text_w(FONT_SEMIBOLD, key, cap) + cap * 1.4f : cap * 3.2f;
-	w = SDL_max(w, h);
+	const float w = glyph_width(glyph, key, cap);
 	const Box k = { x, y, w, h };
-	panel(k, h * 0.22f, PANEL_WELL);
 	const Colour kc = mix(C_CREAM, c, 0.3f);
-	if (glyph == KEY_TEXT)
-		text_mid(FONT_SEMIBOLD, key, k, 0, cap, kc, ALIGN_CENTRE);
+	const float cx = k.x + k.w / 2, cy = k.y + k.h / 2;
+	if (glyph == KEY_BUTTON)
+	{
+		// A round button with its number.
+		disc(cx, cy, h * 0.5f, C_WELL_RIM);
+		disc(cx, cy, h * 0.5f - SDL_max(U(1.5f), L.px), mix(C_WELL, (Colour){ 0.2f, 0.14f, 0.09f, 0.95f }, 0.5f));
+		text_mid(FONT_BOLD, key, k, 0, cap, kc, ALIGN_CENTRE);
+	}
 	else
 	{
-		const float a = cap * 0.62f, cx = k.x + k.w / 2, cy = k.y + k.h / 2;
-		if (glyph == KEY_UP_DOWN)
+		panel(k, h * 0.22f, PANEL_WELL);
+		if (glyph == KEY_TEXT)
+			text_mid(FONT_SEMIBOLD, key, k, 0, cap, kc, ALIGN_CENTRE);
+		else if (glyph == KEY_PAD_UP_DOWN || glyph == KEY_PAD_LEFT_RIGHT)
 		{
-			triangle(cx - a * 1.45f, cy + a * 0.42f, cx - a * 0.25f, cy + a * 0.42f, cx - a * 0.85f, cy - a * 0.5f, kc);
-			triangle(cx + a * 0.25f, cy - a * 0.42f, cx + a * 1.45f, cy - a * 0.42f, cx + a * 0.85f, cy + a * 0.5f, kc);
+			// A direction pad: the cross, the arms that act lit.
+			const float arm = h * 0.34f, t = h * 0.2f;
+			const Colour off = with_alpha(C_FAINT, 0.55f);
+			const bool vertical = glyph == KEY_PAD_UP_DOWN;
+			rect((Box){ cx - t / 2, cy - arm, t, 2 * arm }, vertical ? kc : off, vertical ? kc : off);
+			rect((Box){ cx - arm, cy - t / 2, 2 * arm, t }, vertical ? off : kc, vertical ? off : kc);
 		}
 		else
 		{
-			triangle(cx - a * 0.2f, cy - a * 0.6f, cx - a * 0.2f, cy + a * 0.6f, cx - a * 1.2f, cy, kc);
-			triangle(cx + a * 0.2f, cy - a * 0.6f, cx + a * 1.2f, cy, cx + a * 0.2f, cy + a * 0.6f, kc);
+			const float a = cap * 0.62f;
+			if (glyph == KEY_UP_DOWN)
+			{
+				triangle(cx - a * 1.45f, cy + a * 0.42f, cx - a * 0.25f, cy + a * 0.42f, cx - a * 0.85f, cy - a * 0.5f, kc);
+				triangle(cx + a * 0.25f, cy - a * 0.42f, cx + a * 1.45f, cy - a * 0.42f, cx + a * 0.85f, cy + a * 0.5f, kc);
+			}
+			else
+			{
+				triangle(cx - a * 0.2f, cy - a * 0.6f, cx - a * 0.2f, cy + a * 0.6f, cx - a * 1.2f, cy, kc);
+				triangle(cx + a * 0.2f, cy - a * 0.6f, cx + a * 1.2f, cy, cx + a * 0.2f, cy + a * 0.6f, kc);
+			}
 		}
 	}
 	float used = w + cap * 0.6f;
@@ -500,17 +565,52 @@ typedef struct
 	const char *key, *action;
 } KeyHint;
 
-static float key_hints_width(const KeyHint *hints, int count)
+#define KEY_HINTS_MAX 12
+
+// The hints as shown: when the joystick was the last input (joystick.h), its pad for the arrows and the
+// buttons the menus take for Enter and Esc (fire and change fire: push_joysticks_as_keyboard), the keys
+// it has nothing for left out. Returns how many.
+static int shown_hints(const KeyHint *hints, int count, KeyHint *out)
 {
+	count = SDL_min(count, KEY_HINTS_MAX);
+	if (!joystick_last_input)
+	{
+		memcpy(out, hints, sizeof(*hints) * (size_t)count);
+		return count;
+	}
+	static char confirm[8], cancel[8];
+	const int b_confirm = joystick_action_button(0), b_cancel = joystick_action_button(1);
+	snprintf(confirm, sizeof(confirm), "%d", b_confirm > 0 ? b_confirm : 1);
+	snprintf(cancel, sizeof(cancel), "%d", b_cancel > 0 ? b_cancel : 2);
+	int n = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		KeyHint h = hints[i];
+		if (h.glyph == KEY_UP_DOWN)
+			h.glyph = KEY_PAD_UP_DOWN;
+		else if (h.glyph == KEY_LEFT_RIGHT)
+			h.glyph = KEY_PAD_LEFT_RIGHT;
+		else if (strcmp(h.key, "Enter") == 0)
+			h = (KeyHint){ KEY_BUTTON, confirm, h.action };
+		else if (strcmp(h.key, "Esc") == 0)
+			h = (KeyHint){ KEY_BUTTON, cancel, h.action };
+		else if (strcmp(h.key, "Any key") == 0)
+			h.key = "Any button";
+		else
+			continue;
+		out[n++] = h;
+	}
+	return n;
+}
+
+static float key_hints_width(const KeyHint *given, int given_count)
+{
+	KeyHint hints[KEY_HINTS_MAX];
+	const int count = shown_hints(given, given_count, hints);
 	const float cap = CAP_KEY(), small = CAP_SMALL();
 	float w = 0;
 	for (int i = 0; i < count; ++i)
-	{
-		const float h = cap * 2.1f;
-		float kw = hints[i].glyph == KEY_TEXT ? text_w(FONT_SEMIBOLD, hints[i].key, cap) + cap * 1.4f : cap * 3.2f;
-		kw = SDL_max(kw, h);
-		w += kw + cap * 0.6f + text_w(FONT_MEDIUM, hints[i].action, small) + cap * 1.8f;
-	}
+		w += glyph_width(hints[i].glyph, hints[i].key, cap) + cap * 0.6f + text_w(FONT_MEDIUM, hints[i].action, small) + cap * 1.8f;
 	return w - CAP_KEY() * 1.8f;
 }
 
@@ -520,10 +620,14 @@ static float key_hints_height(void)
 }
 
 // A row of key hints on a backing; align as text (x is their left, middle or right), y their top.
-static void key_hints(const KeyHint *hints, int count, float x, float y, int align)
+static void key_hints(const KeyHint *given, int given_count, float x, float y, int align)
 {
+	KeyHint hints[KEY_HINTS_MAX];
+	const int count = shown_hints(given, given_count, hints);
+	if (count == 0)
+		return;
 	const float pad = U(16);
-	const float w = key_hints_width(hints, count) + 2 * pad;
+	const float w = key_hints_width(given, given_count) + 2 * pad;
 	if (align == ALIGN_CENTRE)
 		x -= w / 2;
 	else if (align == ALIGN_RIGHT)
@@ -638,12 +742,13 @@ static Uint8 published_picture[320 * 200];  // its picture, without the texts
 static bool shown_last = false;              // the frame shown last was the published screen
 
 // Where the mouse is taken on the widgets of the frame built last: a box (window points) and the
-// rectangle of the original's item it stands for (screen pixels).
-#define HITS 64
+// rectangle of the original's item it stands for (screen pixels), or the UI's own widget it is (action).
+#define HITS 96
 static struct
 {
 	Box box;
 	SDL_Rect hit;
+	int action;  // UI_ACTION_*: the UI's own (the original takes the point of nothing there), or 0
 } hits[HITS];
 static int hit_count = 0;
 
@@ -653,8 +758,36 @@ static void add_hit(Box b, SDL_Rect r)
 	{
 		hits[hit_count].box = b;
 		hits[hit_count].hit = r;
+		hits[hit_count].action = 0;
 		++hit_count;
 	}
+}
+
+// A widget of the UI's own: a click on it is the screen's to take (ui_take_press).
+static void add_action(Box b, int action)
+{
+	if (hit_count < HITS && action > 0 && b.w > 0 && b.h > 0)
+	{
+		hits[hit_count].box = b;
+		hits[hit_count].hit = (SDL_Rect){ 0, 0, 0, 0 };
+		hits[hit_count].action = action;
+		++hit_count;
+	}
+}
+
+static int hover_action = 0;    // the UI's own widget the pointer was mapped on last
+static int pressed_action = 0;  // and the one pressed, not yet taken
+
+void ui_note_press(int button)
+{
+	pressed_action = button == SDL_BUTTON_LEFT ? hover_action : 0;
+}
+
+int ui_take_press(void)
+{
+	const int action = pressed_action;
+	pressed_action = 0;
+	return action;
 }
 
 UIMenu *ui_menu_begin(UIScreenKind kind, const char *title)
@@ -702,6 +835,18 @@ void ui_menu_release(void)
 {
 	if (have_published && published.hold)
 		have_published = false;
+}
+
+bool ui_published_is(UIScreenKind kind)
+{
+	return have_published && published.kind == kind;
+}
+
+void ui_screen_done(void)
+{
+	have_published = false;
+	hit_count = 0;
+	hover_action = pressed_action = 0;
 }
 
 static UIDialog dialog_building;
@@ -769,17 +914,19 @@ float ui_screen_fade(void)
 {
 	// How bright the menu's text colours are against the palette faded in (fade_palette's target).
 	float now = 0, full = 0;
+	const SDL_Color *target = published.palette != NULL ? published.palette : colors;
 	for (int i = published.text_color; i < published.text_color + 16 && i < 256; ++i)
 	{
 		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
 		now += c[0] + c[1] + c[2];
-		full += colors[i].r + colors[i].g + colors[i].b;
+		full += target[i].r + target[i].g + target[i].b;
 	}
 	return full > 0 ? SDL_clamp(now / full, 0.0f, 1.0f) : 1.0f;
 }
 
 bool ui_map_pointer(float wx, float wy, Sint32 *x, Sint32 *y)
 {
+	hover_action = 0;
 	if (!shown_last || !have_published)
 		return false;
 	for (int i = hit_count - 1; i >= 0; --i)
@@ -787,6 +934,12 @@ bool ui_map_pointer(float wx, float wy, Sint32 *x, Sint32 *y)
 		const Box b = hits[i].box;
 		if (!inside(b, wx, wy))
 			continue;
+		if (hits[i].action > 0)
+		{
+			// The UI's own: the original takes it at its point of nothing.
+			hover_action = hits[i].action;
+			break;
+		}
 		const SDL_Rect r = hits[i].hit;
 		const float fx = (wx - b.x) / b.w, fy = (wy - b.y) / b.h;
 		*x = SDL_clamp(r.x + (Sint32)floorf(fx * r.w), r.x, r.x + r.w - 1);
@@ -804,14 +957,22 @@ bool ui_wheel_scrolls_text(void)
 	       published.shop.page == UI_SHOP_CUBE;
 }
 
-bool ui_wheel_moves(float y)
+bool ui_wheel_moves(float y, SDL_Scancode *key)
 {
 	// (Not on a data cube's text, which scrolls with it its own way, nor on a question.)
-	if (!shown_last || !have_published || y == 0 || published.dialog.on)
+	if (!shown_last || !have_published || y == 0 || published.dialog.on || published.wheel == UI_WHEEL_NONE)
 		return false;
 	if (published.kind == UI_SCREEN_SHOP && published.shop.page == UI_SHOP_CUBE)
 		return false;
-	return published.item_count > 1 || (published.kind == UI_SCREEN_SHOP && published.shop.tab_count > 1);
+	if (published.wheel == UI_WHEEL_LEFT_RIGHT)
+	{
+		*key = y > 0 ? SDL_SCANCODE_LEFT : SDL_SCANCODE_RIGHT;
+		return true;
+	}
+	*key = y > 0 ? SDL_SCANCODE_UP : SDL_SCANCODE_DOWN;
+	// (The jukebox's songs: Up and Down play the one before or after.)
+	return published.item_count > 1 || (published.kind == UI_SCREEN_SHOP && published.shop.tab_count > 1) ||
+	       published.kind == UI_SCREEN_JUKEBOX;
 }
 
 /* --- The screens ------------------------------------------------------------------------- */
@@ -1312,9 +1473,12 @@ static void build_dialog(const UIDialog *d)
 	hit_count = 0;
 	const float cap = CAP_ITEM(), small = CAP_SMALL();
 	const float w = SDL_min(SDL_max(U(760), cap * 26), L.safe.w - U(80));
-	const float text_lines = d->text[0] != '\0' ? 3 : 0;
+	// (The text's lines, about: as many as its width takes, at most 3.)
+	const float text_lines = d->text[0] != '\0' ? SDL_clamp(ceilf(text_w(FONT_MEDIUM, d->text, small) * 1.06f / (w - U(100))), 1.0f, 3.0f) : 0;
 	const float btn_h = SDL_max(U(64), cap * 2.6f);
-	const float h = U(36) + CAP_TITLE() + U(30) + text_lines * small * 1.75f + (d->field_on ? cap * 2.4f + U(30) : 0) + btn_h + U(70);
+	const float note_cap = CAP_TITLE() * 1.15f;
+	const float note_h = d->note_label[0] != '\0' ? CAP_KEY() + U(12) + note_cap + U(44) : 0;
+	const float h = U(36) + CAP_TITLE() + U(30) + text_lines * small * 1.75f + note_h + (d->field_on ? cap * 2.4f + U(30) : 0) + btn_h + U(70);
 	const Box p = { L.safe.x + (L.safe.w - w) / 2, (L.window.h - h - key_hints_height() - U(24)) / 2, w, h };
 	panel(p, U(22), PANEL_GLASS);
 	float y = p.y + U(36);
@@ -1327,6 +1491,14 @@ static void build_dialog(const UIDialog *d)
 	y += CAP_TITLE() + U(30);
 	if (d->text[0] != '\0')
 		y += text_wrapped(FONT_MEDIUM, d->text, p.x + U(50), y, p.w - U(100), small, C_TAN, ALIGN_CENTRE, 3);
+	if (d->note_label[0] != '\0')
+	{
+		// A value large (a high score).
+		y += U(14);
+		text(FONT_SEMIBOLD, d->note_label, p.x + p.w / 2, y + U(4), CAP_KEY(), C_DIM, ALIGN_CENTRE);
+		text_graded(FONT_BOLD, d->note, p.x + p.w / 2, y + U(4) + CAP_KEY() + U(12), note_cap, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+		y += note_h - U(14);
+	}
 	if (d->field_on)
 	{
 		const Box f = { p.x + U(50), y + U(6), p.w - U(100), cap * 2.4f };
@@ -1352,10 +1524,13 @@ static void build_dialog(const UIDialog *d)
 		const bool selected = d->selected == i;
 		panel(b, U(12), selected ? PANEL_CARD : hovered(b) ? PANEL_BAR : PANEL_HOVER);
 		text_mid(FONT_BOLD, i == 0 ? d->yes : d->no, b, 0, cap, selected ? C_CREAM : C_TAN, ALIGN_CENTRE);
-		add_hit(b, i == 0 ? d->hit_yes : d->hit_no);
+		if (d->actions)
+			add_action(b, i == 0 ? UI_ACTION_YES : UI_ACTION_NO);
+		else
+			add_hit(b, i == 0 ? d->hit_yes : d->hit_no);
 	}
 	const KeyHint keys[] = { { KEY_LEFT_RIGHT, "", "Choose" }, { KEY_TEXT, "Enter", "Confirm" }, { KEY_TEXT, "Esc", "Cancel" } };
-	const KeyHint typing[] = { { KEY_TEXT, "Enter", "Save" }, { KEY_TEXT, "Esc", "Cancel" } };
+	const KeyHint typing[] = { { KEY_TEXT, "Enter", d->actions ? d->yes : "Save" }, { KEY_TEXT, "Esc", d->actions ? d->no : "Cancel" } };
 	if (d->field_on)
 		key_hints(typing, (int)COUNTOF(typing), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
 	else
@@ -1429,7 +1604,12 @@ static ShopLayout shop_layout(const UIMenu *m)
 		k.left = (Box){ S.x + margin, top, lw, bottom - top };
 		k.right = (Box){ k.left.x + lw + gap, top, S.x + S.w - margin - (k.left.x + lw + gap), bottom - top };
 		const bool under = s->scene != UI_SCENE_NONE || s->caption[0] != '\0';
-		const float under_h = !under ? 0 : s->scene == UI_SCENE_SIM ? SDL_max(U(150), CAP_SMALL() * 2 + U(110)) : SDL_max(U(118), CAP_SMALL() + U(90));
+		float under_h = !under ? 0 : s->scene == UI_SCENE_SIM ? SDL_max(U(150), CAP_SMALL() * 2 + U(110)) : SDL_max(U(118), CAP_SMALL() + U(90));
+		// (Two players' columns, the Super Arcade's weapons: taller.)
+		if (under && s->scene == UI_SCENE_SHIP && s->player_count == 2)
+			under_h = SDL_max(U(206), CAP_ITEM() + CAP_SMALL() * 5.4f + U(70));
+		else if (under && s->scene == UI_SCENE_SHIP && s->super_title[0] != '\0')
+			under_h = SDL_max(U(236), CAP_ITEM() + CAP_SMALL() * 6.2f + U(60));
 		k.pane = (Box){ k.left.x, k.left.y, k.left.w, k.left.h - (under_h > 0 ? under_h + U(18) : 0) };
 		k.under = (Box){ k.left.x, k.pane.y + k.pane.h + U(18), k.left.w, under_h };
 	}
@@ -1575,9 +1755,100 @@ static void shop_under(const UIMenu *m, Box u)
 			text(FONT_MEDIUM, s->mode, in.x + in.w, y - cap * 0.2f, CAP_KEY(), C_DIM, ALIGN_RIGHT);
 		return;
 	}
+	if (s->player_count == 2 && s->scene == UI_SCENE_SHIP)
+	{
+		// Two players: a column each, as their ships stand over it.
+		const float col_w = (in.w - U(40)) / 2, small = CAP_SMALL(), key = CAP_KEY(), name_cap = CAP_ITEM();
+		for (int k = 0; k < 2; ++k)
+		{
+			const float x = in.x + k * (col_w + U(40));
+			float y = in.y;
+			text(FONT_SEMIBOLD, s->players[k].name, x, y, key, C_DIM, ALIGN_LEFT);
+			char score[32];
+			grouped(strtoul(s->players[k].score, NULL, 10), score, sizeof(score));
+			text_graded(FONT_BOLD, score, x + col_w, y - U(2), CAP_HEAD(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+			y += key + U(14);
+			char fitted[48];
+			fit_text(FONT_BOLD, s->players[k].ship, name_cap, col_w, fitted, sizeof(fitted));
+			text(FONT_BOLD, fitted, x, y, name_cap, C_CREAM, ALIGN_LEFT);
+			y += name_cap + U(16);
+			// The gun and its power.
+			fit_text(FONT_SEMIBOLD, s->players[k].weapon, small, col_w, fitted, sizeof(fitted));
+			text(FONT_SEMIBOLD, fitted, x, y, small, C_TAN, ALIGN_LEFT);
+			y += small + U(10);
+			const int count = s->players[k].power_max;
+			const float pip = SDL_clamp(col_w / (count * 1.4f), L.px * 4, U(18)), pg = pip * 0.4f;
+			pips(x, y, SDL_min(count, 11), SDL_min(s->players[k].power, 11), pip, pg, k == 0 ? (Colour){ 0.45f, 1.0f, 0.55f, 1 } : (Colour){ 1.0f, 0.75f, 0.35f, 1 });
+			if (count > 11)
+				pips(x + 11 * (pip + pg), y, count - 11, SDL_max(s->players[k].power - 11, 0), pip, pg, (Colour){ 1.0f, 0.6f, 0.25f, 1 });
+			y += pip + U(14);
+			// Lives, bombs, the input it plays with.
+			char line[64] = "";
+			if (s->players[k].lives >= 0)
+				snprintf(line, sizeof(line), "Lives %d", s->players[k].lives + 1);
+			if (s->players[k].bombs > 0)
+				snprintf(line + strlen(line), sizeof(line) - strlen(line), "%sBombs %d", line[0] != '\0' ? "   " : "", s->players[k].bombs);
+			text(FONT_MEDIUM, line, x, y, small, C_DIM, ALIGN_LEFT);
+			if (s->players[k].input[0] != '\0')
+				badge(x + col_w, y + (small - key * 1.9f) / 2, s->players[k].input, (Colour){ 0.32f, 0.24f, 0.16f, 0.9f }, C_TAN, ALIGN_RIGHT);
+		}
+		// (Between them.)
+		rect((Box){ in.x + col_w + U(19), in.y, SDL_max(U(2), L.px), in.h }, with_alpha(C_RIM_BOTTOM, 0.5f), with_alpha(C_RIM_BOTTOM, 0.1f));
+		return;
+	}
 	if (s->caption[0] != '\0' && (s->scene == UI_SCENE_NONE || !s->gauges))
 	{
 		text_mid(FONT_BOLD, s->caption, in, 0, CAP_ITEM(), C_CREAM, ALIGN_CENTRE);
+		return;
+	}
+	if (s->super_title[0] != '\0' && s->scene == UI_SCENE_SHIP)
+	{
+		// The Super Arcade (Super Tyrian): the mode, the ship's name, its shield and armor, its main and
+		// special weapons (as the original's help boxes).
+		const float small = CAP_SMALL(), key = CAP_KEY(), name_cap = CAP_ITEM();
+		float y = in.y;
+		char title[40];
+		plain_label_ui(title, s->super_title, sizeof(title));
+		for (char *c = title; *c != '\0'; ++c)
+			*c = (char)SDL_toupper(*c);
+		text(FONT_SEMIBOLD, title, in.x, y, key, C_SUB, ALIGN_LEFT);
+		y += key + U(12);
+		text(FONT_BOLD, s->ship, in.x, y, name_cap, C_CREAM, ALIGN_LEFT);
+		y += name_cap + U(14);
+		if (s->gauges)
+		{
+			const float half = (in.w - U(30)) / 2, gh = SDL_max(U(34), small * 2.0f);
+			labelled_gauge((Box){ in.x, y, half, gh }, SDL_max(U(110), small * 5.4f), "SHIELD", s->shield, (Colour){ 0.35f, 0.75f, 1.0f, 1 });
+			labelled_gauge((Box){ in.x + half + U(30), y, half, gh }, SDL_max(U(110), small * 5.4f), "ARMOR", s->armor,
+			               (Colour){ 1.0f, 0.55f, 0.25f, 1 });
+			y += gh + U(12);
+		}
+		rule(in.x, y, in.w, with_alpha(C_RIM_BOTTOM, 0.45f));
+		y += U(12);
+		for (int i = 0; i < 2; ++i)
+		{
+			const float row = SDL_max(U(44), small * 2.3f);
+			char label[40];
+			plain_label_ui(label, s->super[i][0], sizeof(label));
+			for (char *c = label; *c != '\0'; ++c)
+				*c = (char)SDL_toupper(*c);
+			const float lw = SDL_max(text_w(FONT_SEMIBOLD, label, key) + U(24), SDL_max(U(220), small * 9));
+			text(FONT_SEMIBOLD, label, in.x, y + (row - key) / 2, key, C_DIM, ALIGN_LEFT);
+			float x = in.x + lw;
+			float pips_w = 0;
+			if (i == 0 && s->power > 0)
+			{
+				const float pip = SDL_max(U(12), L.px * 4), pg = pip * 0.35f;
+				const int count = s->power > 11 ? 15 : 11;
+				pips_w = count * (pip + pg) - pg;
+				pips(in.x + in.w - pips_w, y + (row - pip) / 2, count, s->power, pip, pg, C_GREEN);
+				pips_w += U(16);
+			}
+			char fitted[48];
+			fit_text(FONT_SEMIBOLD, s->super[i][1], small * 1.1f, in.x + in.w - pips_w - x, fitted, sizeof(fitted));
+			text(FONT_SEMIBOLD, fitted, x, y + (row - small * 1.1f) / 2, small * 1.1f, C_CREAM, ALIGN_LEFT);
+			y += row;
+		}
 		return;
 	}
 	// The ship's name and class, its shield and armor.
@@ -1744,7 +2015,7 @@ static void shop_files(const UIMenu *m, Box area)
 		}
 		const bool saved = it->value[0] != '\0';
 		const char *name = it->label[0] != '\0' ? it->label : saved ? "Unnamed" : "";
-		const Colour c = it->disabled ? C_FAINT : selected ? C_CREAM : saved || !slot ? C_TAN : C_DIM;
+		const Colour c = it->disabled ? (selected ? mix(C_CREAM, C_DIM, 0.5f) : C_FAINT) : selected ? C_CREAM : saved || !slot ? C_TAN : C_DIM;
 		char fitted[64];
 		fit_text(FONT_SEMIBOLD, name, cap, r.w * 0.5f, fitted, sizeof(fitted));
 		text(selected ? FONT_BOLD : FONT_SEMIBOLD, fitted, x, r.y + (r.h - cap) / 2, cap, c, ALIGN_LEFT);
@@ -2410,6 +2681,1032 @@ static void build_level_end(const UIMenu *m)
 	}
 }
 
+/* --- Stage 3's screens: the high scores, the story texts, title cards, loading, the jukebox, the
+ * instructions, the credits, the rogue run ------------------------------------------------------ */
+
+// A centred glass panel w wide and h high in the safe area, room left under it for the keys.
+static Box centred_panel(float w, float h)
+{
+	const float keys_h = key_hints_height() + U(28);
+	w = SDL_min(w, L.safe.w - U(96));
+	h = SDL_min(h, L.window.h - U(48) - keys_h);
+	return (Box){ snap(L.safe.x + (L.safe.w - w) / 2), snap(SDL_max((L.window.h - h - keys_h) / 2, U(24))), snap(w), snap(h) };
+}
+
+// The paging's controls: big arrows beside the panel (where the original takes the mouse on its own)
+// and its pages as tabs at y (clicked: the UI's own, UI_ACTION_PAGE + n); returns the tabs' height.
+static float paging_controls(const UIPaging *pg, Box p, float y)
+{
+	const float ah = SDL_max(U(96), CAP_ITEM() * 3.6f), aw = SDL_max(U(56), CAP_ITEM() * 2.1f);
+	const float ay = p.y + (p.h - ah) / 2;
+	if (pg->prev || pg->next)
+	{
+		const Box left = { p.x - aw - U(22), ay, aw, ah }, right = { p.x + p.w + U(22), ay, aw, ah };
+		if (left.x > L.window.x + U(4))
+		{
+			arrow_button(left, false, pg->prev, pg->prev ? pg->hit_prev : (SDL_Rect){ 0, 0, 0, 0 });
+			arrow_button(right, true, pg->next, pg->next ? pg->hit_next : (SDL_Rect){ 0, 0, 0, 0 });
+		}
+	}
+	bool tabs_on = false;
+	for (int i = 0; i < pg->count && i < UI_PAGES; ++i)
+		tabs_on |= pg->tab[i][0] != '\0';
+	if (!tabs_on || pg->count <= 1)
+		return 0;
+	// As the store's parts: spread over the width, smaller when they don't fit.
+	const Box area = { p.x + U(36), y, p.w - U(72), 0 };
+	float cap = CAP_SMALL(), pad = cap * 1.0f;
+	const float gap = U(8);
+	float total = 0;
+	for (int pass = 0; pass < 3; ++pass)
+	{
+		total = 0;
+		for (int i = 0; i < pg->count; ++i)
+			total += text_w(FONT_SEMIBOLD, pg->tab[i], cap) + 2 * pad;
+		total += gap * (pg->count - 1);
+		if (total <= area.w)
+			break;
+		pad *= 0.7f;
+		if (pass == 1)
+			cap = SDL_max(cap * area.w / total, CAP_KEY());
+	}
+	const float h = SDL_max(cap * 2.5f, U(44));
+	const float extra = total < area.w ? (area.w - total) / pg->count : 0;
+	float x = area.x;
+	for (int i = 0; i < pg->count; ++i)
+	{
+		const float w = text_w(FONT_SEMIBOLD, pg->tab[i], cap) + 2 * pad + extra;
+		const Box t = { x, y, w, h };
+		const bool selected = i == pg->index;
+		panel(t, h * 0.28f, selected ? PANEL_CARD : pg->tabs_click && hovered(t) ? PANEL_BAR : PANEL_HOVER);
+		text_mid(FONT_SEMIBOLD, pg->tab[i], t, 0, cap, selected ? C_CREAM : C_TAN, ALIGN_CENTRE);
+		if (pg->tabs_click && !selected)
+			add_action(t, UI_ACTION_PAGE + i);
+		x += w + gap;
+	}
+	return h;
+}
+
+// A rank's medal: gold, silver, bronze.
+static void rank_medal(Box b, int rank)
+{
+	static const Colour medal[3][2] = { { RGB(250, 214, 120), RGB(176, 128, 50) }, { RGB(226, 226, 230), RGB(130, 134, 146) },
+	                                    { RGB(224, 160, 110), RGB(140, 84, 46) } };
+	const int k = SDL_clamp(rank, 0, 2);
+	const float cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = SDL_min(b.w, b.h) * 0.5f;
+	disc(cx, cy + L.px, r, (Colour){ 0, 0, 0, 0.45f });
+	disc(cx, cy, r, medal[k][1]);
+	disc(cx, cy - r * 0.08f, r * 0.84f, medal[k][0]);
+	char n[4];
+	snprintf(n, sizeof(n), "%d", rank + 1);
+	text_graded(FONT_BOLD, n, cx, cy - CAP_SMALL() / 2, CAP_SMALL(), (Colour){ 0.25f, 0.16f, 0.08f, 1 }, (Colour){ 0.16f, 0.1f, 0.05f, 1 },
+	            ALIGN_CENTRE, false);
+}
+
+// The difficulty's colour (0 unranked .. 10 Zinglon).
+static Colour tier_colour(int tier)
+{
+	static const Colour c[] = { RGBA(120, 104, 84, 0.9f), RGBA(70, 120, 70, 0.92f), RGBA(110, 92, 58, 0.92f), RGBA(150, 104, 40, 0.92f),
+	                            RGBA(170, 80, 40, 0.92f), RGBA(160, 50, 44, 0.92f), RGBA(130, 40, 70, 0.92f), RGBA(110, 40, 100, 0.92f) };
+	return c[SDL_clamp(tier, 0, (int)COUNTOF(c) - 1)];
+}
+
+// The high scores: a board's tables (its tabs and paging, or the entry just made, highlighted).
+static void build_scores(const UIMenu *m)
+{
+	const UIScores *s = &m->scores;
+	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	const float row_h = SDL_max(U(58), cap * 2.3f), head_row = small + U(30);
+	const bool tabs = m->paging.count > 1;
+	const float head_h = U(30) + CAP_SMALL() + U(14) + CAP_TITLE() + U(24) + U(18);
+	const float tabs_h = tabs ? SDL_max(CAP_SMALL() * 2.5f, U(44)) + U(22) : 0;
+	const float foot_h = m->hint[0] != '\0' ? CAP_SMALL() * 1.75f + U(44) : U(20);
+	float tables_h = 0;
+	for (int t = 0; t < s->table_count; ++t)
+		tables_h += head_row + UI_SCORE_ROWS * row_h + U(18);
+	const Box p = centred_panel(SDL_max(U(1060), cap * 34), head_h + tabs_h + tables_h + foot_h + U(10));
+	panel(p, U(22), PANEL_GLASS);
+	float y = p.y + header(p, m->crumb, m->title);
+	y += paging_controls(&m->paging, p, y);
+	if (tabs)
+		y += U(22);
+	const float x0 = p.x + U(40), x1 = p.x + p.w - U(40);
+	const float medal_w = SDL_max(U(40), small * 2.2f);
+	const float score_r = x0 + medal_w + U(24) + SDL_max(U(230), cap * 8);  // the scores' right edge
+	for (int t = 0; t < s->table_count; ++t)
+	{
+		const UIScoreTable *tb = &s->table[t];
+		text(FONT_SEMIBOLD, tb->heading, x0, y + U(10), small, C_DIM, ALIGN_LEFT);
+		rule(x0 + text_w(FONT_SEMIBOLD, tb->heading, small) + U(20), y + U(10) + small / 2, x1 - x0 - text_w(FONT_SEMIBOLD, tb->heading, small) - U(20),
+		     with_alpha(C_RIM_BOTTOM, 0.45f));
+		y += head_row;
+		for (int r = 0; r < tb->count && r < UI_SCORE_ROWS; ++r)
+		{
+			const Box row = { p.x + U(20), y, p.w - U(40), row_h };
+			const bool fresh = s->new_table == t && s->new_row == r;
+			if (fresh)
+				panel(inset(row, U(2)), U(10), PANEL_CARD);
+			const float my = row.y + row.h / 2;
+			rank_medal((Box){ x0, my - medal_w / 2, medal_w, medal_w }, r);
+			text_graded(FONT_BOLD, tb->score[r], score_r, my - cap * 0.6f, cap * 1.2f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+			const float name_x = score_r + U(48);
+			// The difficulty as a badge at the right.
+			const float bw = badge(x1, my - CAP_KEY() * 0.95f, tb->rank[r], tier_colour(tb->tier[r]), C_CREAM, ALIGN_RIGHT);
+			char fitted[48];
+			fit_text(FONT_SEMIBOLD, tb->name[r], cap, x1 - bw - U(30) - name_x, fitted, sizeof(fitted));
+			text(fresh ? FONT_BOLD : FONT_SEMIBOLD, fitted, name_x, my - cap / 2, cap, fresh ? C_CREAM : C_TAN, ALIGN_LEFT);
+			if (fresh)
+				badge(name_x + text_w(FONT_BOLD, fitted, cap) + U(16), my - CAP_KEY() * 0.95f, "NEW", C_OWNED_FILL, C_OWNED_INK, ALIGN_LEFT);
+			y += row_h;
+		}
+		y += U(18);
+	}
+	if (m->hint[0] != '\0')
+	{
+		const float foot_y = p.y + p.h - foot_h + U(10);
+		rule(p.x + U(24), foot_y, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+		text_mid(FONT_MEDIUM, m->hint, (Box){ p.x, foot_y + U(6), p.w, foot_h - U(16) }, U(40), small, C_DIM, ALIGN_LEFT);
+	}
+	if (m->paging.label[0] != '\0')
+		text(FONT_SEMIBOLD, m->paging.label, p.x + p.w - U(40), p.y + U(30), CAP_KEY(), C_DIM, ALIGN_RIGHT);
+	const KeyHint browse[] = { { KEY_LEFT_RIGHT, "", "Board" }, { KEY_TEXT, "Esc", "Back" } };
+	const KeyHint any[] = { { KEY_TEXT, "Any key", "Continue" } };
+	// (A board alone: the entry just made, a key goes on.)
+	if (s->prompt || m->paging.count <= 1)
+		key_hints(any, 1, p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+	else
+		key_hints(browse, (int)COUNTOF(browse), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+}
+
+/*
+ * A story text's lines, laid out: the original's lines (written for its 320-pixel screen) joined into
+ * paragraphs and wrapped to the panel; a line set apart by many leading spaces centred, a short line
+ * in capitals a heading, a short line ending in a colon (a speaker, "Warning:") a line of its own.
+ * Each character keeps where it was in the original's lines, so the text shows as far as the
+ * original has revealed it.
+ */
+enum { STORY_BODY, STORY_HEADING, STORY_LABEL, STORY_CENTRED, STORY_GAP };
+#define STORY_OUT 48
+#define STORY_CHARS 160
+typedef struct
+{
+	int style;
+	int len;
+	char text[STORY_CHARS];
+	int src[STORY_CHARS];  // each character's place in the original's text (lines one after another)
+} StoryLine;
+
+static StoryLine story_out[STORY_OUT];
+
+static int story_font(int style)
+{
+	return style == STORY_HEADING ? FONT_BOLD : style == STORY_LABEL || style == STORY_CENTRED ? FONT_SEMIBOLD : FONT_MEDIUM;
+}
+
+static int story_style_of(const char *line)
+{
+	int lead = 0;
+	while (line[lead] == ' ')
+		++lead;
+	const char *t = line + lead;
+	int n = (int)strlen(t);
+	while (n > 0 && t[n - 1] == ' ')
+		--n;
+	if (n == 0)
+		return STORY_GAP;
+	if (lead >= 6)
+		return STORY_CENTRED;
+	int letters = 0, lower = 0;
+	for (int i = 0; i < n; ++i)
+	{
+		letters += SDL_isalpha((unsigned char)t[i]) != 0;
+		lower += SDL_islower((unsigned char)t[i]) != 0;
+	}
+	if (n <= 28 && letters >= 3 && lower == 0)
+		return STORY_HEADING;
+	if (n <= 44 && t[n - 1] == ':')
+		return STORY_LABEL;
+	return STORY_BODY;
+}
+
+// Wraps a run of characters (with their places) into lines no wider than w; returns the lines made.
+static int story_wrap(const char *text, const int *src, int len, int style, float cap, float w, int out_at)
+{
+	int made = 0, at = 0;
+	const int font = story_font(style);
+	while (at < len && out_at + made < STORY_OUT)
+	{
+		while (at < len && text[at] == ' ')
+			++at;
+		if (at >= len)
+			break;
+		int best = 0, k = 0;
+		for (;;)
+		{
+			while (at + k < len && text[at + k] != ' ')
+				++k;
+			char trial[STORY_CHARS];
+			const int n = SDL_min(k, STORY_CHARS - 1);
+			memcpy(trial, text + at, (size_t)n);
+			trial[n] = '\0';
+			if (text_w(font, trial, cap) > w && best > 0)
+				break;
+			best = n;
+			if (at + k >= len || n >= STORY_CHARS - 1)
+				break;
+			++k;
+		}
+		StoryLine *o = &story_out[out_at + made++];
+		o->style = style;
+		o->len = best;
+		memcpy(o->text, text + at, (size_t)best);
+		o->text[best] = '\0';
+		memcpy(o->src, src + at, sizeof(int) * (size_t)best);
+		at += best;
+	}
+	return made;
+}
+
+// The story's lines from line `from` on, laid out at cap into width w; returns how many.
+static int story_layout(const UIStory *s, int from, float cap, float w)
+{
+	int count = 0, base = 0;
+	char para[STORY_CHARS * 4];
+	int para_src[STORY_CHARS * 4];
+	int n = 0;
+	for (int i = 0; i < from && i < s->line_count; ++i)
+		base += (int)strlen(s->lines[i]);
+	for (int i = from; i <= s->line_count && count < STORY_OUT; ++i)
+	{
+		const char *line = i < s->line_count ? s->lines[i] : "";
+		const int style = i < s->line_count ? story_style_of(line) : STORY_GAP;
+		if (style == STORY_BODY)
+		{
+			// Joined to the paragraph.
+			int lead = 0;
+			while (line[lead] == ' ')
+				++lead;
+			if (n > 0 && n + 1 < (int)COUNTOF(para))
+			{
+				para[n] = ' ';
+				para_src[n] = base + lead;
+				++n;
+			}
+			for (int k = lead; line[k] != '\0' && n + 1 < (int)COUNTOF(para); ++k)
+			{
+				para[n] = line[k];
+				para_src[n] = base + k;
+				++n;
+			}
+		}
+		else
+		{
+			// The paragraph so far ends; the line is one of its own.
+			if (n > 0)
+				count += story_wrap(para, para_src, n, STORY_BODY, cap, w, count);
+			n = 0;
+			if (style == STORY_GAP)
+			{
+				if (count > 0 && count < STORY_OUT && story_out[count - 1].style != STORY_GAP && i < s->line_count)
+				{
+					story_out[count].style = STORY_GAP;
+					story_out[count].len = 0;
+					story_out[count].text[0] = '\0';
+					++count;
+				}
+			}
+			else
+			{
+				int lead = 0, len = (int)strlen(line);
+				while (line[lead] == ' ')
+					++lead;
+				while (len > lead && line[len - 1] == ' ')
+					--len;
+				int src[STORY_CHARS];
+				for (int k = lead; k < len && k - lead < STORY_CHARS; ++k)
+					src[k - lead] = base + k;
+				count += story_wrap(line + lead, src, SDL_min(len - lead, STORY_CHARS), style, cap * (style == STORY_HEADING ? 1.08f : 1.0f), w, count);
+			}
+		}
+		if (i < s->line_count)
+			base += (int)strlen(line);
+	}
+	// (Without a gap at the end.)
+	while (count > 0 && story_out[count - 1].style == STORY_GAP)
+		--count;
+	return count;
+}
+
+// How many characters of the original's text are revealed (all: a large number).
+static int story_revealed(const UIStory *s)
+{
+	if (s->shown_line >= s->line_count)
+		return 1 << 30;
+	int n = 0;
+	for (int i = 0; i < s->shown_line; ++i)
+		n += (int)strlen(s->lines[i]);
+	return n + SDL_max(s->shown_chars, 0);
+}
+
+// A laid-out line as far as revealed, its last characters fading in as the original's glow.
+static void story_line_draw(const StoryLine *o, float x, float y, float cap, int revealed, Colour c, int align, float w)
+{
+	int shown = 0;
+	while (shown < o->len && o->src[shown] < revealed)
+		++shown;
+	if (shown == 0)
+		return;
+	const int font = story_font(o->style);
+	if (align == ALIGN_CENTRE)
+		x += (w - text_w(font, o->text, cap)) / 2;  // (centred as the whole line will be)
+	const int tail = SDL_min(shown, 5), whole = shown - tail;
+	char part[STORY_CHARS];
+	memcpy(part, o->text, (size_t)whole);
+	part[whole] = '\0';
+	text(font, part, x, y, cap, c, ALIGN_LEFT);
+	for (int k = whole; k < shown; ++k)
+	{
+		// The fresher the fainter (only while it is being revealed).
+		const int age = revealed >= (1 << 29) ? 99 : revealed - 1 - o->src[k];
+		const float a = SDL_clamp(0.35f + age * 0.16f, 0.0f, 1.0f);
+		memcpy(part, o->text, (size_t)k);
+		part[k] = '\0';
+		const float px = x + text_w(font, part, cap);
+		const char one[2] = { o->text[k], '\0' };
+		text(font, one, px, y, cap, with_alpha(c, a), ALIGN_LEFT);
+	}
+}
+
+// The story texts between levels: in a glass panel over their picture, low on it (high for the
+// original's red texts at the top); a warning's panel with a red rim and bars at the window's edges
+// that pulse, as the original's alarm; an episode's end with its score, then its hint.
+static void build_story(const UIMenu *m)
+{
+	const UIStory *s = &m->story;
+	const float cap = cap_of(22, 12), line_h = cap * 1.78f;
+	const float t = SDL_GetTicks() / 1000.0f;
+	const float pulse = 0.5f + 0.5f * sinf(t * 5.2f);
+	const Colour red = RGB(236, 84, 60);
+	const bool warning = s->kind == UI_STORY_WARNING;
+	if (warning)
+	{
+		// The alarm's bars at the window's top and bottom.
+		const float bh = SDL_max(U(10), L.px * 3);
+		const Colour bar = with_alpha(red, 0.35f + 0.55f * pulse);
+		rect((Box){ 0, 0, L.window.w, bh }, bar, with_alpha(bar, 0.0f));
+		rect((Box){ 0, L.window.h - bh, L.window.w, bh }, with_alpha(bar, 0.0f), bar);
+	}
+	const float w = SDL_min(SDL_max(U(1180), cap * 46), L.safe.w - U(96));
+	const float tw = w - U(100);
+	// The ending's scores, then the rest.
+	int from = 0;
+	if (s->kind == UI_STORY_ENDING)
+		from = SDL_min(s->score_lines, s->line_count);
+	// A warning's first line ("Warning:") is its header.
+	char warn_title[64] = "";
+	if (warning && s->line_count > 0 && SDL_strncasecmp(s->lines[0], "warning", 7) == 0)
+	{
+		plain_label_ui(warn_title, s->lines[0], sizeof(warn_title));
+		from = 1;
+	}
+	const int count = story_layout(s, from, cap, tw);
+	const int revealed = story_revealed(s);
+	float body_h = 0;
+	for (int i = 0; i < count; ++i)
+		body_h += story_out[i].style == STORY_GAP ? line_h * 0.55f : line_h;
+	const bool header_on = warning || s->kind == UI_STORY_ENDING;
+	const float head_h = s->kind == UI_STORY_ENDING ? U(30) + CAP_SMALL() + U(14) + CAP_TITLE() + U(24) + U(18)
+	                   : warning ? U(34) + CAP_TITLE() + U(24) + U(18) : U(34);
+	(void)header_on;
+	float scores_h = 0;
+	if (s->kind == UI_STORY_ENDING)
+		scores_h = from * SDL_max(U(64), cap * 2.6f) + U(20);
+	const float keys_h = key_hints_height() + U(28);
+	const float h = SDL_min(head_h + scores_h + body_h + U(44), L.window.h - U(48) - keys_h);
+	Box p;
+	if (s->kind == UI_STORY_ENDING)
+		p = centred_panel(w, h);
+	else
+	{
+		// Low on the picture (as the original writes it from a quarter down), or at the top.
+		const float x = snap(L.safe.x + (L.safe.w - w) / 2);
+		const float y = s->top ? U(54) : SDL_max(L.window.h - keys_h - U(30) - h, U(24));
+		p = (Box){ x, snap(y), snap(w), snap(h) };
+	}
+	panel(p, U(22), PANEL_GLASS);
+	if (warning)
+	{
+		const float rw = SDL_max(U(3), L.px);
+		rim(p, U(22), rw, with_alpha(red, 0.45f + 0.5f * pulse), with_alpha(red, 0.3f + 0.4f * pulse));
+	}
+	float y = p.y;
+	if (warning)
+	{
+		// An alarm's sign (pulsing), the title (the original's first line, "Warning").
+		const float ct = CAP_TITLE(), ty = y + U(34);
+		const float sx = p.x + U(40), sw = ct * 1.25f;
+		const Colour sign = with_alpha(red, 0.55f + 0.45f * pulse);
+		triangle(sx + sw / 2, ty - ct * 0.12f, sx + sw, ty + ct * 1.05f, sx, ty + ct * 1.05f, sign);
+		triangle(sx + sw / 2, ty + ct * 0.14f, sx + sw - ct * 0.2f, ty + ct * 0.92f, sx + ct * 0.2f, ty + ct * 0.92f, (Colour){ 0.16f, 0.06f, 0.04f, 1 });
+		rect((Box){ sx + sw / 2 - ct * 0.06f, ty + ct * 0.34f, ct * 0.12f, ct * 0.32f }, sign, sign);
+		rect((Box){ sx + sw / 2 - ct * 0.06f, ty + ct * 0.72f, ct * 0.12f, ct * 0.11f }, sign, sign);
+		const char *title = warn_title[0] != '\0' ? warn_title : "Warning";
+		text_graded(FONT_BOLD, title, sx + sw + U(20), ty, ct, (Colour)RGB(255, 196, 150), (Colour)RGB(226, 110, 80), ALIGN_LEFT, true);
+		y += head_h;
+		rule(p.x + U(24), y - U(18), p.w - U(48), with_alpha(red, 0.5f));
+	}
+	else if (s->kind == UI_STORY_ENDING)
+	{
+		y += header(p, m->crumb, m->title);
+		// The scores: label and value, the value large.
+		for (int i = 0; i < from; ++i)
+		{
+			const char *line = s->lines[i];
+			char label[64], value[32] = "";
+			plain_label_ui(label, line, sizeof(label));
+			// "Your total Score: 123456": the number at its end.
+			char *end = label + strlen(label);
+			while (end > label && SDL_isdigit((unsigned char)end[-1]))
+				--end;
+			if (*end != '\0')
+			{
+				char digits[32];
+				SDL_strlcpy(digits, end, sizeof(digits));
+				grouped(strtoul(digits, NULL, 10), value, sizeof(value));
+				*end = '\0';
+				plain_label_ui(label, label, sizeof(label));
+			}
+			const float rh = SDL_max(U(64), cap * 2.6f);
+			const bool shown = revealed > 0;
+			if (shown)
+			{
+				text(FONT_SEMIBOLD, label, p.x + U(50), y + (rh - cap) / 2, cap, C_TAN, ALIGN_LEFT);
+				text_graded(FONT_BOLD, value, p.x + p.w - U(50), y + (rh - cap * 1.5f) / 2, cap * 1.5f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT,
+				            true);
+			}
+			y += rh;
+		}
+		rule(p.x + U(24), y + U(8), p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+		y += U(20);
+	}
+	else
+		y += U(34);
+	// The text.
+	const float x = p.x + U(50);
+	for (int i = 0; i < count; ++i)
+	{
+		const StoryLine *o = &story_out[i];
+		if (o->style == STORY_GAP)
+		{
+			y += line_h * 0.55f;
+			continue;
+		}
+		if (y + cap > p.y + p.h - U(20))
+			break;
+		const Colour c = o->style == STORY_HEADING ? C_GOLD_TOP : o->style == STORY_LABEL ? C_SUB : o->style == STORY_CENTRED ? C_CREAM : C_TAN;
+		story_line_draw(o, x, y, o->style == STORY_HEADING ? cap * 1.08f : cap, revealed, c,
+		                o->style == STORY_CENTRED || o->style == STORY_HEADING ? ALIGN_CENTRE : ALIGN_LEFT, tw);
+		y += line_h;
+	}
+	if (s->prompt)
+	{
+		const KeyHint keys[] = { { KEY_TEXT, "Any key", "Continue" } };
+		const float a = L.alpha;
+		L.alpha *= 0.75f + 0.25f * sinf(t * 3.0f);
+		key_hints(keys, 1, p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+		L.alpha = a;
+	}
+}
+
+// A title card: the crumb, the title (gold, large for an episode's name), a sprite of the game, lines,
+// a code word to type, "press a key".
+static void build_card(const UIMenu *m)
+{
+	const UICard *c = &m->card;
+	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	const float cap_t = c->large ? cap_of(64, 24) : CAP_TITLE();
+	const float icon = c->icon_sheet != NULL ? SDL_max(U(130), L.px * 40) : 0;
+	float w = SDL_max(U(860), text_w(FONT_BOLD, m->title, cap_t) + U(200));
+	for (int i = 0; i < c->line_count; ++i)
+		w = SDL_max(w, text_w(FONT_MEDIUM, c->lines[i], cap) + U(160));
+	const float code_h = c->code[0] != '\0' ? cap * 2.8f + U(24) : 0;
+	const float h = U(40) + (m->crumb[0] != '\0' ? small + U(18) : 0) + cap_t + U(40) + (icon > 0 ? icon + U(26) : 0) +
+	                c->line_count * cap * 1.8f + code_h + (c->line_count > 0 || code_h > 0 ? U(40) : U(14));
+	const Box p = centred_panel(w, h);
+	panel(p, U(22), PANEL_GLASS);
+	float y = p.y + U(40);
+	const float cx = p.x + p.w / 2;
+	if (m->crumb[0] != '\0')
+	{
+		text(FONT_SEMIBOLD, m->crumb, cx, y, small, C_DIM, ALIGN_CENTRE);
+		y += small + U(18);
+	}
+	char title[64];
+	fit_text(FONT_BOLD, m->title, cap_t, p.w - U(80), title, sizeof(title));
+	text_graded(FONT_BOLD, title, cx, y, cap_t, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+	y += cap_t + U(22);
+	const float tw = SDL_min(text_w(FONT_BOLD, title, cap_t) * 1.2f, p.w - U(120));
+	rule(cx - tw / 2, y, tw, with_alpha(C_RIM_TOP, 0.8f));
+	y += U(18);
+	if (icon > 0)
+	{
+		const Box well = { cx - icon / 2, y, icon, icon };
+		panel(well, U(12), PANEL_WELL);
+		const float s = SDL_min(icon * 0.8f / 24.0f, icon * 0.8f / 28.0f);
+		rgpu_ui_sprite(c->icon_sheet, (unsigned int)c->icon_sprite, true, snap(cx - 12 * s), snap(y + (icon - 28 * s) / 2), 24 * s, 28 * s, L.alpha);
+		y += icon + U(26);
+	}
+	for (int i = 0; i < c->line_count; ++i)
+	{
+		text(FONT_MEDIUM, c->lines[i], cx, y, cap, i == 0 ? C_CREAM : C_TAN, ALIGN_CENTRE);
+		y += cap * 1.8f;
+	}
+	if (c->code[0] != '\0')
+	{
+		// The word to type, as keys.
+		const float kc = cap * 1.1f;
+		const float kw = text_w(FONT_BOLD, c->code, kc) + U(70), kh = cap * 2.8f;
+		const Box k = { cx - kw / 2, y + U(10), kw, kh };
+		panel(k, U(12), PANEL_WELL);
+		text_mid(FONT_BOLD, c->code, k, 0, kc, C_GOLD_TOP, ALIGN_CENTRE);
+	}
+	if (c->prompt)
+	{
+		const KeyHint keys[] = { { KEY_TEXT, "Any key", "Continue" } };
+		const float a = L.alpha;
+		L.alpha *= 0.75f + 0.25f * sinf(SDL_GetTicks() / 330.0f);
+		key_hints(keys, 1, cx, p.y + p.h + U(22), ALIGN_CENTRE);
+		L.alpha = a;
+	}
+}
+
+// Load a game (the title's): the players' pages as tabs, the slots as the store's.
+static void build_load(const UIMenu *m)
+{
+	const float cap = CAP_ITEM();
+	const float row_h = SDL_max(U(54), cap * 2.1f);
+	const float head_h = U(30) + CAP_SMALL() + U(14) + CAP_TITLE() + U(24) + U(18);
+	const float tabs_h = SDL_max(CAP_SMALL() * 2.5f, U(44)) + U(22);
+	const float foot_h = CAP_SMALL() * 1.75f + U(44);
+	const Box p = centred_panel(SDL_max(U(1080), cap * 34), head_h + tabs_h + m->item_count * row_h + U(16) + foot_h);
+	panel(p, U(22), PANEL_GLASS);
+	float y = p.y + header(p, m->crumb, m->title);
+	y += paging_controls(&m->paging, p, y) + U(22);
+	const float foot_y = p.y + p.h - foot_h + U(10);
+	shop_files(m, (Box){ p.x + U(20), y, p.w - U(40), foot_y - U(12) - y });
+	rule(p.x + U(24), foot_y, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+	text_mid(FONT_MEDIUM, m->hint, (Box){ p.x, foot_y + U(6), p.w, foot_h - U(16) }, U(40), CAP_SMALL(), C_DIM, ALIGN_LEFT);
+	const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_LEFT_RIGHT, "", "Players" }, { KEY_TEXT, "Enter", "Load" },
+	                         { KEY_TEXT, "Esc", "Back" } };
+	key_hints_fitted(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), L.safe.w - U(40), ALIGN_CENTRE);
+}
+
+// A button of the UI's own with a label (or a glyph drawn by the caller), lit when on.
+static void action_button(Box b, const char *label, bool on, int action)
+{
+	panel(b, U(10), on ? PANEL_CARD : hovered(b) ? PANEL_BAR : PANEL_HOVER);
+	if (label != NULL && label[0] != '\0')
+		text_mid(FONT_SEMIBOLD, label, b, 0, CAP_SMALL(), on ? C_CREAM : C_TAN, ALIGN_CENTRE);
+	add_action(b, action);
+}
+
+// The jukebox: the songs in a list (a click plays one), the one playing large with its controls,
+// over the stars; hidden (Space), only the stars.
+static void build_jukebox(const UIMenu *m)
+{
+	const UIJukebox *j = &m->jukebox;
+	if (j->hidden)
+		return;
+	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	const float w = SDL_min(SDL_max(U(1500), cap * 48), L.safe.w - U(96));
+	const float keys_h = key_hints_height() + U(28);
+	const float h = SDL_min(SDL_max(U(470), cap * 17), L.window.h * 0.56f);
+	const Box p = { snap(L.safe.x + (L.safe.w - w) / 2), snap(L.window.h - keys_h - U(24) - h), snap(w), snap(h) };
+	panel(p, U(22), PANEL_GLASS);
+	// The list at the left.
+	const float lw = p.w * 0.42f;
+	const Box list = { p.x + U(20), p.y + U(24), lw - U(20), p.h - U(48) };
+	const float row_h = SDL_max(U(44), small * 2.3f);
+	const int fits = SDL_max((int)(list.h / row_h), 1);
+	const int first = list_first(LIST_ROWS, j->song_count, j->song, fits);
+	for (int i = first; i < j->song_count && i < first + fits; ++i)
+	{
+		const Box r = { list.x, list.y + (i - first) * row_h, list.w - U(26), row_h };
+		const bool playing = i == j->song;
+		if (playing)
+			panel(inset(r, U(2)), U(8), PANEL_CARD);
+		else if (hovered(r))
+			panel(inset(r, U(2)), U(8), PANEL_HOVER);
+		char n[8];
+		snprintf(n, sizeof(n), "%02d", i + 1);
+		text(FONT_SEMIBOLD, n, r.x + U(18), r.y + (r.h - small) / 2, small, playing ? C_SUB : C_FAINT, ALIGN_LEFT);
+		char title[56];
+		fit_text(FONT_SEMIBOLD, musicTitle[i], small, r.w - U(90), title, sizeof(title));
+		text(playing ? FONT_BOLD : FONT_SEMIBOLD, title, r.x + U(70), r.y + (r.h - small) / 2, small, playing ? C_CREAM : C_TAN, ALIGN_LEFT);
+		if (!playing)
+			add_action(r, UI_ACTION_ITEM + i);
+	}
+	scroll_bar((Box){ list.x + list.w - U(12), list.y, U(10), fits * row_h }, first, fits, j->song_count);
+	// The song playing.
+	const float rx = p.x + lw + U(30), rw = p.x + p.w - U(40) - rx;
+	float y = p.y + U(34);
+	char count[48];
+	snprintf(count, sizeof(count), "JUKEBOX    %d / %d", j->song + 1, j->song_count);
+	text(FONT_SEMIBOLD, count, rx, y, small, C_DIM, ALIGN_LEFT);
+	// Back (as Esc), at the top right.
+	{
+		const float bw = SDL_max(U(120), text_w(FONT_SEMIBOLD, "Back", small) + U(48)), bh = small * 2.3f;
+		action_button((Box){ rx + rw - bw, y + small / 2 - bh / 2, bw, bh }, "Back", false, UI_ACTION_BACK);
+	}
+	y += small + U(16);
+	const float cap_t = CAP_TITLE();
+	char title[56];
+	fit_text(FONT_BOLD, j->song >= 0 && j->song < MUSIC_NUM ? musicTitle[j->song] : "", cap_t, rw, title, sizeof(title));
+	text_graded(FONT_BOLD, title, rx, y, cap_t, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT, true);
+	y += cap_t + U(14);
+	text(FONT_MEDIUM, j->stopped ? "Stopped" : j->fading ? "Fading out" : "Playing", rx, y, small, j->stopped ? C_DIM : C_SUB, ALIGN_LEFT);
+	y += small + U(30);
+	// The controls: previous, stop or play again, next.
+	const float bh = SDL_max(U(64), cap * 2.6f), bw = SDL_max(U(96), bh * 1.4f), gap = U(14);
+	Box b = { rx, y, bw, bh };
+	action_button(b, "", false, UI_ACTION_PREV);
+	{
+		const float a = bh * 0.16f, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		triangle(cx + a * 0.2f, cy - a, cx + a * 0.2f, cy + a, cx - a * 1.3f, cy, C_SEL_RIM);
+		triangle(cx + a * 1.7f, cy - a, cx + a * 1.7f, cy + a, cx + a * 0.2f, cy, C_SEL_RIM);
+	}
+	b.x += bw + gap;
+	action_button(b, "", false, j->stopped ? UI_ACTION_RESTART : UI_ACTION_STOP);
+	{
+		const float a = bh * 0.17f, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		if (j->stopped)
+			triangle(cx - a * 0.7f, cy - a, cx + a * 1.0f, cy, cx - a * 0.7f, cy + a, C_SEL_RIM);
+		else
+			rect((Box){ cx - a * 0.8f, cy - a * 0.8f, a * 1.6f, a * 1.6f }, C_SEL_RIM, C_SEL_RIM);
+	}
+	b.x += bw + gap;
+	action_button(b, "", false, UI_ACTION_NEXT);
+	{
+		const float a = bh * 0.16f, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		triangle(cx - a * 0.2f, cy - a, cx + a * 1.3f, cy, cx - a * 0.2f, cy + a, C_SEL_RIM);
+		triangle(cx - a * 1.7f, cy - a, cx - a * 0.2f, cy, cx - a * 1.7f, cy + a, C_SEL_RIM);
+	}
+	// The settings: fade looped songs, fade out now.
+	const float sw = SDL_min((rx + rw - (b.x + bw + U(30))) / 2 - U(8), U(260));
+	if (sw > U(120))
+	{
+		Box t = { rx + rw - 2 * sw - U(12), y, sw, bh };
+		action_button(t, "Fade loops", j->fade_looped, UI_ACTION_FADE_LOOPED);
+		t.x += sw + U(12);
+		action_button(t, "Fade out", j->fading, UI_ACTION_FADE);
+	}
+	y += bh + U(26);
+	// The sound effects.
+	const Box fx = { rx, y, rw, SDL_max(U(60), cap * 2.4f) };
+	if (fx.y + fx.h <= p.y + p.h - U(20))
+	{
+		panel(fx, U(10), PANEL_WELL);
+		const Box mode = { fx.x + U(8), fx.y + U(8), SDL_max(U(190), small * 9), fx.h - U(16) };
+		action_button(mode, "Sound effects", j->sfx, UI_ACTION_SFX);
+		if (j->sfx)
+		{
+			char line[48];
+			snprintf(line, sizeof(line), "%d  %s", j->sfx_number + 1, j->sfx_title);
+			text(FONT_SEMIBOLD, line, mode.x + mode.w + U(24), fx.y + (fx.h - small) / 2, small, C_CREAM, ALIGN_LEFT);
+			const Box play = { fx.x + fx.w - U(8) - SDL_max(U(120), small * 5), mode.y, SDL_max(U(120), small * 5), mode.h };
+			action_button(play, "Play", false, UI_ACTION_PLAY_SFX);
+		}
+		else
+			text(FONT_MEDIUM, "/ switches to the sound effects", mode.x + mode.w + U(24), fx.y + (fx.h - small) / 2, small, C_DIM, ALIGN_LEFT);
+	}
+	const KeyHint keys[] = { { KEY_LEFT_RIGHT, "", "Song" }, { KEY_TEXT, "S", "Stop" }, { KEY_TEXT, "R", "Restart" }, { KEY_TEXT, "Space", "Hide" },
+	                         { KEY_TEXT, "Esc", "Back" } };
+	const KeyHint fx_keys[] = { { KEY_TEXT, ",", "" }, { KEY_TEXT, ".", "Sound" }, { KEY_TEXT, ";", "Play" }, { KEY_LEFT_RIGHT, "", "Song" },
+	                            { KEY_TEXT, "Esc", "Back" } };
+	key_hints_fitted(j->sfx ? fx_keys : keys, 5, p.x + p.w / 2, p.y + p.h + U(22), L.safe.w - U(40), ALIGN_CENTRE);
+}
+
+// The instructions' page: the topic's help texts (their titles from the original's ~highlights~), the
+// page's number; the window's halves take a click as the original's screen does (back, on).
+static void build_help_page(const UIMenu *m)
+{
+	const UIHelp *h = &m->help;
+	const float small = CAP_SMALL(), cap = CAP_ITEM();
+	const float head_h = U(30) + CAP_SMALL() + U(14) + CAP_TITLE() + U(24) + U(18);
+	const float keys_h = key_hints_height() + U(28);
+	const float w = SDL_min(SDL_max(U(1160), cap * 36), L.safe.w - U(300));
+	// Each part's height from its text's lines.
+	float part_h[UI_HELP_PARTS], total = 0;
+	const float tw = w - U(80);
+	for (int i = 0; i < h->count; ++i)
+	{
+		// (About: the text's width over the line's, plus its title.)
+		const float lines = SDL_max(ceilf(text_w(FONT_MEDIUM, h->text[i], small) / (tw * 0.93f)), 1.0f);
+		part_h[i] = (h->title[i][0] != '\0' ? cap + U(12) : 0) + lines * small * 1.75f + U(26);
+		total += part_h[i];
+	}
+	const float foot_h = small + U(46);
+	const float room = L.window.h - U(48) - keys_h;
+	const float scale = head_h + total + foot_h > room ? SDL_max((room - head_h - foot_h) / SDL_max(total, 1.0f), 0.5f) : 1.0f;
+	// The window's halves first (the buttons over them).
+	add_hit((Box){ 0, 0, L.window.w / 2, L.window.h }, (SDL_Rect){ 0, 0, 160, 190 });
+	add_hit((Box){ L.window.w / 2, 0, L.window.w / 2, L.window.h }, (SDL_Rect){ 160, 0, 160, 190 });
+	const Box p = centred_panel(w, head_h + total * scale + foot_h);
+	panel(p, U(22), PANEL_GLASS);
+	float y = p.y + header(p, m->crumb, m->title);
+	for (int i = 0; i < h->count; ++i)
+	{
+		const float ph = part_h[i] * scale;
+		float ty = y + U(6);
+		if (h->title[i][0] != '\0')
+		{
+			text(FONT_BOLD, h->title[i], p.x + U(40), ty, cap, C_CREAM, ALIGN_LEFT);
+			ty += cap + U(12);
+		}
+		text_wrapped(FONT_MEDIUM, h->text[i], p.x + U(40), ty, tw, small, C_TAN, ALIGN_LEFT,
+		             SDL_max((int)((y + ph - ty - U(10)) / (small * 1.75f)), 1));
+		y += ph;
+		if (i + 1 < h->count)
+			rule(p.x + U(30), y - U(10), p.w - U(60), with_alpha(C_RIM_BOTTOM, 0.35f));
+	}
+	// The page's number.
+	const float fy = p.y + p.h - foot_h + U(12);
+	rule(p.x + U(24), fy, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+	text(FONT_SEMIBOLD, m->paging.label, p.x + p.w / 2, fy + U(18), small, C_DIM, ALIGN_CENTRE);
+	const float pip = SDL_max(U(12), L.px * 4), pg = pip * 0.6f;
+	const float pw = m->paging.count * pip + (m->paging.count - 1) * pg;
+	pips(p.x + p.w - U(40) - pw, fy + U(18) + (small - pip) / 2, m->paging.count, m->paging.index + 1, pip, pg, C_SEL_RIM);
+	paging_controls(&m->paging, p, 0);
+	const KeyHint keys[] = { { KEY_LEFT_RIGHT, "", "Page" }, { KEY_TEXT, "Esc", "Back" } };
+	key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+}
+
+// The credits rolling: a dark column where the original writes them, each line where it is, the names
+// large and cream, their parts under them in tan; fading at the column's top and bottom.
+static void build_credits(const UIMenu *m)
+{
+	const UICredits *c = &m->credits;
+	const Box pic = picture_box();
+	const float k = pic.h / 200.0f;  // points per screen pixel
+	const Box col = { pic.x + 6 * k, pic.y + 10 * k, 208 * k, 180 * k };
+	const Colour dark = { 0.05f, 0.035f, 0.025f, 0.62f };
+	rect_h((Box){ col.x - U(30), col.y, U(30), col.h }, with_alpha(dark, 0), dark);
+	rect(col, dark, dark);
+	rect_h((Box){ col.x + col.w, col.y, U(30), col.h }, dark, with_alpha(dark, 0));
+	const float cap = SDL_max(k * 6.2f, L.px * 10);
+	const float fade = 22 * k;
+	for (int i = 0; i < c->count; ++i)
+	{
+		const float x = pic.x + c->x[i] * k, y = pic.y + c->y[i] * k;
+		if (y < col.y - cap || y > col.y + col.h)
+			continue;
+		const float a = SDL_clamp(SDL_min((y - col.y) / fade, (col.y + col.h - cap - y) / fade), 0.0f, 1.0f);
+		const bool name = c->colour[i] < 0;
+		const float saved = L.alpha;
+		L.alpha *= a;
+		char line[68];
+		fit_text(name ? FONT_BOLD : FONT_MEDIUM, c->text[i], name ? cap * 1.12f : cap, col.w - U(20), line, sizeof(line));
+		if (strchr(line, '*') != NULL)
+			text_graded(FONT_BOLD, line, x, y, cap * 1.2f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+		else
+			text(name ? FONT_BOLD : FONT_MEDIUM, line, x, y, name ? cap * 1.12f : cap, name ? C_CREAM : C_TAN, ALIGN_CENTRE);
+		L.alpha = saved;
+	}
+	if (c->note[0] != '\0')
+		text(FONT_MEDIUM, c->note, pic.x + 5 * k, pic.y + 181 * k, SDL_max(k * 5.0f, L.px * 9), C_DIM, ALIGN_LEFT);
+}
+
+// The rogue run's chips (cores, runs...): small label over a value, in a row from x; returns its width.
+static float rogue_chips(const UIRogue *r, float x, float y, bool right)
+{
+	const float cap_l = CAP_KEY(), cap_v = CAP_HEAD();
+	float w = 0;
+	float widths[UI_ROGUE_STATS];
+	for (int i = 0; i < r->stat_count; ++i)
+	{
+		widths[i] = SDL_max(text_w(FONT_SEMIBOLD, r->stat_label[i], cap_l), text_w(FONT_BOLD, r->stat_value[i], cap_v)) + U(40);
+		w += widths[i];
+	}
+	if (right)
+		x -= w;
+	for (int i = 0; i < r->stat_count; ++i)
+	{
+		text(FONT_SEMIBOLD, r->stat_label[i], x, y, cap_l, C_DIM, ALIGN_LEFT);
+		text_graded(FONT_BOLD, r->stat_value[i], x, y + cap_l + U(10), cap_v, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT, true);
+		x += widths[i];
+	}
+	return w;
+}
+
+static const Colour C_TIER[4] = { RGB(150, 128, 98), RGB(196, 178, 140), RGB(110, 170, 240), RGB(250, 200, 90) };
+
+// A rogue card: its tier's ribbon, its kind, the item's icon, its name and what it does, its price.
+static void rogue_card(Box r, const UIItem *it, bool selected, bool show_price)
+{
+	const bool hover = !selected && hovered(r);
+	// (Over the stars: an unselected card as solid as a bar, lit when hovered.)
+	if (!selected)
+		panel(r, U(14), PANEL_SOLID);
+	panel(r, U(14), selected ? PANEL_CARD : hover ? PANEL_BAR : PANEL_HOVER);
+	const Colour tier = C_TIER[SDL_clamp(it->tier, 0, 3)];
+	// The tier's band along its top.
+	const Box band_box = { r.x + U(14), r.y + U(12), r.w - U(28), SDL_max(U(6), L.px * 2) };
+	rect_h(band_box, with_alpha(tier, 0.2f), tier);
+	const float small = CAP_SMALL(), cap = CAP_ITEM(), key = CAP_KEY();
+	float y = r.y + U(30);
+	static const char *const tier_names[4] = { "", "COMMON", "RARE", "EPIC" };
+	text(FONT_BOLD, tier_names[SDL_clamp(it->tier, 0, 3)], r.x + r.w / 2, y, key, tier, ALIGN_CENTRE);
+	y += key + U(12);
+	text(FONT_SEMIBOLD, it->badge, r.x + r.w / 2, y, small, selected ? C_SUB : C_DIM, ALIGN_CENTRE);
+	y += small + U(18);
+	// The icon in a well.
+	const float iw = SDL_min(r.w * 0.5f, U(150));
+	const Box well = { r.x + (r.w - iw) / 2, y, iw, iw };
+	panel(well, U(10), PANEL_WELL);
+	if (it->icon_sheet != NULL || it->icon_table > 0)
+		item_icon(it, well, it->owned ? 0.45f : 1.0f);
+	else
+		text_mid(FONT_BOLD, it->value2[0] != '\0' ? it->value2 : "?", well, 0, cap * 1.6f, C_GOLD_TOP, ALIGN_CENTRE);
+	y += iw + U(20);
+	// The name and what it does.
+	y += text_wrapped(FONT_BOLD, it->label, r.x + U(18), y, r.w - U(36), cap * 0.95f, it->owned ? C_DIM : selected ? C_CREAM : C_TAN, ALIGN_CENTRE,
+	                  2) * 0.95f;
+	y += U(6);
+	if (!it->owned)
+		text_wrapped(FONT_MEDIUM, it->hint, r.x + U(18), y, r.w - U(36), small, selected ? C_SUB : C_DIM, ALIGN_CENTRE, 3);
+	if (show_price)
+	{
+		const float py = r.y + r.h - U(26) - cap;
+		if (it->owned)
+			badge(r.x + r.w / 2, py + (cap - CAP_KEY() * 1.9f) / 2, "SOLD", (Colour){ 0.32f, 0.24f, 0.16f, 0.9f }, C_DIM, ALIGN_CENTRE);
+		else
+			text(FONT_BOLD, it->value, r.x + r.w / 2, py, cap, it->unaffordable ? C_COST_HIGH : C_GOLD_TOP, ALIGN_CENTRE);
+	}
+}
+
+// The rogue run's screens.
+static void build_rogue(const UIMenu *m)
+{
+	const UIRogue *r = &m->rogue;
+	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	switch (r->page)
+	{
+	case UI_ROGUE_MENU:
+	{
+		const float card_h = SDL_max(U(88), cap + small * 1.9f + U(30)), gap = U(10);
+		const float head_h = U(30) + CAP_TITLE() + U(24) + U(18);
+		const float stats_h = CAP_KEY() + U(10) + CAP_HEAD() + U(30);
+		const float text_h = small * 1.75f * 2 + U(24);
+		const Box p = centred_panel(SDL_max(U(900), cap * 29), head_h + stats_h + text_h + m->item_count * (card_h + gap) + U(24));
+		panel(p, U(22), PANEL_GLASS);
+		float y = p.y + header(p, "", m->title);
+		rogue_chips(r, p.x + U(40), y, false);
+		y += stats_h;
+		for (int i = 0; i < 2; ++i)
+			if (r->text[i][0] != '\0')
+			{
+				text(FONT_MEDIUM, r->text[i], p.x + U(40), y, small, C_TAN, ALIGN_LEFT);
+				y += small * 1.75f;
+			}
+		y += U(24) + small * 1.75f * (r->text[1][0] == '\0' ? 1 : 0);
+		for (int i = 0; i < m->item_count; ++i)
+		{
+			const UIItem *it = &m->items[i];
+			const Box c = { p.x + U(24), y + i * (card_h + gap), p.w - U(48), card_h };
+			item_card(c, it->label, it->hint, NULL, i == m->selected, it->disabled, 0);
+			add_hit(c, it->hit);
+		}
+		const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_TEXT, "Enter", "Confirm" }, { KEY_TEXT, "Esc", "Back" } };
+		key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+		break;
+	}
+	case UI_ROGUE_UNLOCKS:
+	{
+		const float row_h = SDL_max(U(56), cap * 2.2f);
+		const float head_h = U(30) + CAP_SMALL() + U(14) + CAP_TITLE() + U(24) + U(18);
+		const float foot_h = small * 1.75f * 2 + U(44);
+		const Box p = centred_panel(SDL_max(U(1000), cap * 32), head_h + m->item_count * row_h + U(16) + foot_h);
+		panel(p, U(22), PANEL_GLASS);
+		const float top = p.y + header(p, m->crumb, m->title);
+		rogue_chips(r, p.x + p.w - U(40), p.y + U(30), true);
+		const float foot_y = p.y + p.h - foot_h + U(10);
+		const float rh = SDL_min(row_h, (foot_y - U(12) - top) / SDL_max(m->item_count, 1));
+		for (int i = 0; i < m->item_count; ++i)
+		{
+			const UIItem *it = &m->items[i];
+			const Box row = { p.x + U(16), top + i * rh, p.w - U(32), rh };
+			const bool selected = i == m->selected;
+			if (selected)
+				panel(inset(row, U(2)), U(10), PANEL_CARD);
+			else if (hovered(row))
+				panel(inset(row, U(2)), U(10), PANEL_HOVER);
+			text_mid(selected ? FONT_BOLD : FONT_SEMIBOLD, it->label, row, U(28), cap, it->owned ? C_DIM : selected ? C_CREAM : C_TAN, ALIGN_LEFT);
+			if (it->owned)
+				badge(row.x + row.w - U(22), row.y + (row.h - CAP_KEY() * 1.9f) / 2, "OWNED", C_OWNED_FILL, C_OWNED_INK, ALIGN_RIGHT);
+			else
+				text(FONT_BOLD, it->value, row.x + row.w - U(22), row.y + (row.h - cap) / 2, cap, it->unaffordable ? C_COST_HIGH : C_GOLD_TOP,
+				     ALIGN_RIGHT);
+			add_hit(row, it->hit);
+		}
+		rule(p.x + U(24), foot_y, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+		if (m->selected >= 0 && m->selected < m->item_count)
+			text_wrapped(FONT_MEDIUM, m->items[m->selected].hint, p.x + U(40), foot_y + U(22), p.w - U(80), small, C_DIM, ALIGN_LEFT, 2);
+		const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_TEXT, "Enter", "Unlock" }, { KEY_TEXT, "Esc", "Back" } };
+		key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+		break;
+	}
+	case UI_ROGUE_MAP:
+	{
+		// Over the map as the game draws it (its planets, paths and the ship): a bar at the top with the
+		// act and the run's chips, the nodes' names and their state, the selected one ringed, what it is.
+		const Box pic = picture_box();
+		const float k = pic.h / 200.0f;
+		const float bar_h = SDL_max(U(96), CAP_HEAD() + CAP_KEY() + U(50));
+		const Box top = { snap(L.safe.x + U(40)), U(20), snap(L.safe.w - U(80)), snap(bar_h) };
+		panel(top, U(16), PANEL_BAR);
+		text_graded(FONT_BOLD, m->title, top.x + U(30), top.y + (top.h - CAP_TITLE()) / 2, CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT,
+		            true);
+		rogue_chips(r, top.x + top.w - U(10), top.y + (top.h - (CAP_KEY() + U(10) + CAP_HEAD())) / 2, true);
+		for (int i = 0; i < r->node_count; ++i)
+		{
+			const float nx = pic.x + r->nodes[i].x * k, ny = pic.y + r->nodes[i].y * k, nr = SDL_max(r->nodes[i].r * k, U(20));
+			const bool lit = r->nodes[i].can_go || r->nodes[i].visited;
+			const Colour kind_c = r->nodes[i].kind == 3 ? (Colour)RGB(240, 110, 90) : r->nodes[i].kind == 1 ? (Colour)RGB(250, 190, 90)
+			                    : r->nodes[i].kind == 2 ? (Colour)RGB(240, 214, 140) : C_CREAM;
+			if (r->nodes[i].selected)
+			{
+				// A brass ring round it, pulsing.
+				const float pulse = 0.65f + 0.35f * sinf(SDL_GetTicks() / 260.0f);
+				const Box ring = { nx - nr - U(12), ny - nr - U(12), 2 * nr + U(24), 2 * nr + U(24) };
+				rim(ring, ring.w * 0.29f, SDL_max(U(4), L.px * 2), with_alpha(C_SEL_RIM, pulse), with_alpha(C_RIM_BOTTOM, pulse));
+			}
+			else if (r->nodes[i].can_go)
+			{
+				const Box ring = { nx - nr - U(8), ny - nr - U(8), 2 * nr + U(16), 2 * nr + U(16) };
+				rim(ring, ring.w * 0.29f, SDL_max(U(2), L.px), with_alpha(C_RIM_TOP, 0.6f), with_alpha(C_RIM_BOTTOM, 0.6f));
+			}
+			// The name under it on a pill.
+			const char *kind_name = r->nodes[i].kind == 1 ? "ELITE" : r->nodes[i].kind == 3 ? "BOSS" : NULL;
+			const float lc = SDL_max(CAP_KEY(), L.px * 9);
+			const float nw = text_w(FONT_SEMIBOLD, r->nodes[i].name, lc) + U(24), nh = lc * 2.0f;
+			const Box pill = { nx - nw / 2, ny + nr + U(10), nw, nh };
+			const float a = lit ? 1.0f : 0.55f;
+			const float saved = L.alpha;
+			L.alpha *= a;
+			fill_octagon(pill, nh * 0.3f, with_alpha(C_FILL_BOTTOM, 0.85f), with_alpha(C_FILL_BOTTOM, 0.92f));
+			text_mid(FONT_SEMIBOLD, r->nodes[i].name, pill, 0, lc, r->nodes[i].selected ? C_CREAM : kind_c, ALIGN_CENTRE);
+			if (kind_name != NULL)
+				badge(nx, pill.y + pill.h + U(6), kind_name, r->nodes[i].kind == 3 ? (Colour)RGBA(150, 50, 40, 0.92f) : (Colour)RGBA(150, 104, 40, 0.92f), C_CREAM,
+				      ALIGN_CENTRE);
+			L.alpha = saved;
+		}
+		// The selected node's line, and the keys.
+		const float keys_y = L.window.h - U(24) - key_hints_height();
+		if (r->info[0] != '\0')
+			hint_pill(r->info, L.safe.x + L.safe.w / 2, keys_y - key_hints_height() - U(16));
+		for (int i = 0; i < m->item_count; ++i)
+			add_hit((Box){ pic.x + m->items[i].hit.x * k, pic.y + m->items[i].hit.y * k, m->items[i].hit.w * k, m->items[i].hit.h * k }, m->items[i].hit);
+		const KeyHint keys[] = { { KEY_UP_DOWN, "", "Choose" }, { KEY_TEXT, "Enter", "Go" }, { KEY_TEXT, "Esc", "Abandon the run" } };
+		key_hints(keys, (int)COUNTOF(keys), L.safe.x + L.safe.w / 2, keys_y, ALIGN_CENTRE);
+		break;
+	}
+	case UI_ROGUE_CARDS:
+	{
+		// The heading in a panel at the top (a merchant's: the credits), the cards in a row under it.
+		const float head_h = U(34) + CAP_TITLE() + U(14) + small + U(30);
+		const float keys_y = L.window.h - U(24) - key_hints_height();
+		const float tw = SDL_min(L.safe.w - U(96), SDL_max(U(1300), r->merchant ? U(1500) : U(1300)));
+		const Box top = { snap(L.safe.x + (L.safe.w - tw) / 2), U(40), snap(tw), snap(head_h) };
+		panel(top, U(18), PANEL_GLASS);
+		text_graded(FONT_BOLD, m->title, top.x + U(40), top.y + U(34), CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT, true);
+		text(FONT_MEDIUM, r->subheading, top.x + U(40), top.y + U(34) + CAP_TITLE() + U(14), small, C_SUB, ALIGN_LEFT);
+		rogue_chips(r, top.x + top.w - U(40), top.y + (top.h - (CAP_KEY() + U(10) + CAP_HEAD())) / 2, true);
+		const int n = SDL_max(m->item_count, 1);
+		const float gap = U(24);
+		const float area_y = top.y + top.h + U(36), area_h = keys_y - U(30) - area_y;
+		float cw = SDL_min((tw - gap * (n - 1)) / n, U(360));
+		// As tall as what a card holds (its texts' lines at most).
+		const float iw = SDL_min(cw * 0.5f, U(150));
+		const float content = U(30) + CAP_KEY() + U(12) + small + U(18) + iw + U(20) + 2 * cap * 0.95f * 1.75f + U(6) + 3 * small * 1.75f +
+		                      (r->merchant ? cap + U(46) : U(24));
+		const float ch = SDL_min(area_h, content);
+		const float total = n * cw + (n - 1) * gap;
+		float x = L.safe.x + (L.safe.w - total) / 2;
+		for (int i = 0; i < m->item_count; ++i)
+		{
+			const Box c = { snap(x), snap(area_y + (area_h - ch) / 2), snap(cw), snap(ch) };
+			rogue_card(c, &m->items[i], i == m->selected, r->merchant);
+			add_hit(c, m->items[i].hit);
+			x += cw + gap;
+		}
+		const KeyHint pick[] = { { KEY_LEFT_RIGHT, "", "Choose" }, { KEY_TEXT, "Enter", "Take the card" }, { KEY_TEXT, "Esc", "Skip (+1 000 credits)" } };
+		const KeyHint buy[] = { { KEY_LEFT_RIGHT, "", "Choose" }, { KEY_TEXT, "Enter", "Buy" }, { KEY_TEXT, "Esc", "Leave" } };
+		key_hints(r->merchant ? buy : pick, 3, L.safe.x + L.safe.w / 2, keys_y, ALIGN_CENTRE);
+		break;
+	}
+	}
+}
+
 void ui_build_screen(const UIView *view)
 {
 	hit_count = 0;
@@ -2419,8 +3716,12 @@ void ui_build_screen(const UIView *view)
 	// (Over a level the palette's fade darkens the whole window, the scene with it: rgpu_present_3d_menu.)
 	layout_begin(view, published.kind >= UI_SCREEN_LEVEL_MENU ? 1.0f : ui_screen_fade());
 	// The picture behind the panels a little darker, so they read clearly (not the title's; the store
-	// and the screens over a level have their own).
-	if (published.kind != UI_SCREEN_TITLE && published.kind < UI_SCREEN_SHOP)
+	// and the screens over a level have their own; a story's picture, the jukebox's and the credits'
+	// stars and pictures are what they show).
+	if (published.kind == UI_SCREEN_STORY || (published.kind == UI_SCREEN_ROGUE && published.rogue.page == UI_ROGUE_MAP))
+		rect(picture_box(), (Colour){ 0, 0, 0, 0.08f }, (Colour){ 0, 0, 0, 0.3f });
+	else if (published.kind != UI_SCREEN_TITLE && published.kind != UI_SCREEN_JUKEBOX && published.kind != UI_SCREEN_CREDITS &&
+	         published.kind < UI_SCREEN_SHOP)
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.25f }, (Colour){ 0, 0, 0, 0.4f });
 	static int gallery = -1;
 	if (gallery < 0)
@@ -2441,6 +3742,32 @@ void ui_build_screen(const UIView *view)
 	case UI_SCREEN_DIFFICULTY:
 	case UI_SCREEN_TIMED:
 		build_choices(&published);
+		break;
+	case UI_SCREEN_SCORES:
+		build_scores(&published);
+		break;
+	case UI_SCREEN_SCORE_NAME:
+		break;  // (its question: below)
+	case UI_SCREEN_STORY:
+		build_story(&published);
+		break;
+	case UI_SCREEN_CARD:
+		build_card(&published);
+		break;
+	case UI_SCREEN_LOAD:
+		build_load(&published);
+		break;
+	case UI_SCREEN_JUKEBOX:
+		build_jukebox(&published);
+		break;
+	case UI_SCREEN_HELP:
+		build_help_page(&published);
+		break;
+	case UI_SCREEN_CREDITS:
+		build_credits(&published);
+		break;
+	case UI_SCREEN_ROGUE:
+		build_rogue(&published);
 		break;
 	case UI_SCREEN_SHOP:
 		build_shop(&published);
@@ -2476,8 +3803,8 @@ void ui_build_screen(const UIView *view)
 #define HUD_FIRE 3
 static struct
 {
-	bool ship;
-	Box ship_box;
+	int ships;           // the ships' boxes (two players: both)
+	Box ship_box[2];
 	int shot_count;
 	float shot_x[ENEMY_SHOT_MAX], shot_y[ENEMY_SHOT_MAX];
 	float dt;  // seconds since the HUD was made last
@@ -2489,13 +3816,15 @@ static void hud_find_under(const UIView *view)
 	const Uint64 now = SDL_GetTicksNS();
 	under.dt = last > 0 ? SDL_clamp((now - last) / 1e9f, 0.0f, 0.1f) : 0.0f;
 	last = now;
-	under.ship = false;
+	under.ships = 0;
 	under.shot_count = 0;
 	if (view->menu_over)
 		return;
-	const Player *p = &player[0];
-	if (p->is_alive)
+	for (int k = 0; k < (twoPlayerMode && !galagaMode ? 2 : 1); ++k)
 	{
+		const Player *p = &player[k];
+		if (!p->is_alive)
+			continue;
 		// The ship's sprite (24 x 28 round x + 7, y + 7) and its sidekicks.
 		float x0 = p->x + 7.0f - 13, x1 = p->x + 7.0f + 13, y0 = p->y + 7.0f - 15, y1 = p->y + 7.0f + 15;
 		for (int i = 0; i < 2; ++i)
@@ -2508,10 +3837,7 @@ static void hud_find_under(const UIView *view)
 			}
 		float ax, ay, bx, by;
 		if (rgpu_playfield_to_window(x0, y0, &ax, &ay) && rgpu_playfield_to_window(x1, y1, &bx, &by))
-		{
-			under.ship = true;
-			under.ship_box = (Box){ SDL_min(ax, bx), SDL_min(ay, by), SDL_fabsf(bx - ax), SDL_fabsf(by - ay) };
-		}
+			under.ship_box[under.ships++] = (Box){ SDL_min(ax, bx), SDL_min(ay, by), SDL_fabsf(bx - ax), SDL_fabsf(by - ay) };
 	}
 	for (int z = 0; z < ENEMY_SHOT_MAX; ++z)
 	{
@@ -2533,9 +3859,9 @@ static void hud_fade(int mark, Box b, float *shown)
 	const Box g = inset(b, -U(18));
 	bool covered = false;
 	float target = 1.0f;
-	if (under.ship)
+	for (int k = 0; k < under.ships && !covered; ++k)
 	{
-		const Box s = under.ship_box;
+		const Box s = under.ship_box[k];
 		covered = s.x + s.w > g.x && s.x < g.x + g.w && s.y + s.h > g.y && s.y < g.y + g.h;
 		if (!covered)
 		{
@@ -2544,7 +3870,7 @@ static void hud_fade(int mark, Box b, float *shown)
 			const float dy = SDL_max(SDL_max(g.y - (s.y + s.h), s.y - (g.y + g.h)), 0.0f);
 			const float d = sqrtf(dx * dx + dy * dy), reach = U(110);
 			if (d < reach)
-				target = HUD_UNDER + (1 - HUD_UNDER) * (0.35f + 0.65f * d / reach);
+				target = SDL_min(target, HUD_UNDER + (1 - HUD_UNDER) * (0.35f + 0.65f * d / reach));
 		}
 	}
 	int shots = 0;
@@ -2600,6 +3926,123 @@ static void hud_gauge(float x, float y, float label_w, float bar_w, float row_h,
 	bar((Box){ x + label_w, y + (row_h - bh) / 2, bar_w, bh }, fraction, c, true);
 }
 
+/*
+ * Two players: a player's panel at a bottom corner of the 16:9 area (player 1 the left, 2 the right):
+ * the player's name and score, shield and armor, the gun the player fires (player 1 the front, player 2
+ * the rear, as the game's panel shows them) and its power, player 2's sidekicks' level and charge, the
+ * sidekicks' ammunition, the extra lives and super bombs. Returns its box.
+ */
+static Box hud_player_panel(int k, Box safe, float margin, float row_h, float label_w, const float shown[2])
+{
+	const Player *p = &player[k];
+	const float cap = cap_of(17, 9), cap_n = cap_of(30, 14), cap_l = cap_of(15, 9);
+	const float pip = SDL_max(U(18), L.px * 6), pgap = SDL_max(U(5), L.px * 2);
+	const int weapon = k == 0 ? FRONT_WEAPON : REAR_WEAPON;
+	const int power_now = p->items.weapon[weapon].id > 0 ? p->items.weapon[weapon].power : 0;
+	const int most = power_now > 11 ? 15 : 11;
+	const float pips_w = most * pip + (most - 1) * pgap;
+	const float bar_w = SDL_max(U(240), pips_w);
+	const bool level = k == 1 && p->items.sidekick_level >= 101 && p->items.sidekick_level <= 103;
+	const bool charge = k == 1 && chargeMax > 0;
+	int ammo_rows = 0;
+	for (int i = 0; i < 2; ++i)
+		ammo_rows += p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0;
+	const int extra_lives = p->lives != NULL ? (int)*p->lives - 1 : 0;
+	const int bombs = (int)SDL_min(p->superbombs, 10u);
+	const float icon = SDL_max(U(30), L.px * 11);
+	const int rows = 3 + (level ? 1 : 0) + (charge ? 1 : 0) + (ammo_rows > 0 ? 1 : 0);
+	const float head_h = cap_n + U(14);
+	const float lives_h = extra_lives > 0 || bombs > 0 ? icon + U(10) : 0;
+	const float w = label_w + bar_w + U(40), h = U(16) + head_h + rows * row_h + lives_h + U(16);
+	const Box b = { k == 0 ? safe.x + margin : safe.x + safe.w - margin - w, safe.y + safe.h - margin - h, w, h };
+	panel(b, U(12), PANEL_SOLID);
+	float y = b.y + U(16);
+	// The player and the score.
+	char name[24], score[32];
+	plain_label_ui(name, miscText[48 + k], sizeof(name));
+	for (char *c = name; *c != '\0'; ++c)
+		*c = (char)SDL_toupper(*c);
+	grouped(p->cash, score, sizeof(score));
+	text(FONT_SEMIBOLD, name, b.x + U(20), y + (cap_n - cap_l) - U(2), cap_l, C_DIM, ALIGN_LEFT);
+	text_graded(FONT_BOLD, score, b.x + b.w - U(20), y, cap_n, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+	y += head_h;
+	Colour armor = { 1.0f, 0.55f, 0.25f, 1 };
+	if (p->armor < 7 && (SDL_GetTicks() / 250) % 2 == 0)  // low armor flashes
+		armor = (Colour){ 1.0f, 0.15f, 0.1f, 1 };
+	hud_gauge(b.x + U(20), y, label_w, bar_w, row_h, "SHIELD", shown[0], (Colour){ 0.35f, 0.75f, 1.0f, 1 });
+	y += row_h;
+	hud_gauge(b.x + U(20), y, label_w, bar_w, row_h, "ARMOR", shown[1], armor);
+	y += row_h;
+	static const Colour gun[2] = { { 0.45f, 1.0f, 0.55f, 1 }, { 1.0f, 0.75f, 0.35f, 1 } };
+	text(FONT_MEDIUM, k == 0 ? "FRONT" : "REAR", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+	pips(b.x + U(20) + label_w, y + (row_h - pip) / 2, 11, SDL_min(power_now, 11), pip, pgap, gun[weapon]);
+	if (most > 11)
+		pips(b.x + U(20) + label_w + 11 * (pip + pgap), y + (row_h - pip) / 2, most - 11, SDL_max(power_now - 11, 0), pip, pgap,
+		     (Colour){ 1.0f, 0.6f, 0.25f, 1 });
+	y += row_h;
+	if (level)
+	{
+		text(FONT_MEDIUM, "LEVEL", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+		pips(b.x + U(20) + label_w, y + (row_h - pip) / 2, 3, p->items.sidekick_level - 100, pip, pgap, C_SEL_RIM);
+		y += row_h;
+	}
+	if (charge)
+	{
+		text(FONT_MEDIUM, "CHARGE", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+		pips(b.x + U(20) + label_w, y + (row_h - pip) / 2, SDL_min((int)chargeMax, 15), SDL_min((int)chargeLevel, 15), pip, pgap,
+		     (Colour){ 0.55f, 0.8f, 1.0f, 1 });
+		y += row_h;
+	}
+	if (ammo_rows > 0)
+	{
+		const float aw = (bar_w - U(12)) / 2;
+		text(FONT_MEDIUM, "AMMO", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+		for (int i = 0; i < 2; ++i)
+			if (p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0)
+			{
+				const float bh = SDL_max(row_h * 0.42f, L.px * 4);
+				bar((Box){ b.x + U(20) + label_w + i * (aw + U(12)), y + (row_h - bh) / 2, aw, bh }, (float)p->sidekick[i].ammo / p->sidekick[i].ammo_max,
+				    (Colour){ 0x96 / 255.0f, 0x22 / 255.0f, 0x6c / 255.0f, 1 }, true);
+			}
+		y += row_h;
+	}
+	if (lives_h > 0)
+	{
+		float x = b.x + U(20);
+		if (extra_lives > 0)
+		{
+			rgpu_ui_sprite(&spriteSheet9, 285, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+			x += icon * 12 / 14.0f + U(8);
+			char count[16];
+			snprintf(count, sizeof(count), "x%d", extra_lives);
+			text(FONT_SEMIBOLD, count, x, y + (icon - cap_l) / 2, cap_l, C_CREAM, ALIGN_LEFT);
+			x += text_w(FONT_SEMIBOLD, count, cap_l) + U(22);
+		}
+		for (int i = 0; i < bombs; ++i)
+		{
+			rgpu_ui_sprite(&spriteSheet9, 304, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+			x += icon * 0.8f;
+		}
+	}
+	return b;
+}
+
+// Two players: player 2's charge over the ship, as the game shows it there (its pips).
+static void hud_player2_charge(void)
+{
+	if (twoPlayerLinked || chargeMax == 0 || !player[1].is_alive)
+		return;
+	float x, y;
+	if (!rgpu_playfield_to_window(player[1].x + 7.0f, player[1].y - 13.0f, &x, &y))
+		return;
+	const float pip = SDL_max(U(9), L.px * 3), gap = pip * 0.35f;
+	const int n = SDL_min((int)chargeMax, 15);
+	const float w = n * pip + (n - 1) * gap;
+	const Box back = { x - w / 2 - U(6), y - pip / 2 - U(6), w + U(12), pip + U(12) };
+	fill_octagon(back, back.h * 0.3f, with_alpha(C_FILL_BOTTOM, 0.7f), with_alpha(C_FILL_BOTTOM, 0.8f));
+	pips(x - w / 2, y - pip / 2, n, SDL_min((int)chargeLevel, 15), pip, gap, (Colour){ 0.55f, 0.8f, 1.0f, 1 });
+}
+
 void ui_build_hud(const UIView *view)
 {
 	view_now = view;
@@ -2627,7 +4070,32 @@ void ui_build_hud(const UIView *view)
 	const float row_h = SDL_max(U(38), L.px * 14);
 	const float label_w = SDL_max(U(104), cap_of(17, 9) * 5.4f);
 
+	// Two players: a panel each at the bottom corners (the left player's at the left).
+	float top_right_w = 0;  // (the boss bar keeps clear of it)
+	const bool two = twoPlayerMode && !galagaMode;
+	if (two)
+	{
+		static float shown2[2][2] = { { -1, -1 }, { -1, -1 } };
+		for (int k = 0; k < 2; ++k)
+		{
+			const Player *q = &player[k];
+			const float t2[2] = { q->shield_max > 0 ? (float)q->shield / q->shield_max : 0, q->armor / 28.0f };
+			for (int i = 0; i < 2; ++i)
+				shown2[k][i] = shown2[k][i] < 0 ? t2[i] : shown2[k][i] + (t2[i] - shown2[k][i]) * 0.25f;
+			const int mark = rgpu_ui_mark();
+			const Box b = hud_player_panel(k, safe, margin, row_h, label_w, shown2[k]);
+			if (k == 0)
+				bottom_left = b;
+			else
+				bottom_right = b;
+			hud_fade(mark, b, &fades[k == 0 ? 2 : 0]);
+		}
+		if (!view->menu_over)
+			hud_player2_charge();
+	}
+
 	// Bottom right: shield, armor, the generator's power; a rogue run's experience.
+	if (!two)
 	{
 		const bool generator = !onePlayerAction && !twoPlayerMode;
 		int xp = 0, xp_needed = 1, xp_level = 0;
@@ -2663,7 +4131,7 @@ void ui_build_hud(const UIView *view)
 	}
 
 	// Top right: the guns' power (pips; 15 once a gun is overclocked past 11), the sidekicks' ammunition.
-	float top_right_w = 0;  // (the boss bar keeps clear of it)
+	if (!two)
 	{
 		const float pip = SDL_max(U(20), L.px * 6), gap = SDL_max(U(5), L.px * 2);
 		const int most = SDL_max(p->items.weapon[0].power, p->items.weapon[1].power) > 11 ? 15 : 11;
@@ -2708,6 +4176,7 @@ void ui_build_hud(const UIView *view)
 	}
 
 	// Bottom left: the score (the cash), lives (arcade), super bombs, the special weapon.
+	if (!two)
 	{
 		const float cap_l = cap_of(15, 9), cap_n = cap_of(36, 16);
 		char score[32];

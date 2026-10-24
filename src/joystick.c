@@ -213,16 +213,33 @@ void poll_joysticks(void)
 		poll_joystick(j);
 }
 
+bool joystick_last_input = false;  // Tyrian3D (joystick.h)
+int joystick_keys_pushed = 0;
+
+int joystick_action_button(int action)
+{
+	if (joysticks <= 0 || joystick == NULL || action < 0 || action >= 6)
+		return 0;
+	for (int i = 0; i < 2; ++i)
+	{
+		const Joystick_assignment *a = &joystick[0].assignment[4 + action][i];
+		if (a->type == BUTTON)
+			return a->num + 1;
+	}
+	return 0;
+}
+
 // sends SDL KEYDOWN and KEYUP events for a key
 void push_key(SDL_Scancode key)
 {
 	SDL_Event e;
-	
+
 	memset(&e, 0, sizeof(e));
-	
+
 	e.key.scancode = key;
-	
+
 	e.type = SDL_EVENT_KEY_DOWN;
+	++joystick_keys_pushed;  // (Tyrian3D: a joystick's, keyboard.c knows it by this)
 	SDL_PushEvent(&e);
 	
 	e.type = SDL_EVENT_KEY_UP;

@@ -438,8 +438,9 @@ static void shop_publish(void)
 	// (Two players, Super Arcade, Super Tyrian: the original shows texts there; the first ship shows.)
 	if (illustrated)
 		s->scene = UI_SCENE_SHIP;
-	// What the ship's scene shows: the ship, its sidekicks beside it (screen pixels, as the illustration).
-	s->scene_w = player[0].items.sidekick[LEFT_SIDEKICK] > 0 || player[0].items.sidekick[RIGHT_SIDEKICK] > 0 ? 160.0f : 116.0f;
+	// What the ship's scene shows: the ship, its sidekicks beside it (screen pixels, as the illustration);
+	// two players' ships side by side.
+	s->scene_w = twoPlayerMode ? 150.0f : player[0].items.sidekick[LEFT_SIDEKICK] > 0 || player[0].items.sidekick[RIGHT_SIDEKICK] > 0 ? 160.0f : 116.0f;
 	shop_ship_name(player[0].items.ship, s->ship, sizeof(s->ship), s->ship_class, sizeof(s->ship_class));
 	if (((curMenu <= MENU_OPTIONS || curMenu == MENU_KEYBOARD_CONFIG || curMenu == MENU_LOAD_SAVE || curMenu >= MENU_1_PLAYER_ARCADE) &&
 	     !twoPlayerMode) || curMenu == MENU_UPGRADE_SUB)
@@ -455,6 +456,47 @@ static void shop_publish(void)
 		shop_plain_text(one, miscText[40], sizeof(one));
 		shop_plain_text(two, miscText[41], sizeof(two));
 		snprintf(s->caption, sizeof(s->caption), "%s %lu    %s %lu", one, player[0].cash, two, player[1].cash);
+		// What each player has (their ships side by side over it): the ship, the score, the gun the player
+		// fires (player 1 the front, player 2 the rear, as the game's panel) and its power, lives, bombs, input.
+		s->player_count = 2;
+		for (int k = 0; k < 2; ++k)
+		{
+			const Player *p = &player[k];
+			shop_plain_text(s->players[k].name, miscText[48 + k], sizeof(s->players[k].name));
+			if (k == 0)
+				shop_ship_name(p->items.ship, s->players[k].ship, sizeof(s->players[k].ship), s->ship_class, 0);
+			else
+				SDL_strlcpy(s->players[k].ship, "Dragonwing", sizeof(s->players[k].ship));
+			snprintf(s->players[k].score, sizeof(s->players[k].score), "%lu", p->cash);
+			const int w = k == 0 ? FRONT_WEAPON : REAR_WEAPON;
+			char weapon[48] = "-";
+			if (p->items.weapon[w].id > 0)
+				shop_item_name(w == FRONT_WEAPON ? 3 : 4, p->items.weapon[w].id, weapon, sizeof(weapon));
+			SDL_strlcpy(s->players[k].weapon, weapon, sizeof(s->players[k].weapon));
+			s->players[k].power = p->items.weapon[w].id > 0 ? p->items.weapon[w].power : 0;
+			s->players[k].power_max = s->players[k].power > 11 ? 15 : 11;
+			s->players[k].lives = p->lives != NULL ? (int)*p->lives - 1 : -1;
+			s->players[k].bombs = (int)p->superbombs;
+			if (joysticks > 1 && inputDevice[k] > 2)
+				snprintf(s->players[k].input, sizeof(s->players[k].input), "%s %d", inputDevices[2], inputDevice[k] - 2);
+			else if (inputDevice[k] >= 1 && inputDevice[k] <= 3)
+				SDL_strlcpy(s->players[k].input, inputDevices[inputDevice[k] - 1], sizeof(s->players[k].input));
+		}
+		s->ship_class[0] = '\0';
+	}
+	// The Super Arcade's and Super Tyrian's ship info, as the original's help boxes show it there: the
+	// ship's name, its main and special weapons.
+	if (illustrated && !twoPlayerMode && (superArcadeMode != SA_NONE || superTyrian))
+	{
+		SDL_strlcpy(s->super_title, superTyrian ? "Super Tyrian" : superShips[0], sizeof(s->super_title));
+		shop_plain_text(s->ship, superShips[superTyrian ? SA + 3 : superArcadeMode], sizeof(s->ship));
+		s->ship_class[0] = '\0';
+		shop_plain_text(s->super[0][0], superShips[SA + 1], sizeof(s->super[0][0]));
+		shop_plain_text(s->super[0][1], weaponPort[player[0].items.weapon[FRONT_WEAPON].id].name, sizeof(s->super[0][1]));
+		shop_plain_text(s->super[1][0], superShips[SA + 2], sizeof(s->super[1][0]));
+		shop_plain_text(s->super[1][1], special[player[0].items.special].name, sizeof(s->super[1][1]));
+		s->super_special = player[0].items.special;
+		s->power = player[0].items.weapon[FRONT_WEAPON].power;
 	}
 
 	SDL_Rect hits[UI_MENU_ITEMS + 2];
@@ -771,7 +813,8 @@ static void shop_specs_publish(void)
 void shop_dialog_publish(const char *title, const char *text, const char *field_label, const char *field, bool caret,
                                 int selected)
 {
-	if (!shop_showing || !ui_modern())
+	// (In the store; and over the rogue run's map, its quit request.)
+	if ((!shop_showing && !ui_published_is(UI_SCREEN_ROGUE)) || !ui_modern())
 		return;
 	UIDialog *d = ui_dialog_begin();
 	shop_plain_text(d->title, title, sizeof(d->title));

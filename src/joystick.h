@@ -82,6 +82,14 @@ void poll_joysticks(void);
 void push_key(SDL_Scancode key);
 void push_joysticks_as_keyboard(void);
 
+// Tyrian3D: the key taken last came from a joystick (push_key), not the keyboard: the modern UI's key
+// hints show the joystick's buttons. joystick_keys_pushed: push_key's keys not taken yet (keyboard.c
+// counts them off as it takes them; TYR3D_TEST_KEYS' Joy<key> adds one).
+extern bool joystick_last_input;
+extern int joystick_keys_pushed;
+// The button (1-based, as the joystick's settings name them) an action (0 fire ... 5 pause) is on, or 0.
+int joystick_action_button(int action);
+
 void init_joysticks(void);
 void deinit_joysticks(void);
 

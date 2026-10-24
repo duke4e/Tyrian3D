@@ -2484,11 +2484,10 @@ typedef struct
 	float panel[4];
 } Layout3D;
 
-// The modern HUD: a few gauges over the scene instead of the panel (not for two players, whose
-// panel holds both).
+// The modern HUD: a few gauges over the scene instead of the panel (two players: a panel each).
 static bool modern_hud(void)
 {
-	return settings3d.hud_modern && !twoPlayerMode;
+	return settings3d.hud_modern;
 }
 
 bool rgpu_modern_hud(void)

@@ -71,8 +71,10 @@ guns' power and the sidekicks' ammunition at the top right, the score with the l
 and special weapon (lit while it is ready) at the bottom left, the boss bar and the level timer at the top, all from the
 game's state (the game's own drawing of them is left out), each fading to a third while the ship or
 dense enemy fire is under it; the level's name as it starts, the game's messages in a pill at the
-bottom, "game over" on a plate; under a menu the game shows over the level) or Classic (the original
-panel beside the playfield; two players always have it). The **Graphics** page adds the menus:
+bottom, "game over" on a plate; under a menu the game shows over the level; two players have a
+panel each at the bottom corners: the score, shield and armor, the gun each fires and its power,
+player 2's sidekick level and charge (its pips over the ship too), lives and super bombs) or Classic
+(the original panel beside the playfield). The **Graphics** page adds the menus:
 Modern (the new UI over the 3D view, below) or Classic (the original screens), Screens: Fill (the
 game's other 320x200 screens fill the window's height, in whole steps and then smoothly, over a
 blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
@@ -91,11 +93,24 @@ their choices as cards with an icon, short stats against the best on offer, the 
 ship has it, the credits and what is left after the change chosen, a note when a purchase is made;
 ship specs round the ship; options, load and save, the keyboard, joystick and mouse, the next
 level's map, the data cubes and their texts, and the store's questions (quit, save) as dialogs.
-Lists scroll. Over a level (the scene blurred under the glass): the in-game options and their 3D
-page, the help (F1), pause, the level's results, game over. The mouse works on the panels (hover,
-click, the wheel moves through the items and scrolls a data cube's text), the keys and the joystick
-as ever. The pointer is a smooth one sized in window points. The original screens stay for Menus: Classic and
-the 2D view.
+Lists scroll. Two players: both ships side by side, what each has under them (the ship, the score,
+the gun and its power, lives, the input device). The Super Arcade and Super Tyrian: the mode, the
+ship's name, its main and special weapons (the original's help boxes there). Over a level (the scene
+blurred under the glass): the in-game options and their 3D
+page, the help (F1), pause, the level's results, game over. And the other screens: the high scores
+(the boards as tabs, medals, the difficulty played; the name of a new high score typed in a
+question with its score), the story texts between levels (reflowed in Oxanium in a glass panel over
+their picture, revealed as the original writes them; a warning's panel and the window's edges pulse
+red; an episode's end shows its score and the hint), title cards (the next episode, the Super
+Arcade's ship and the code to type), load game (the players' pages as tabs), the instructions (the
+topics, the pages of help with their titles), the jukebox (the songs as a list, the one playing
+large with its controls, the sound effects), the credits rolling in a column, and the rogue run's
+screens (its menu with the profile, the unlocks, the act's map with its nodes named and the next
+ringed, the cards and the merchants as large cards with their tiers, the messages as cards). The
+mouse works on the panels (hover, click, the wheel moves through the items, the pages and the cards
+and scrolls a data cube's text), the keys and the joystick as ever; when the joystick was used
+last, the key hints show its pad and buttons. The pointer is a smooth one sized in window points.
+The original screens stay for Menus: Classic and the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
 3D) plays in all the 3D view shows: the whole width the game draws (game x 0-319 instead of
@@ -246,7 +261,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
-| `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's; `WheelUp`, `WheelDown` turn the mouse wheel a notch) when that frame shows, then each next one so many milliseconds after the one before; any length |
+| `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's; `WheelUp`, `WheelDown` turn the mouse wheel a notch; `Joy<key>` presses the key as the joystick's, as its menu input does, so the key hints show the joystick's; `Type<text>` types the text, as a name or a code at the title) when that frame shows, then each next one so many milliseconds after the one before; any length |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
@@ -380,7 +395,22 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   are drawn over the 3D scene (`rgpu_present_3d_menu` with `modern`); their glass shows the scene copied
   once it is drawn and made smaller in halves by the canvas (`scene_blur`), again only when the scene
   changes. The HUD's panels fade by what is under them: the ship's box and the enemies' shots in the
-  window (`hud_fade`).
+  window (`hud_fade`); two players: both ships.
+  The other screens publish the same way, each with its own data in `UIMenu`: the high scores
+  (`UIScores`, `JE_highScoreScreen`, `JE_highScoreCheck`), story texts (`UIStory`: `JE_displayText`
+  publishes before each frame `JE_outCharGlow` shows, with how far the original has revealed the text,
+  over the picture as it was before the text, `story_begin`; the text is laid out again in paragraphs,
+  each character keeping its place in the original's lines, so it shows as far as the original's),
+  title cards (`UICard`, `card_publish`), load (`UIPaging` for the players' pages), the jukebox
+  (`UIJukebox`, published every frame over its stars), the instructions, the credits (`UICredits`:
+  the lines where the original draws them) and the rogue run (`UIRogue`). Where the original takes no
+  mouse (the high scores' and load's tabs, the jukebox's buttons and songs, the name question's
+  buttons), the widgets are the UI's own: the pointer on one maps to the screen's point of nothing,
+  and the screen's code takes a click on it with `ui_take_press` (modern only). The wheel moves
+  Up/Down or Left/Right as the screen says (`UIMenu.wheel`). A screen that is over calls
+  `ui_screen_done`, so the next screen can't match its picture. The key hints show the joystick's pad
+  and buttons when the last key came from the joystick (`push_key` counts its keys:
+  `joystick_last_input`).
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested

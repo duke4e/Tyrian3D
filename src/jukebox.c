@@ -29,6 +29,7 @@
 #include "palette.h"
 #include "sprite.h"
 #include "starlib.h"
+#include "ui.h"
 #include "vga_palette.h"
 #include "video.h"
 
@@ -55,6 +56,8 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 	JE_starlib_init();
 
 	int fade_volume = tyrMusicVolume;
+
+	ui_take_press();  // (Tyrian3D: no click from before)
 	
 	for (; ; )
 	{
@@ -111,6 +114,26 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 
 		if (palette_fade_steps > 0)
 			step_fade_palette(diff, palette_fade_steps--, 0, 255);
+
+		// Tyrian3D: the jukebox for the modern UI (ui.h) over its stars.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_JUKEBOX, "");
+			UIJukebox *j = &ui->jukebox;
+			j->song = song_playing;
+			j->song_count = MUSIC_NUM;
+			j->sfx = fx;
+			j->sfx_number = fx_num;
+			j->sfx_count = SOUND_COUNT;
+			SDL_strlcpy(j->sfx_title, soundTitle[fx_num], sizeof(j->sfx_title));
+			j->hidden = hide_text;
+			j->stopped = stopped;
+			j->fading = fading_song;
+			j->fade_looped = fade_looped_songs;
+			ui->palette = vga_palette;  // (it fades in and out to its own palette)
+			ui->selected = -1;
+			ui_menu_publish(ui, VGAScreen, VGAScreen);
+		}
 		
 		JE_showVGA();
 
@@ -118,8 +141,60 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 
 		// quit on mouse click
 		Uint16 x, y;
-		if (JE_mousePosition(&x, &y) > 0)
-			trigger_quit = true;
+		const JE_word button = JE_mousePosition(&x, &y);
+		if (!ui_modern())
+		{
+			if (button > 0)
+				trigger_quit = true;
+		}
+		else
+		{
+			// Tyrian3D: the modern UI's buttons and songs (its own: ui.h); the right button leaves.
+			if (button == SDL_BUTTON_RIGHT)
+				trigger_quit = true;
+			const int action = ui_take_press();
+			if (action >= UI_ACTION_ITEM && action < UI_ACTION_ITEM + MUSIC_NUM)
+			{
+				play_song(action - UI_ACTION_ITEM);
+				stopped = false;
+			}
+			switch (action)
+			{
+			case UI_ACTION_BACK:
+				trigger_quit = true;
+				break;
+			case UI_ACTION_PREV:
+				play_song((song_playing > 0 ? song_playing : MUSIC_NUM) - 1);
+				stopped = false;
+				break;
+			case UI_ACTION_NEXT:
+				play_song((song_playing + 1) % MUSIC_NUM);
+				stopped = false;
+				break;
+			case UI_ACTION_STOP:
+				stop_song();
+				stopped = true;
+				break;
+			case UI_ACTION_RESTART:
+				restart_song();
+				stopped = false;
+				break;
+			case UI_ACTION_FADE:
+				fading_song = !fading_song;
+				break;
+			case UI_ACTION_FADE_LOOPED:
+				fade_looped_songs = !fade_looped_songs;
+				break;
+			case UI_ACTION_SFX:
+				fx = !fx;
+				break;
+			case UI_ACTION_PLAY_SFX:
+				JE_playSampleNum(fx_num + 1);
+				break;
+			default:
+				break;
+			}
+		}
 
 		if (newkey)
 		{
@@ -199,4 +274,5 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 	}
 
 	set_volume(tyrMusicVolume, fxVolume);
+	ui_screen_done();  // Tyrian3D
 }

@@ -535,6 +535,16 @@ static int showcase_objects(RGPUShowcaseObject *objects)
 	const float yaw = 16.0f * sinf(t * 0.55f), roll = 14.0f * sinf(t * 0.8f + 1.0f), bob = sinf(t * 1.3f);
 	int count = 0;
 
+	// Two players (the modern UI's store): their ships side by side, player 1's at the left, player 2's
+	// Dragonwing at the right.
+	if (twoPlayerMode && ui_modern())
+	{
+		objects[count++] = (RGPUShowcaseObject){ player_ship_model(), 46, 88, 24.0f + 1.7f * bob, 50.0f, yaw, 0, roll, -1 };
+		objects[count++] = (RGPUShowcaseObject){ m3d_ship_appearance(M3D_SHIP_DRAGONWING).model, 112, 88,
+		                                         24.0f + 1.7f * sinf(t * 1.3f + 1.4f), 50.0f, -yaw, 0, -roll, -1 };
+		return count;
+	}
+
 	// The big ship of the illustration with its generator and guns on its deck, if it has a
 	// model; else the ship's own model.
 	unsigned int table;

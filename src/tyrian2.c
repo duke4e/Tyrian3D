@@ -3670,7 +3670,10 @@ new_game:
 						JE_wipeKey();
 						frameCountMax = 4;
 						if (!constantPlay)
+						{
+							story_begin(UI_STORY_ENDING, twoPlayerMode ? 2 : 1);  // Tyrian3D: the modern UI's (mainint.h)
 							JE_displayText();
+						}
 
 						fade_black(15);
 
@@ -3711,6 +3714,26 @@ new_game:
 
 								sprintf(buffer, "Type %s at Title", specialName[SANextShip[superArcadeMode]-1]);
 								JE_dString(VGAScreen, JE_fontCenter(buffer, SMALL_FONT_SHAPES), 160, buffer, SMALL_FONT_SHAPES);
+
+								// Tyrian3D: the modern UI's card (mainint.h): the next ship or the codes, the word to type.
+								{
+									char title[64], line[64];
+									const char *lines[3] = { line, NULL, NULL };
+									if (SANextShip[superArcadeMode] == SA_ENGAGE)
+									{
+										snprintf(title, sizeof(title), "%s %s", miscTextB[4], pName[0]);
+										snprintf(line, sizeof(line), "Or play... %s", specialName[SA_DESTRUCT - 1]);
+										card_publish("", title, lines, NULL, NULL, 0, !constantPlay, true);
+									}
+									else
+									{
+										SDL_strlcpy(title, superShips[SANextShip[superArcadeMode]], sizeof(title));
+										snprintf(line, sizeof(line), "Type it at the title screen:");
+										const bool drawn = SANextShip[superArcadeMode] < SA_NORTSHIPZ;
+										card_publish(superShips[0], title, lines, specialName[SANextShip[superArcadeMode] - 1], drawn ? &spriteSheet9 : NULL,
+										             drawn ? ships[SAShip[SANextShip[superArcadeMode] - 1]].shipgraphic : 0, !constantPlay, false);
+									}
+								}
 								JE_showVGA();
 
 								fade_palette(colors, 50, 0, 255);
@@ -3736,6 +3759,7 @@ new_game:
 						break;
 
 					case 'P':
+						ui_screen_done();  // Tyrian3D: a new picture (the modern UI's story text before it goes)
 						if (!constantPlay && !rogue_run)
 						{
 							JE_word tempX = atoi(s + 3);
@@ -3760,6 +3784,7 @@ new_game:
 						break;
 
 					case 'U':
+						ui_screen_done();  // Tyrian3D (as ]P)
 						if (!constantPlay && !rogue_run)
 						{
 							memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
@@ -3811,6 +3836,7 @@ new_game:
 						break;
 
 					case 'V':
+						ui_screen_done();  // Tyrian3D (as ]P)
 						if (!constantPlay && !rogue_run)
 						{
 							/* TODO: NETWORK */
@@ -3862,6 +3888,7 @@ new_game:
 						break;
 
 					case 'R':
+						ui_screen_done();  // Tyrian3D (as ]P)
 						if (!constantPlay && !rogue_run)
 						{
 							/* TODO: NETWORK */
@@ -3913,6 +3940,7 @@ new_game:
 						{
 							fade_black(10);
 						}
+						ui_screen_done();  // Tyrian3D (as ]P)
 						JE_clr256(VGAScreen);
 						JE_showVGA();
 						memcpy(colors, palettes[7], sizeof(colors));
@@ -3931,6 +3959,7 @@ new_game:
 							fade_white(100);
 							fade_black(30);
 						}
+						ui_screen_done();  // Tyrian3D (as ]P)
 						JE_clr256(VGAScreen);
 						JE_showVGA();
 						break;
@@ -3962,6 +3991,7 @@ new_game:
 									}
 								} while (!(s[0] == '#'));
 
+								story_begin(levelWarningDisplay ? UI_STORY_WARNING : UI_STORY_TEXT, 0);  // Tyrian3D (mainint.h)
 								JE_displayText();
 								newkey = false;
 							}
@@ -4727,6 +4757,10 @@ bool newSuperArcadeGame(unsigned int i)
 		else if (tempW != 1)
 			blit_sprite2x2(VGAScreen, 148, 70, spriteSheet9, tempW);
 
+		// Tyrian3D: the modern UI's card (mainint.h): the mode and its ship.
+		card_publish(superShips[0], superShips[i + 1], NULL, NULL,
+		             tempW > 500 ? (const void *)&spriteSheetT2000 : tempW != 1 ? (const void *)&spriteSheet9 : NULL,
+		             tempW > 500 ? tempW - 500 : tempW, true, false);
 		JE_showVGA();
 		fade_palette(colors, 50, 0, 255);
 
@@ -4878,6 +4912,7 @@ void JE_displayText(void)
 	{
 		if (!ESCPressed)
 		{
+			story_line(temp);  // Tyrian3D: the modern UI's (mainint.h)
 			JE_outCharGlow(10, tempY, levelWarningText[temp]);
 
 			if (haltGame)
@@ -4902,7 +4937,9 @@ void JE_displayText(void)
 	if (warningRed)
 		tempW = 7 * 16 + 6;
 
+	story_line(levelWarningLines);  // (all shown: "press a key")
 	JE_outCharGlow(JE_fontCenter(miscText[4], TINY_FONT), tempW, miscText[4]);
+	story_refresh();
 
 	do
 	{
@@ -4917,6 +4954,7 @@ void JE_displayText(void)
 
 	} while (!(JE_anyButton() || (frameCountMax == 0 && temp == 1) || ESCPressed));
 	levelWarningDisplay = false;
+	story_end();
 }
 
 Sint16 JE_newEnemy(int enemyOffset, Uint16 eDatI, Sint16 uniqueShapeTableI)

@@ -18,6 +18,7 @@
  */
 #include "fonthand.h"
 
+#include "mainint.h"
 #include "network.h"
 #include "nortsong.h"
 #include "nortvars.h"
@@ -288,6 +289,7 @@ void JE_updateWarning(SDL_Surface * screen)
 		}
 		fill_rectangle_xy(screen, 0, 0, 319, 5, warningCol);
 		fill_rectangle_xy(screen, 0, 194, 319, 199, warningCol);
+		story_refresh();  // Tyrian3D: the story's modern UI over the screen as it is now (mainint.h)
 		JE_showVGA();
 
 		setDelay2(6);
