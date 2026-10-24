@@ -446,6 +446,7 @@ void l3d_key_last_object(Uint32 key, float *vx, float *vy)
 		}
 		object->vx = dx;
 		object->vy = dy;
+		object->key = key;
 	}
 	if (vx != NULL)
 		*vx = dx;

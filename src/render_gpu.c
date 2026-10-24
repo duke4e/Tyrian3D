@@ -1363,6 +1363,44 @@ static Mat4 aligned(const Mat4 *transform)
 	return mat4_mul(&a, transform);
 }
 
+// How an object leans (ObjectLean), applied to it as placed in the world (aligned): turned about its pivot
+// so that its base lies along the ground's slope (its yaw stays), then each point moved along the camera's
+// ray through the pivot by as much as the lean raised it, so that it is seen where the game draws it, as
+// alignment keeps what stands higher (to first order; what stands up from it leans with it).
+static Mat4 lean_matrix(float sx, float sz, float x, float y, float height)
+{
+	const float k = align_scale(height);
+	const float px = align.cx + (x - align.cx) * k, py = height, pz = align.cz + (y - align.cz) * k;
+	const float length = sqrtf(sx * sx + 1 + sz * sz);
+	const float nx = -sx / length, ny = 1 / length, nz = -sz / length;  // (the ground's normal)
+	const float f = 1 / (1 + ny);
+	// The turn taking up to the normal, about the axis across both (column-major: m[column * 4 + row]).
+	Mat4 r = mat4_identity();
+	r.m[0] = ny + f * nz * nz;
+	r.m[1] = -nx;
+	r.m[2] = -f * nx * nz;
+	r.m[4] = nx;
+	r.m[5] = ny;
+	r.m[6] = nz;
+	r.m[8] = -f * nx * nz;
+	r.m[9] = -nz;
+	r.m[10] = ny + f * nx * nx;
+	r.m[12] = px - (r.m[0] * px + r.m[4] * py + r.m[8] * pz);
+	r.m[13] = py - (r.m[1] * px + r.m[5] * py + r.m[9] * pz);
+	r.m[14] = pz - (r.m[2] * px + r.m[6] * py + r.m[10] * pz);
+	// Raised by sx (x - px) + sz (z - pz): that much along the ray towards the camera.
+	const float d = SDL_max(align.cy - py, 1.0f);
+	const float dx = align.on ? -(px - align.cx) / d : 0.0f, dz = align.on ? -(pz - align.cz) / d : 0.0f;
+	Mat4 c = mat4_identity();
+	c.m[0] = 1 + dx * sx;
+	c.m[8] = dx * sz;
+	c.m[12] = -dx * (sx * px + sz * pz);
+	c.m[2] = dz * sx;
+	c.m[10] = 1 + dz * sz;
+	c.m[14] = -dz * (sx * px + sz * pz);
+	return mat4_mul(&c, &r);
+}
+
 // The part of the horizontal plane at the given height that the window shows, in world
 // coordinates, as far as the given z.
 static void plane_footprint_world(const Camera3D *camera, float height, float far_z, float rect[4])
@@ -1507,6 +1545,66 @@ static const B3DTerrain *lift_terrain = NULL;    // and its terrain
 static float stand_lift(float x, float y, float base, const float footprint[4]);
 static float object_lifts[L3D_MAX_OBJECTS];  // how high the frame's objects stand on the ground (compute_object_lifts)
 static float object_bases[L3D_MAX_OBJECTS];  // and the heights their layers put them at (layer_base)
+// How the frame's objects lean with the ground under them (compute_object_lifts, lean_matrix): the slope
+// of the ground as drawn under them (world rise per world unit across x and z; 0, 0: upright), the point
+// they lean about (game position as drawn, and its height before alignment), and how much higher than
+// its object's plane through that point a piece stands (world; lean_group).
+typedef struct
+{
+	float sx, sz;
+	float x, y, height;
+	float offset;
+} ObjectLean;
+static ObjectLean object_leans[L3D_MAX_OBJECTS];
+static float object_shown[L3D_MAX_OBJECTS];  // how much of each is shown: 0 hidden in a solid (hide_in_solids), 1 all
+
+// A piece standing `offset` higher than its object's plane at the translation height `height` is that
+// piece placed on the plane and moved along the camera's rays (scaled about the camera by this), so its
+// object's lean turns it with the others before: they still meet on screen (lean_matrix keeps rays only
+// about its pivot).
+static float lean_offset_scale(float height, float offset)
+{
+	return align.on ? (align.cy - height) / SDL_max(align.cy - (height - offset), 1.0f) : 1.0f;
+}
+
+// How much its lean raises what leans at the world point p (its base there, over its pivot's height), for
+// an object at the translation height `height`.
+static float lean_rise(const ObjectLean *lean, float height, const float p[3])
+{
+	const float k = align_scale(lean->height), m = lean_offset_scale(height, lean->offset);
+	const float x = align.cx + (p[0] - align.cx) / m, z = align.cz + (p[2] - align.cz) / m;
+	return m * (lean->sx * (x - (align.cx + (lean->x - align.cx) * k)) + lean->sz * (z - (align.cz + (lean->y - align.cz) * k)));
+}
+
+// An object's instance as placed at game coordinates on its plane (aligned), leaning as the frame's ground
+// has it.
+static Mat4 object_world(int o, const Mat4 *transform)
+{
+	Mat4 world = aligned(transform);
+	const ObjectLean *lean = &object_leans[o];
+	if (lean->sx != 0 || lean->sz != 0)
+	{
+		Mat4 turn = lean_matrix(lean->sx, lean->sz, lean->x, lean->y, lean->height);
+		const float m = lean_offset_scale(transform->m[13], lean->offset);
+		if (m != 1.0f)
+		{
+			// (turned as placed on its object's plane: scaled back to it about the camera, turned, scaled up)
+			Mat4 down = mat4_identity(), up = mat4_identity();
+			down.m[0] = down.m[5] = down.m[10] = 1 / m;
+			up.m[0] = up.m[5] = up.m[10] = m;
+			for (int a = 0; a < 3; ++a)
+			{
+				const float c = a == 0 ? align.cx : a == 1 ? align.cy : align.cz;
+				down.m[12 + a] = c * (1 - 1 / m);
+				up.m[12 + a] = c * (1 - m);
+			}
+			const Mat4 chain[] = { up, turn, down };
+			turn = mat4_chain((int)COUNTOF(chain), chain);
+		}
+		world = mat4_mul(&turn, &world);
+	}
+	return world;
+}
 
 // The ground is terrain over the game's stars with no holes for them to show through (its map has
 // no black space: MINERS): they don't show at all.
@@ -2684,6 +2782,7 @@ typedef struct
 } ClipSurface;
 
 static Mat4 clip_transforms[L3D_MAX_OBJECTS];
+static Mat4 clip_worlds[L3D_MAX_OBJECTS];  // (and as placed in the world: aligned, leaning)
 static bool clip_drawn[L3D_MAX_OBJECTS];
 static ClipSurface clip_surfaces[L3D_MAX_BACKGROUNDS];
 static int clip_surface_count = 0;
@@ -2707,6 +2806,14 @@ static bool clip_log_on(void)
 static float appear_alpha(Uint8 step)
 {
 	return (float)step / (L3D_APPEAR_STEPS + 1);
+}
+
+// How much of an object is shown, in steps (object_shown): 0 none, SHOWN_STEPS all.
+#define SHOWN_STEPS 8
+
+static int shown_step(int o)
+{
+	return (int)(object_shown[o] * SHOWN_STEPS + 0.5f);
 }
 
 // A model object's transform at the given height (its translation's), on its plane before aligned():
@@ -2764,10 +2871,10 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 			{
 				const L3DObject *object = &frame->objects[o];
 				if (done[o] || object->model != model_index || object->filter != state->filter || object->ghost != state->ghost ||
-				    object->appear != state->appear)
+				    object->appear != state->appear || shown_step(o) != shown_step(f))
 					continue;
 				done[o] = true;
-				if (loaded == NULL || *instance_count >= MAX_INSTANCES)
+				if (loaded == NULL || *instance_count >= MAX_INSTANCES || shown_step(o) == 0)
 					continue;
 
 				const M3DModel *model = &m3d_models[model_index];
@@ -2780,11 +2887,13 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				                    fabsf(transform.m[9]) * loaded->half[2];
 				if (!model->keep_origin && height - reach < 0.3f + object_lifts[o])
 					transform.m[13] += 0.3f + object_lifts[o] - (height - reach);
-				write_instance(instances + *instance_count * 24, &transform, 1.0f);
+				const Mat4 world = object_world(o, &transform);
+				write_instance_world(instances + *instance_count * 24, &world, 1.0f);
 				++*instance_count;
 				if (clip_log)  // (where it is drawn)
 				{
 					clip_transforms[o] = transform;
+					clip_worlds[o] = world;
 					clip_drawn[o] = true;
 				}
 			}
@@ -2846,6 +2955,13 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					b->transparency_enabled = 1;
 					b->albedo_alpha = (Uint8)(b->albedo_alpha * appear_alpha(state->appear));
 					b->emission_energy *= appear_alpha(state->appear);
+				}
+				if (shown_step(f) < SHOWN_STEPS)
+				{
+					const float shown = (float)shown_step(f) / SHOWN_STEPS;
+					b->transparency_enabled = 1;
+					b->albedo_alpha = (Uint8)(b->albedo_alpha * shown);
+					b->emission_energy *= shown;
 				}
 			}
 		}
@@ -3223,10 +3339,10 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			if (done[p] || object->model != L3D_VOLUME || object->sheet != first->sheet ||
 			    object->sprite != first->sprite || object->large != first->large || object->style != first->style ||
 			    object->filter != first->filter || object->ghost != first->ghost || object->open_sides != first->open_sides ||
-			    object->appear != first->appear)
+			    object->appear != first->appear || shown_step(p) != shown_step(o))
 				continue;
 			done[p] = true;
-			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
+			if (mesh == NULL || *instance_count >= MAX_INSTANCES || shown_step(p) == 0)
 				continue;
 
 			const float height = object_bases[p] + object->height + object_lifts[p];
@@ -3237,7 +3353,8 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 			};
 			const Mat4 transform = mat4_chain((int)COUNTOF(chain), chain);
 			float *instance = instances + *instance_count * 24;
-			write_instance(instance, &transform, 1.0f);
+			const Mat4 world = object_world(p, &transform);
+			write_instance_world(instance, &world, 1.0f);
 			if (hd != NULL)
 				memcpy(instance + 16, tint, sizeof(tint));
 			++*instance_count;
@@ -3266,6 +3383,12 @@ static void add_volume_batches(const L3DFrame *frame, int *instance_count, int *
 		{
 			b->transparency_enabled = 1;
 			b->albedo_alpha = (Uint8)(b->albedo_alpha * appear_alpha(first->appear));
+			b->alpha_cutoff = 0.05f;
+		}
+		if (shown_step(o) < SHOWN_STEPS)
+		{
+			b->transparency_enabled = 1;
+			b->albedo_alpha = (Uint8)(b->albedo_alpha * shown_step(o) / SHOWN_STEPS);
 			b->alpha_cutoff = 0.05f;
 		}
 	}
@@ -4432,7 +4555,19 @@ typedef struct
 	bool on_ground, on_low;
 	float x, y, base;
 	const float *footprint;  // {x0, y0, x1, y1} round x, y (game pixels as drawn), or NULL for a point
+	const float *slope;      // how it leans: its base rises this much (world) a game pixel of its footprint
+	                         // across x and z (ObjectLean's slope times align_scale); NULL: upright
 } StandQuery;
+
+// The edge of a footprint that faces the camera (towards the point below it), from the game point of the
+// ground's plane under its middle: its samples are (i, j) on the footprint's 3 x 3 grid, n = 0..2.
+static void stand_front(float mx, float my, int n, int *i, int *j)
+{
+	const float dx = align.cx - mx, dz = align.cz - my;
+	const bool rows = fabsf(dz) >= fabsf(dx);
+	*i = rows ? n : dx > 0 ? 2 : 0;
+	*j = rows ? (dz > 0 ? 2 : 0) : n;
+}
 
 static float stand_under(const StandQuery *q, float lift)
 {
@@ -4448,25 +4583,28 @@ static float stand_under(const StandQuery *q, float lift)
 		const float r = kb / stand.k;
 		const float gx = align.cx + (q->x - align.cx) * r, gy = align.cz + (q->y - align.cz) * r;
 		const float mx = gx + (f[0] + f[2]) / 2 * r, my = gy + (f[1] + f[3]) / 2 * r;
-		const float middle = stand_relief(&q->ground, mx, my);
+		// (Leaning, its base at a point of its footprint is that much higher than at its position: the
+		// ground there counts that much lower, in its relief's units.)
+		const float tx = q->slope != NULL ? q->slope[0] / stand.k : 0.0f;
+		const float tz = q->slope != NULL ? q->slope[1] / stand.k : 0.0f;
+		const float middle = stand_relief(&q->ground, mx, my) - tx * (f[0] + f[2]) / 2 - tz * (f[1] + f[3]) / 2;
 		// On a slope, on the ground under the edge of its footprint that faces the camera (towards the
 		// point below the camera; its three samples' mean): no gap shows under that edge, nor ground over
 		// it; its far side floats or sinks behind it.
 		float front = middle;
 		if (samples > 1)
 		{
-			const float dx = align.cx - mx, dz = align.cz - my;
-			const bool rows = fabsf(dz) >= fabsf(dx);
 			float sum = 0;
 			int counted = 0;  // (not where nothing is drawn)
 			for (int n = 0; n < 3; ++n)
 			{
-				const int i = rows ? n : dx > 0 ? 2 : 0, j = rows ? (dz > 0 ? 2 : 0) : n;
+				int i, j;
+				stand_front(mx, my, n, &i, &j);
+				const float u = f[0] + (f[2] - f[0]) * i / 2, v = f[1] + (f[3] - f[1]) * j / 2;
 				float relief;
-				if (stand_relief_at(&q->ground, gx + (f[0] + (f[2] - f[0]) * i / 2) * r, gy + (f[1] + (f[3] - f[1]) * j / 2) * r,
-				                    &relief))
+				if (stand_relief_at(&q->ground, gx + u * r, gy + v * r, &relief))
 				{
-					sum += relief;
+					sum += relief - tx * u - tz * v;
 					++counted;
 				}
 			}
@@ -4493,30 +4631,78 @@ static float stand_under(const StandQuery *q, float lift)
 	return under;
 }
 
+// What stand_lift asks about a thing (StandQuery): false if neither the ground's terrain nor a flat background 2
+// drawn under the ground enemies is under it.
+static bool stand_query(float x, float y, float base, const float footprint[4], const float slope[2], StandQuery *q)
+{
+	q->on_ground = stand.terrain != NULL && stand_anchor(stand.background, stand.shift, x, y, &q->ground);
+	q->on_low = stand.low != NULL && stand_anchor(stand.low, stand.low_shift, x, y, &q->low);
+	q->x = x;
+	q->y = y;
+	q->base = base;
+	q->footprint = footprint;
+	q->slope = slope;
+	return q->on_ground || q->on_low;
+}
+
+// The ground drawn under a thing's footprint (its 3 x 3 grid: corners, edges' middles and middle) when it
+// stands at base + lift: how far above background 1's plane (world), at the points (u, v: game pixels as
+// drawn round its position) where the ground's terrain is drawn. Returns how many there are.
+static int stand_samples(const StandQuery *q, float lift, float *h, float *u, float *v)
+{
+	if (!q->on_ground || q->footprint == NULL)
+		return 0;
+	const float *f = q->footprint;
+	const float kb = align_scale(q->base + lift), r = kb / stand.k;
+	const float gx = align.cx + (q->x - align.cx) * r, gy = align.cz + (q->y - align.cz) * r;
+	const float rl = q->on_low ? kb / stand.low_k : 0.0f;
+	const float lx = align.cx + (q->x - align.cx) * rl, ly = align.cz + (q->y - align.cz) * rl;
+	int count = 0;
+	for (int j = 0; j < 3; ++j)
+		for (int i = 0; i < 3; ++i)
+		{
+			const float su = f[0] + (f[2] - f[0]) * i / 2, sv = f[1] + (f[3] - f[1]) * j / 2;
+			float relief;
+			if (!stand_relief_at(&q->ground, gx + su * r, gy + sv * r, &relief))
+				continue;
+			h[count] = stand.rise + stand.k * relief;
+			// (a flat background 2 drawn under the ground enemies covers the terrain where it has a pixel)
+			if (q->on_low && plane_has_pixel(&q->low, stand.low_shift, lx + su * rl, ly + sv * rl))
+				h[count] = SDL_max(h[count], stand.low_rise);
+			u[count] = su;
+			v[count] = sv;
+			++count;
+		}
+	return count;
+}
+
 // How high a thing standing at the game point x, y (as drawn) stands on the ground: how far above
 // background 1's plane the ground is drawn under it, when its height before the lift is `base` (where
 // its translation is). footprint: what it covers round x, y (game pixels as drawn, relative: x0, y0, x1,
-// y1), or NULL for a point. Where it stands depends on how high it
-// stands (the point under it moves with its height), so a few steps find where the two agree; by the far
-// edge of raised ground they may never agree (placed at the plateau's height the point under it is past
-// the edge, placed lower it is not): then the lowest height at which the ground drawn under it is no
-// higher than its base (it hugs the cliff rather than sink into it).
+// y1), or NULL for a point; leaning (StandQuery.slope, stand_lift_query), its base along the slope. Where
+// it stands depends on how high it stands (the point under it moves with its height), so a few steps find
+// where the two agree; by the far edge of raised ground they may never agree (placed at the plateau's
+// height the point under it is past the edge, placed lower it is not): then the lowest height at which the
+// ground drawn under it is no higher than its base (it hugs the cliff rather than sink into it).
 #define STAND_SEARCH 6       // halvings of the search between the last two steps
 #define STAND_TOLERANCE 0.05f
+
+static float stand_lift_query(const StandQuery *query);
 
 static float stand_lift(float x, float y, float base, const float footprint[4])
 {
 	if (!stand.on || stand.background == NULL)
 		return 0.0f;
 	StandQuery q;
-	q.on_ground = stand.terrain != NULL && stand_anchor(stand.background, stand.shift, x, y, &q.ground);
-	q.on_low = stand.low != NULL && stand_anchor(stand.low, stand.low_shift, x, y, &q.low);
-	if (!q.on_ground && !q.on_low)
+	if (!stand_query(x, y, base, footprint, NULL, &q))
 		return stand.rise;
-	q.x = x;
-	q.y = y;
-	q.base = base;
-	q.footprint = footprint;
+	return stand_lift_query(&q);
+}
+
+static float stand_lift_query(const StandQuery *query)
+{
+	const StandQuery q = *query;
+	const float x = q.x, y = q.y;
 	// (first guess: the ground drawn at its own game position)
 	float lift = stand.rise + (q.on_ground ? stand.k * stand_relief(&q.ground, x, y) : 0.0f);
 	float next = lift;
@@ -4725,28 +4911,384 @@ static int lift_group_root(int *group, int o)
 	return o;
 }
 
+/*
+ * Leaning with the ground. On terrain, what stands on the ground leans with the ground drawn under it, by
+ * pitch and roll (its yaw stays), at most LEAN_MOST degrees:
+ * - a thing alone by the plane that fits the ground under its footprint best (its 3 x 3 grid, least
+ *   squares), where that ground is a plane rather than a step (LEAN_STEP_*), still standing on the edge of
+ *   its footprint that faces the camera (stand_lift, leaning);
+ * - the pieces of one object (a boss, an ore tug and its load) all on one plane, so that they stay one as
+ *   the game draws them: the lean that fits the ground under their edges facing the camera best (near the
+ *   plane of the ground under all of them), and at its height their lifts' mean, but no piece deeper in the
+ *   ground under it anywhere than half its height (lean_group, lean_pieces). (Each piece standing on its own
+ *   ground would still meet the others on screen, each being aligned at its own height, but their light and
+ *   shadows show the steps between them, and their edges crack.)
+ * The lean follows the ground smoothly (LEAN_TICKS of the game's time), so nothing jitters as the map
+ * scrolls under it. Where it leans about stays where the game puts it, and what leans is moved along the
+ * camera's ray by what the lean raised it, so it is seen where the game draws it (lean_matrix). Game
+ * positions stay as they are; a flat ground gives no lean.
+ */
+#define LEAN_MOST 12.0f       // degrees
+#define LEAN_TICKS 4.0f       // the time it takes to follow the ground (its time constant, game ticks)
+#define LEAN_FORGET 30.0      // ticks an object not drawn keeps its lean
+#define LEAN_STEP_FROM 1.5f   // a thing alone leans less where the ground under it is further than this from a
+#define LEAN_STEP_ALL 3.0f    // plane (root mean square, game pixels of relief), not at all from this on
+#define PIECE_SINK 0.5f       // the share of its height a piece may stand in the ground under it anywhere
+#define LEAN_PRIOR 50.0f      // what leaning otherwise than the ground's plane costs, per piece and slope squared
+                              // (against the world pixels the pieces float or sink)
+#define LEAN_STAY 10.0f       // and otherwise than it leant before (so that it doesn't swap between two)
+
+// The lean each object had when it was last drawn, by its key (L3DObject.key; every piece of an object
+// keeps the object's).
+#define LEAN_STATES 2048
+static struct
+{
+	Uint32 key;   // 0: free
+	double time;  // when: l3d_frame_number + ahead
+	float sx, sz;
+} lean_states[LEAN_STATES];
+
+static double lean_now(void)
+{
+	return (double)l3d_frame_number + ahead;
+}
+
+static bool lean_fresh(double time)
+{
+	const double now = lean_now();
+	return time >= now - LEAN_FORGET && time <= now;
+}
+
+static int lean_slot(Uint32 key, bool make)
+{
+	Uint32 slot = (key * 2654435761u) % LEAN_STATES;
+	int free_slot = -1;
+	for (int probe = 0; probe < 16; ++probe, slot = (slot + 1) % LEAN_STATES)
+	{
+		if (lean_states[slot].key == key)
+			return (int)slot;
+		if (free_slot < 0 && (lean_states[slot].key == 0 || !lean_fresh(lean_states[slot].time)))
+			free_slot = (int)slot;
+	}
+	if (!make || free_slot < 0)
+		return -1;
+	lean_states[free_slot].key = key;
+	lean_states[free_slot].time = -1e30;
+	return free_slot;
+}
+
+// The lean an object had (any of its pieces' keys), and how many ticks ago; false if none.
+static bool lean_recall(const Uint32 *keys, int count, float lean[2], double *ago)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		const int slot = keys[i] != 0 ? lean_slot(keys[i], false) : -1;
+		if (slot < 0 || !lean_fresh(lean_states[slot].time))
+			continue;
+		lean[0] = lean_states[slot].sx;
+		lean[1] = lean_states[slot].sz;
+		*ago = lean_now() - lean_states[slot].time;
+		return true;
+	}
+	return false;
+}
+
+static void lean_remember(const Uint32 *keys, int count, const float lean[2])
+{
+	for (int i = 0; i < count; ++i)
+	{
+		const int slot = keys[i] != 0 ? lean_slot(keys[i], true) : -1;
+		if (slot < 0)
+			continue;
+		lean_states[slot].time = lean_now();
+		lean_states[slot].sx = lean[0];
+		lean_states[slot].sz = lean[1];
+	}
+}
+
+// From the lean it had towards the one the ground gives, smoothly in the game's time.
+static void lean_toward(bool had, const float was[2], double ago, const float target[2], float out[2])
+{
+	const float a = had ? 1.0f - expf(-(float)ago / LEAN_TICKS) : 1.0f;
+	for (int i = 0; i < 2; ++i)
+		out[i] = had ? was[i] + a * (target[i] - was[i]) : target[i];
+}
+
+static void lean_limit(float lean[2])
+{
+	const float most = tanf(LEAN_MOST * (float)M_PI / 180.0f);
+	const float length = sqrtf(lean[0] * lean[0] + lean[1] * lean[1]);
+	if (length > most)
+	{
+		lean[0] *= most / length;
+		lean[1] *= most / length;
+	}
+}
+
+// The plane h = a + b (u - mu) + c (v - mv) through points by least squares (mu, mv their mean):
+// out = { mu, mv, a, b, c, how far the points are from it (root mean square) }; false if they don't span one.
+static bool fit_plane(const float *h, const float *u, const float *v, int count, float out[6])
+{
+	if (count < 3)
+		return false;
+	float mu = 0, mv = 0, mh = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		mu += u[i];
+		mv += v[i];
+		mh += h[i];
+	}
+	mu /= count;
+	mv /= count;
+	mh /= count;
+	float suu = 0, suv = 0, svv = 0, suh = 0, svh = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		const float du = u[i] - mu, dv = v[i] - mv, dh = h[i] - mh;
+		suu += du * du;
+		suv += du * dv;
+		svv += dv * dv;
+		suh += du * dh;
+		svh += dv * dh;
+	}
+	const float det = suu * svv - suv * suv;
+	if (!(det > 1e-3f * SDL_max(suu * svv, 1e-6f)))
+		return false;
+	out[0] = mu;
+	out[1] = mv;
+	out[2] = mh;
+	out[3] = (suh * svv - svh * suv) / det;
+	out[4] = (svh * suu - suh * suv) / det;
+	float off = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		const float e = h[i] - mh - out[3] * (u[i] - mu) - out[4] * (v[i] - mv);
+		off += e * e;
+	}
+	out[5] = sqrtf(off / count);
+	return true;
+}
+
+// A thing alone on the terrain: its lean (by the plane under its footprint) and its lift with it.
+static void lean_alone(const L3DObject *object, int o, const float *footprint)
+{
+	const float base = object_bases[o] + object->height;
+	StandQuery q;
+	if (!stand_query(object_x(object), object_y(object), base, footprint, NULL, &q) || !q.on_ground)
+		return;
+	float was[2] = { 0, 0 };
+	double ago = 0;
+	const bool had = lean_recall(&object->key, 1, was, &ago);
+	float lift = object_lifts[o], k = align_scale(base + lift);
+	float slope[2] = { was[0] * k, was[1] * k };
+	q.slope = slope;
+	if (had && (was[0] != 0 || was[1] != 0))
+		lift = stand_lift_query(&q);
+	// The ground under it there: where it is a slope, not a step (by a cliff it stands as upright things do).
+	float h[9], u[9], v[9], plane[6], target[2] = { 0, 0 };
+	k = align_scale(base + lift);
+	if (fit_plane(h, u, v, stand_samples(&q, lift, h, u, v), plane))
+	{
+		const float plain = SDL_clamp((LEAN_STEP_ALL - plane[5] / stand.k) / (LEAN_STEP_ALL - LEAN_STEP_FROM), 0.0f, 1.0f);
+		target[0] = plain * plane[3] / k;
+		target[1] = plain * plane[4] / k;
+		lean_limit(target);
+	}
+	float lean[2];
+	lean_toward(had, was, ago, target, lean);
+	lean_remember(&object->key, 1, lean);
+	if (had ? fabsf(lean[0] - was[0]) + fabsf(lean[1] - was[1]) > 1e-4f : lean[0] != 0 || lean[1] != 0)
+	{
+		slope[0] = lean[0] * k;
+		slope[1] = lean[1] * k;
+		lift = stand_lift_query(&q);
+	}
+	object_lifts[o] = lift;
+	object_leans[o] = (ObjectLean){ lean[0], lean[1], object_x(object), object_y(object), base + lift, 0.0f };
+}
+
+// A piece of an object leaning together (lean_group).
+typedef struct
+{
+	int object;
+	float x, y;          // its position (game, as drawn)
+	float base;          // its height before its lift
+	float lift;          // what it would stand at alone, upright: the ground under its edge facing the camera
+	float fx, fy;        // that edge's middle, from its position (game pixels as drawn)
+	int first, samples;  // the ground under it (lean_group's h, u, v)
+	float sink;          // how deep in the ground under it it may stand anywhere (world)
+} LeanPiece;
+
+// Where the pieces of an object stand leaning by `lean` (world rise per world unit) about (x0, y0) (k:
+// align_scale there): all on one plane, its height at (x0, y0) in *height: their lifts' mean, but no piece
+// deeper in the ground under it than it may (PIECE_SINK of its height); returns what it costs: how far the
+// pieces stand from their own ground in all (world pixels), and leaning otherwise than `prior` (the plane of
+// the ground under them) or than `was` (the lean before; NULL: none).
+static float lean_pieces(const LeanPiece *pieces, int count, float x0, float y0, float k, const float lean[2],
+                         const float prior[2], const float *was, const float *h, const float *u, const float *v,
+                         float *height)
+{
+	static float own[L3D_MAX_OBJECTS];
+	float mean = 0, least = -INFINITY;
+	for (int i = 0; i < count; ++i)
+	{
+		const LeanPiece *p = &pieces[i];
+		own[i] = p->lift - k * (lean[0] * (p->x + p->fx - x0) + lean[1] * (p->y + p->fy - y0));
+		mean += own[i];
+		for (int s = p->first; s < p->first + p->samples; ++s)
+			least = SDL_max(least, h[s] - k * (lean[0] * (u[s] - x0) + lean[1] * (v[s] - y0)) - p->sink);
+	}
+	*height = SDL_max(mean / count, least);
+	float wrong = 0;  // (floating and sinking)
+	for (int i = 0; i < count; ++i)
+		wrong += fabsf(*height - own[i]);
+	const float dx = lean[0] - prior[0], dz = lean[1] - prior[1];
+	const float sx = was != NULL ? lean[0] - was[0] : 0.0f, sz = was != NULL ? lean[1] - was[1] : 0.0f;
+	return wrong + count * (LEAN_PRIOR * (dx * dx + dz * dz) + LEAN_STAY * (sx * sx + sz * sz));
+}
+
+// The pieces of one object on the terrain (members: their objects; footprints by object): one plane, one
+// lean, so that they stay one as the game draws them.
+static void lean_group(const L3DFrame *frame, const int *members, int count, float (*footprints)[5])
+{
+	static LeanPiece pieces[L3D_MAX_OBJECTS];
+	static Uint32 keys[L3D_MAX_OBJECTS];
+	static float h[L3D_MAX_OBJECTS * 9], u[L3D_MAX_OBJECTS * 9], v[L3D_MAX_OBJECTS * 9];
+	int samples = 0;
+	float x0 = 0, y0 = 0, base0 = 0, lift0 = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		const int o = members[i];
+		const L3DObject *object = &frame->objects[o];
+		const float *f = footprints[o];
+		LeanPiece *p = &pieces[i];
+		p->object = o;
+		p->x = object_x(object);
+		p->y = object_y(object);
+		p->base = object_bases[o] + object->height;
+		p->lift = object_lifts[o];
+		int fi[3], fj[3];
+		for (int n = 0; n < 3; ++n)
+			stand_front(p->x + (f[0] + f[2]) / 2, p->y + (f[1] + f[3]) / 2, n, &fi[n], &fj[n]);
+		p->fx = f[0] + (f[2] - f[0]) * (fi[0] + fi[1] + fi[2]) / 6.0f;
+		p->fy = f[1] + (f[3] - f[1]) * (fj[0] + fj[1] + fj[2]) / 6.0f;
+		keys[i] = object->key;
+		x0 += p->x;
+		y0 += p->y;
+		base0 += p->base;
+		lift0 += p->lift;
+		// The ground under it, for the plane under them all and how deep it stands.
+		StandQuery q;
+		p->first = samples;
+		p->samples = 0;
+		p->sink = PIECE_SINK * f[4] * align_scale(p->base + p->lift);
+		if (stand_query(p->x, p->y, p->base, f, NULL, &q))
+		{
+			const int n = stand_samples(&q, p->lift, h + samples, u + samples, v + samples);
+			for (int s = samples; s < samples + n; ++s)
+			{
+				u[s] += p->x;
+				v[s] += p->y;
+			}
+			samples += n;
+			p->samples = n;
+		}
+	}
+	x0 /= count;
+	y0 /= count;
+	base0 /= count;
+	lift0 /= count;
+	const float k = align_scale(base0 + lift0);
+
+	// The plane of the ground under them, and the lean near it that fits their own ground best.
+	float plane[6], prior[2] = { 0, 0 };
+	if (fit_plane(h, u, v, samples, plane))
+	{
+		prior[0] = plane[3] / k;
+		prior[1] = plane[4] / k;
+		lean_limit(prior);
+	}
+	float was[2] = { 0, 0 };
+	double ago = 0;
+	const bool had = lean_recall(keys, count, was, &ago);
+	const float *stay = had ? was : NULL;
+	float best[2] = { prior[0], prior[1] }, height;
+	float best_cost = lean_pieces(pieces, count, x0, y0, k, best, prior, stay, h, u, v, &height);
+	const float most = tanf(LEAN_MOST * (float)M_PI / 180.0f);
+	const float starts[2][2] = { { 0, 0 }, { was[0], was[1] } };
+	for (int c = 0; c < 2; ++c)
+	{
+		const float cost = lean_pieces(pieces, count, x0, y0, k, starts[c], prior, stay, h, u, v, &height);
+		if (cost < best_cost)
+		{
+			best_cost = cost;
+			best[0] = starts[c][0];
+			best[1] = starts[c][1];
+		}
+	}
+	// A grid over the leans allowed, then finer round the best.
+	float centre[2] = { 0, 0 }, step = most / 3;
+	for (int round = 0; round < 4; ++round)
+	{
+		const int reach = round == 0 ? 3 : 1;
+		for (int b = -reach; b <= reach; ++b)
+			for (int a = -reach; a <= reach; ++a)
+			{
+				float lean[2] = { centre[0] + a * step, centre[1] + b * step };
+				if (lean[0] * lean[0] + lean[1] * lean[1] > most * most * 1.0001f)
+					continue;
+				const float cost = lean_pieces(pieces, count, x0, y0, k, lean, prior, stay, h, u, v, &height);
+				if (cost < best_cost)
+				{
+					best_cost = cost;
+					best[0] = lean[0];
+					best[1] = lean[1];
+				}
+			}
+		centre[0] = best[0];
+		centre[1] = best[1];
+		step /= 2;
+	}
+	float lean[2];
+	lean_toward(had, was, ago, best, lean);
+	lean_remember(keys, count, lean);
+	lean_pieces(pieces, count, x0, y0, k, lean, prior, NULL, h, u, v, &height);
+	for (int i = 0; i < count; ++i)
+	{
+		const int o = pieces[i].object;
+		object_lifts[o] = height;
+		object_leans[o] = (ObjectLean){ lean[0], lean[1], x0, y0, base0 + height, pieces[i].base - base0 };
+	}
+}
+
 // The heights the frame's objects' layers put them at (layer_base), and how high those on the ground
 // stand on it (stand_lift). The pieces of one object (L3DObject.group, group_link: made by the level's
 // events at one time, or with one link not long apart; side by side on the sprites' grid, moving alike:
-// MINERS's ore tug and its load, eight enemies; CAMANIS's boss, made row by row) stand at one height,
-// so that they don't come apart where the ground under them changes height: their lifts' mean, but no
-// piece sunk more than half its height (by a cliff, part of it overhangs rather than be buried; their
-// highest lift floated whole bosses over uneven ground). Pieces of different objects never join, however
-// near and alike (TYRIAN's walkers did, into one chain lifted at its middle).
+// MINERS's ore tug and its load, eight enemies; CAMANIS's boss, made row by row) stand together, so that
+// they don't come apart where the ground under them changes height: on one plane, their lifts' mean, but no
+// piece sunk more than half its height (by its edge, part of it overhangs rather than be buried); on
+// terrain the plane leans with the ground (lean_group). Pieces of different objects never join, however
+// near and alike (TYRIAN's walkers did, into one chain lifted at its middle). On terrain things alone lean
+// with the ground too (lean_alone).
 static void compute_object_lifts(const L3DFrame *frame, const float *heights, bool mirror)
 {
 	static int group[L3D_MAX_OBJECTS], pieces[L3D_MAX_OBJECTS];
 	static float piece_heights[L3D_MAX_OBJECTS];
+	static float footprints[L3D_MAX_OBJECTS][5];
+	static bool covers[L3D_MAX_OBJECTS];
 	int piece_count = 0;
+	const bool leaning = stand.on && stand.terrain != NULL;
 	for (int o = 0; o < frame->object_count; ++o)
 	{
 		const L3DObject *object = &frame->objects[o];
 		group[o] = o;
 		object_bases[o] = layer_base(frame, heights, object->layer, object->phase);
 		object_lifts[o] = 0.0f;
+		object_leans[o] = (ObjectLean){ 0 };
+		covers[o] = false;
 		if (object->layer != L3D_GROUND_ENEMY || !stand.on || stand.background == NULL)
 			continue;
-		float footprint[5];
+		float *footprint = footprints[o];
 		if (stand.terrain == NULL && stand.low == NULL)
 		{
 			object_lifts[o] = stand.rise;  // (a flat ground)
@@ -4754,12 +5296,14 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 				log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
 			continue;
 		}
-		const bool covers = object_footprint(object, mirror, footprint);
-		if (covers)
+		covers[o] = object_footprint(object, mirror, footprint);
+		if (covers[o])
 			log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
-		piece_heights[o] = covers ? footprint[4] * align_scale(object_bases[o] + object->height) : 0.0f;
+		else
+			memset(footprint, 0, sizeof(footprints[o]));
+		piece_heights[o] = covers[o] ? footprint[4] * align_scale(object_bases[o] + object->height) : 0.0f;
 		object_lifts[o] = stand_lift(object_x(object), object_y(object), object_bases[o] + object->height,
-		                             covers ? footprint : NULL);
+		                             covers[o] ? footprint : NULL);
 		if (lifted_piece(object))
 			pieces[piece_count++] = o;
 	}
@@ -4776,25 +5320,169 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 			    fabsf(a->vy - b->vy) < 0.01f)
 				group[lift_group_root(group, pieces[j])] = lift_group_root(group, pieces[i]);
 		}
-	static float sum[L3D_MAX_OBJECTS], least[L3D_MAX_OBJECTS];
 	static int n[L3D_MAX_OBJECTS];
+	for (int i = 0; i < piece_count; ++i)
+		n[pieces[i]] = 0;
+	for (int i = 0; i < piece_count; ++i)
+		++n[lift_group_root(group, pieces[i])];
+	if (leaning)
+	{
+		// Each object of pieces together; each thing alone by itself.
+		static int members[L3D_MAX_OBJECTS];
+		for (int i = 0; i < piece_count; ++i)
+		{
+			const int root = lift_group_root(group, pieces[i]);
+			if (root != pieces[i] && n[root] > 1)
+				continue;
+			int count = 0;
+			for (int j = 0; j < piece_count; ++j)
+				if (lift_group_root(group, pieces[j]) == root)
+					members[count++] = pieces[j];
+			if (count > 1)
+				lean_group(frame, members, count, footprints);
+		}
+		for (int o = 0; o < frame->object_count; ++o)
+		{
+			const L3DObject *object = &frame->objects[o];
+			if (object->layer == L3D_GROUND_ENEMY && covers[o] && (!lifted_piece(object) || n[lift_group_root(group, o)] < 2))
+				lean_alone(object, o, footprints[o]);
+		}
+		return;
+	}
+	static float sum[L3D_MAX_OBJECTS], least[L3D_MAX_OBJECTS];
 	for (int i = 0; i < piece_count; ++i)
 	{
 		least[pieces[i]] = -INFINITY;
 		sum[pieces[i]] = 0;
-		n[pieces[i]] = 0;
 	}
 	for (int i = 0; i < piece_count; ++i)
 	{
 		const int root = lift_group_root(group, pieces[i]);
 		least[root] = SDL_max(least[root], object_lifts[pieces[i]] - piece_heights[pieces[i]] / 2);
 		sum[root] += object_lifts[pieces[i]];
-		++n[root];
 	}
 	for (int i = 0; i < piece_count; ++i)
 	{
 		const int root = lift_group_root(group, pieces[i]);
 		object_lifts[pieces[i]] = SDL_max(sum[root] / n[root], least[root]);
+	}
+}
+
+/*
+ * What the game draws under a solid (backgrounds 2 and 3 as solids, drawn over the ground's enemies) and
+ * that is mostly inside it is hidden, as the game hides it under the background: the red balls SAWBLADES's
+ * and IXMUCANE's launchers roll through the rock showed their tops above it and their sides at its walls.
+ * Inside: where the solid has rock under the thing's footprint (its 3 x 3 grid as drawn) standing above
+ * its middle. It fades out between SOLID_HIDE_FROM and SOLID_HIDE_ALL of its footprint inside: half in a
+ * wall it still shows, cut by the wall as the game's background cuts it.
+ */
+#define SOLID_HIDE_FROM 0.5f
+#define SOLID_HIDE_ALL 0.85f
+
+// The bottom and top of a ground object's bounds (game pixels before alignment, from its translation).
+static void object_span(const L3DObject *object, bool mirror, float *bottom, float *top)
+{
+	*bottom = 0.0f;
+	*top = 2.0f;
+	const LoadedModel *loaded = object->model >= 0 && object->model < m3d_model_count ? get_model(object->model) : NULL;
+	if (loaded == NULL)
+		return;
+	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	*bottom = INFINITY;
+	*top = -INFINITY;
+	for (int c = 0; c < 8; ++c)
+	{
+		const float p[3] = { loaded->center[0] + ((c & 1) ? loaded->half[0] : -loaded->half[0]),
+		                     loaded->center[1] + ((c & 2) ? loaded->half[1] : -loaded->half[1]),
+		                     loaded->center[2] + ((c & 4) ? loaded->half[2] : -loaded->half[2]) };
+		const float y = t.m[1] * p[0] + t.m[5] * p[1] + t.m[9] * p[2];
+		*bottom = SDL_min(*bottom, y);
+		*top = SDL_max(*top, y);
+	}
+}
+
+// Whether a solid has rock at the game point x, y of its plane as drawn (scrolled on by shift since the tick),
+// by a tile near it, and how high (its own relief).
+static bool solid_rock_at(const B3DTerrain *t, const MapAnchor *a, float shift, float x, float y, float *relief)
+{
+	if (!a->valid)
+		return false;
+	const int per_x = B3D_TILE_W / t->sample;
+	const float mx = a->column * B3D_TILE_W + (x - a->x), my = a->row * B3D_TILE_H + (y - shift - a->z);
+	const int sx = (int)floorf(mx / t->sample + 0.5f) + t->side_columns * per_x, sy = (int)floorf(my / t->sample + 0.5f);
+	if (sy < 0 || sy >= t->height || sx < 0 || sx >= t->width)
+		return false;
+	const Sint8 value = t->heights[sy * t->width + sx];
+	if (t->holes && value == B3D_TERRAIN_HOLE)
+		return false;
+	*relief = (float)value;
+	return true;
+}
+
+static void hide_in_solids(const L3DFrame *frame, const float *heights, bool mirror)
+{
+	for (int o = 0; o < frame->object_count; ++o)
+		object_shown[o] = 1.0f;
+	struct
+	{
+		const L3DBackground *background;
+		const B3DTerrain *terrain;
+		float height, k, shift;  // its plane, align_scale there, its scroll since the tick
+	} solids[L3D_MAX_BACKGROUNDS];
+	int solid_count = 0;
+	for (int i = 0; i < frame->background_count; ++i)
+	{
+		const L3DBackground *b = &frame->backgrounds[i];
+		if (b->set < 2 || !terrain_background(frame, b) || b == lift_ground)
+			continue;
+		const float height = SDL_min(heights[b->layer] - TILE_BELOW_LAYER, solid_top(b->set));
+		solids[solid_count].background = b;
+		solids[solid_count].terrain = frame_terrains[b->set];
+		solids[solid_count].height = height;
+		solids[solid_count].k = align_scale(height);
+		solids[solid_count].shift = background_speed[b->set & 3] * ahead;
+		++solid_count;
+	}
+	if (solid_count == 0)
+		return;
+	for (int o = 0; o < frame->object_count; ++o)
+	{
+		const L3DObject *object = &frame->objects[o];
+		float footprint[5];
+		if (object->layer != L3D_GROUND_ENEMY || !object_footprint(object, mirror, footprint))
+			continue;
+		float bottom, top;
+		object_span(object, mirror, &bottom, &top);
+		float height = object_bases[o] + object->height + object_lifts[o];
+		if (object->model >= 0 && !m3d_models[object->model].keep_origin)
+			height = SDL_max(height, 0.3f + object_lifts[o] - bottom);  // (nothing sinks: add_object_batches)
+		const float k = align_scale(height);
+		const float middle = height + k * (bottom + top) / 2;
+		const float x = object_x(object), y = object_y(object);
+		for (int s = 0; s < solid_count; ++s)
+		{
+			if (solids[s].background->phase <= object->phase)
+				continue;  // (drawn under it)
+			// The game points of the solid's plane under its footprint as drawn: a little further from the
+			// point below the camera (the solid's plane is higher, less enlarged).
+			const float r = k / solids[s].k;
+			int inside = 0;
+			for (int j = 0; j < 3; ++j)
+				for (int i = 0; i < 3; ++i)
+				{
+					const float gx = align.cx + (x + footprint[0] + (footprint[2] - footprint[0]) * i / 2 - align.cx) * r;
+					const float gy = align.cz + (y + footprint[1] + (footprint[3] - footprint[1]) * j / 2 - align.cz) * r;
+					MapAnchor anchor;
+					float relief;
+					if (stand_anchor(solids[s].background, solids[s].shift, gx, gy, &anchor) &&
+					    solid_rock_at(solids[s].terrain, &anchor, solids[s].shift, gx, gy, &relief) &&
+					    solids[s].height + solids[s].k * relief > middle)
+						++inside;
+				}
+			const float share = inside / 9.0f;
+			const float t = SDL_clamp((share - SOLID_HIDE_FROM) / (SOLID_HIDE_ALL - SOLID_HIDE_FROM), 0.0f, 1.0f);
+			object_shown[o] = SDL_min(object_shown[o], 1.0f - t * t * (3 - 2 * t));
+		}
 	}
 }
 
@@ -6685,7 +7373,7 @@ static void log_clipping(const L3DFrame *frame)
 			continue;
 		const LoadedModel *loaded = &loaded_models[object->model];
 		const float *centre = loaded->center, *half = loaded->half;
-		const Mat4 world = aligned(&clip_transforms[o]);
+		const Mat4 world = clip_worlds[o];
 		const float k = align_scale(clip_transforms[o].m[13]);  // world units to the model's game pixels
 
 		// The model's bounds as drawn: its middle, how far they reach up and down (world).
@@ -6812,21 +7500,23 @@ static void log_clipping(const L3DFrame *frame)
 
 		// Floating: the lowest points of it the camera sees (within CLIP_FLOAT_BAND of the lowest), against
 		// the ground drawn under each: how much higher above it they stand than they would above a flat
-		// ground (its lift, against the ground's there).
+		// ground (its lift, against the ground's there). Leaning (object_leans), its lowest points are those
+		// lowest above its leaning base, and its lift at each is what the lean adds there.
 		float floats_by = -INFINITY, gap = 0;
 		int bottom = 0, floating = 0, floating_cell = 0;
+		const ObjectLean *lean = &object_leans[o];
 		if (may_float)
 		{
 			float lowest = INFINITY;
 			for (int c = 0; c < view.w * view.h; ++c)
 				if (view.depth[c] != INFINITY)
-					lowest = SDL_min(lowest, view.point[c][1]);
+					lowest = SDL_min(lowest, view.point[c][1] - lean_rise(lean, clip_transforms[o].m[13], view.point[c]));
 			for (int c = 0; c < view.w * view.h; ++c)
 			{
-				if (view.depth[c] == INFINITY || view.point[c][1] > lowest + CLIP_FLOAT_BAND * k)
+				if (view.depth[c] == INFINITY || view.point[c][1] - lean_rise(lean, clip_transforms[o].m[13], view.point[c]) > lowest + CLIP_FLOAT_BAND * k)
 					continue;
 				const float under = stand_ground_at(view.point[c][0], view.point[c][2]);
-				const float excess = object_lifts[o] - under;
+				const float excess = object_lifts[o] + lean_rise(lean, clip_transforms[o].m[13], view.point[c]) - under;
 				++bottom;
 				if (excess > floats_by)
 				{
@@ -6862,10 +7552,11 @@ static void log_clipping(const L3DFrame *frame)
 			{
 				const float *p = view.point[is_float ? floating_cell : deepest_cell[kind]];
 				printf("clip-cell: %s point %.2f,%.2f,%.2f (%.1f,%.1f from the middle, game pixels) of %d seen, %d deep, base %.2f, "
-				       "lift %.1f (the ground drawn under its middle %.1f, the terrain stored at its position %.1f)\n",
+				       "lift %.1f (the ground drawn under its middle %.1f, the terrain stored at its position %.1f), lean %.1f,%.1f\n",
 				       is_float ? "float" : clip_kind_names[kind], p[0], p[1], p[2], (p[0] - middle[0]) / k, (p[2] - middle[2]) / k,
 				       is_float ? bottom : seen, is_float ? floating : cells_of[kind], clip_transforms[o].m[13], object_lifts[o],
-				       stand_ground_at(middle[0], middle[2]), terrain_lift(object->x, object->y));
+				       stand_ground_at(middle[0], middle[2]), terrain_lift(object->x, object->y),
+				       atanf(lean->sx) * 180.0f / (float)M_PI, atanf(lean->sz) * 180.0f / (float)M_PI);
 			}
 			printed = true;
 		}
@@ -7839,6 +8530,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const Uint64 lift_start = SDL_GetPerformanceCounter();
 	setup_stand(frame, composed, heights);
 	compute_object_lifts(frame, heights, upside_down);
+	hide_in_solids(frame, heights, upside_down);
 	profile_lift_ticks += SDL_GetPerformanceCounter() - lift_start;
 	add_outside_shade(&camera, reference_height, layout.panel[2] > 0 ? layout.panel[0] : logical_w, logical_w, logical_h);
 	prepare_tile_atlas();

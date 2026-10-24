@@ -87,6 +87,7 @@ typedef struct
 	Uint16 enemy_sprite;  // first sprite of its animation, as models.cfg names it; 0 for other objects
 	Uint32 group;         // the object an enemy is a piece of (l3d_group_last_object): the time of the
 	Uint8 group_link;     // events that made it + 1 (0: none) and the link it was made with (0: none)
+	Uint32 key;           // which object it is from frame to frame (l3d_key_last_object), 0: not known
 } L3DObject;
 
 #define L3D_MAX_OBJECTS 1024
