@@ -243,6 +243,7 @@ def main():
         return 1
     by_level = sprite_cells(sys.argv[1])
     names = sys.argv[2:] or sorted(os.path.basename(f)[4:-5] for f in glob.glob(os.path.join(mt.MAPS, "map_*.json")))
+    mt.read_ground_log(names)  # (the log in one pass for all of them)
     for name in names:
         build(name, by_level)
     return 0

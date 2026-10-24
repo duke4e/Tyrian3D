@@ -1,7 +1,8 @@
 #!/bin/bash
 # Plays every level (tools/levels.py) fast with the autopilot, in a background window, and
-# collects where the ground enemies stand on the ground maps (TYR3D_LOG_GROUND) into
-# export/terrain/ground.txt, for make_terrain.py to keep the terrain under them at the ground.
+# collects where the ground enemies stand on the ground maps (TYR3D_LOG_GROUND), and what their
+# models cover, into export/terrain/ground.txt, for make_terrain.py to keep the terrain under them
+# at the ground.
 # usage: tools/terrain/ground_log.sh [seconds per level, default 90] [sections, e.g. 1:3 4:8...]
 # With sections (as tools/levels.py prints them), only those levels, added to ground.txt.
 set -u
@@ -31,7 +32,7 @@ python3 "$ROOT/tools/levels.py" | while read -r section name; do
 	kill $pid 2>/dev/null
 	wait $pid 2>/dev/null
 	# Only the level's own part of the log.
-	awk '/^level:/{n++} n==1 && /^ground:/' "$LOG" >> "$OUT/ground_all.txt"
+	awk '/^level:/{n++} n==1 && /^ground(model)?:/' "$LOG" >> "$OUT/ground_all.txt"
 	echo "$section $name: ${i}s, $(awk '/^level:/{n++} n==1 && /^ground:/' "$LOG" | wc -l | tr -d ' ') positions"
 done
 # In the order logged (make_terrain.py follows each enemy's slot to tell standing from moving).

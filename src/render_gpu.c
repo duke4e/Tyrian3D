@@ -4652,6 +4652,78 @@ static bool lifted_piece(const L3DObject *object)
 	       object->model < m3d_model_count && m3d_models[object->model].keep_origin;
 }
 
+// Tyrian3D dev (TYR3D_LOG_GROUND): what the models of ground enemies cover round their positions, for
+// tools/terrain/make_terrain.py (the game's "ground:" lines name each enemy's sheet and first sprite):
+// "groundmodel: <sheet> <first sprite> <model> <x0> <y0> <x1> <y1> <height> <bottom> <top>", for each
+// sheet and sprite the union of what its models have covered so far (object_footprint: game pixels as
+// drawn, round the position; the height, and how high its bottom and top are over the ground's plane
+// before it is lifted, before alignment), printed whenever it grows.
+static bool ground_model_log_on(void)
+{
+	static int on = -1;
+	if (on < 0)
+		on = SDL_getenv("TYR3D_LOG_GROUND") != NULL;
+	return on != 0;
+}
+
+static void log_ground_model(const L3DObject *object, bool mirror, float base, const float footprint[5])
+{
+	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->wreck || object->model < 0 ||
+	    object->model >= m3d_model_count)
+		return;
+	const LoadedModel *loaded = get_model(object->model);
+	if (loaded == NULL)
+		return;
+	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	float bottom = INFINITY, top = -INFINITY;
+	for (int c = 0; c < 8; ++c)
+	{
+		const float p[3] = { loaded->center[0] + ((c & 1) ? loaded->half[0] : -loaded->half[0]),
+		                     loaded->center[1] + ((c & 2) ? loaded->half[1] : -loaded->half[1]),
+		                     loaded->center[2] + ((c & 4) ? loaded->half[2] : -loaded->half[2]) };
+		const float y = t.m[1] * p[0] + t.m[5] * p[1] + t.m[9] * p[2] + base;
+		bottom = SDL_min(bottom, y);
+		top = SDL_max(top, y);
+	}
+	static struct
+	{
+		Uint32 key;
+		float box[7];
+	} seen[2048];
+	static int seen_count = 0;
+	const Uint32 key = ((Uint32)(Uint8)object->enemy_sheet << 16) | object->enemy_sprite;
+	int k = 0;
+	while (k < seen_count && seen[k].key != key)
+		++k;
+	if (k == seen_count)
+	{
+		if (seen_count == (int)SDL_arraysize(seen))
+			return;
+		seen[k].key = key;
+		seen[k].box[0] = seen[k].box[1] = INFINITY;
+		seen[k].box[2] = seen[k].box[3] = -INFINITY;
+		seen[k].box[4] = 0.0f;
+		seen[k].box[5] = INFINITY;
+		seen[k].box[6] = -INFINITY;
+		++seen_count;
+	}
+	float *box = seen[k].box;
+	const float slack = 0.25f;
+	if (footprint[0] >= box[0] - slack && footprint[1] >= box[1] - slack && footprint[2] <= box[2] + slack &&
+	    footprint[3] <= box[3] + slack && footprint[4] <= box[4] + slack && bottom >= box[5] - slack && top <= box[6] + slack)
+		return;
+	box[0] = SDL_min(box[0], footprint[0]);
+	box[1] = SDL_min(box[1], footprint[1]);
+	box[2] = SDL_max(box[2], footprint[2]);
+	box[3] = SDL_max(box[3], footprint[3]);
+	box[4] = SDL_max(box[4], footprint[4]);
+	box[5] = SDL_min(box[5], bottom);
+	box[6] = SDL_max(box[6], top);
+	printf("groundmodel: %u %u %s %.1f %.1f %.1f %.1f %.1f %.1f %.1f\n", (unsigned int)(Uint8)object->enemy_sheet,
+	       (unsigned int)object->enemy_sprite, m3d_models[object->model].name, box[0], box[1], box[2], box[3], box[4], box[5],
+	       box[6]);
+}
+
 static int lift_group_root(int *group, int o)
 {
 	while (group[o] != o)
@@ -4680,13 +4752,17 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 		object_lifts[o] = 0.0f;
 		if (object->layer != L3D_GROUND_ENEMY || !stand.on || stand.background == NULL)
 			continue;
+		float footprint[5];
 		if (stand.terrain == NULL && stand.low == NULL)
 		{
 			object_lifts[o] = stand.rise;  // (a flat ground)
+			if (ground_model_log_on() && object_footprint(object, mirror, footprint))
+				log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
 			continue;
 		}
-		float footprint[5];
 		const bool covers = object_footprint(object, mirror, footprint);
+		if (covers)
+			log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
 		piece_heights[o] = covers ? footprint[4] * align_scale(object_bases[o] + object->height) : 0.0f;
 		object_lifts[o] = stand_lift(object_x(object), object_y(object), object_bases[o] + object->height,
 		                             covers ? footprint : NULL);

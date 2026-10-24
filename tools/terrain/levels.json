@@ -98,7 +98,8 @@
   "level": "CORAL",
   "void": "hole",
   "detail": 6,
-  "softness": 4
+  "softness": 4,
+  "roads": false
  },
  "33fc79a5b8f29c38": {
   "classes": 6,
@@ -244,7 +245,8 @@
    "485": -12,
    "486": -12
   },
-  "level": "MINERS"
+  "level": "MINERS",
+  "roads": false
  },
  "86170d245493325b": {
   "classes": 6,
@@ -415,6 +417,7 @@
    "1": "~",
    "4": "~"
   },
+  "ceiling": 48,
   "level": "DELIANI"
  },
  "e6f152b03ea0a81a": {

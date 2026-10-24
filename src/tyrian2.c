@@ -278,24 +278,35 @@ static Uint8 enemy_open_sides(unsigned int i)
 
 // Tyrian3D dev (TYR3D_LOG_GROUND): where ground enemies are on the backgrounds' maps, for keeping
 // the terrain under them at the ground's height and solids clear of them
-// (tools/terrain/make_terrain.py). Prints "ground: <map> <x> <y> <size> <slot>" in the exported
-// map's pixels, when an enemy has moved (so an enemy standing on the map shows once, one moving
-// over it every few pixels).
+// (tools/terrain/make_terrain.py). Prints "ground: <map> <x> <y> <size> <slot> <sheet> <sprite> <screen
+// x> <screen y> <frame> <group> <link>" in the exported map's pixels, when an enemy has moved (so an
+// enemy standing on the map shows once, one moving over it every few pixels); sheet (its letter's code)
+// and the first sprite of its animation name its look (the renderer's "groundmodel:" lines say what its
+// model covers), the screen position where it is on the screen (game pixels: the 3D view's ground under
+// it depends on it), the 3D frame when, and group and link which object it is a piece of
+// (enemy_group, L3DObject.group).
 static struct
 {
 	float x, y;
 	int size;
 	unsigned int slot;
+	char sheet;
+	unsigned int sprite;
+	Uint32 group;
+	Uint8 link;
 } ground_logged[COUNTOF(enemy) * 2];
 static int ground_logged_count = 0;
 
-static void log_ground_enemy(unsigned int i)
+static void log_ground_enemy(unsigned int i, char sheet, unsigned int first_sprite, int look_layer)
 {
-	if (l3d_current_layer() != L3D_GROUND_ENEMY || enemy[i].ey <= -26 || enemy[i].ey >= 190 ||
+	// (on the ground as shown: a model put on another layer than the game's, models.cfg layer=, is there)
+	const L3DLayerType layer = look_layer > 0 ? (L3DLayerType)(look_layer - 1) : l3d_current_layer();
+	if (layer != L3D_GROUND_ENEMY || enemy[i].ey <= -26 || enemy[i].ey >= 190 ||
 	    ground_logged_count == (int)COUNTOF(ground_logged))
 		return;
 	ground_logged[ground_logged_count++] = (typeof(ground_logged[0])){
-		enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, enemy[i].size == 1 ? 24 : 12, i };
+		enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, enemy[i].size == 1 ? 24 : 12, i, sheet, first_sprite,
+		enemy_group[i], enemy_group_link[i] };
 }
 
 // At the frame's end, when all its backgrounds are drawn: where the frame's ground enemies were on
@@ -325,7 +336,10 @@ static void flush_ground_log(void)
 				continue;
 			last_x[set - 1][i] = map_x;
 			last_y[set - 1][i] = map_y;
-			printf("ground: %016llx %d %d %d %u\n", (unsigned long long)hashes[set - 1], map_x, map_y, ground_logged[e].size, i);
+			printf("ground: %016llx %d %d %d %u %u %u %d %d %u %u %u\n", (unsigned long long)hashes[set - 1], map_x, map_y,
+			       ground_logged[e].size, i, (unsigned int)(Uint8)ground_logged[e].sheet, ground_logged[e].sprite,
+			       (int)ground_logged[e].x, (int)ground_logged[e].y, l3d_frame_number, (unsigned int)ground_logged[e].group,
+			       (unsigned int)ground_logged[e].link);
 		}
 	ground_logged_count = 0;
 }
@@ -374,7 +388,7 @@ static bool draw_enemy_model(unsigned int i)
 			}
 	}
 	if (SDL_getenv("TYR3D_LOG_GROUND") != NULL)
-		log_ground_enemy(i);
+		log_ground_enemy(i, sheet, first_sprite, look.model >= 0 ? look.layer : 0);
 	if (look.model == M3D_SPRITE)
 		return false;
 

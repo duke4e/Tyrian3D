@@ -153,6 +153,7 @@ def main():
     names = sys.argv[1:]
     if names == ["all"]:
         names = sorted(json.load(open(mt.LEVELS)).keys())
+    mt.read_ground_log(names)  # (the log in one pass for all of them)
     for name in names:
         cmd_build(name)
     return 0
