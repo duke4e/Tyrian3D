@@ -296,6 +296,7 @@ extern JE_word flareDuration;
 extern JE_boolean flareStart;
 extern JE_shortint flareColChg;
 extern JE_byte specialWait;
+extern bool special_ready;  // Tyrian3D: the special weapon's ready light was lit (the modern HUD shows it)
 extern JE_byte nextSpecialWait;
 extern JE_boolean spraySpecial;
 extern JE_byte doIced;

@@ -40,6 +40,7 @@
 #include "tyrian2.h"
 #include "varz.h"
 #include "vga256d.h"
+#include "ui.h"
 #include "video.h"
 
 #include <assert.h>
@@ -154,9 +155,646 @@ JE_longint JE_cashLeft(void)
 	return tempL;
 }
 
+/*
+ * Tyrian3D: the store's screen as it shows, published for the modern UI (ui.h) before each time it
+ * is shown: its menu's choices with where the original takes the mouse on them, the parts' choices
+ * with their costs, icons and short stats, the weapon's power, the credits, the help line. The
+ * original drawing goes on as ever (the classic UI and the 2D view show it).
+ */
+static void menu_header_text(char *out, size_t size);
+static void main_menu_help_text(char *tempStr);
+static void shop_ship_name(int ship, char *name, size_t name_size, char *class_name, size_t class_size);
+static void shop_plain_text(char *out, const char *in, size_t size);
+
+static bool shop_showing = false;      // JE_itemScreen runs (its questions are published over it)
+static long shop_cash_before = -1;     // the credits as a part's choices were opened
+static int shop_capturing = -1;        // the keyboard's setting waiting for a key (its choice), or -1
+
+static const JE_byte shop_mouse_rows[MENU_MAX] = { 16, 16, 16, 16, 26, 12, 11, 28, 0, 16, 16, 16, 8, 16, 24 };
+
+// Where the original's click takes each choice of the current menu (as its click handler reckons
+// them, screen pixels), for choices 2 to last.
+static void shop_hits(SDL_Rect *hits, int last)
+{
+	for (int s = 0; s <= last; ++s)
+		hits[s] = (SDL_Rect){ 0, 0, 0, 0 };
+	const int step = shop_mouse_rows[curMenu];
+	if (step == 0)
+		return;
+	for (int y = 21; y < 38 + (last + 2) * step; ++y)
+	{
+		int selection = (y - 38) / step + 2;
+		if (curMenu == MENU_2_PLAYER_ARCADE)
+		{
+			if (selection > 5)
+				selection--;
+			if (selection > 3)
+				selection--;
+		}
+		if (curMenu == MENU_FULL_GAME && selection > 7)
+			selection = 7;
+		if (curMenu == MENU_PLAY_NEXT_LEVEL && selection == menuChoices[curMenu] + 1)
+			selection = menuChoices[curMenu];
+		if (selection < 2 || selection > last)
+			continue;
+		SDL_Rect *r = &hits[selection];
+		if (r->h == 0)
+			*r = (SDL_Rect){ 171, y, 137, 1 };
+		else if (y < r->y + step)  // (one row's worth: a last choice takes all below it)
+			r->h = y - r->y + 1;
+	}
+}
+
+// An item's name and cost in a part (2 ship ... 8 right sidekick), as the store shows them.
+static void shop_item_name(int part, int item, char *out, size_t size)
+{
+	switch (part)
+	{
+	case 2:
+		if (item > 90)
+			snprintf(out, size, "Custom Ship %d", item - 90);
+		else
+			SDL_strlcpy(out, ships[item].name, size);
+		break;
+	case 3:
+	case 4:
+		SDL_strlcpy(out, weaponPort[item].name, size);
+		break;
+	case 5:
+		SDL_strlcpy(out, shields[item].name, size);
+		break;
+	case 6:
+		SDL_strlcpy(out, powerSys[item].name, size);
+		break;
+	default:
+		SDL_strlcpy(out, options[item].name, size);
+		break;
+	}
+	for (int i = (int)strlen(out) - 1; i >= 0 && out[i] == ' '; --i)
+		out[i] = '\0';
+}
+
+static long shop_item_cost(int part, int item)
+{
+	switch (part)
+	{
+	case 2: return item > 90 ? 100 : ships[item].cost;
+	case 3:
+	case 4: return weaponPort[item].cost;
+	case 5: return shields[item].cost;
+	case 6: return powerSys[item].cost;
+	default: return options[item].cost;
+	}
+}
+
+// A shot's damage as the game deals it (99 ices, 100-249 sets off another weapon's shots, 250 and
+// more pierce), about.
+static float shop_shot_damage(int attack, int depth)
+{
+	if (attack == 99)
+		return 0;
+	if (attack >= 250)
+		return (attack - 250) * 2.0f;
+	if (attack > 99)
+	{
+		const int chain = attack - 100;
+		float sum = 1;
+		if (depth == 0 && chain > 0 && chain <= WEAP_NUM)
+			for (int i = 0; i < weapons[chain].multi && i < 8; ++i)
+				sum += shop_shot_damage(weapons[chain].attack[i], depth + 1);
+		return sum;
+	}
+	return (float)attack;
+}
+
+// A weapon's damage a second, about (its shots), for the cards' stats.
+static float shop_weapon_damage(int w)
+{
+	if (w <= 0 || w > WEAP_NUM)
+		return 0;
+	float damage = 0;
+	for (int i = 0; i < weapons[w].multi && i < 8; ++i)
+		damage += shop_shot_damage(weapons[w].attack[i], 0);
+	return damage * 35.0f / (weapons[w].shotrepeat + 1);
+}
+
+// A weapon port's at a power level.
+static float shop_weapon_rate(int port, int power, int mode)
+{
+	if (port <= 0 || port > PORT_NUM || power < 1)
+		return 0;
+	return shop_weapon_damage(weaponPort[port].op[SDL_clamp(mode, 0, 1)][SDL_clamp(power, 1, 11) - 1]);
+}
+
+// The item's icon as JE_drawItem draws it.
+static void shop_item_icon(UIItem *it, int part, int item)
+{
+	if (item <= 0)
+		return;
+	if (part == 2)
+	{
+		if (item > 90)
+			return;
+		it->icon_sheet = ships[item].shipgraphic > 500 ? &spriteSheetT2000 : &spriteSheet9;
+		it->icon_sprite = ships[item].shipgraphic > 500 ? ships[item].shipgraphic - 500 : ships[item].shipgraphic;
+		it->icon_large = true;
+		return;
+	}
+	const int graphic = part == 3 || part == 4 ? weaponPort[item].itemgraphic : part == 5 ? shields[item].itemgraphic
+	                  : part == 6 ? powerSys[item].itemgraphic : options[item].itemgraphic;
+	if (graphic > 0)
+	{
+		it->icon_sheet = &shopSpriteSheet;
+		it->icon_sprite = graphic;
+		it->icon_large = true;
+	}
+}
+
+// A part's choices as cards (ITEMS: the choices being picked from; else a preview), stats relative to
+// the best of them.
+static void shop_part_items(UIMenu *ui, int part, bool choosing)
+{
+	const int list = itemAvailMap[part - 2] - 1;
+	const int count = itemAvailMax[list];
+	const int owned = *playeritem_map(&old_items[0], part - 2), chosen = *playeritem_map(&player[0].items, part - 2);
+	const int have = choosing ? owned : chosen;
+	float best[2] = { 0, 0 };
+	float stats[UI_MENU_ITEMS][2];
+	int stat_count = 0;
+	const char *labels[2] = { "", "" };
+	for (int i = 0; i < count && i < UI_MENU_ITEMS - 1; ++i)
+	{
+		const int item = itemAvail[list][i];
+		stats[i][0] = stats[i][1] = 0;
+		switch (part)
+		{
+		case 2:
+			stat_count = 2, labels[0] = "ARMOR", labels[1] = "SPEED";
+			if (item > 0 && item <= 90)
+				stats[i][0] = ships[item].dmg, stats[i][1] = ships[item].spd;
+			break;
+		case 3:
+		case 4:
+		{
+			// (All at the power the ship's weapon has now.)
+			stat_count = 1, labels[0] = "FIREPOWER";
+			stats[i][0] = shop_weapon_rate(item, player[0].items.weapon[part - 3].power, 0);
+
+			break;
+		}
+		case 5:
+			stat_count = 2, labels[0] = "STRENGTH", labels[1] = "RECHARGE";
+			stats[i][0] = shields[item].mpwr, stats[i][1] = shields[item].tpwr;
+			break;
+		case 6:
+			stat_count = 1, labels[0] = "OUTPUT";
+			stats[i][0] = powerSys[item].power;
+			break;
+		default:
+			stat_count = 1, labels[0] = "FIREPOWER";
+			if (item > 0 && options[item].wport > 0)
+				stats[i][0] = shop_weapon_damage(options[item].wpnum);
+			break;
+		}
+		for (int k = 0; k < 2; ++k)
+			best[k] = SDL_max(best[k], stats[i][k]);
+	}
+	for (int i = 0; i < count && i < UI_MENU_ITEMS - 1; ++i)
+	{
+		const int item = itemAvail[list][i];
+		char name[48];
+		shop_item_name(part, item, name, sizeof(name));
+		// (On the choosing page each where the original takes the mouse on it.)
+		UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, name, 171, 38 + i * 26, 137, 26);
+		if (!choosing)
+			it->hit = (SDL_Rect){ 0, 0, 0, 0 };
+		const long cost = shop_item_cost(part, item);
+		shop_item_icon(it, part, item);
+		it->owned = item == have && item != 0;
+		it->chosen = item == chosen && item != 0;
+		it->unaffordable = choosing && cost > (long)player[0].cash && !it->owned;
+		if (!it->owned)
+		{
+			char value[24];
+			snprintf(value, sizeof(value), "%ld", cost);
+			SDL_strlcpy(it->value, value, sizeof(it->value));
+		}
+		if (item != 0)
+		{
+			it->stat_count = stat_count;
+			for (int k = 0; k < stat_count; ++k)
+			{
+				it->stat[k] = best[k] > 0 ? SDL_clamp(stats[i][k] / best[k], 0.0f, 1.0f) : 0;
+				SDL_strlcpy(it->stat_label[k], labels[k], sizeof(it->stat_label[k]));
+			}
+		}
+	}
+}
+
+// The store's categories as tabs (their names' first words), the selected one.
+static void shop_tabs(UIShop *s, int selected, bool live)
+{
+	SDL_Rect hits[16];
+	if (live)
+		shop_hits(hits, menuChoices[MENU_UPGRADES]);
+	s->tab_count = 0;
+	// (The parts the parts' list has, Done aside: of the seven the ship's items know. A part added later, as
+	// episode 6's specials, needs its items here and in playeritem_map, then its tab comes with them.)
+	const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 8);
+	for (int part = 2; part <= parts_end && s->tab_count < UI_SHOP_TABS; ++part)
+	{
+		char word[24];
+		SDL_strlcpy(word, menuInt[2][part - 1], sizeof(word));
+		char *space = strchr(word, ' ');
+		if (space != NULL)
+			*space = '\0';
+		SDL_strlcpy(s->tab[s->tab_count], word, sizeof(s->tab[0]));
+		s->tab_hit[s->tab_count] = live ? hits[part] : (SDL_Rect){ 0, 0, 0, 0 };
+		++s->tab_count;
+	}
+	s->tab_selected = selected;
+}
+
+static void shop_publish(void)
+{
+	if (!ui_modern())
+		return;
+	const JE_word saved_tempW = tempW;  // (JE_cashLeft reckons in the game's scratch variable)
+	char title[48];
+	menu_header_text(title, sizeof(title));
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_SHOP, title);
+	UIShop *s = &ui->shop;
+	SDL_strlcpy(ui->crumb, "SHOP", sizeof(ui->crumb));
+	s->credits = s->credits_after = -1;
+	s->generator = -1;
+	ui->nowhere = (SDL_Point){ 100, 196 };
+	char help[67];
+	main_menu_help_text(help);
+	SDL_strlcpy(ui->hint, help, sizeof(ui->hint));
+
+	// The ship and its gauges, where the original shows them.
+	const bool illustrated = (curMenu >= MENU_FULL_GAME && curMenu <= MENU_OPTIONS) || curMenu == MENU_KEYBOARD_CONFIG ||
+	                         curMenu == MENU_LOAD_SAVE || curMenu >= MENU_2_PLAYER_ARCADE;
+	// (Two players, Super Arcade, Super Tyrian: the original shows texts there; the first ship shows.)
+	if (illustrated)
+		s->scene = UI_SCENE_SHIP;
+	// What the ship's scene shows: the ship, its sidekicks beside it (screen pixels, as the illustration).
+	s->scene_w = player[0].items.sidekick[LEFT_SIDEKICK] > 0 || player[0].items.sidekick[RIGHT_SIDEKICK] > 0 ? 160.0f : 116.0f;
+	shop_ship_name(player[0].items.ship, s->ship, sizeof(s->ship), s->ship_class, sizeof(s->ship_class));
+	if (((curMenu <= MENU_OPTIONS || curMenu == MENU_KEYBOARD_CONFIG || curMenu == MENU_LOAD_SAVE || curMenu >= MENU_1_PLAYER_ARCADE) &&
+	     !twoPlayerMode) || curMenu == MENU_UPGRADE_SUB)
+	{
+		s->credits = (long)player[0].cash;
+		s->gauges = true;
+		s->armor = SDL_clamp(player[0].armor / 28.0f, 0.0f, 1.0f);
+		s->shield = SDL_clamp(shields[player[0].items.shield].mpwr / 14.0f, 0.0f, 1.0f);
+	}
+	if (twoPlayerMode)
+	{
+		char one[24], two[24];
+		shop_plain_text(one, miscText[40], sizeof(one));
+		shop_plain_text(two, miscText[41], sizeof(two));
+		snprintf(s->caption, sizeof(s->caption), "%s %lu    %s %lu", one, player[0].cash, two, player[1].cash);
+	}
+
+	SDL_Rect hits[UI_MENU_ITEMS + 2];
+	const int last = SDL_min((int)menuChoices[curMenu], UI_MENU_ITEMS + 1);
+	shop_hits(hits, last);
+	ui->selected = curSel[curMenu] - 2;
+
+	switch (curMenu)
+	{
+	case MENU_UPGRADES:
+	{
+		s->page = UI_SHOP_UPGRADE;
+		const int part = curSel[MENU_UPGRADES];
+		shop_tabs(s, part <= 8 ? part - 2 : -1, true);
+		SDL_strlcpy(s->done, menuInt[2][8], sizeof(s->done));
+		s->hit_done = hits[9];
+		if (part >= 2 && part <= 8)
+			shop_part_items(ui, part, false);
+		ui->selected = -1;
+		break;
+	}
+	case MENU_UPGRADE_SUB:
+	{
+		s->page = UI_SHOP_ITEMS;
+		const int part = curSel[MENU_UPGRADES];
+		// (The weapon's costs as the store last reckoned them, before the cards' own costs are looked up.)
+		const long down = downgradeCost, up = upgradeCost;
+		shop_tabs(s, part - 2, false);
+		shop_part_items(ui, part, true);
+		ui_menu_add(ui, UI_ITEM_ACTION, miscText[13], 171, 38 + (menuChoices[MENU_UPGRADE_SUB] - 2) * 26, 137, 26);
+		s->scene = part == 2 || part == 5 ? UI_SCENE_SHIP : UI_SCENE_SIM;
+		s->credits = shop_cash_before >= 0 ? shop_cash_before : (long)player[0].cash;
+		s->credits_after = JE_cashLeft();
+		downgradeCost = (JE_word)down;
+		upgradeCost = (JE_word)up;
+		if (s->scene == UI_SCENE_SIM)
+			s->generator = SDL_clamp(power / 900.0f, 0.0f, 1.0f);
+		if ((part == 3 || part == 4) && (leftPower || rightPower))
+		{
+			s->power_on = true;
+			s->power = player[0].items.weapon[part - 3].power;
+			s->power_max = 11;
+			s->power_down = leftPower;
+			s->power_up = rightPower;
+			s->power_afford = rightPowerAfford;
+			s->cost_down = downgradeCost;
+			s->cost_up = upgradeCost;
+			s->hit_down = (SDL_Rect){ 23, 149, 14, 20 };
+			s->hit_up = (SDL_Rect){ 119, 149, 13, 20 };
+		}
+		if (part == 4 && weaponPort[player[0].items.weapon[REAR_WEAPON].id].opnum == 2)
+			snprintf(s->mode, sizeof(s->mode), "Firing mode %d of 2   [ / ]", player[0].weapon_mode);
+		break;
+	}
+	case MENU_LOAD_SAVE:
+	{
+		s->page = UI_SHOP_FILES;
+		const int min = twoPlayerMode ? 13 : 2, max = twoPlayerMode ? 24 : 13;
+		for (int x = min; x <= max; ++x)
+		{
+			const int i = x - min + 2;
+			char name[48], level[24] = "", episode[24] = "";
+			if (x == max)
+				SDL_strlcpy(name, miscText[6 - 1], sizeof(name));
+			else if (saveFiles[x - 2].level == 0)
+				SDL_strlcpy(name, miscText[3 - 1], sizeof(name));
+			else
+			{
+				shop_plain_text(name, saveFiles[x - 2].name, sizeof(name));
+				SDL_strlcpy(level, saveFiles[x - 2].levelName, sizeof(level));
+				snprintf(episode, sizeof(episode), "%s%d", miscTextB[1 - 1], saveFiles[x - 2].episode);
+			}
+			UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, name, 0, 0, 0, 0);
+			it->hit = i <= last ? hits[i] : (SDL_Rect){ 0, 0, 0, 0 };
+			it->disabled = x < max && saveFiles[x - 2].level == 0 && !performSave;
+			SDL_strlcpy(it->value, level, sizeof(it->value));
+			SDL_strlcpy(it->value2, episode, sizeof(it->value2));
+		}
+		break;
+	}
+	case MENU_PLAY_NEXT_LEVEL:
+	{
+		s->page = UI_SHOP_MAP;
+		s->scene = UI_SCENE_NONE;
+		s->picture_part = (SDL_Rect){ 19, 16, 117, 154 };
+		for (int x = 2; x <= menuChoices[curMenu]; ++x)
+		{
+			UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, menuInt[4][x - 1], 0, 0, 0, 0);
+			it->hit = x <= last ? hits[x] : (SDL_Rect){ 0, 0, 0, 0 };
+		}
+		if (curSel[curMenu] < menuChoices[curMenu])
+			SDL_strlcpy(s->caption, menuInt[4][curSel[curMenu] - 1], sizeof(s->caption));
+		if (extraGame)
+			SDL_strlcpy(s->note, miscText[68 - 1], sizeof(s->note));
+		break;
+	}
+	case MENU_DATA_CUBES:
+	case MENU_DATA_CUBE_SUB:
+	{
+		s->page = curMenu == MENU_DATA_CUBES ? UI_SHOP_CUBES : UI_SHOP_CUBE;
+		s->scene = UI_SCENE_NONE;
+		const int selected = curSel[MENU_DATA_CUBES] - 2;
+		s->picture_part = (SDL_Rect){ 1, 1, 145, 170 };  // (the portrait's box, with the face if it has one)
+		if (selected < cubeMax)
+			SDL_strlcpy(s->caption, cube[selected].header, sizeof(s->caption));
+		if (curMenu == MENU_DATA_CUBES)
+		{
+			if (cubeMax == 0)
+				SDL_strlcpy(s->note, miscText[16 - 1], sizeof(s->note));
+			for (int x = 1; x <= cubeMax + 1; ++x)
+			{
+				UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, x <= cubeMax ? cube[x - 1].title : miscText[6 - 1], 0, 0, 0, 0);
+				it->hit = x + 1 <= last ? hits[x + 1] : (SDL_Rect){ 0, 0, 0, 0 };
+				if (x <= cubeMax)
+				{
+					it->icon_table = OPTION_SHAPES;
+					it->icon_sprite = 25;
+				}
+			}
+		}
+		else
+		{
+			SDL_strlcpy(ui->title, cube[currentCube].header, sizeof(ui->title));
+			SDL_strlcpy(ui->crumb, cube[currentCube].title, sizeof(ui->crumb));
+			s->line_count = SDL_min(cube[currentCube].last_line, UI_CUBE_LINES);
+			for (int i = 0; i < s->line_count; ++i)
+				SDL_strlcpy(s->lines[i], cube[currentCube].text[i], sizeof(s->lines[i]));
+			s->line_first = yLoc / 12.0f;
+			s->percent = cube[currentCube].last_line <= 9 ? 100 : (yLoc * 100) / ((cube[currentCube].last_line - 9) * 12);
+			SDL_strlcpy(s->done, miscText[12], sizeof(s->done));
+			s->hit_done = (SDL_Rect){ 259, 160, 31, 11 };
+			ui->selected = -1;
+			ui->hint[0] = '\0';
+		}
+		break;
+	}
+	case MENU_JOYSTICK_CONFIG:
+	{
+		s->page = UI_SHOP_MENU;
+		const char *const names[] = { "JOYSTICK", "ANALOG AXES", " SENSITIVITY", " THRESHOLD", menuInt[6][1], menuInt[6][4], menuInt[6][2],
+		                              menuInt[6][3], menuInt[6][5], menuInt[6][6], menuInt[6][7], menuInt[6][8], "MENU", "PAUSE",
+		                              menuInt[6][9], menuInt[6][10] };
+		for (int i = 0; i < (int)COUNTOF(names); ++i)
+		{
+			char value[30] = "";
+			if (joysticks == 0 && i < 14)
+				strcpy(value, "-");
+			else if (i == 0)
+				snprintf(value, sizeof(value), "%d", joystick_config + 1);
+			else if (i == 1)
+				snprintf(value, sizeof(value), "%s", joystick[joystick_config].analog ? "TRUE" : "FALSE");
+			else if (i < 4)
+				snprintf(value, sizeof(value), "%d", i == 2 ? joystick[joystick_config].sensitivity : joystick[joystick_config].threshold);
+			else if (i < 14)
+				joystick_assignments_to_string(value, sizeof(value), joystick[joystick_config].assignment[i - 4]);
+			UIItem *it = ui_menu_add(ui, UI_ITEM_CHOICE, names[i][0] == ' ' ? names[i] + 1 : names[i], 0, 0, 0, 0);
+			it->hit = i + 2 <= last ? hits[i + 2] : (SDL_Rect){ 0, 0, 0, 0 };
+			SDL_strlcpy(it->value, value, sizeof(it->value));
+			it->disabled = (joysticks == 0 && i < 14) || ((i == 2 || i == 3) && joysticks > 0 && !joystick[joystick_config].analog);
+			if (i >= 14)
+				it->kind = UI_ITEM_ACTION;
+		}
+		break;
+	}
+	case MENU_KEYBOARD_CONFIG:
+	{
+		s->page = UI_SHOP_MENU;
+		for (int x = 2; x <= 11; ++x)
+		{
+			UIItem *it = ui_menu_add(ui, x < 10 ? UI_ITEM_CHOICE : UI_ITEM_ACTION, menuInt[curMenu + 1][x - 1], 0, 0, 0, 0);
+			it->hit = x <= last ? hits[x] : (SDL_Rect){ 0, 0, 0, 0 };
+			if (x < 10)
+				SDL_strlcpy(it->value, SDL_GetScancodeName(keySettings[x - 2]), sizeof(it->value));
+			it->capturing = x == shop_capturing;
+			it->gap_before = x == 10;
+		}
+		break;
+	}
+	default:
+	{
+		// The game menu, the arcade's, the options, the mouse.
+		s->page = UI_SHOP_MENU;
+		for (int x = 2; x <= menuChoices[curMenu] && x - 2 < UI_MENU_ITEMS; ++x)
+		{
+			UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, menuInt[curMenu + 1][x - 1], 0, 0, 0, 0);
+			it->hit = x <= last ? hits[x] : (SDL_Rect){ 0, 0, 0, 0 };
+			if (curMenu == MENU_FULL_GAME && x == 2)
+				it->cubes = cubeMax;
+			if (curMenu == MENU_FULL_GAME && x == 7)
+				it->gap_before = true;
+			if ((curMenu == MENU_OPTIONS || curMenu == MENU_LIMITED_OPTIONS) && (x == 4 || x == 5))
+			{
+				const bool music = x == 4;
+				it->kind = UI_ITEM_BAR;
+				it->bar = (music ? tyrMusicVolume : fxVolume) / 255.0f;
+				it->muted = music ? music_disabled : samples_disabled;
+				it->hit = (SDL_Rect){ 171, music ? 70 : 86, 50, 16 };
+				it->hit_value = (SDL_Rect){ 221, music ? 70 : 86, 86, 13 };
+			}
+			if (curMenu == MENU_MOUSE_CONFIG && x <= 4)
+			{
+				it->kind = UI_ITEM_CHOICE;
+				SDL_strlcpy(it->value, joyButtonNames[mouseSettings[x - 2] - 1], sizeof(it->value));
+			}
+			if (curMenu == MENU_MOUSE_CONFIG && x == 5)
+				it->gap_before = true;
+			if (curMenu == MENU_2_PLAYER_ARCADE && (x == 3 || x == 4))
+			{
+				const int i = x - 3;
+				it->kind = UI_ITEM_CHOICE;
+				if (joysticks > 1 && inputDevice[i] > 2)
+					snprintf(it->value, sizeof(it->value), "%s %d", inputDevices[2], inputDevice[i] - 2);
+				else
+					SDL_strlcpy(it->value, inputDevices[inputDevice[i] - 1], sizeof(it->value));
+			}
+			if (curMenu == MENU_2_PLAYER_ARCADE && (x == 4 || x == 5))
+				it->gap_before = true;
+		}
+		break;
+	}
+	}
+	ui_menu_publish(ui, VGAScreen, VGAScreen);
+	tempW = saved_tempW;
+}
+
+// A ship's name as the store shows it: its name and its class (they're apart by spaces: "USP Talon
+// Light Fighter").
+static void shop_ship_name(int ship, char *name, size_t name_size, char *class_name, size_t class_size)
+{
+	name[0] = class_name[0] = '\0';
+	if (ship < 0 || ship >= (int)COUNTOF(ships))
+		return;
+	char full[48];
+	SDL_strlcpy(full, ships[ship].name, sizeof(full));
+	for (int i = (int)strlen(full) - 1; i >= 0 && full[i] == ' '; --i)
+		full[i] = '\0';
+	const char *gap = strstr(full, "  ");
+	if (gap == NULL)
+	{
+		SDL_strlcpy(name, full, name_size);
+		return;
+	}
+	SDL_strlcpy(name, full, SDL_min((size_t)(gap - full) + 1, name_size));
+	while (*gap == ' ')
+		++gap;
+	SDL_strlcpy(class_name, gap, class_size);
+}
+
+// A text of the game without its highlight marks ('~').
+static void shop_plain_text(char *out, const char *in, size_t size)
+{
+	size_t n = 0;
+	for (; *in != '\0' && n + 1 < size; ++in)
+		if (*in != '~')
+			out[n++] = *in;
+	out[n] = '\0';
+	while (n > 0 && out[n - 1] == ' ')
+		out[--n] = '\0';
+}
+
+// Ship specs: the ship's texts, its numbers and what it carries, round the ship (shown while the
+// original's picture zooms in and is looked at: released after).
+static void shop_specs_publish(void)
+{
+	if (!ui_modern())
+		return;
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_SHOP, "Ship Specs");
+	UIShop *s = &ui->shop;
+	s->page = UI_SHOP_SPECS;
+	s->scene = UI_SCENE_SHIP;
+	s->scene_w = player[0].items.sidekick[LEFT_SIDEKICK] > 0 || player[0].items.sidekick[RIGHT_SIDEKICK] > 0 ? 160.0f : 116.0f;
+	s->credits = s->credits_after = -1;
+	s->generator = -1;
+	ui->hold = true;
+	ui->selected = -1;
+	const int ship = player[0].items.ship;
+	shop_ship_name(ship, s->ship, sizeof(s->ship), s->ship_class, sizeof(s->ship_class));
+	for (int k = 0; k < 2; ++k)
+		if (ship >= 1 && ship - 1 < HELPTEXT_SHIPINFO_COUNT)
+			shop_plain_text(s->specs[k], shipInfo[ship - 1][k], sizeof(s->specs[k]));
+	// The ship's armor and speed (an offset of the ships' own) among the ships'.
+	float best_armor = 1, slowest = 0, fastest = 0;
+	for (int i = 1; i < (int)COUNTOF(ships); ++i)
+	{
+		best_armor = SDL_max(best_armor, ships[i].dmg);
+		slowest = SDL_min(slowest, ships[i].spd);
+		fastest = SDL_max(fastest, ships[i].spd);
+	}
+	UIItem *armor = ui_menu_add(ui, UI_ITEM_BAR, "ARMOR", 0, 0, 0, 0);
+	armor->bar = ship < (int)COUNTOF(ships) ? ships[ship].dmg / best_armor : 0;
+	UIItem *speed = ui_menu_add(ui, UI_ITEM_BAR, "SPEED", 0, 0, 0, 0);
+	speed->bar = ship < (int)COUNTOF(ships) && fastest > slowest ? (ships[ship].spd - slowest + 1) / (fastest - slowest + 1) : 0.5f;
+	static const char *const labels[] = { "FRONT", "REAR", "SHIELD", "GENERATOR", "LEFT", "RIGHT" };
+	for (int k = 0; k < 6; ++k)
+	{
+		UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, labels[k], 0, 0, 0, 0);
+		const int part = k + 3, item = *playeritem_map(&player[0].items, part - 2);
+		char name[48];
+		if (item == 0)
+			SDL_strlcpy(name, "-", sizeof(name));
+		else
+			shop_item_name(part, item, name, sizeof(name));
+		SDL_strlcpy(it->value, name, sizeof(it->value));
+		if (k < 2 && item != 0)
+		{
+			it->pips = player[0].items.weapon[k].power > 11 ? 15 : 11;
+			it->pips_on = player[0].items.weapon[k].power;
+		}
+	}
+	ui_menu_publish(ui, VGAScreen, VGAScreen);
+}
+
+// A question over the store (its quit and save), as it shows now.
+void shop_dialog_publish(const char *title, const char *text, const char *field_label, const char *field, bool caret,
+                                int selected)
+{
+	if (!shop_showing || !ui_modern())
+		return;
+	UIDialog *d = ui_dialog_begin();
+	shop_plain_text(d->title, title, sizeof(d->title));
+	shop_plain_text(d->text, text != NULL ? text : "", sizeof(d->text));
+	if (field != NULL)
+	{
+		d->field_on = true;
+		shop_plain_text(d->field_label, field_label, sizeof(d->field_label));
+		SDL_strlcpy(d->field, field, sizeof(d->field));
+		d->caret = caret;
+	}
+	shop_plain_text(d->yes, miscText[9], sizeof(d->yes));
+	shop_plain_text(d->no, miscText[10], sizeof(d->no));
+	d->selected = selected;
+	d->hit_yes = (SDL_Rect){ 57, 124, 85, 25 };
+	d->hit_no = (SDL_Rect){ 152, 124, 85, 25 };
+	ui_dialog_publish(VGAScreen);
+}
+
 void JE_itemScreen(void)
 {
 	bool quit = false;
+	shop_showing = true;
 
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');
@@ -882,6 +1520,7 @@ void JE_itemScreen(void)
 					if (temp2 == 0)
 						yChg = 0;
 
+					shop_publish();  // Tyrian3D: for the modern UI
 					JE_mouseStart();
 
 					JE_showVGA();
@@ -935,6 +1574,7 @@ void JE_itemScreen(void)
 							newPal = 0;
 						}
 
+						shop_publish();  // Tyrian3D: for the modern UI
 						JE_mouseStart();
 
 						if (paletteChanged)
@@ -967,6 +1607,7 @@ void JE_itemScreen(void)
 							newPal = 0;
 						}
 
+						shop_publish();  // Tyrian3D: for the modern UI
 						JE_mouseStart();
 
 						if (paletteChanged)
@@ -1066,6 +1707,18 @@ void JE_itemScreen(void)
 					{
 						yChg = 1;
 						inputDetected = false;
+					}
+
+					// Tyrian3D: the mouse wheel scrolls the text, three lines a notch (a trackpad's parts
+					// of a notch add up).
+					const int wheel_lines = (int)(mouse_wheel_pending * 3);
+					if (wheel_lines != 0)
+					{
+						const int most = SDL_max(((int)cube[currentCube].last_line - 10) * 12, 0);
+						const int to = (int)yLoc - wheel_lines * 12;
+						yLoc = (JE_word)SDL_clamp(to - to % 12, 0, most);
+						yChg = 0;
+						mouse_wheel_pending -= wheel_lines / 3.0f;
 					}
 
 					if (yChg < 0 && yLoc == 0)
@@ -1658,6 +2311,7 @@ void JE_itemScreen(void)
 
 	if (gameLoaded)
 		fade_black(10);
+	shop_showing = false;
 }
 
 // The store's illustration of the ship: where its pieces are drawn (see ship_illustration_piece).
@@ -1944,6 +2598,29 @@ void JE_drawItem(JE_byte itemType, JE_word itemNum, JE_word x, JE_word y)
 		{
 			blit_sprite2x2(VGAScreen, x, y, shopSpriteSheet, tempW);
 		}
+	}
+}
+
+// Tyrian3D: the current menu's title for the modern UI, as JE_drawMenuHeader's (a part's choices: their part's).
+static void menu_header_text(char *out, size_t size)
+{
+	switch (curMenu)
+	{
+		case MENU_DATA_CUBE_SUB:
+			SDL_strlcpy(out, cube[curSel[MENU_DATA_CUBES]-2].header, size);
+			break;
+		case MENU_DATA_CUBES:
+			SDL_strlcpy(out, menuInt[1][1], size);
+			break;
+		case MENU_LOAD_SAVE:
+			SDL_strlcpy(out, menuInt[3][performSave + 1], size);
+			break;
+		case MENU_UPGRADE_SUB:
+			SDL_strlcpy(out, menuInt[2][curSel[MENU_UPGRADES]-1], SDL_min(size, sizeof(menuInt[2][0])));
+			break;
+		default:
+			SDL_strlcpy(out, menuInt[curMenu + 1][0], SDL_min(size, sizeof(menuInt[0][0])));
+			break;
 	}
 }
 
@@ -2370,44 +3047,73 @@ void JE_doShipSpecs(void)
 
 	//draw it
 	JE_playSampleNum(S_SPRING);
+	shop_specs_publish();  // Tyrian3D: the modern UI shows its own while the picture zooms in and after
 	JE_scaleInPicture(VGAScreen, game_screen);
-	wait_input(true, true, true);
+	if (ui_modern())
+	{
+		// (The same wait, shown on meanwhile: its 3D ship turns.)
+		service_SDL_events(false);
+		Uint64 shown = SDL_GetTicks();
+		while (!(keydown || mousedown || joydown))
+		{
+			SDL_Delay(SDL_POLL_INTERVAL);
+			push_joysticks_as_keyboard();
+			service_SDL_events(false);
+#ifdef WITH_NETWORK
+			if (isNetworkGame)
+				network_check();
+#endif
+			if (SDL_GetTicks() - shown >= 30)
+			{
+				JE_showVGA();
+				shown = SDL_GetTicks();
+			}
+		}
+	}
+	else
+		wait_input(true, true, true);
+	ui_menu_release();
 }
 
-void JE_drawMainMenuHelpText(void)
+// The help line at the screen's foot for the current menu and choice (Tyrian3D: also for the modern UI).
+static void main_menu_help_text(char *tempStr)
 {
-	char tempStr[67];
 	JE_byte temp;
 
 	temp = curSel[curMenu] - 2;
 	if (curMenu == MENU_JOYSTICK_CONFIG) // joystick settings menu help
 	{
 		const int help[16] = { 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 24, 11 };
-		memcpy(tempStr, mainMenuHelp[help[curSel[curMenu] - 2]], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[help[curSel[curMenu] - 2]], 67);
 	}
 	else if (curMenu < MENU_PLAY_NEXT_LEVEL || curMenu >= MENU_2_PLAYER_ARCADE)
 	{
-		memcpy(tempStr, mainMenuHelp[(menuHelp[curMenu][temp])-1], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[(menuHelp[curMenu][temp])-1], 67);
 	}
 	else if (curMenu == MENU_KEYBOARD_CONFIG &&
 	         curSel[MENU_KEYBOARD_CONFIG] == 10)
 	{
-		memcpy(tempStr, mainMenuHelp[25-1], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[25-1], 67);
 	}
 	else if (leftPower || rightPower)
 	{
-		memcpy(tempStr, mainMenuHelp[24-1], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[24-1], 67);
 	}
 	else if (temp == menuChoices[curMenu] - 2 ||
 	         (curMenu == MENU_DATA_CUBES && cubeMax == 0))
 	{
-		memcpy(tempStr, mainMenuHelp[12-1], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[12-1], 67);
 	}
 	else
 	{
-		memcpy(tempStr, mainMenuHelp[17 + curMenu - 3], sizeof(tempStr));
+		memcpy(tempStr, mainMenuHelp[17 + curMenu - 3], 67);
 	}
-	
+}
+
+void JE_drawMainMenuHelpText(void)
+{
+	char tempStr[67];
+	main_menu_help_text(tempStr);
 	JE_textShade(VGAScreen, 10, 187, tempStr, 14, 1, DARKEN);
 }
 
@@ -2437,6 +3143,12 @@ JE_boolean JE_saveRequest(JE_byte slot, const char *savename)
 			JE_textShade(VGAScreen, 135, 90, savename, 12, 1, FULL_SHADE);
 			JE_textShade(VGAScreen, 74, 100, miscText[69], 12, 1, FULL_SHADE); // Original save:
 			JE_textShade(VGAScreen, 140, 100, saveFiles[slot-1].name, 12, 1, FULL_SHADE);
+			{
+				// Tyrian3D: the question for the modern UI.
+				char text[160];
+				snprintf(text, sizeof(text), "%s %s     %s %s", miscText[1], savename, miscText[69], saveFiles[slot - 1].name);
+				shop_dialog_publish(miscText[68], text, NULL, NULL, false, save_selected ? 0 : 1);
+			}
 
 			col += colC;
 			if (col > 8 || col < 2)
@@ -2556,6 +3268,8 @@ JE_boolean JE_quitRequest(void)
 			temp_c = !quit_selected ? col - 12 : -5;
 
 			JE_outTextAdjust(VGAScreen, temp_x, 128, miscText[10], 15, temp_c, FONT_SHAPES, true);
+
+			shop_dialog_publish(miscText[28], miscText[30], NULL, NULL, false, quit_selected ? 0 : 1);  // Tyrian3D
 
 			if (has_mouse)
 			{
@@ -2764,6 +3478,7 @@ void JE_menuFunction(JE_byte select)
 		else // selected item to upgrade
 		{
 			old_items[0] = player[0].items;
+			shop_cash_before = (long)player[0].cash;  // Tyrian3D: for the modern UI's credits
 
 			weaponSimTime = 0;
 			lastDirection = 1;
@@ -2853,6 +3568,7 @@ void JE_menuFunction(JE_byte select)
 
 			col = 248;
 			colC = 1;
+			shop_capturing = curSelect;  // Tyrian3D: the modern UI shows the setting waiting
 
 			do
 			{
@@ -2868,10 +3584,12 @@ void JE_menuFunction(JE_byte select)
 				poll_joysticks();
 				service_SDL_events(true);
 
+				shop_publish();
 				JE_showVGA();
 
 				wait_delay();
 			} while (!newkey && !mousedown && !joydown);
+			shop_capturing = -1;
 			
 			if (newkey)
 			{
@@ -3397,6 +4115,7 @@ void JE_weaponViewFrame(void)
 	}
 
 	simulate_player_shots();
+	video_sim_shots_drawn();  // Tyrian3D
 
 	blit_sprite(VGAScreenSeg, 0, 0, OPTION_SHAPES, 12); // upgrade interface
 

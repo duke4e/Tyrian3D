@@ -35,9 +35,6 @@ void rgpu_shutdown(void);
 // dst is the 320x200 screen's rectangle in window coordinates. With the modern UI's Screens: Fill
 // (ui_fill_screens) it fills the window's height, sharp, over a blurred copy of itself.
 void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst);
-// A screen of the modern UI (ui.h): the published menu's picture filling the window's height over its
-// blurred copy, and the menu's panels over it (ui_build_screen).
-void rgpu_present_ui(void);
 // The window black (nothing of the screen).
 void rgpu_present_blank(void);
 // Whether the 3D view shows the modern HUD (gauges over the scene) rather than the game's panel.
@@ -55,8 +52,10 @@ void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const 
 // frame showed (backdrop) is drawn over it, the boxes the menu darkened (x1, y1, x2, y2, as
 // JE_barShade takes them) darken it, fade (RGBA 0-1) goes over the whole window. *screen_rect:
 // where the screen's pixels show in the window (the playfield's part of them as laid out), for the mouse.
+// modern: the screen published over the level is shown in the modern UI's style (ui.h) instead of the
+// menu's own drawing, over the scene blurred under its glass.
 void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, const int (*shades)[4], int shade_count,
-                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect);
+                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect, bool modern);
 
 // A box of the store's screen as a scene (the illustration of the ship, the weapon simulator): its
 // picture without the ship (and shots) on the ground seen from straight above, models over it, the
@@ -83,6 +82,12 @@ typedef struct
 
 void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, const SDL_Rect *dst);
 
+// A screen of the modern UI (ui.h): the published menu's picture filling the window's height over its
+// blurred copy (or, for the store, its layout over the blurred picture), and the menu's panels over
+// it (ui_build_screen); with a scene (the store's ship, its weapon simulator: scene->objects, and
+// for the simulator scene->backdrop its picture under them), that drawn where the layout puts it.
+void rgpu_present_ui(const RGPUShowcase *scene);
+
 float rgpu_playfield_scale(void);
 // A window point (points) as a position on the player's plane in the view shown last, in game
 // screen coordinates, and back. False before a 3D frame was shown (or above the horizon).
@@ -105,6 +110,10 @@ bool rgpu_ui_frost_ready(void);
 void rgpu_ui_image(Uint32 key, const Uint32 *rgba, int w, int h, float x, float y, float dw, float dh);
 // A sprite of the game (sheet: a Sprite2_array; large: a 2x2 sprite) in a rectangle, in the palette.
 void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x, float y, float w, float h, float alpha);
+// A sprite of one of the game's sprite tables (OPTION_SHAPES...), fitted in a rectangle at its aspect.
+void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, float y, float w, float h, float alpha);
+// A part of the screen's picture (screen pixels) in a rectangle, sharp (whole steps, then smoothly).
+void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 // Text in Oxanium (RGPU_FONT_*): the top of its capitals at y, cap height in points, shaded from top to
 // bottom, with a shadow that far below and right (0: none); and how wide it is.
 bool rgpu_ui_text_ready(void);

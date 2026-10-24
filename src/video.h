@@ -85,6 +85,9 @@ void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, in
 // Around shading that isn't a menu's box (a bar's shadow, JE_barDrawShadow): not counted as one, so the
 // 3D view's menu shows it as the darkened pixels it is (and nothing of it once it is gone).
 void video_backdrop_ignore_shades(bool ignore);
+// The boxes darkened so far (a mark), and back to a mark (a screen put back as it was: the in-game help's).
+int video_backdrop_shade_mark(void);
+void video_backdrop_shade_reset(int mark);
 // The store's illustration of the ship: begun before it is drawn, ended once it is; what goes on its
 // box under the ship's model besides the box itself is drawn on video_showcase_backdrop (NULL if none).
 void video_showcase_begin(void);
@@ -94,6 +97,8 @@ void video_showcase_end(void);
 // that have models are drawn as models instead of sprites (true: don't draw the sprite).
 void video_sim_begin(void);
 bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y);
+// The simulator's shots are drawn (the modern UI's scene takes those without models from the box now).
+void video_sim_shots_drawn(void);
 bool video_sim_ship(int x, int y);
 // Tyrian3D: a level's start (on), as its panel fades in on black, until it plays (off). With the
 // modern HUD the 3D view shows no panel, so the window stays black until the level's first frame.

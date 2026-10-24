@@ -68,23 +68,33 @@ sprites), shadows, effects (explosion particles, glowing shots), a camera preset
 Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
-and special weapon at the bottom left, the boss bar and the level timer at the top, all from the
-game's state (the game's own drawing of them is left out), fading while the ship is near them; the
-level's name as it starts; under a menu the game shows over the level) or Classic (the original
+and special weapon (lit while it is ready) at the bottom left, the boss bar and the level timer at the top, all from the
+game's state (the game's own drawing of them is left out), each fading to a third while the ship or
+dense enemy fire is under it; the level's name as it starts, the game's messages in a pill at the
+bottom, "game over" on a plate; under a menu the game shows over the level) or Classic (the original
 panel beside the playfield; two players always have it). The **Graphics** page adds the menus:
 Modern (the new UI over the 3D view, below) or Classic (the original screens), Screens: Fill (the
 game's other 320x200 screens fill the window's height, in whole steps and then smoothly, over a
 blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
 (75-150 %). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
 change the first two as well. In a level, Escape's options have **3D Options** with the 3D page's
-settings and the music (SoundFont or AdLib), each changed with Left/Right, Enter or a click and
-taking effect at once (`ingame_options_3d` in `mainint.c`).
+settings, the music (SoundFont or AdLib) and the menus, screens and UI scale, each changed with
+Left/Right, Enter or a click and taking effect at once (`ingame_options_3d` in `mainint.c`).
 
 **The modern UI** (Menus: Modern, the 3D view): the title screen, setup and its pages and pickers,
-and the new game's choices (players, episode, difficulty, timed battle) in dark glass panels with
-brass rims over the screen's picture, in Oxanium, at any window size (`src/ui.c`); the mouse works on
-the panels (hover, click, the wheel moves through the items), the keys and the joystick as ever.
-The pointer is a smooth one sized in window points. The original screens stay for Menus: Classic and
+the new game's choices (players, episode, difficulty, timed battle), the store between levels and the
+screens over a level, in dark glass panels with brass rims, in Oxanium, at any window size, in a 16:9
+area (`src/ui.c`). The store: the ship as a large 3D model on a lit pad at the left (the weapon
+simulator in its place for the weapons, the generator and the sidekicks, with the weapon's power,
+its costs and the generator's output under it), the page at the right: the parts to upgrade as tabs,
+their choices as cards with an icon, short stats against the best on offer, the cost or that the
+ship has it, the credits and what is left after the change chosen, a note when a purchase is made;
+ship specs round the ship; options, load and save, the keyboard, joystick and mouse, the next
+level's map, the data cubes and their texts, and the store's questions (quit, save) as dialogs.
+Lists scroll. Over a level (the scene blurred under the glass): the in-game options and their 3D
+page, the help (F1), pause, the level's results, game over. The mouse works on the panels (hover,
+click, the wheel moves through the items and scrolls a data cube's text), the keys and the joystick
+as ever. The pointer is a smooth one sized in window points. The original screens stay for Menus: Classic and
 the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
@@ -215,7 +225,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_DEMO_IDLE_MS` | Title-screen idle time before the demo starts (default 30000) |
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
-| `TYR3D_PROFILE=1` | Print the cost of 3D presentation |
+| `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level) |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
@@ -229,8 +239,8 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_ROGUE_AUTO=1` | In a rogue run the screens choose by themselves (whole runs with the autopilot) |
 | `TYR3D_ROGUE_UNLOCKS=all` | Every unlock for that run |
 | `TYR3D_LEVEL_TICKS=<n>`, `TYR3D_LEVEL_DIE=<n>` | End every level as cleared after n ticks, or destroy the ship after n ticks (for testing what follows) |
-| `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the frame after each test key instead of every n-th (menus) |
 | `TYR3D_UPSCALE_DIR=<dir>` | Where the upscaled HUD panel pictures are (default `upscale/out`) |
+| `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the first frame shown after the game has taken each test key (its key, button, wheel or pointer event) instead of every n-th (menus) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
@@ -361,6 +371,16 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   (`sharp_steps`), the window round it a blurred copy (80x50, made again only when the picture
   changes). The game's displays on the playfield (score, lives, bombs, special, boss bar, timer) are
   a layer of their own (`L3D_HUD`), left out under the modern HUD.
+  The store publishes what it shows each time it shows (`shop_publish` in `game_menu.c`: its menu, the
+  parts' choices with costs, icons and stats, the weapon's power, the credits, where the original takes
+  the mouse on each) and the 3D view draws its own layout over the picture blurred, with the ship's
+  models or the weapon simulator's (its stars and shots without models from the screen) drawn by the
+  scene into the layout's pane (`rgpu_present_ui`). Screens that animate on their own while shown (ship
+  specs, a level's end) are published with `hold` and shown so until released. The screens over a level
+  are drawn over the 3D scene (`rgpu_present_3d_menu` with `modern`); their glass shows the scene copied
+  once it is drawn and made smaller in halves by the canvas (`scene_blur`), again only when the scene
+  changes. The HUD's panels fade by what is under them: the ship's box and the enemies' shots in the
+  window (`hud_fade`).
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested

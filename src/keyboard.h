@@ -35,6 +35,8 @@ extern Uint8 lastmouse_but;
 extern Sint32 lastmouse_x, lastmouse_y;
 extern JE_boolean mouse_pressed[4];
 extern Sint32 mouse_x, mouse_y;
+// Tyrian3D: the mouse wheel's notches not taken yet by a text it scrolls (ui_wheel_scrolls_text), up > 0.
+extern float mouse_wheel_pending;
 extern Uint8 keysactive[SDL_SCANCODE_COUNT];
 
 extern bool windowHasFocus;

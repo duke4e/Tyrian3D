@@ -29,6 +29,7 @@
 #include "font.h"
 #include "fonthand.h"
 #include "game_menu.h"
+#include "ui.h"
 #include "helptext.h"
 #include "helptext.h"
 #include "joystick.h"
@@ -1534,12 +1535,13 @@ void JE_doInGameSetup(void)
  */
 enum
 {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_DONE,
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_MENUS,
+	OPT_SCREENS, OPT_UI_SCALE, OPT_DONE,
 	OPT_COUNT
 };
 
 static const char *const option_names[OPT_COUNT] = {
-	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Done",
+	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus", "Screens", "UI Scale", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
@@ -1552,6 +1554,9 @@ static const char *const option_help[OPT_COUNT] = {
 	"A few gauges over the playfield, or the original panel.",
 	"All the 3D view shows, or the original's screen (next level).",
 	"The music through a SoundFont, or on the AdLib chip.",
+	"Menus in the new style over the 3D view, or the original screens.",
+	"The game's other screens fill the window's height, or in whole steps.",
+	"The size of the new menus and the HUD.",
 	"Return to the options.",
 };
 
@@ -1568,6 +1573,14 @@ static const char *option_value(int option)
 	case OPT_HUD:     return settings3d.hud_modern ? "Modern" : "Classic";
 	case OPT_PLAYFIELD: return settings3d.playfield_wide ? "Wide" : "Original";
 	case OPT_MUSIC:   return settings3d.music_midi ? (music_midi_available() ? "SoundFont" : "SoundFont (none)") : "AdLib";
+	case OPT_MENUS:   return settings3d.menus_modern ? "Modern" : "Classic";
+	case OPT_SCREENS: return settings3d.screens_fill ? "Fill" : "Integer";
+	case OPT_UI_SCALE:
+	{
+		static char percent[16];
+		snprintf(percent, sizeof(percent), "%d%%", settings3d.ui_scale);
+		return percent;
+	}
 	default:          return NULL;
 	}
 }
@@ -1620,15 +1633,51 @@ static void option_turn(int option, int step)
 		settings3d_changed(S3D_MUSIC);
 		settings3d_apply();
 		break;
+	case OPT_MENUS:
+		settings3d.menus_modern = !settings3d.menus_modern;
+		settings3d_changed(S3D_MENUS);
+		break;
+	case OPT_SCREENS:
+		settings3d.screens_fill = !settings3d.screens_fill;
+		settings3d_changed(S3D_SCREENS);
+		break;
+	case OPT_UI_SCALE:
+	{
+		const int count = settings3d_ui_scale_count();
+		const int i = settings3d_ui_scale_index(settings3d.ui_scale);
+		settings3d.ui_scale = settings3d_ui_scale_value((i + step + count) % count);
+		settings3d_changed(S3D_UI_SCALE);
+		break;
+	}
 	default:
 		break;
 	}
 }
 
+// Tyrian3D: a text of the game without its highlight marks ('~') and trailing spaces and colon.
+static void plain_label(char *out, const char *in, size_t size)
+{
+	size_t n = 0;
+	for (; *in != '\0' && n + 1 < size; ++in)
+		if (*in != '~')
+			out[n++] = *in;
+	out[n] = '\0';
+	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == ':'))
+		out[--n] = '\0';
+}
+
+// The level's name as the modern UI's screens over it show it.
+static void level_crumb(char *out, size_t size)
+{
+	plain_label(out, levelName, size);
+	for (char *c = out; *c != '\0'; ++c)
+		*c = (char)SDL_toupper(*c);
+}
+
 // background: the in-game options' screen with their boxes (VGAScreen2), drawn on each time.
 static void ingame_options_3d(void)
 {
-	const int yItems = 16, dyItems = 12, hItem = 11;
+	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 13 rows in the box)
 	const int xName = 10, wName = 80, xValue = xName + wName, wValue = 120;
 	int selected = 0;
 
@@ -1639,12 +1688,34 @@ static void ingame_options_3d(void)
 		{
 			const int y = yItems + dyItems * i;
 			const int brightness = -4 + (i == selected ? 2 : 0);
-			draw_font_hv_shadow(VGAScreen, xName, y, option_names[i], normal_font, left_aligned, 15, brightness, false, 2);
+			// (The shadow a pixel off, not two: the rows are close.)
+			draw_font_hv_shadow(VGAScreen, xName, y, option_names[i], normal_font, left_aligned, 15, brightness, false, 1);
 			const char *value = option_value(i);
 			if (value != NULL)
-				draw_font_hv_shadow(VGAScreen, xValue, y, value, normal_font, left_aligned, 15, brightness, false, 2);
+				draw_font_hv_shadow(VGAScreen, xValue, y, value, normal_font, left_aligned, 15, brightness, false, 1);
 		}
 		JE_outTextAdjust(VGAScreen, 10, 147, option_help[selected], 14, 6, TINY_FONT, true);
+
+		// Tyrian3D: the page for the modern UI (ui.h): each row where the original takes the mouse on it.
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_MENU, "3D Options");
+			SDL_strlcpy(ui->crumb, "OPTIONS", sizeof(ui->crumb));
+			ui->values_turn = true;
+			ui->enter_turns = true;
+			for (int i = 0; i < OPT_COUNT; ++i)
+			{
+				const char *value = option_value(i);
+				UIItem *it = ui_menu_add(ui, value != NULL ? UI_ITEM_CHOICE : UI_ITEM_ACTION, option_names[i], xName,
+				                         yItems + dyItems * i, wName + wValue, hItem);
+				if (value != NULL)
+					SDL_strlcpy(it->value, value, sizeof(it->value));
+				SDL_strlcpy(it->hint, option_help[i], sizeof(it->hint));
+			}
+			ui->selected = selected;
+			ui->nowhere = (SDL_Point){ 300, 190 };
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);
+		}
 
 		service_SDL_events(true);
 		JE_mouseStart();
@@ -1836,6 +1907,43 @@ JE_boolean JE_inGameSetup(void)
 		JE_outTextAdjust(VGAScreen, 10, 147, selectedIndex == MENU_ITEM_OPTIONS_3D
 		                 ? "The 3D view, objects, camera, HUD, mouse and music."
 		                 : mainMenuHelp[helpIndexes[selectedIndex]], 14, 6, TINY_FONT, true);
+
+		// Tyrian3D: the menu for the modern UI (ui.h): each item where the original takes the mouse on its
+		// name and its value (the volumes' bars from their left end, as the click sets them).
+		if (ui_modern())
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_MENU, "Options");
+			level_crumb(ui->crumb, sizeof(ui->crumb));
+			ui->values_turn = true;
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				const int y = yMenuItems + dyMenuItems * (int)i;
+				char name[48];
+				plain_label(name, i == MENU_ITEM_OPTIONS_3D ? "3D Options" : inGameText[i < MENU_ITEM_OPTIONS_3D ? i : i - 1], sizeof(name));
+				const bool volume = i == MENU_ITEM_MUSIC_VOLUME || i == MENU_ITEM_EFFECTS_VOLUME;
+				const bool value = i == MENU_ITEM_DETAIL_LEVEL || i == MENU_ITEM_GAME_SPEED;
+				UIItem *it = ui_menu_add(ui, volume ? UI_ITEM_BAR : value ? UI_ITEM_CHOICE : UI_ITEM_ACTION, name, xMenuItemName, y,
+				                         wMenuItemName, hMenuItem);
+				SDL_strlcpy(it->hint, i == MENU_ITEM_OPTIONS_3D ? "The 3D view, objects, camera, HUD, mouse, music and the menus."
+				                                               : mainMenuHelp[helpIndexes[i]], sizeof(it->hint));
+				if (volume)
+				{
+					const bool music = i == MENU_ITEM_MUSIC_VOLUME;
+					it->bar = (music ? tyrMusicVolume : fxVolume) / 255.0f;
+					it->muted = music ? music_disabled : samples_disabled;
+					it->hit_value = (SDL_Rect){ xMenuItemValue, y, ((255 + 6) / 12) * (3 + 1) - 1, hMenuItem };
+				}
+				else if (value)
+				{
+					plain_label(it->value, i == MENU_ITEM_DETAIL_LEVEL ? detailLevel[processorType - 1] : gameSpeedText[gameSpeed - 1],
+					            sizeof(it->value));
+					it->hit_value = (SDL_Rect){ xMenuItemValue, y, wMenuItemValue, hMenuItem };
+				}
+			}
+			ui->selected = (int)selectedIndex;
+			ui->nowhere = (SDL_Point){ 300, 190 };
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);
+		}
 
 		service_SDL_events(true);
 
@@ -2158,6 +2266,13 @@ void JE_inGameHelp(void)
 	JE_clearKeyboard();
 	JE_wipeKey();
 
+	// Tyrian3D: the screen as it was, put back once the help goes (the key that closes it may open the
+	// in-game options at once, before the game draws its next frame: they showed over the help's text).
+	static Uint8 saved[320 * 200];
+	for (int y = 0; y < 200; ++y)
+		memcpy(saved + y * 320, (const Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch, 320);
+	const int shades = video_backdrop_shade_mark();  // (and the boxes it darkens, which the 3D view counts)
+
 	JE_barShade(VGAScreen, 1, 1, 262, 182); /*Main Box*/
 	JE_barShade(VGAScreen, 3, 3, 260, 180);
 	JE_barShade(VGAScreen, 5, 5, 258, 178);
@@ -2229,6 +2344,39 @@ void JE_inGameHelp(void)
 	blit_sprite(VGAScreenSeg, 16, 189, OPTION_SHAPES, 36);  // in-game text area
 	JE_outText(VGAScreenSeg, 120 - JE_textWidth(miscText[5-1], TINY_FONT) / 2 + 20, 190, miscText[5-1], 0, 4);
 
+	// Tyrian3D: the help for the modern UI (ui.h): each part's title (its highlighted words) and text.
+	if (ui_modern())
+	{
+		static const int single[] = { 31, 32, 33, 34, 35 }, two[] = { 36, 37, 34, 35, 38, 39 };
+		const int *parts = twoPlayerMode ? two : single;
+		const int count = twoPlayerMode ? (int)COUNTOF(two) : (int)COUNTOF(single);
+		UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_HELP, "");
+		level_crumb(ui->crumb, sizeof(ui->crumb));
+		for (int i = 0; i < count && i < UI_HELP_PARTS; ++i)
+		{
+			const char *text = helpTxt[parts[i] - 1];
+			char title[40] = "";
+			const char *open = strchr(text, '~');
+			const char *close = open != NULL ? strchr(open + 1, '~') : NULL;
+			if (open != NULL && close != NULL)
+			{
+				SDL_strlcpy(title, open + 1, SDL_min((size_t)(close - open), sizeof(title)));
+				text = close + 1;
+			}
+			plain_label(ui->help.title[i], title, sizeof(ui->help.title[i]));
+			while (*text != '\0' && (unsigned char)*text <= ' ')
+				++text;
+			plain_label(ui->help.text[i], text, sizeof(ui->help.text[i]));
+			// (Without what's left of a mark at its start.)
+			char *t = ui->help.text[i];
+			while (*t != '\0' && !SDL_isalnum((unsigned char)*t) && *t != '"' && *t != '(')
+				memmove(t, t + 1, strlen(t));
+			ui->help.count = i + 1;
+		}
+		ui->selected = -1;
+		ui_menu_publish(ui, VGAScreenSeg, VGAScreenSeg);
+	}
+
 	do
 	{
 		service_SDL_events(true);
@@ -2246,6 +2394,10 @@ void JE_inGameHelp(void)
 	} while (!(newkey || newmouse));
 
 	textErase = 1;
+
+	for (int y = 0; y < 200; ++y)
+		memcpy((Uint8 *)VGAScreenSeg->pixels + y * VGAScreenSeg->pitch, saved + y * 320, 320);
+	video_backdrop_shade_reset(shades);
 
 	VGAScreen = temp_surface;
 }
@@ -2917,6 +3069,48 @@ void JE_playCredits(void)
 	free_sprites(EXTRA_SHAPES);
 }
 
+// Tyrian3D: a level's results for the modern UI (ui.h), row by row as the level's end shows them;
+// shown whatever the screen shows (its texts glow in) until the end is over.
+static UIResults level_results;
+
+static void level_results_publish(void)
+{
+	if (!ui_modern())
+		return;
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_END, "");
+	level_crumb(ui->crumb, sizeof(ui->crumb));
+	ui->results = level_results;
+	ui->hold = true;
+	ui->selected = -1;
+	ui_menu_publish(ui, VGAScreenSeg, VGAScreenSeg);
+}
+
+static void level_results_row(const char *label, const char *value)
+{
+	if (level_results.row_count >= UI_RESULT_ROWS)
+		return;
+	plain_label(level_results.label[level_results.row_count], label, sizeof(level_results.label[0]));
+	SDL_strlcpy(level_results.value[level_results.row_count], value, sizeof(level_results.value[0]));
+	++level_results.row_count;
+	level_results_publish();
+}
+
+static void level_results_money(const char *label, unsigned long value)
+{
+	char digits[32], grouped[40];
+	snprintf(digits, sizeof(digits), "%lu", value);
+	const int n = (int)strlen(digits);
+	size_t k = 0;
+	for (int i = 0; i < n && k + 2 < sizeof(grouped); ++i)
+	{
+		if (i > 0 && (n - i) % 3 == 0)
+			grouped[k++] = ' ';
+		grouped[k++] = digits[i];
+	}
+	grouped[k] = '\0';
+	level_results_row(label, grouped);
+}
+
 void JE_endLevelAni(void)
 {
 	JE_word x, y;
@@ -2924,6 +3118,10 @@ void JE_endLevelAni(void)
 	char tempStr[256];
 
 	Sint8 i;
+
+	memset(&level_results, 0, sizeof(level_results));
+	level_results.percent = -1;
+	level_results.cubes = -1;
 
 	if (!constantPlay && !rogue_run)  // Tyrian3D: not for a rogue run's items
 	{
@@ -2962,6 +3160,11 @@ void JE_endLevelAni(void)
 	else
 		play_song(21);
 
+	// (Tyrian3D: the modern UI's results title, and the rows as each shows.)
+	plain_label(level_results.title, bonusLevel ? miscText[17-1] : all_players_alive() ? miscText[27-1] : miscText[62-1],
+	            sizeof(level_results.title));
+	level_results_publish();
+
 	if (bonusLevel)
 	{
 		JE_outTextGlow(VGAScreenSeg, 20, 20, miscText[17-1]);
@@ -2981,12 +3184,14 @@ void JE_endLevelAni(void)
 	{
 		for (uint i = 0; i < 2; ++i)
 		{
+			level_results_money(miscText[40 + i], player[i].cash);
 			snprintf(tempStr, sizeof(tempStr), "%s %lu", miscText[40 + i], player[i].cash);
 			JE_outTextGlow(VGAScreenSeg, 30, 50 + 20 * i, tempStr);
 		}
 	}
 	else
 	{
+		level_results_money(miscText[28-1], player[0].cash);
 		sprintf(tempStr, "%s %lu", miscText[28-1], player[0].cash);
 		JE_outTextGlow(VGAScreenSeg, 30, 50, tempStr);
 	}
@@ -2994,12 +3199,19 @@ void JE_endLevelAni(void)
 	if (timedBattleMode)
 	{
 		x = (levelTimerCountdown / 10) * 100;
+		level_results_money(miscTextB[6], x);
 		sprintf(tempStr, "%s %d", miscTextB[6], x);
 		JE_outTextGlow(VGAScreenSeg, 40, 75, tempStr);
 		player[0].cash += x;
 	}
 
 	temp = (totalEnemy == 0) ? 0 : roundf(enemyKilled * 100 / totalEnemy);
+	{
+		char percent[16];
+		snprintf(percent, sizeof(percent), "%d%%", temp);
+		level_results.percent = temp;
+		level_results_row(miscText[63-1], percent);
+	}
 	sprintf(tempStr, "%s %d%%", miscText[63-1], temp);
 	JE_outTextGlow(VGAScreenSeg, 40, 90, tempStr);
 
@@ -3042,12 +3254,15 @@ void JE_endLevelAni(void)
 			}
 		}
 		x = *player[0].lives * 1000;
+		level_results_money(miscTextB[7], x);
 		sprintf(tempStr, "%s %d", miscTextB[7], x);
 		JE_outTextGlow(VGAScreenSeg, 120, 120, tempStr);
 		player[0].cash += x;
 	}
 	else if (!onePlayerAction && !twoPlayerMode)
 	{
+		level_results.cubes = 0;
+		level_results_publish();
 		JE_outTextGlow(VGAScreenSeg, 30, 120, miscText[4-1]);   /*Cubes*/
 
 		if (cubeMax > 0)
@@ -3062,6 +3277,8 @@ void JE_endLevelAni(void)
 			{
 				NETWORK_KEEP_ALIVE();
 
+				level_results.cubes = temp;
+				level_results_publish();
 				JE_playSampleNum(S_ITEM);
 				x = 20 + 30 * temp;
 				y = 135;
@@ -3114,6 +3331,8 @@ void JE_endLevelAni(void)
 	}
 	temp2 = twoPlayerMode ? 150 : 160;
 	JE_outTextGlow(VGAScreenSeg, 90, temp2, miscText[5-1]);
+	level_results.prompt = true;
+	level_results_publish();
 
 	if (!constantPlay && !rogue_automatic())  // Tyrian3D: whole rogue runs for tests
 	{
@@ -3131,6 +3350,7 @@ void JE_endLevelAni(void)
 
 	fade_black(15);
 	JE_clr256(VGAScreen);
+	ui_menu_release();  // Tyrian3D
 }
 
 void JE_drawCube(SDL_Surface * screen, JE_word x, JE_word y, JE_byte filter, JE_byte brightness)
@@ -3224,6 +3444,13 @@ void JE_operation(JE_byte slot)
 				text_x = 149 + 45 - (JE_textWidth(miscText[10], FONT_SHAPES) / 2);
 				JE_outTextAdjust(VGAScreen, text_x, 128, miscText[10], 15, -5, FONT_SHAPES, true);
 
+				// Tyrian3D: the question for the modern UI: the name typed so far, its caret flashing.
+				{
+					char name[21];
+					SDL_strlcpy(name, stemp, SDL_min((size_t)temp + 1, sizeof(name)));
+					shop_dialog_publish(miscText[1 - 1], levelName, miscText[2 - 1], name, flash == 8 * 16 + 10, -1);
+				}
+
 				for (int i = 0; i < 14; i++)
 				{
 					setDelay(1);
@@ -3314,6 +3541,11 @@ void JE_inGameDisplays(void)
 		else
 			JE_textShade(VGAScreen, 30 + 200 * i, 175, tempstr, 2, 4, FULL_SHADE);
 	}
+
+	// Tyrian3D: the displays the game draws while drawing the playfield (the special weapon's ready light,
+	// player two's charge), in a frame the 3D view captures held back to here (l3d_hud_sprite; under what
+	// follows, as the game draws them before it).
+	l3d_hud_sprites_draw(VGAScreen);
 
 	/*Special Weapon?*/
 	if (player[0].items.special > 0)
@@ -3634,6 +3866,16 @@ void JE_pauseGame(void)
 	{
 		JE_dString(VGAScreenSeg, 120, 90, miscText[22], FONT_SHAPES);
 
+		// Tyrian3D: for the modern UI (ui.h).
+		if (ui_modern())
+		{
+			char title[48];
+			plain_label(title, miscText[22], sizeof(title));
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_PAUSE, title);
+			ui->selected = -1;
+			ui_menu_publish(ui, VGAScreenSeg, VGAScreenSeg);
+		}
+
 		VGAScreen = VGAScreenSeg;
 		JE_showVGA();
 	}
@@ -3666,6 +3908,7 @@ void JE_pauseGame(void)
 
 	wait_noinput(false, false, true); // TODO: should up the joystick repeat temporarily instead
 
+	int shown_again = 0;  // (Tyrian3D: the modern UI's plate shown on now and then: it pulses)
 	do
 	{
 		setDelay(2);
@@ -3699,6 +3942,13 @@ void JE_pauseGame(void)
 			}
 		}
 #endif
+
+		// (After the input is looked at, as ever: the time the loop takes stays the same.)
+		if (!done && !superPause && ui_modern() && ++shown_again % 3 == 0)
+		{
+			VGAScreen = VGAScreenSeg;
+			JE_showVGA();
+		}
 
 		wait_delay();
 	} while (!done);
@@ -4759,8 +5009,9 @@ redo:
 				if (playerNum_ == 2)
 				{
 
-					if (!twoPlayerLinked)
-						blit_sprite2(VGAScreen, this_player->x + (shipGr_ == 0) + 1, this_player->y - 13, spriteSheet10, 77 + chargeLevel + chargeGr * 19);
+					if (!twoPlayerLinked)  // (Tyrian3D: one of the game's displays, drawn with them in the 3D view)
+						l3d_hud_sprite(VGAScreen, this_player->x + (shipGr_ == 0) + 1, this_player->y - 13, &spriteSheet10,
+						               77 + chargeLevel + chargeGr * 19, false);
 
 					if (chargeGrWait > 0)
 					{

@@ -281,6 +281,7 @@ JE_word     flareDuration;
 JE_boolean  flareStart;
 JE_shortint flareColChg;
 JE_byte     specialWait;
+bool        special_ready = false;  // Tyrian3D: the special weapon's ready light (JE_doSpecialShot) was lit
 JE_byte     nextSpecialWait;
 JE_boolean  spraySpecial;
 JE_byte     doIced;
@@ -686,10 +687,9 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 {
 	if (player[0].items.special > 0)
 	{
-		if (shotRepeat[SHOT_SPECIAL] == 0 && specialWait == 0 && flareDuration < 2 && zinglonDuration < 2)
-			blit_sprite2(VGAScreen, 47, 4, spriteSheet9, 94);
-		else
-			blit_sprite2(VGAScreen, 47, 4, spriteSheet9, 93);
+		// (Tyrian3D: one of the game's displays, drawn with them in the 3D view: l3d_hud_sprite.)
+		special_ready = shotRepeat[SHOT_SPECIAL] == 0 && specialWait == 0 && flareDuration < 2 && zinglonDuration < 2;
+		l3d_hud_sprite(VGAScreen, 47, 4, &spriteSheet9, special_ready ? 94 : 93, false);
 	}
 
 	if (shotRepeat[SHOT_SPECIAL] > 0)

@@ -34,6 +34,7 @@ Uint32 dev_demo_idle_ms(void)
 
 static long frame = 0;
 static SDL_AtomicInt key_pressed;  // TYR3D_DUMP_KEYS: a test key since the last dump
+static SDL_AtomicInt key_pending;  // a test key pushed, not yet taken by the game (dev_input_taken)
 
 static bool dumping_this_frame(void)
 {
@@ -42,6 +43,15 @@ static bool dumping_this_frame(void)
 	const long dump_every = env_long("TYR3D_DUMP_EVERY", 60);
 	return SDL_getenv("TYR3D_DUMP_DIR") != NULL && dump_every > 0 && (frame + 1) % dump_every == 0 &&
 	       frame + 1 >= env_long("TYR3D_DUMP_FROM", 0);
+}
+
+void dev_input_taken(void)
+{
+	if (SDL_GetAtomicInt(&key_pending) != 0)
+	{
+		SDL_SetAtomicInt(&key_pending, 0);
+		SDL_SetAtomicInt(&key_pressed, 1);
+	}
 }
 
 bool dev_capture_next_frame(void)
@@ -360,7 +370,7 @@ static void press_key(const char *name)
 		event.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
 		event.wheel.mouse_x = test_pointer_x;
 		event.wheel.mouse_y = test_pointer_y;
-		SDL_SetAtomicInt(&key_pressed, 1);
+		SDL_SetAtomicInt(&key_pending, 1);
 		SDL_PushEvent(&event);
 		return;
 	}
@@ -379,7 +389,7 @@ static void press_key(const char *name)
 		event.motion.yrel = dy;
 		test_pointer_x = (float)to_x;
 		test_pointer_y = (float)to_y;
-		SDL_SetAtomicInt(&key_pressed, 1);
+		SDL_SetAtomicInt(&key_pending, 1);
 		SDL_PushEvent(&event);
 		return;
 	}
@@ -390,7 +400,7 @@ static void press_key(const char *name)
 		return;
 	}
 	printf("devtools: pressing %s\n", name);
-	SDL_SetAtomicInt(&key_pressed, 1);
+	SDL_SetAtomicInt(&key_pending, 1);
 	SDL_Event event = { 0 };
 	event.type = SDL_EVENT_KEY_DOWN;
 	event.key.scancode = scancode;

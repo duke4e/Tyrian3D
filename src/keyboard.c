@@ -18,6 +18,8 @@
  */
 #include "keyboard.h"
 
+#include "devtools.h"
+
 #include "config.h"
 #include "joystick.h"
 #include "mouse.h"
@@ -41,6 +43,7 @@ Uint8 lastmouse_but;
 Sint32 lastmouse_x, lastmouse_y;
 JE_boolean mouse_pressed[4] = {false, false, false, false};
 Sint32 mouse_x, mouse_y;
+float mouse_wheel_pending = 0;
 
 bool windowHasFocus;
 
@@ -222,6 +225,7 @@ void service_SDL_events(JE_boolean clear_new)
 				break;
 
 			case SDL_EVENT_KEY_DOWN:
+				dev_input_taken();  // (TYR3D_DUMP_KEYS)
 				/* <alt><enter> toggle fullscreen */
 				if (ev.key.mod & SDL_KMOD_ALT && ev.key.scancode == SDL_SCANCODE_RETURN)
 				{
@@ -248,6 +252,7 @@ void service_SDL_events(JE_boolean clear_new)
 				return;
 
 			case SDL_EVENT_MOUSE_MOTION:
+				dev_input_taken();  // (TYR3D_DUMP_KEYS)
 				pointerWindowX = ev.motion.x;
 				pointerWindowY = ev.motion.y;
 				if (ev.motion.xrel != 0 || ev.motion.yrel != 0)
@@ -277,6 +282,7 @@ void service_SDL_events(JE_boolean clear_new)
 				break;
 
 			case SDL_EVENT_MOUSE_BUTTON_DOWN:
+				dev_input_taken();  // (TYR3D_DUMP_KEYS)
 				mouseInactive = false;
 
 				// fall through
@@ -335,6 +341,7 @@ void service_SDL_events(JE_boolean clear_new)
 
 			case SDL_EVENT_MOUSE_WHEEL:
 			{
+				dev_input_taken();  // (TYR3D_DUMP_KEYS)
 				// Tyrian3D: over a modern UI's menu (ui.h) the wheel moves through its items, as the
 				// up and down keys do.
 				const float y = ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -ev.wheel.y : ev.wheel.y;
@@ -345,6 +352,9 @@ void service_SDL_events(JE_boolean clear_new)
 					lastkey_mod = SDL_KMOD_NONE;
 					return;
 				}
+				// (Over a data cube's text, it scrolls it: game_menu.c takes it.)
+				if (ui_wheel_scrolls_text())
+					mouse_wheel_pending += y;
 				break;
 			}
 

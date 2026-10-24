@@ -230,6 +230,14 @@ bool l3d_take_frame(void);
 
 // Layer type of the current draw phase.
 L3DLayerType l3d_current_layer(void);
+
+// A sprite of the game's displays that the game draws while drawing the playfield (the special weapon's
+// ready light beside its icon, player two's charge over the ship): in a frame being captured it is
+// drawn with the displays instead (l3d_hud_sprites_draw, in the L3D_HUD phase), so the 3D view shows it
+// flat where the game draws it (the classic HUD) or leaves it to the modern HUD; else drawn now, as ever.
+// large: a 2x2 sprite.
+void l3d_hud_sprite(SDL_Surface *surface, int x, int y, const void *sheet, unsigned int sprite, bool large);
+void l3d_hud_sprites_draw(SDL_Surface *surface);
 // Records a model object in the current phase. Returns false if the frame isn't being captured
 // (the caller should draw the sprite instead).
 bool l3d_add_object(int model, float x, float y, float height, float yaw, float roll, Uint8 filter);

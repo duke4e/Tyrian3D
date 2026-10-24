@@ -47,6 +47,8 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire);
 
 // True if the frame about to be presented should be captured (pass its pixels below).
 bool dev_capture_next_frame(void);
+// TYR3D_DUMP_KEYS: the game has taken an input event (a test key is dumped in the next frame shown).
+void dev_input_taken(void);
 // Whether the frame being shown is dumped (TYR3D_DUMP_DIR; not the debug flight's snapshots).
 bool dev_dumping_frame(void);
 

@@ -149,6 +149,7 @@ typedef struct
 	float px[4], py[4], pa[4];
 	bool free;                // any four corners as given (the UI's shapes, ui.c), from the texture or not
 	BTBHGPUCanvasVertex corner[4];
+	bool picture;             // from the screen's picture, sharp where it is magnified (rgpu_ui_picture)
 } HudQuad;
 
 // As many as a frame needs (a help page's letters take two each, the letter and its shadow): the
@@ -799,6 +800,7 @@ static struct
 	const int (*shades)[4];   // the boxes the menu darkened: x1, y1, x2, y2 (JE_barShade's)
 	int shade_count;
 	float map[4];             // where the playfield is in the window: x, y, and window pixels per screen pixel
+	bool modern;              // the screen published over the level, in the modern UI's style (ui.h), instead
 } menu;
 
 static const Uint8 *screen_without_texts(const SDL_Surface *screen);
@@ -855,6 +857,9 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture
  */
 static BTBHGPUTexture *sharp_target = NULL;
 static int sharp_w = 0, sharp_h = 0;
+// The largest magnification of the screen's picture asked for this frame (window pixels per screen
+// pixel, rgpu_ui_picture), for its sharp copy (present_canvas).
+static float picture_magnification = 0;
 
 // The whole steps for a screen h points tall, or 0 when its size is a whole step anyway.
 static int sharp_steps(float h)
@@ -876,6 +881,48 @@ static BTBHGPUTexture *sharp_texture(int k)
 	sharp_w = sharp_target != NULL ? SCREEN_W * k : 0;
 	sharp_h = sharp_target != NULL ? SCREEN_H * k : 0;
 	return sharp_target;
+}
+
+/*
+ * The 3D scene blurred for the frosted glass of the screens over a level (the in-game options, help,
+ * the level's end): the scene as composited is copied (scene_capture, after it is drawn), then made
+ * smaller in halves into SCENE_BLUR_STEPS targets in passes of the canvas; the last, an eighth of the
+ * window's size or so, is what the glass shows. Made again only when the scene does (scene_blur_key).
+ */
+#define SCENE_BLUR_STEPS 4
+static BTBHGPUTexture *scene_blur[SCENE_BLUR_STEPS];
+static int scene_blur_w[SCENE_BLUR_STEPS], scene_blur_h[SCENE_BLUR_STEPS];
+static BTBHGPUTexture *scene_capture = NULL;  // this frame's copy of the scene, when the blur is made again
+static bool scene_blur_valid = false;
+static Uint64 scene_blur_key = 0;
+
+// The targets for a window w x h (points), made when its size changes; false if they can't be.
+static bool scene_blur_targets(float w, float h)
+{
+	int tw = (int)(w / 2), th = (int)(h / 2);
+	if (scene_blur[0] != NULL && scene_blur_w[0] == SDL_max(tw, 1) && scene_blur_h[0] == SDL_max(th, 1))
+		return true;
+	for (int i = 0; i < SCENE_BLUR_STEPS; ++i)
+	{
+		if (scene_blur[i] != NULL)
+			btbh_gpu_texture_destroy(scene_blur[i]);
+		scene_blur[i] = NULL;
+	}
+	scene_blur_valid = false;
+	for (int i = 0; i < SCENE_BLUR_STEPS; ++i)
+	{
+		tw = SDL_max(tw, 1);
+		th = SDL_max(th, 1);
+		BTBHGPUTextureReport report;
+		scene_blur[i] = btbh_gpu_window_render_target_create(window, (uint32_t)tw, (uint32_t)th, BTBH_GPU_TEXTURE_FILTER_LINEAR, &report);
+		if (scene_blur[i] == NULL)
+			return false;
+		scene_blur_w[i] = tw;
+		scene_blur_h[i] = th;
+		tw /= 2;
+		th /= 2;
+	}
+	return true;
 }
 
 // The HUD's quads first to last as batches (one per run of quads from the same texture).
@@ -936,7 +983,7 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	static BTBHGPUCanvasVertex *vertices = NULL;
 	static BTBHGPUCanvasBatch *batches_2d = NULL;
 	static int room = 0;
-	const int fixed = 3 + 2 * MAX_CANVAS_QUADS;
+	const int fixed = 3 + 2 * MAX_CANVAS_QUADS + SCENE_BLUR_STEPS;
 	if (fixed + hud_quad_count > room)
 	{
 		const int grown = SDL_max(fixed + hud_quad_count, SDL_max(2 * room, fixed + HUD_QUADS_FIRST));
@@ -961,25 +1008,52 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	uint32_t vertex_count = 0;
 	hud_under = SDL_min(hud_under, hud_quad_count);
 
-	// The sharp screen's whole steps, into its target (a pass of its own, first).
+	// The 3D scene made smaller in halves, blurred, for frosted glass over it (scene_blur): passes of
+	// their own, first.
+	const int blur_passes = scene_capture != NULL ? SCENE_BLUR_STEPS : 0;
+	for (int i = 0; i < blur_passes; ++i)
+	{
+		const CanvasQuad whole = { 0, 0, (float)scene_blur_w[i], (float)scene_blur_h[i], 0, 0, 1, 1 };
+		push_quad(vertices + vertex_count, &whole, 1, 1);
+		BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
+		b->first_vertex = vertex_count;
+		b->vertex_count = 6;
+		b->texture = i == 0 ? scene_capture : scene_blur[i - 1];
+		b->blend_mode = BTBH_GPU_CANVAS_BLEND_PREMULTIPLIED_ALPHA;  // (onto opaque black: the colour as it is, opaque)
+		vertex_count += 6;
+	}
+
+	// The sharp screen's whole steps, into its target (a pass of its own, first): for the whole screen
+	// shown at a size between whole steps, or parts of its picture (rgpu_ui_picture) magnified so.
 	quad_count = SDL_min(quad_count, MAX_CANVAS_QUADS);
 	BTBHGPUTexture *sharp = NULL;
-	for (int i = 0; i < quad_count && sharp == NULL; ++i)
+	int sharp_k = 0;
+	for (int i = 0; i < quad_count && sharp_k == 0; ++i)
+		sharp_k = quads[i].sharp && !quads[i].panel ? sharp_steps(quads[i].h) : 0;
+	if (sharp_k == 0 && picture_magnification >= 2)
 	{
-		const int k = quads[i].sharp && !quads[i].panel ? sharp_steps(quads[i].h) : 0;
-		if (k > 0 && (sharp = sharp_texture(k)) != NULL)
-		{
-			const CanvasQuad whole = { 0, 0, (float)sharp_w, (float)sharp_h, 0, 0, SCREEN_W, SCREEN_H };
-			push_quad(vertices, &whole, SCREEN_W, SCREEN_H);
-			BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
-			b->first_vertex = 0;
-			b->vertex_count = 6;
-			b->texture = screen_texture;
-			b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
-			vertex_count = 6;
-		}
+		const int k = (int)floorf(picture_magnification + 1e-3f);
+		if (picture_magnification - k > 1e-3f)
+			sharp_k = SDL_min(k, 8);
+	}
+	if (sharp_k > 0 && (sharp = sharp_texture(sharp_k)) != NULL)
+	{
+		const CanvasQuad whole = { 0, 0, (float)sharp_w, (float)sharp_h, 0, 0, SCREEN_W, SCREEN_H };
+		push_quad(vertices + vertex_count, &whole, SCREEN_W, SCREEN_H);
+		BTBHGPUCanvasBatch *b = &batches_2d[batch_count_2d++];
+		b->first_vertex = vertex_count;
+		b->vertex_count = 6;
+		b->texture = screen_texture;
+		b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+		vertex_count += 6;
 	}
 	const int prepass = sharp != NULL ? 1 : 0;
+	// The picture's parts from its sharp copy.
+	if (sharp != NULL)
+		for (int i = 0; i < hud_quad_count; ++i)
+			if (hud_quads[i].picture)
+				hud_quads[i].texture = sharp;
+	picture_magnification = 0;
 
 	if (spotlight)
 	{
@@ -1067,21 +1141,30 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 		vertex_count += 6;
 	}
 
-	BTBHGPUCanvasPass passes[2];
+	BTBHGPUCanvasPass passes[2 + SCENE_BLUR_STEPS];
 	memset(passes, 0, sizeof(passes));
 	int pass_count = 0;
+	for (int i = 0; i < blur_passes; ++i)
+	{
+		passes[pass_count].first_batch = (uint32_t)i;
+		passes[pass_count].batch_count = 1;
+		passes[pass_count].target = scene_blur[i];
+		passes[pass_count].clear_enabled = 1;
+		passes[pass_count].clear_alpha = 255;
+		++pass_count;
+	}
 	if (prepass)
 	{
-		passes[0].first_batch = 0;
-		passes[0].batch_count = 1;
-		passes[0].target = sharp;
-		passes[0].clear_enabled = 1;
-		passes[0].clear_alpha = 0;
-		pass_count = 1;
+		passes[pass_count].first_batch = (uint32_t)blur_passes;
+		passes[pass_count].batch_count = 1;
+		passes[pass_count].target = sharp;
+		passes[pass_count].clear_enabled = 1;
+		passes[pass_count].clear_alpha = 0;
+		++pass_count;
 	}
 	BTBHGPUCanvasPass *screen_pass = &passes[pass_count++];
-	screen_pass->first_batch = (uint32_t)prepass;
-	screen_pass->batch_count = (uint32_t)(batch_count_2d - prepass);
+	screen_pass->first_batch = (uint32_t)(blur_passes + prepass);
+	screen_pass->batch_count = (uint32_t)(batch_count_2d - blur_passes - prepass);
 	screen_pass->target = NULL;
 	screen_pass->clear_enabled = clear;
 	screen_pass->clear_alpha = 255;
@@ -1105,6 +1188,13 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 	        &report) != BTBH_GPU_OK)
 	{
 		fprintf(stderr, "warning: canvas present failed: %s\n", report.message);
+	}
+	if (scene_capture != NULL)
+	{
+		// (Released once the GPU is done with it.)
+		btbh_gpu_texture_destroy(scene_capture);
+		scene_capture = NULL;
+		scene_blur_valid = true;
 	}
 
 	if (capture)
@@ -1142,6 +1232,7 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 static BTBHGPUTexture *blur_texture = NULL;
 static bool blur_ready = false;  // made for the frame being drawn
 static float cover_map[4];       // where the blurred picture lies: x, y, w, h (points)
+static BTBHGPUTexture *frost_texture = NULL;  // what frosted glass shows: blur_texture, or the 3D scene's (scene_blur)
 static bool blur_ready_once = false;  // blur_texture holds a blurred picture (forget_ui_textures)
 
 // A box blur of a line of RGB triplets (n of them, stride apart, in triplets) with the edges held.
@@ -1228,6 +1319,7 @@ static void make_blur(const Uint32 *rgba, float window_w, float window_h)
 	cover_map[1] = (window_h - SCREEN_H * s) / 2;
 	cover_map[2] = SCREEN_W * s;
 	cover_map[3] = SCREEN_H * s;
+	frost_texture = blur_texture;
 	blur_ready = true;
 	static Uint64 spent = 0;
 	static int made = 0;
@@ -1244,12 +1336,12 @@ static void make_blur(const Uint32 *rgba, float window_w, float window_h)
 // A quad from the blurred picture where it lies under it, a colour each corner (times the picture).
 static void frost_quad(const float x[4], const float y[4], const float (*tint)[4])
 {
-	if (!blur_ready)
+	if (!blur_ready || frost_texture == NULL)
 		return;
 	HudQuad *q = hud_quad_add();
 	if (q == NULL)
 		return;
-	*q = (HudQuad){ .free = true, .texture = blur_texture };
+	*q = (HudQuad){ .free = true, .texture = frost_texture };
 	for (int k = 0; k < 4; ++k)
 		q->corner[k] = (BTBHGPUCanvasVertex){ x[k], y[k], (x[k] - cover_map[0]) / cover_map[2], (y[k] - cover_map[1]) / cover_map[3],
 		                                      tint[k][0], tint[k][1], tint[k][2], tint[k][3] };
@@ -1327,6 +1419,46 @@ static void add_surround(const SDL_Rect *dst, float window_w, float window_h)
 	}
 }
 
+/*
+ * The window behind a screen laid out over the whole of it (the store): the picture blurred over it,
+ * dimmed, darker towards the window's edges; hole (points: x, y, w, h), if any, left for a 3D scene.
+ */
+#define BACKDROP_LIGHT 0.40f
+#define BACKDROP_EDGE 0.18f
+
+static void add_backdrop(float window_w, float window_h, const float *hole)
+{
+	if (!blur_ready)
+		return;
+	// Rows: above the hole, beside it (left and right), below it; each darker towards the window's top
+	// and bottom, and its sides.
+	const float hx0 = hole != NULL ? hole[0] : window_w / 2, hx1 = hole != NULL ? hole[0] + hole[2] : window_w / 2;
+	const float hy0 = hole != NULL ? hole[1] : window_h / 2, hy1 = hole != NULL ? hole[1] + hole[3] : window_h / 2;
+	const float xs[4] = { 0, hx0, hx1, window_w }, ys[4] = { 0, hy0, hy1, window_h };
+	for (int r = 0; r < 3; ++r)
+		for (int c = 0; c < 3; ++c)
+		{
+			if (r == 1 && c == 1 && hole != NULL)
+				continue;
+			if (xs[c + 1] - xs[c] < 0.5f || ys[r + 1] - ys[r] < 0.5f)
+				continue;
+			const float x[4] = { xs[c], xs[c + 1], xs[c + 1], xs[c] }, y[4] = { ys[r], ys[r], ys[r + 1], ys[r + 1] };
+			float tint[4][4];
+			for (int k = 0; k < 4; ++k)
+			{
+				// Lighter in the middle of the window, darker at its edges.
+				const float u = SDL_fabsf(x[k] / window_w - 0.5f) * 2, v = SDL_fabsf(y[k] / window_h - 0.5f) * 2;
+				const float e = SDL_clamp(SDL_max(u, v * 1.15f), 0.0f, 1.0f);
+				const float l = BACKDROP_LIGHT + (BACKDROP_EDGE - BACKDROP_LIGHT) * e * e;
+				tint[k][0] = l;
+				tint[k][1] = l * 0.95f;
+				tint[k][2] = l * 0.9f;
+				tint[k][3] = 1;
+			}
+			frost_quad(x, y, tint);
+		}
+}
+
 void rgpu_present_blank(void)
 {
 	BTBHGPUWindowReport frame;
@@ -1364,36 +1496,6 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 		add_surround(dst, (float)frame.logical_width, (float)frame.logical_height);
 		quad.sharp = true;
 	}
-	present_canvas(&quad, 1, false, true, &frame);
-	blur_ready = false;
-}
-
-void rgpu_present_ui(void)
-{
-	BTBHGPUWindowReport frame;
-	if (!begin_frame(&frame))
-		return;
-	hud_quad_count = 0;
-	canvas_fade[3] = 0;
-	convert_pixels(ui_screen_picture(), screen_rgba);
-	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
-	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
-	SDL_Rect dst;
-	ui_fill_rect(frame.logical_width, frame.logical_height, &dst);
-	make_blur(screen_rgba, w, h);
-	add_surround(&dst, w, h);
-	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
-	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
-	ui_build_screen(&view);
-	// (TYR3D_SOFTWARE_POINTER: the pointer in the frame, where the system's would be.)
-	static int software_pointer = -1;
-	if (software_pointer < 0)
-		software_pointer = SDL_getenv("TYR3D_SOFTWARE_POINTER") != NULL;
-	float pointer_x, pointer_y;
-	if (software_pointer && mouse_pointer_window(&pointer_x, &pointer_y))
-		ui_build_pointer(&view, pointer_x, pointer_y, mouseCursor);
-	CanvasQuad quad = whole_screen_quad(&dst);
-	quad.sharp = true;
 	present_canvas(&quad, 1, false, true, &frame);
 	blur_ready = false;
 }
@@ -1464,19 +1566,22 @@ void rgpu_ui_image(Uint32 key, const Uint32 *rgba, int w, int h, float x, float 
 }
 
 /*
- * Sprites of the game as the UI's icons (the special weapon, lives, bombs): drawn into slots of a small
- * texture in the current palette, made again when it changes.
+ * Sprites of the game as the UI's icons (the special weapon, lives, bombs, the store's items, data
+ * cubes): drawn into slots of a small texture in the current palette, made again when it changes.
  */
-#define ICON_SLOT 32
-#define ICON_SLOTS 8
+#define ICON_SLOT 48
+#define ICON_SLOTS 24
 static BTBHGPUTexture *icon_texture = NULL;
 static struct
 {
-	const void *sheet;
+	const void *sheet;  // a Sprite2_array, or NULL for a sprite table's (table)
+	unsigned int table;
 	unsigned int sprite;
 	bool large;
-	Uint32 palette;  // hash of the palette it was drawn in
-	Uint32 used;     // text_frames when last drawn
+	Uint32 palette;     // hash of the palette it was drawn in
+	Uint32 used;        // text_frames when last drawn
+	int w, h;           // its picture's size in the slot (from its top left, ICON_PAD in)
+	int x0, y0;
 } icon_slots[ICON_SLOTS];
 
 // (The window owns them: they go with it.)
@@ -1485,11 +1590,16 @@ static void forget_ui_textures(void)
 	sharp_target = NULL;
 	sharp_w = sharp_h = 0;
 	blur_texture = NULL;
+	frost_texture = NULL;
 	blur_ready_once = false;
 	icon_texture = NULL;
 	memset(icon_slots, 0, sizeof(icon_slots));
 	image_texture = NULL;
 	image_key = 0;
+	for (int i = 0; i < SCENE_BLUR_STEPS; ++i)
+		scene_blur[i] = NULL;
+	scene_capture = NULL;
+	scene_blur_valid = false;
 }
 
 static Uint32 palette_hash(void)
@@ -1500,21 +1610,21 @@ static Uint32 palette_hash(void)
 	return h;
 }
 
-void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x, float y, float w, float h, float alpha)
+// The slot holding a sprite in the current palette (drawn into it if it isn't), or -1.
+static int icon_slot(const void *sheet, unsigned int table, unsigned int sprite, bool large)
 {
-	if (sheet == NULL || ((const Sprite2_array *)sheet)->data == NULL)
-		return;
 	if (icon_texture == NULL)
 		icon_texture = create_texture(ICON_SLOT * ICON_SLOTS, ICON_SLOT, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
 	static Uint32 hash_frame = 0, hash = 0;
-	if (hash_frame != text_frames)
+	if (hash_frame != text_frames || hash == 0)
 	{
 		hash = palette_hash();
 		hash_frame = text_frames;
 	}
 	int slot = -1, oldest = 0;
 	for (int i = 0; i < ICON_SLOTS && slot < 0; ++i)
-		if (icon_slots[i].sheet == sheet && icon_slots[i].sprite == sprite && icon_slots[i].large == large)
+		if (icon_slots[i].sheet == sheet && icon_slots[i].table == table && icon_slots[i].sprite == sprite &&
+		    icon_slots[i].large == large && icon_slots[i].w > 0)
 			slot = i;
 	for (int i = 1; i < ICON_SLOTS; ++i)
 		if (icon_slots[i].used < icon_slots[oldest].used)
@@ -1526,12 +1636,26 @@ void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x,
 		// (As wide as the screen: the game's sprite drawing steps its rows by the screen's pitch.)
 		static SDL_Surface *canvas = NULL;
 		if (canvas == NULL && (canvas = SDL_CreateSurface(SCREEN_W, ICON_SLOT + 8, SDL_PIXELFORMAT_INDEX8)) == NULL)
-			return;
+			return -1;
 		SDL_FillSurfaceRect(canvas, NULL, 0);
-		if (large)
-			blit_sprite2x2(canvas, 4, 2, *(const Sprite2_array *)sheet, sprite);
+		int x0, y0, w, h;
+		if (sheet != NULL)
+		{
+			x0 = large ? 4 : 10, y0 = large ? 2 : 9, w = large ? 24 : 12, h = large ? 28 : 14;
+			if (large)
+				blit_sprite2x2(canvas, x0, y0, *(const Sprite2_array *)sheet, sprite);
+			else
+				blit_sprite2(canvas, x0, y0, *(const Sprite2_array *)sheet, sprite);
+		}
 		else
-			blit_sprite2(canvas, 10, 9, *(const Sprite2_array *)sheet, sprite);
+		{
+			if (!sprite_exists(table, sprite))
+				return -1;
+			x0 = y0 = 2;
+			w = SDL_min((int)get_sprite_width(table, sprite), ICON_SLOT - 4);
+			h = SDL_min((int)get_sprite_height(table, sprite), ICON_SLOT - 4);
+			blit_sprite(canvas, x0, y0, table, sprite);
+		}
 		static Uint32 rgba[ICON_SLOT * ICON_SLOT];
 		for (int py = 0; py < ICON_SLOT; ++py)
 			for (int px = 0; px < ICON_SLOT; ++px)
@@ -1541,19 +1665,66 @@ void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x,
 			}
 		btbh_gpu_texture_update_rgba8(icon_texture, (const uint8_t *)rgba, (uint32_t)(slot * ICON_SLOT), 0, ICON_SLOT, ICON_SLOT);
 		icon_slots[slot].sheet = sheet;
+		icon_slots[slot].table = table;
 		icon_slots[slot].sprite = sprite;
 		icon_slots[slot].large = large;
 		icon_slots[slot].palette = hash;
+		icon_slots[slot].x0 = x0;
+		icon_slots[slot].y0 = y0;
+		icon_slots[slot].w = w;
+		icon_slots[slot].h = h;
 	}
 	icon_slots[slot].used = text_frames;
-	// The sprite's own rectangle in its slot.
-	const float sx = large ? 4 : 10, sy = large ? 2 : 9, sw = large ? 24 : 12, sh = large ? 28 : 14;
+	return slot;
+}
+
+static void icon_quad(int slot, float x, float y, float w, float h, float alpha)
+{
 	HudQuad *q = hud_quad_add();
 	if (q == NULL)
 		return;
+	const float sx = (float)icon_slots[slot].x0, sy = (float)icon_slots[slot].y0;
+	const float sw = (float)icon_slots[slot].w, sh = (float)icon_slots[slot].h;
 	const float u0 = (slot * ICON_SLOT + sx) / (ICON_SLOT * ICON_SLOTS), u1 = (slot * ICON_SLOT + sx + sw) / (ICON_SLOT * ICON_SLOTS);
 	const float v0 = sy / ICON_SLOT, v1 = (sy + sh) / ICON_SLOT;
 	*q = (HudQuad){ x, y, w, h, u0, v0, u1, v1, { 1, 1, 1, alpha }, { 1, 1, 1, alpha }, .texture = icon_texture };
+}
+
+void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x, float y, float w, float h, float alpha)
+{
+	if (sheet == NULL || ((const Sprite2_array *)sheet)->data == NULL)
+		return;
+	const int slot = icon_slot(sheet, 0, sprite, large);
+	if (slot >= 0)
+		icon_quad(slot, x, y, w, h, alpha);
+}
+
+void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, float y, float w, float h, float alpha)
+{
+	const int slot = icon_slot(NULL, table, sprite, false);
+	if (slot < 0)
+		return;
+	// Fitted in the rectangle at its own aspect.
+	const float aspect = (float)icon_slots[slot].w / SDL_max(icon_slots[slot].h, 1);
+	float dw = w, dh = w / aspect;
+	if (dh > h)
+	{
+		dh = h;
+		dw = h * aspect;
+	}
+	icon_quad(slot, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
+}
+
+void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
+{
+	if (sw <= 0 || sh <= 0)
+		return;
+	HudQuad *q = hud_quad_add();
+	if (q == NULL)
+		return;
+	*q = (HudQuad){ x, y, w, h, sx / SCREEN_W, sy / SCREEN_H, (sx + sw) / SCREEN_W, (sy + sh) / SCREEN_H, { 1, 1, 1, alpha }, { 1, 1, 1, alpha },
+	                .texture = screen_texture, .picture = true };
+	picture_magnification = SDL_max(picture_magnification, h * text_density / sh);
 }
 
 /* --- 3D ------------------------------------------------------------------------------------ */
@@ -2507,7 +2678,7 @@ static void build_hud(const SDL_Surface *hud, const L3DFrame *frame, bool split)
 			}
 		}
 	}
-	if (menu.on)
+	if (menu.on && !menu.modern)
 		add_menu(hud);
 }
 
@@ -2993,7 +3164,7 @@ static void playfield_text_quads(const Layout3D *layout)
 		fade_under_ship(first, x0 - 12 * kx, y0 - 14 * ky, x0 + (r->text_w + 12) * kx, y0 + (r->text_h + 14) * ky, ship_x,
 		                ship_y, 8 * ky, &fades[f].shown);
 	}
-	if (layout->split && textErase > 0 && text_window_message[0] != '\0' && !menu.on)
+	if (layout->split && textErase > 0 && text_window_message[0] != '\0' && !menu.on && !modern_hud())
 	{
 		const float color[4] = { 0.86f, 0.86f, 0.9f, 1.0f };
 		const float cap = 5.4f * ky;
@@ -3102,9 +3273,10 @@ bool rgpu_playfield_to_window(float x, float y, float *wx, float *wy)
 }
 
 void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, const int (*shades)[4], int shade_count,
-                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect)
+                          const float fade[4], const L3DFrame *frame, const SDL_Rect *dst, SDL_Rect *screen_rect, bool modern)
 {
 	menu.on = true;
+	menu.modern = modern;
 	menu.backdrop = backdrop;
 	menu.shades = shades;
 	menu.shade_count = shade_count;
@@ -3112,6 +3284,7 @@ void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, cons
 	ahead = 0;
 	present_3d(screen, frame, dst);
 	menu.on = false;
+	menu.modern = false;
 	canvas_fade[3] = 0;
 
 	// The screen's pixels where the playfield's part of them shows.
@@ -9011,6 +9184,36 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	playfield_text_quads(&layout);
 	debug_status_quads(logical_w, logical_h);
 
+	// A screen over the level in the modern UI's style: over the scene, its glass showing the scene
+	// blurred (made again only when the scene changes: the game is halted under it).
+	bool blur_scene = false;
+	if (menu.on && menu.modern)
+	{
+		const Uint64 key = ((Uint64)l3d_frame_number << 24) ^ ((Uint64)settings3d.shadows << 1) ^ ((Uint64)settings3d.effects << 2) ^
+		                   ((Uint64)settings3d.models << 3) ^ ((Uint64)settings3d.camera << 4) ^ ((Uint64)settings3d.hud_modern << 9) ^
+		                   ((Uint64)(int)logical_w << 10) ^ ((Uint64)(int)logical_h << 40);
+		if (scene_blur_targets(logical_w, logical_h))
+		{
+			blur_scene = !scene_blur_valid || key != scene_blur_key;
+			scene_blur_key = key;
+			frost_texture = scene_blur[SCENE_BLUR_STEPS - 1];
+			cover_map[0] = cover_map[1] = 0;
+			cover_map[2] = logical_w;
+			cover_map[3] = logical_h;
+			blur_ready = true;
+		}
+		const UIView view = { .w = logical_w, .h = logical_h, .pixel = 1.0f / text_density,
+		                      .playfield = { layout.playfield[0], layout.playfield[1], layout.playfield[2], layout.playfield[3] },
+		                      .menu_over = true };
+		ui_build_screen(&view);
+		static int software_pointer = -1;
+		if (software_pointer < 0)
+			software_pointer = SDL_getenv("TYR3D_SOFTWARE_POINTER") != NULL;
+		float pointer_x, pointer_y;
+		if (software_pointer && mouse_pointer_window(&pointer_x, &pointer_y))
+			ui_build_pointer(&view, pointer_x, pointer_y, mouseCursor);
+	}
+
 	// Levels with a special view, as JE_starShowVGA shows them.
 	const bool upside_down = starShowVGASpecialCode == 1;
 	const bool spotlight = starShowVGASpecialCode == 2 && processorType >= 2 && !dark_lighting() && !l3d_sideways;
@@ -9020,6 +9223,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	if (slot_count == 0)
 	{
 		present_canvas(quads, quad_count, spotlight, true, &window_frame);
+		blur_ready = false;
 		return;
 	}
 
@@ -9229,7 +9433,15 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	{
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
 		present_canvas(quads, quad_count, spotlight, true, &window_frame);
+		blur_ready = false;
 		return;
+	}
+	if (blur_scene)
+	{
+		BTBHGPUTextureReport capture_report;
+		scene_capture = btbh_gpu_window_capture_pending_scene_texture(window, &capture_report);
+		if (scene_capture == NULL)
+			scene_blur_valid = false;
 	}
 	if (SDL_getenv("TYR3D_LOG_RC") != NULL && ahead == 0 && l3d_frame_number % 100 == 0)
 		printf("rc: requested %d active %d backend %d fallback %d, %ux%u\n", scene_report.radiance_cascades.requested_tier,
@@ -9238,6 +9450,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		       scene_report.radiance_cascades.internal_height);
 
 	present_canvas(quads, quad_count, spotlight, false, &window_frame);
+	blur_ready = false;
 }
 
 /* --- The store's ship ---------------------------------------------------------------------- */
@@ -9451,5 +9664,241 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
 	present_canvas(&quad, 1, false, !drawn, &window_frame);
 	canvas_fade[3] = 0;
+	blur_ready = false;
+}
+
+/* --- The modern UI's screens (ui.h), and their 3D scene (the store's ship) ------------------ */
+
+/*
+ * The store's floor under its ship: a dark warm pad lit in its middle, with faint brass rings and a
+ * grid, drawn for a box w x h screen pixels (the texture is stretched over it).
+ */
+#define PAD_TEXELS 256
+static BTBHGPUTexture *pad_texture = NULL;
+
+static void make_pad(float w, float h)
+{
+	static float made_w = 0, made_h = 0;
+	if (pad_texture == NULL)
+	{
+		pad_texture = create_texture_filtered(PAD_TEXELS, PAD_TEXELS, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+		made_w = made_h = 0;
+	}
+	if (SDL_fabsf(made_w - w) < 0.5f && SDL_fabsf(made_h - h) < 0.5f)
+		return;
+	made_w = w;
+	made_h = h;
+	static Uint32 rgba[PAD_TEXELS * PAD_TEXELS];
+	for (int ty = 0; ty < PAD_TEXELS; ++ty)
+		for (int tx = 0; tx < PAD_TEXELS; ++tx)
+		{
+			// The texel's place in the box: screen pixels from its middle.
+			const float x = ((tx + 0.5f) / PAD_TEXELS - 0.5f) * w, y = ((ty + 0.5f) / PAD_TEXELS - 0.5f) * h;
+			const float r = sqrtf(x * x + y * y) / (h * 0.5f);
+			float light = 0.3f + 0.7f * expf(-r * r * 1.5f);
+			const float ex = SDL_fabsf(x) / (w * 0.5f), ey = SDL_fabsf(y) / (h * 0.5f);
+			light *= 1.0f - 0.5f * SDL_clamp((SDL_max(ex, ey) - 0.65f) / 0.35f, 0.0f, 1.0f);
+			float c[3] = { 16 + 44 * light, 11 + 32 * light, 8 + 20 * light };
+			// Rings round the middle, a grid every 10 screen pixels fading outwards.
+			const float ring = 0.32f * SDL_clamp(1 - SDL_fabsf(r - 0.84f) / 0.014f, 0.0f, 1.0f) +
+			                   0.16f * SDL_clamp(1 - SDL_fabsf(r - 0.9f) / 0.008f, 0.0f, 1.0f);
+			const float gx = SDL_fabsf(fmodf(x + 1005.0f, 10.0f) - 5.0f), gy = SDL_fabsf(fmodf(y + 1005.0f, 10.0f) - 5.0f);
+			const float grid = 0.08f * (SDL_clamp((gx - 4.45f) / 0.55f, 0.0f, 1.0f) + SDL_clamp((gy - 4.45f) / 0.55f, 0.0f, 1.0f)) *
+			                   SDL_clamp(1.15f - r, 0.0f, 1.0f);
+			const float brass[3] = { 196, 154, 94 };
+			const float a = SDL_clamp(ring + grid, 0.0f, 1.0f);
+			for (int k = 0; k < 3; ++k)
+				c[k] += (brass[k] - c[k]) * a;
+			rgba[ty * PAD_TEXELS + tx] = pack_rgba((Uint8)c[0], (Uint8)c[1], (Uint8)c[2]);
+		}
+	btbh_gpu_texture_update_rgba8(pad_texture, (const uint8_t *)rgba, 0, 0, PAD_TEXELS, PAD_TEXELS);
+}
+
+/*
+ * A showcase's scene (its objects over a floor) in a rectangle of the window (points), seen from
+ * straight above: box is the screen's box it is laid out on (screen pixels, as its objects are
+ * placed), the floor a texture over the box (u, v: how much of it). True if it was drawn.
+ */
+static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], const float box[4], BTBHGPUTexture *floor, float floor_u,
+                               float floor_v, const BTBHGPUWindowReport *window_frame)
+{
+	const float logical_w = (float)window_frame->logical_width, logical_h = (float)window_frame->logical_height;
+	const float wx0 = rect[0], wy0 = rect[1], wx1 = rect[0] + rect[2], wy1 = rect[1] + rect[3];
+	if (wx1 - wx0 < 1 || wy1 - wy0 < 1 || box[2] <= 0 || box[3] <= 0)
+		return false;
+	const float ndc_rect[4] = { wx0 / logical_w * 2 - 1, 1 - wy1 / logical_h * 2, wx1 / logical_w * 2 - 1, 1 - wy0 / logical_h * 2 };
+	const float tilt = rgpu_camera.tilt_degrees;
+	rgpu_camera.tilt_degrees = 0;
+	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false);
+	rgpu_camera.tilt_degrees = tilt;
+	shown_view.valid = false;
+
+	// (The camera fits the playfield's width, as the last level had it.)
+	const float fx = (float)l3d_field_x(), fw = (float)l3d_field_w();
+	const float k = fw / box[2];  // world units per screen pixel
+	const float top = L3D_PLAYFIELD_H - box[3] * k;
+#define PANE_X(px) (fx + ((px) - box[0]) * k)
+#define PANE_Z(py) (top + ((py) - box[1]) * k)
+
+	Uint32 colors[256];
+	memcpy(colors, rgb_palette, sizeof(colors));
+	sync_model_cache();
+	int instance_count = 0, batch_count = 0;
+	{
+		Mat4 transform = mat4_identity();
+		transform.m[0] = fw;
+		transform.m[10] = box[3] * k;
+		transform.m[12] = fx;
+		transform.m[14] = top;
+		write_instance_world(instances + instance_count * 24, &transform, 1.0f);
+		BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = quad_mesh;
+		b->first_instance = instance_count++;
+		b->instance_count = 1;
+		b->albedo_texture = floor;
+		b->uv_scale_x = floor_u;
+		b->uv_scale_y = floor_v;
+		b->unlit_enabled = 1;
+	}
+	const int first_model_batch = batch_count;
+	enum { MAX_PANE_OBJECTS = 160 };
+	static Mat4 placements[MAX_PANE_OBJECTS];
+	for (int i = 0; i < show->object_count && i < MAX_PANE_OBJECTS; ++i)
+	{
+		const RGPUShowcaseObject *o = &show->objects[i];
+		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
+		placements[i] = showcase_placement(o, parent, PANE_X(o->x), PANE_Z(o->y), k);
+		add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
+	}
+#undef PANE_X
+#undef PANE_Z
+
+	static Uint8 casts_shadow[MAX_BATCHES];
+	const bool shadows = shadows_enabled();
+	for (int i = 0; i < batch_count; ++i)
+	{
+		casts_shadow[i] = shadows && i >= first_model_batch;
+		if (shadows && batches[i].unlit_enabled == 1)
+			batches[i].unlit_enabled = 2;
+	}
+	BTBHGPUSceneLighting lighting;
+	scene_lighting(&lighting, &camera, shadows);
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, window_frame, &render_w, &render_h);
+	BTBHGPUSceneReport scene_report;
+	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        camera.view_projection.m, camera.right, camera.up, camera.position,
+	        &lighting, &post, instances, instance_count, instance_count, batches, NULL, casts_shadow, batch_count,
+	        0, 0, 0, 255, &scene_report) == BTBH_GPU_OK;
+	if (!drawn)
+		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
+	return drawn;
+}
+
+// What the screen draws over the weapon simulator's box beside its models (shots without one): the
+// box's pixels that differ from its picture under the models, over the scene.
+static BTBHGPUTexture *pane_overlay = NULL;
+
+static void add_pane_overlay(const RGPUShowcase *show, const float rect[4], const float box[4])
+{
+	const int bx = (int)box[0], by = (int)box[1], bw = (int)box[2], bh = (int)box[3];
+	if (show->backdrop == NULL || bw <= 0 || bh <= 0 || bw > SCREEN_W || bh > SCREEN_H || bx < 0 || by < 0 || bx + bw > SCREEN_W ||
+	    by + bh > SCREEN_H)
+		return;
+	if (pane_overlay == NULL)
+		pane_overlay = create_texture(SCREEN_W, SCREEN_H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR);
+	static Uint32 rgba[SCREEN_W * SCREEN_H];
+	const Uint8 *picture = show->transparent != NULL ? show->transparent : ui_screen_picture();
+	bool any = false;
+	for (int y = 0; y < bh; ++y)
+		for (int x = 0; x < bw; ++x)
+		{
+			const int i = (by + y) * SCREEN_W + bx + x;
+			const bool drawn = picture[i] != show->backdrop[i];
+			rgba[y * bw + x] = drawn ? rgb_palette[picture[i]] : 0;
+			any |= drawn;
+		}
+	if (!any)
+		return;
+	btbh_gpu_texture_update_rgba8(pane_overlay, (const uint8_t *)rgba, 0, 0, (uint32_t)bw, (uint32_t)bh);
+	HudQuad *q = hud_quad_add();
+	if (q == NULL)
+		return;
+	*q = (HudQuad){ rect[0], rect[1], rect[2], rect[3], 0, 0, (float)bw / SCREEN_W, (float)bh / SCREEN_H, { 1, 1, 1, 1 }, { 1, 1, 1, 1 },
+	                .texture = pane_overlay };
+}
+
+void rgpu_present_ui(const RGPUShowcase *scene)
+{
+	BTBHGPUWindowReport frame;
+	if (!begin_frame(&frame))
+		return;
+	hud_quad_count = 0;
+	canvas_fade[3] = 0;
+	convert_pixels(ui_screen_picture(), screen_rgba);
+	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
+	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
+	SDL_Rect dst;
+	ui_fill_rect(frame.logical_width, frame.logical_height, &dst);
+	make_blur(screen_rgba, w, h);
+	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
+	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
+	const bool whole = ui_screen_whole_picture();
+	float pane[4], box[4];
+	const bool with_scene = scene != NULL && ui_scene_pane(&view, pane, box);
+	if (whole)
+		add_surround(&dst, w, h);
+	else
+		add_backdrop(w, h, with_scene ? pane : NULL);
+	bool drawn = false;
+	if (with_scene)
+	{
+		if (ui_screen_scene() == UI_SCENE_SIM && scene->backdrop != NULL)
+		{
+			// The simulator's own picture under its models (its stars), and what the screen drew over it.
+			static Uint32 picture[SCREEN_W * SCREEN_H];
+			const int bx = (int)box[0], by = (int)box[1], bw = (int)box[2], bh = (int)box[3];
+			for (int y = 0; y < bh; ++y)
+				for (int x = 0; x < bw; ++x)
+					picture[y * bw + x] = rgb_palette[scene->backdrop[(by + y) * SCREEN_W + bx + x]];
+			btbh_gpu_texture_update_rgba8(showcase_texture, (const uint8_t *)picture, 0, 0, (uint32_t)bw, (uint32_t)bh);
+			drawn = present_scene_pane(scene, pane, box, showcase_texture, (float)bw / SCREEN_W, (float)bh / SCREEN_H, &frame);
+			if (drawn)
+				add_pane_overlay(scene, pane, box);
+		}
+		else
+		{
+			make_pad(box[2], box[3]);
+			drawn = present_scene_pane(scene, pane, box, pad_texture, 1, 1, &frame);
+		}
+		if (!drawn)
+		{
+			// (The pane dark, if the scene couldn't be drawn.)
+			const float px[4] = { pane[0], pane[0] + pane[2], pane[0] + pane[2], pane[0] };
+			const float py[4] = { pane[1], pane[1], pane[1] + pane[3], pane[1] + pane[3] };
+			const float dark[4][4] = { { 0.06f, 0.04f, 0.03f, 1 }, { 0.06f, 0.04f, 0.03f, 1 }, { 0.03f, 0.02f, 0.02f, 1 }, { 0.03f, 0.02f, 0.02f, 1 } };
+			colour_quad(px, py, dark);
+		}
+	}
+	ui_build_screen(&view);
+	// (TYR3D_SOFTWARE_POINTER: the pointer in the frame, where the system's would be.)
+	static int software_pointer = -1;
+	if (software_pointer < 0)
+		software_pointer = SDL_getenv("TYR3D_SOFTWARE_POINTER") != NULL;
+	float pointer_x, pointer_y;
+	if (software_pointer && mouse_pointer_window(&pointer_x, &pointer_y))
+		ui_build_pointer(&view, pointer_x, pointer_y, mouseCursor);
+	CanvasQuad quad = whole_screen_quad(&dst);
+	quad.sharp = true;
+	present_canvas(whole ? &quad : NULL, whole ? 1 : 0, false, !drawn, &frame);
 	blur_ready = false;
 }

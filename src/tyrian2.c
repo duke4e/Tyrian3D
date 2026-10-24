@@ -3147,7 +3147,14 @@ draw_player_shot_loop_end:
 				if (play_demo || normalBonusLevelCurrent || bonusLevelCurrent)
 					reallyEndLevel = true;
 				else
+				{
+					// (Tyrian3D: the modern HUD shows it its own way.)
+					const L3DLayerType layer = l3d_current_layer();
+					l3d_phase(L3D_HUD);
 					JE_dString(VGAScreen, 120, 60, miscText[21], FONT_SHAPES); // game over
+					l3d_phase(layer);
+					ui_note_game_over(miscText[21]);
+				}
 
 				if (firstGameOver)
 				{

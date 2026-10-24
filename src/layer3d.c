@@ -199,6 +199,44 @@ static void end_phase(void)
 	}
 }
 
+// The displays' sprites held back from the playfield's phases (l3d_hud_sprite).
+#define HUD_SPRITES 8
+typedef struct
+{
+	int x, y;
+	const void *sheet;
+	unsigned int sprite;
+	bool large;
+} HudSprite;
+static HudSprite hud_sprites[HUD_SPRITES];
+static int hud_sprite_count = 0;
+
+void l3d_hud_sprite(SDL_Surface *surface, int x, int y, const void *sheet, unsigned int sprite, bool large)
+{
+	if (!l3d_capturing)
+	{
+		if (large)
+			blit_sprite2x2(surface, x, y, *(const Sprite2_array *)sheet, sprite);
+		else
+			blit_sprite2(surface, x, y, *(const Sprite2_array *)sheet, sprite);
+		return;
+	}
+	if (hud_sprite_count < HUD_SPRITES)
+		hud_sprites[hud_sprite_count++] = (HudSprite){ x, y, sheet, sprite, large };
+}
+
+void l3d_hud_sprites_draw(SDL_Surface *surface)
+{
+	for (int i = 0; i < hud_sprite_count; ++i)
+	{
+		if (hud_sprites[i].large)
+			blit_sprite2x2(surface, hud_sprites[i].x, hud_sprites[i].y, *(const Sprite2_array *)hud_sprites[i].sheet, hud_sprites[i].sprite);
+		else
+			blit_sprite2(surface, hud_sprites[i].x, hud_sprites[i].y, *(const Sprite2_array *)hud_sprites[i].sheet, hud_sprites[i].sprite);
+	}
+	hud_sprite_count = 0;
+}
+
 void l3d_frame_begin(L3DLayerType first_type)
 {
 	frame_ready = false;
@@ -216,6 +254,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	memset(owner, 0xff, sizeof(owner));
 
 	l3d_capturing = true;
+	hud_sprite_count = 0;
 	phase_surface = VGAScreen;
 	phase_kind = PHASE_FULL;
 	phase_type = first_type;

@@ -402,6 +402,16 @@ void video_backdrop_ignore_shades(bool ignore)
 	shades_ignored += ignore ? 1 : -1;
 }
 
+int video_backdrop_shade_mark(void)
+{
+	return backdrop_shade_count;
+}
+
+void video_backdrop_shade_reset(int mark)
+{
+	backdrop_shade_count = SDL_clamp(mark, 0, backdrop_shade_count);
+}
+
 void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2)
 {
 	if (backdrop_valid && shades_ignored <= 0 && surface->pixels == VGAScreenSeg->pixels && backdrop_shade_count < BACKDROP_SHADES)
@@ -518,16 +528,11 @@ static int player_ship_model(void)
 #define SHOWCASE_DECK 12.0f  // where the illustration's guns and generator sit on its big ship (models.cfg)
 
 // The illustration: the ship hovering over its box, turning a little and banking as if flying,
-// its sidekicks in their places.
-static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
+// its sidekicks in their places (screen pixels, as the store's screen has them); returns how many.
+static int showcase_objects(RGPUShowcaseObject *objects)
 {
-	static Uint8 backdrop_pixels[320 * 200];
-	for (int y = 0; y < 200; ++y)
-		memcpy(backdrop_pixels + y * 320, (const Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch, 320);
-
 	const float t = SDL_GetTicks() / 1000.0f;
 	const float yaw = 16.0f * sinf(t * 0.55f), roll = 14.0f * sinf(t * 0.8f + 1.0f), bob = sinf(t * 1.3f);
-	RGPUShowcaseObject objects[6];
 	int count = 0;
 
 	// The big ship of the illustration with its generator and guns on its deck, if it has a
@@ -562,6 +567,16 @@ static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
 			objects[count++] = (RGPUShowcaseObject){ m3d_sidekick_appearance(sidekick).model, i == 0 ? 15 : 141, 97,
 			                                         16.0f + 1.2f * sinf(t * 1.1f + i * 2.0f), 22.0f, yaw * 0.5f, 0, roll * 0.5f, -1 };
 	}
+	return count;
+}
+
+static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
+{
+	static Uint8 backdrop_pixels[320 * 200];
+	for (int y = 0; y < 200; ++y)
+		memcpy(backdrop_pixels + y * 320, (const Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch, 320);
+	RGPUShowcaseObject objects[6];
+	const int count = showcase_objects(objects);
 	RGPUShowcase show = { .pane = showcase_pane, .backdrop = backdrop_pixels, .transparent = showcase_illustrated,
 	                      .objects = objects, .object_count = count };
 	show.fade[3] = store_fade();
@@ -603,6 +618,18 @@ bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y)
 	return true;
 }
 
+// The box once the shots are drawn (before the simulator's frame goes over it): what the modern UI
+// draws over the scene of the simulator (shots without models).
+static Uint8 sim_shots[320 * 200];
+
+void video_sim_shots_drawn(void)
+{
+	if (!sim_valid)
+		return;
+	for (int y = 0; y < 200; ++y)
+		memcpy(sim_shots + y * 320, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+}
+
 bool video_sim_ship(int x, int y)
 {
 	const int model = player_ship_model();
@@ -640,7 +667,36 @@ void video_level_intro(bool on)
 	level_intro = on;
 }
 
+static void present_screen_timed(SDL_Surface *src_surface);
+
+// (TYR3D_PROFILE: what presenting the game's screens costs, averaged over 120 of them.)
 static void present_screen(SDL_Surface *src_surface)
+{
+	static int profile = -1;
+	if (profile < 0)
+		profile = SDL_getenv("TYR3D_PROFILE") != NULL;
+	if (!profile)
+	{
+		present_screen_timed(src_surface);
+		return;
+	}
+	static Uint64 spent = 0, most = 0;
+	static int count = 0;
+	const Uint64 start = SDL_GetPerformanceCounter();
+	present_screen_timed(src_surface);
+	const Uint64 took = SDL_GetPerformanceCounter() - start;
+	spent += took;
+	most = SDL_max(most, took);
+	if (++count == 120)
+	{
+		const double k = 1000.0 / SDL_GetPerformanceFrequency();
+		printf("screen present: %.2f ms a screen, at most %.2f\n", spent * k / count, most * k);
+		spent = most = 0;
+		count = 0;
+	}
+}
+
+static void present_screen_timed(SDL_Surface *src_surface)
 {
 	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
 
@@ -659,12 +715,42 @@ static void present_screen(SDL_Surface *src_surface)
 		return;
 	}
 
-	// A menu in the modern UI's style (ui.h): while the screen shows what the menu published.
-	if (ui_screen_holds(src_surface))
+	// A menu in the modern UI's style (ui.h): while the screen shows what the menu published (those
+	// over a level: over its 3D view, below).
+	const bool modern = ui_screen_holds(src_surface);
+	if (modern && !ui_screen_over_level())
 	{
 		backdrop_valid = false;
+		// The store's ship or its weapon simulator, as models where the screen's layout shows them.
+		RGPUShowcase show = { .backdrop = sim_backdrop };
+		static RGPUShowcaseObject objects[8];
+		const RGPUShowcase *scene = NULL;
+		switch (ui_screen_scene())
+		{
+		case UI_SCENE_SHIP:
+			if (m3d_enabled)
+			{
+				show.objects = objects;
+				show.object_count = showcase_objects(objects);
+				show.backdrop = NULL;
+				scene = &show;
+			}
+			break;
+		case UI_SCENE_SIM:
+			if (sim_valid)
+			{
+				show.objects = sim_objects;
+				show.object_count = sim_object_count;
+				show.transparent = sim_shots;
+				scene = &show;
+			}
+			break;
+		default:
+			break;
+		}
 		sim_valid = false;
-		rgpu_present_ui();
+		showcase_valid = false;
+		rgpu_present_ui(scene);
 		int win_w, win_h;
 		SDL_GetWindowSize(main_window, &win_w, &win_h);
 		ui_fill_rect(win_w, win_h, &last_output_rect);  // (as the picture shows)
@@ -683,10 +769,12 @@ static void present_screen(SDL_Surface *src_surface)
 		float fade[4];
 		backdrop_fade(fade);
 		SDL_Rect screen_rect;
+		const bool modern_level = modern && ui_screen_over_level();
 		rgpu_present_3d_menu(src_surface, backdrop, (const int (*)[4])backdrop_shades, backdrop_shade_count, fade,
-		                     &l3d_frame, &dst_rect, &screen_rect);
+		                     &l3d_frame, &dst_rect, &screen_rect, modern_level);
 		last_output_rect = screen_rect;
 		last_frame_was_3d = false;
+		ui_screen_shown(modern_level);
 		mouse_frame_shown();
 		return;
 	}

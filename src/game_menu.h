@@ -62,4 +62,9 @@ void JE_drawShipSpecs(SDL_Surface *, SDL_Surface *);
 void JE_weaponSimUpdate(void);
 void JE_weaponViewFrame(void);
 
+// Tyrian3D: a question over the store for the modern UI (ui.h), as it shows now: its title and text,
+// a field being typed (NULL: none) with its caret, which answer is selected (0 yes, 1 no, -1 neither).
+void shop_dialog_publish(const char *title, const char *text, const char *field_label, const char *field, bool caret,
+                         int selected);
+
 #endif // GAME_MENU_H
