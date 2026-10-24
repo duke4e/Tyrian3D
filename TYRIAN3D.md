@@ -239,8 +239,8 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_ROGUE_AUTO=1` | In a rogue run the screens choose by themselves (whole runs with the autopilot) |
 | `TYR3D_ROGUE_UNLOCKS=all` | Every unlock for that run |
 | `TYR3D_LEVEL_TICKS=<n>`, `TYR3D_LEVEL_DIE=<n>` | End every level as cleared after n ticks, or destroy the ship after n ticks (for testing what follows) |
-| `TYR3D_UPSCALE_DIR=<dir>` | Where the upscaled HUD panel pictures are (default `upscale/out`) |
 | `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the first frame shown after the game has taken each test key (its key, button, wheel or pointer event) instead of every n-th (menus) |
+| `TYR3D_UPSCALE_DIR=<dir>` | Where the HD resources are: `tiles/*.hdt`, `sheets/*.hd`, `hud_1p.png`, `hud_2p.png` (default `data/hd`) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
@@ -268,7 +268,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_EXPORT_MUSIC=<dir>` | Export every song as a MIDI file (with the General MIDI instruments the composer set for MIDI devices), and the instruments they use (`instruments.json`) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
 | `TYR3D_BACKGROUNDS=<digits>` | Draw tiles only for these background maps, e.g. `13` (for checking; default all) |
-| `TYR3D_HD_TILES=0` | Leave out the HD tiles (`upscale/out/tiles`, `tools/tiles_hd.py`): the maps' tiles at their size |
+| `TYR3D_HD_TILES=0` | Leave out the HD tiles (`data/hd/tiles`, `tools/tiles_hd.py`): the maps' tiles at their size |
 | `TYR3D_DEBUG_TILES=1` | Tint the map tiles by background: background 2 magenta, background 3 cyan (for checking which map a tile belongs to) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
@@ -355,7 +355,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   the window's height); messages from the bar below the playfield are shown as text in the
   playfield. Two-player games have the same layout. The HUD and in-playfield text are drawn flat
   on top; the HUD panel at four times its resolution (Scale2x twice). If the panel's picture
-  has been upscaled (`upscale/out/hud_1p.png`, `hud_2p.png`, from `tools/make_atlases.py`), that
+  has been upscaled (`data/hd/hud_1p.png`, `hud_2p.png`, see HD resources below), that
   picture is drawn, and only the pixels the game changed on it (gauges, text) come from the game.
 - **The modern UI** (`src/ui.c`). Sizes are virtual units, 1080 to the window's height times the
   UI scale, with a smallest size for text in the window's pixels; everything is placed in a 16:9
@@ -424,6 +424,28 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 
 (or run the game with `TYR3D_VIEWER=ships` and look; `TYR3D_VIEWER_ROLL=90` shows the side.)
 
+## HD resources
+
+The 3D view's HD pictures are made from the game's data, so, like the data, they are not in the repository; the
+game loads them from `data/hd` (beside `data/tyrian2000`; `TYR3D_UPSCALE_DIR` overrides it): `tiles/<tileset>.hdt`
+(the background tiles at 4x), `sheets/<sheet>.hd` (the sprite sheets at 4x, for the HD volumes) and `hud_1p.png`,
+`hud_2p.png` (the HUD panel). Without them the game draws the original pixels. `upscale/` is only the work folder
+(atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
+is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
+
+```bash
+tools/setup_tools_venv.sh
+PY=~/Library/Caches/Tyrian3D/tools-venv/bin/python
+MODEL=~/Library/Caches/Tyrian3D/esrgan/4x-Fatality.pth
+$PY tools/tiles_hd.py $MODEL
+TYR3D_EXTRACT=export/extract build/game/tyrian3d
+$PY tools/make_atlases.py export/extract upscale/in
+$PY tools/upscale_sprites.py $MODEL upscale/in upscale/out
+$PY tools/hd_sheets.py
+```
+
+The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
+
 ## Tools
 
 | Tool | What it does |
@@ -438,15 +460,16 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 | `tools/package_macos.sh` | Builds the macOS app bundle |
 | `tools/fetch_soundfont.sh` | Downloads the GeneralUser GS SoundFont the music plays through into `data/soundfonts` |
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
-| `tools/hd_sheets.py` | Puts the upscaled atlases back together as 4x sprite sheets (`upscale/out/sheets/<sheet>.hd`) for the HD volumes |
+| `tools/hd_sheets.py` | Puts the upscaled atlases back together as 4x sprite sheets (`data/hd/sheets/<sheet>.hd`) for the HD volumes, and copies the upscaled HUD panels to `data/hd` |
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
 | `tools/terrain/make_terrain.py` | Terrain for the background maps: `classify` sorts an exported ground map's pixels into surfaces (a review image in `export/terrain`), `build` writes `assets/terrain/<map>.ter` from the settings in `tools/terrain/levels.json` (class heights, chasms where space is black, backgrounds 2 and 3 as solids, or with `"ground": true` a background 2 that covers the whole ground under its enemies as the ground itself; level pads under what stands and gentle roads along what moves, as far as the terrain drawn under them reaches, so their models stand flat; solids clear round what the models cover) and a relief image to review (with the enemies' tracks), `sheets` puts the reliefs on contact sheets (needs numpy, scipy, PIL) |
 | `tools/fix_macho_tls.py` | Makes pip's scipy load on macOS 27 (its modules' zero-fill thread-local sections carry a file offset the new dyld refuses): clears the offsets and signs the modules again. The terrain tools' Python is a venv in `~/Library/Caches/Tyrian3D/tools-venv` (numpy, scipy, Pillow from pip, then this over its `site-packages`) |
 | `tools/terrain/make_vegetation.py` | Vegetation for the ground maps: palms (green patches on desert maps, `"palms": true`), trees (textured green areas) and grass (smooth green areas), clear of the ground enemies, into `assets/terrain/<map>.veg` |
 | `tools/terrain/ground_log.sh` | Plays every level fast with the autopilot and collects where the ground enemies stand and move, and what their models cover, into `export/terrain/ground.txt` (the terrain keeps them on the ground) |
 | `tools/sweep.sh` | Plays every section of the episodes with the autopilot, one run after another, and reports each run's level, whether it ran to the end and its warnings |
-| `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `upscale/out/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x). `--requantize` writes them again from the kept medians. Tiles are per tileset and shape, so generated maps get them too |
+| `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `data/hd/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x), and its pictures to look at and kept medians to `upscale/out/tiles`. `--requantize` writes them again from the kept medians. Tiles are per tileset and shape, so generated maps get them too |
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
+| `tools/setup_tools_venv.sh` | Makes the tools' Python (numpy, scipy, Pillow, torch: `~/Library/Caches/Tyrian3D/tools-venv`) and fetches the ESRGAN model 4x-Fatality (`~/Library/Caches/Tyrian3D/esrgan`); downloads ~180 MB |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
 | `tools/content/make_rogue.py` | Writes `assets/content/rogue.cfg`: the rogue mode's acts (levels, bosses found by their boss bars), the items its cards offer (the shops' lists, tiered by price) and its unlocks |

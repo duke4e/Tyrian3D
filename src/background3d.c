@@ -760,7 +760,7 @@ void b3d_note_tileset(char letter, const Uint16 shape_numbers[3][128])
 }
 
 /*
- * HD tiles (tools/tiles_hd.py, <upscale>/tiles/<tileset>.hdt): the tileset's tiles upscaled in
+ * HD tiles (tools/tiles_hd.py, data/hd/tiles/<tileset>.hdt): the tileset's tiles upscaled in
  * context and kept in the levels' palette, by shape number, loaded for the tileset of the maps.
  * TYR3D_HD_TILES=0: none.
  */

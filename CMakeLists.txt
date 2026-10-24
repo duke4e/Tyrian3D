@@ -137,7 +137,7 @@ target_compile_definitions(tyrian3d PRIVATE
     TYR3D_FEEDBACK_DIR="${CMAKE_SOURCE_DIR}/export/feedback"
     TYR3D_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/content"
     TYR3D_SOUNDFONT_DIR="${CMAKE_SOURCE_DIR}/data/soundfonts"
-    TYR3D_UPSCALE_DIR="${CMAKE_SOURCE_DIR}/upscale/out"
+    TYR3D_UPSCALE_DIR="${CMAKE_SOURCE_DIR}/data/hd"
 )
 target_compile_options(tyrian3d PRIVATE
     -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """HD background tiles that still tile: upscaled in context.
 
-usage: <python with torch> tools/tiles_hd.py <model.pth> [--maps export/maps] [--out upscale/out/tiles]
-           [--tilesets z,y] [--min 12] [--keep 24] [--tile 192]
+usage: <python with torch> tools/tiles_hd.py <model.pth> [--maps export/maps] [--out data/hd/tiles]
+           [--work upscale/out/tiles] [--tilesets z,y] [--min 12] [--keep 24] [--tile 192]
 
 A tile upscaled on its own gets edges that don't meet its neighbours'. Here whole maps
 (tools/export_maps.sh: every level's maps in parts of 72 rows, with their shape grid) go through the
@@ -16,8 +16,9 @@ original. A tile doesn't depend on the map it is in, so generated levels built f
 
 Parts are picked per tileset until every shape is seen --min times (every occurrence if it has
 fewer) away from the parts' first and last rows (no neighbours across the cut); at most --keep
-upscales of a shape are kept for its median. Writes <out>/<tileset>.hdt and <out>/<tileset>.png
-(the tiles, to look at); a tileset named by a symbol is written x<hex>, as the sprite sheets.
+upscales of a shape are kept for its median. Writes <out>/<tileset>.hdt (what the game loads: data/hd, beside the game's
+data and like it outside the repository) and, in the work folder, <work>/<tileset>.png (the tiles, to look at) and
+<work>/<tileset>_median.npz (for --requantize); a tileset named by a symbol is written x<hex>, as the sprite sheets.
 
 .hdt: "TYHT", then little-endian u16 version (1), scale, tile width, tile height, tile count, then
 zlib-compressed: per tile its shape number (u16) and scale² · width · height palette indices, row by
@@ -143,7 +144,7 @@ def quantize(hd, tile_indices, pal):
     return out
 
 
-def write_tileset(out_dir, tileset, medians, indices, pal):
+def write_tileset(out_dir, work_dir, tileset, medians, indices, pal):
     """The .hdt and the look-at sheet from the tiles' medians (HxWx4 uint8) and 1x indices."""
     shapes = sorted(medians)
     tw, th = 24, 28
@@ -161,7 +162,7 @@ def write_tileset(out_dir, tileset, medians, indices, pal):
     name = file_name(tileset)
     with open(os.path.join(out_dir, name + ".hdt"), "wb") as f:
         f.write(b"TYHT" + struct.pack("<5H", 1, SCALE, tw, th, len(shapes)) + zlib.compress(bytes(blob), 9))
-    Image.fromarray(sheet).save(os.path.join(out_dir, name + ".png"))
+    Image.fromarray(sheet).save(os.path.join(work_dir, name + ".png"))
     print(f"wrote {name}.hdt: {len(shapes)} tiles", flush=True)
 
 
@@ -169,26 +170,28 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("model", nargs="?", default="")
     ap.add_argument("--maps", default=os.path.join(ROOT, "export", "maps"))
-    ap.add_argument("--out", default=os.path.join(ROOT, "upscale", "out", "tiles"))
+    ap.add_argument("--out", default=os.path.join(ROOT, "data", "hd", "tiles"))
+    ap.add_argument("--work", default=os.path.join(ROOT, "upscale", "out", "tiles"))
     ap.add_argument("--tilesets", default="")
     ap.add_argument("--min", type=int, default=12)
     ap.add_argument("--keep", type=int, default=24)
     ap.add_argument("--tile", type=int, default=192)
     ap.add_argument("--requantize", action="store_true",
-                    help="only write the .hdt again from the medians kept in <out>/<tileset>_median.npz")
+                    help="only write the .hdt again from the medians kept in <work>/<tileset>_median.npz")
     args = ap.parse_args()
 
     pal = palette()
     lut = {tuple(int(v) for v in c): i for i, c in enumerate(pal)}
     os.makedirs(args.out, exist_ok=True)
+    os.makedirs(args.work, exist_ok=True)
     groups = parts_by_tileset(args.maps)
     wanted = [t for t in args.tilesets.split(",") if t] or sorted(groups)
     if args.requantize:
         for tileset in wanted:
-            cache = np.load(os.path.join(args.out, file_name(tileset) + "_median.npz"))
+            cache = np.load(os.path.join(args.work, file_name(tileset) + "_median.npz"))
             medians = {int(k[1:]): cache[k] for k in cache.files if k[0] == "m"}
             indices = {int(k[1:]): cache[k] for k in cache.files if k[0] == "i"}
-            write_tileset(args.out, tileset, medians, indices, pal)
+            write_tileset(args.out, args.work, tileset, medians, indices, pal)
         return 0
 
     import torch
@@ -226,9 +229,9 @@ def main():
             print(f"  part {n + 1}/{len(chosen)} {part['file']}: {len(samples)} shapes", flush=True)
 
         medians = {s: np.median(np.stack(v).astype(np.float32), axis=0).astype(np.uint8) for s, v in samples.items()}
-        np.savez_compressed(os.path.join(args.out, file_name(tileset) + "_median.npz"),
+        np.savez_compressed(os.path.join(args.work, file_name(tileset) + "_median.npz"),
                             **{f"m{s}": v for s, v in medians.items()}, **{f"i{s}": indices[s] for s in medians})
-        write_tileset(args.out, tileset, medians, indices, pal)
+        write_tileset(args.out, args.work, tileset, medians, indices, pal)
     return 0
 
 

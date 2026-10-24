@@ -160,8 +160,8 @@ def main():
             shutil.copyfile(sheet(name), os.path.join(out_dir, f"{name}.png"))
             whole[f"{name}.png"] = "the whole sheet: 19 columns of 12x14 cells, sprite i at column (i-1) % 19, row (i-1) // 19"
 
-    # The HUD panels (56x200, one and two players): the 3D view uses upscaled ones from
-    # upscale/out for the panel's unchanging parts.
+    # The HUD panels (56x200, one and two players): the 3D view uses upscaled ones (data/hd/hud_1p.png,
+    # hud_2p.png, put there by tools/hd_sheets.py) for the panel's unchanging parts.
     for name in ("hud_1p", "hud_2p"):
         if os.path.exists(sheet(name)):
             shutil.copyfile(sheet(name), os.path.join(out_dir, f"{name}.png"))

@@ -3,12 +3,12 @@
 each sheet in the game's layout (19 columns of 12 x 14 cells, so 48 x 56 at 4x), every sprite the
 atlases hold put back in its place (a 2x2 sprite over four cells).
 
-usage: <python with numpy and PIL> tools/hd_sheets.py [upscale dir, default upscale]
+usage: <python with numpy and PIL> tools/hd_sheets.py [upscale dir, default upscale] [hd dir, default data/hd]
 
-Reads <upscale>/in/atlases.json and the upscaled atlases in <upscale>/out; writes
-<upscale>/out/sheets/<sheet>.hd ("TYHD", width, height, then zlib-compressed RGBA rows) and a
-<sheet>.png beside it to look at. The pictures are made from the game's data, so they stay out of
-the repository like the atlases.
+Reads <upscale>/in/atlases.json and the upscaled atlases in <upscale>/out (the work folder); writes what the game
+loads into the HD folder: <hd>/sheets/<sheet>.hd ("TYHD", width, height, then zlib-compressed RGBA rows) and the
+upscaled HUD panels <hd>/hud_1p.png, hud_2p.png; a <sheet>.png to look at goes to <upscale>/out/sheets. The
+pictures are made from the game's data, so like it they stay out of the repository (data/ is not in it).
 """
 import json
 import os
@@ -25,11 +25,15 @@ COLUMNS, ROWS = 19, 16
 
 
 def main():
-    root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "upscale")
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "..", "upscale")
+    hd_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.join(here, "..", "data", "hd")
     index = json.load(open(os.path.join(root, "in", "atlases.json")))
     cw, ch = index["cell"]
-    out_dir = os.path.join(root, "out", "sheets")
+    out_dir = os.path.join(hd_dir, "sheets")
+    look_dir = os.path.join(root, "out", "sheets")
     os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(look_dir, exist_ok=True)
     width, height = COLUMNS * CELL_W * SCALE, ROWS * CELL_H * SCALE
     sheets = {}
 
@@ -74,8 +78,14 @@ def main():
     for name, pixels in sheets.items():
         with open(os.path.join(out_dir, name + ".hd"), "wb") as f:
             f.write(struct.pack("<4sII", b"TYHD", width, height) + zlib.compress(pixels.tobytes(), 6))
-        Image.fromarray(pixels).save(os.path.join(out_dir, name + ".png"))
+        Image.fromarray(pixels).save(os.path.join(look_dir, name + ".png"))
     print(f"{len(sheets)} sheets, {placed} sprites placed, in {out_dir}")
+    # The HUD panels, upscaled whole (render_gpu.c hud_panel_hd).
+    for name in ("hud_1p.png", "hud_2p.png"):
+        path = os.path.join(root, "out", name)
+        if os.path.exists(path):
+            Image.open(path).convert("RGBA").save(os.path.join(hd_dir, name))
+            print(f"{name} in {hd_dir}")
     return 0
 
 

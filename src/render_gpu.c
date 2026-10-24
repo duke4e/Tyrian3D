@@ -2707,8 +2707,8 @@ static void scale2x(const Uint32 *src, int w, int h, Uint32 *dst)
 }
 
 /*
- * With an upscaled picture of the panel (upscale/out/hud_1p.png or hud_2p.png, see
- * tools/make_atlases.py), the panel's unchanging parts come from it: the magnified panel keeps only
+ * With an upscaled picture of the panel (data/hd/hud_1p.png or hud_2p.png, see
+ * TYRIAN3D.md "HD resources"), the panel's unchanging parts come from it: the magnified panel keeps only
  * what differs from the game's own picture of it (gauges, icons, text) and goes over it.
  */
 static int panel_art_picture = 0;          // which picture it shows (3 or 6), 0 if none
