@@ -22,6 +22,7 @@ typedef struct
 	int font;           // the game's: 0 large, 1 normal, 2 tiny
 	int align;          // 0 left, 1 centred, 2 right (as the game placed it)
 	bool shadow_only;   // only a shadow (the text is another record)
+	bool hud;           // one of the game's displays on the playfield (the score: layer3d.h L3D_HUD)
 	Uint8 before[TEXT_RECORD_MAX_W * TEXT_RECORD_MAX_H];  // the rectangle's pixels before and after, w x h
 	Uint8 after[TEXT_RECORD_MAX_W * TEXT_RECORD_MAX_H];
 } TextRecord;

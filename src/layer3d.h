@@ -45,6 +45,8 @@ typedef enum
 	L3D_BG3_OVER,      // background 3 drawn over the player
 	L3D_BG3_LOW,       // background 3 drawn under the sky enemies (event 42), just above background 2
 	L3D_OVERLAY,       // in-playfield text and gauges, shown flat in screen space
+	L3D_HUD,           // the game's displays on the playfield (score, lives, bombs, special, boss bar, level
+	                   // timer): as the overlay, but the modern HUD shows them its own way instead
 	L3D_LAYER_TYPE_COUNT
 } L3DLayerType;
 

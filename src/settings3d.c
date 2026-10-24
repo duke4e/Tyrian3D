@@ -11,17 +11,41 @@
 
 #include <SDL3/SDL.h>
 
+#include <stdio.h>
 #include <string.h>
 
 Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
-                          .mouse_direct = true, .hud_modern = true, .playfield_wide = true };
+                          .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
+                          .screens_fill = true, .ui_scale = 100 };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
 static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
-                             .mouse_direct = true, .hud_modern = true, .playfield_wide = true };
+                             .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
+                             .screens_fill = true, .ui_scale = 100 };
 static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse, overridden_hud,
-            overridden_playfield;
+            overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale;
+
+static const int ui_scales[] = { 75, 90, 100, 115, 130, 150 };
+
+int settings3d_ui_scale_count(void)
+{
+	return (int)COUNTOF(ui_scales);
+}
+
+int settings3d_ui_scale_value(int i)
+{
+	return ui_scales[SDL_clamp(i, 0, (int)COUNTOF(ui_scales) - 1)];
+}
+
+int settings3d_ui_scale_index(int percent)
+{
+	int best = 0;
+	for (int i = 1; i < (int)COUNTOF(ui_scales); ++i)
+		if (SDL_abs(ui_scales[i] - percent) < SDL_abs(ui_scales[best] - percent))
+			best = i;
+	return best;
+}
 
 static const struct
 {
@@ -63,6 +87,15 @@ void settings3d_load(const ConfigSection *section)
 		const char *playfield;
 		if (config_get_string_option(section, "playfield", &playfield))
 			chosen.playfield_wide = SDL_strcasecmp(playfield, "original") != 0;
+		const char *menus;
+		if (config_get_string_option(section, "menus", &menus))
+			chosen.menus_modern = SDL_strcasecmp(menus, "classic") != 0;
+		const char *screens;
+		if (config_get_string_option(section, "screens", &screens))
+			chosen.screens_fill = SDL_strcasecmp(screens, "integer") != 0;
+		const char *ui_scale;
+		if (config_get_string_option(section, "ui_scale", &ui_scale))
+			chosen.ui_scale = settings3d_ui_scale_value(settings3d_ui_scale_index(SDL_atoi(ui_scale)));
 		const char *camera;
 		if (config_get_string_option(section, "camera", &camera))
 			for (int i = 0; i < (int)COUNTOF(cameras); ++i)
@@ -93,6 +126,15 @@ void settings3d_load(const ConfigSection *section)
 	const char *playfield = SDL_getenv("TYR3D_PLAYFIELD");  // wide or original
 	if ((overridden_playfield = playfield != NULL))
 		settings3d.playfield_wide = SDL_strcasecmp(playfield, "original") != 0;
+	const char *menus = SDL_getenv("TYR3D_MENUS");  // modern or classic
+	if ((overridden_menus = menus != NULL))
+		settings3d.menus_modern = SDL_strcasecmp(menus, "classic") != 0;
+	const char *screens = SDL_getenv("TYR3D_SCREENS");  // fill or integer
+	if ((overridden_screens = screens != NULL))
+		settings3d.screens_fill = SDL_strcasecmp(screens, "integer") != 0;
+	const char *ui_scale = SDL_getenv("TYR3D_UI_SCALE");  // per cent
+	if ((overridden_ui_scale = ui_scale != NULL))
+		settings3d.ui_scale = SDL_clamp(SDL_atoi(ui_scale), 50, 200);
 }
 
 void settings3d_changed(Settings3DField field)
@@ -135,6 +177,18 @@ void settings3d_changed(Settings3DField field)
 		chosen.playfield_wide = settings3d.playfield_wide;
 		overridden_playfield = false;
 		break;
+	case S3D_MENUS:
+		chosen.menus_modern = settings3d.menus_modern;
+		overridden_menus = false;
+		break;
+	case S3D_SCREENS:
+		chosen.screens_fill = settings3d.screens_fill;
+		overridden_screens = false;
+		break;
+	case S3D_UI_SCALE:
+		chosen.ui_scale = settings3d.ui_scale;
+		overridden_ui_scale = false;
+		break;
 	}
 }
 
@@ -150,6 +204,11 @@ void settings3d_save(ConfigSection *section)
 	config_set_string_option(section, "hud", (overridden_hud ? chosen.hud_modern : settings3d.hud_modern) ? "modern" : "classic");
 	config_set_string_option(section, "playfield",
 	                         (overridden_playfield ? chosen.playfield_wide : settings3d.playfield_wide) ? "wide" : "original");
+	config_set_string_option(section, "menus", (overridden_menus ? chosen.menus_modern : settings3d.menus_modern) ? "modern" : "classic");
+	config_set_string_option(section, "screens", (overridden_screens ? chosen.screens_fill : settings3d.screens_fill) ? "fill" : "integer");
+	char percent[16];
+	snprintf(percent, sizeof(percent), "%d", overridden_ui_scale ? chosen.ui_scale : settings3d.ui_scale);
+	config_set_string_option(section, "ui_scale", percent);
 }
 
 void settings3d_apply(void)

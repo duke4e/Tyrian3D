@@ -54,6 +54,7 @@
 #include "picload.h"
 #include "shots.h"
 #include "sprite.h"
+#include "ui.h"
 #include "vga256d.h"
 #include "video.h"
 
@@ -1779,6 +1780,7 @@ start_level_first:
 
 	for (uint i = 0; i < COUNTOF(player); ++i)
 		player[i].superbombs = 0;
+	dev_level_start_items();  // (Tyrian3D dev: TYR3D_BOMBS)
 
 	/* Set cubes to 0 */
 	cubeMax = 0;
@@ -3120,10 +3122,12 @@ draw_player_shot_loop_end:
 			soundQueue[7] = S_WARNING;
 		}
 
+		l3d_phase(L3D_HUD);  // (Tyrian3D: the modern HUD shows the timer its own way)
 		JE_textShade (VGAScreen, 140, 6, miscText[66], 7, (levelTimerCountdown % 20) / 3, FULL_SHADE);
 		// Don't use floats due to rounding.
 		sprintf(buffer, "%d.%d", levelTimerCountdown / 100, (levelTimerCountdown / 10) % 10);
 		JE_dString (VGAScreen, 100, 2, buffer, SMALL_FONT_SHAPES);
+		l3d_phase(L3D_OVERLAY);
 	}
 
 	/*GAME OVER*/
@@ -3305,6 +3309,7 @@ draw_player_shot_loop_end:
 		JE_filterScreen(levelFilter, levelBrightness);
 	}
 
+	l3d_phase(L3D_HUD);  // (Tyrian3D: the game's displays, which the modern HUD shows its own way)
 	draw_boss_bar();
 
 	JE_inGameDisplays();
@@ -4271,6 +4276,32 @@ void networkStartScreen(void)
 }
 #endif /* WITH_NETWORK */
 
+// Tyrian3D: the title's menu as it shows, for the modern UI (ui.h): the items where the original takes
+// the mouse on them, what each does.
+static void title_publish(size_t selected, const int *widths, int x_centre, int y_items, int h_item)
+{
+	static const char *const hints[] = {
+		"A new game: the players, an episode and how hard.",
+		"Go on with a game you saved.",
+		"The best pilots of each episode.",
+		"How to play: the controls, the ship, the shop.",
+		"Graphics, 3D, sound and the jukebox.",
+		"Watch a game play by itself.",
+		"Leave Tyrian.",
+	};
+	UIMenu *menu = ui_menu_begin(UI_SCREEN_TITLE, "");
+	for (size_t i = 0; i < COUNTOF(menuText); ++i)
+	{
+		UIItem *item = ui_menu_add(menu, UI_ITEM_ACTION, menuText[i], x_centre - widths[i] / 2, y_items + h_item * (int)i, widths[i],
+		                           h_item);
+		if (i < COUNTOF(hints))
+			SDL_strlcpy(item->hint, hints[i], sizeof(item->hint));
+	}
+	menu->selected = (int)selected;
+	SDL_strlcpy(menu->footer, opentyrian_version, sizeof(menu->footer));
+	ui_menu_publish(menu, VGAScreen, VGAScreen2);
+}
+
 bool titleScreen(void)
 {
 	enum MenuItemIndex
@@ -4353,6 +4384,7 @@ bool titleScreen(void)
 			}
 
 			memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
+			title_publish(selectedIndex, wMenuItem, xCenter, yMenuItems, hMenuItem);
 
 			mouseCursor = MOUSE_POINTER_NORMAL;
 
@@ -4366,6 +4398,7 @@ bool titleScreen(void)
 
 		// Highlight selected menu item.
 		draw_font_hv(VGAScreen, VGAScreen->w / 2, yMenuItems + hMenuItem * selectedIndex, menuText[selectedIndex], normal_font, centered, 15, -1);
+		title_publish(selectedIndex, wMenuItem, xCenter, yMenuItems, hMenuItem);
 
 		service_SDL_events(true);
 

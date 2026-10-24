@@ -130,6 +130,10 @@ bool dev_setup_game(int episode, int section)
 		player[0].items.sidekick[RIGHT_SIDEKICK] = (JE_byte)SDL_clamp(right, 0, OPTION_NUM);
 	}
 
+	const char *special_weapon = SDL_getenv("TYR3D_SPECIAL");  // a special weapon, its id (the item data's)
+	if (special_weapon != NULL)
+		player[0].items.special = (JE_byte)SDL_clamp(SDL_atoi(special_weapon), 0, SPECIAL_NUM);
+
 	// "<front>,<rear>[,<power>]": the weapons, ids as in the shop's weapon ports, and their power (1-11).
 	const char *weapons = SDL_getenv("TYR3D_WEAPONS");
 	int front = 0, rear = 0, power = 1;
@@ -208,6 +212,13 @@ bool dev_setup_game(int episode, int section)
 	return true;
 }
 
+void dev_level_start_items(void)
+{
+	const char *bombs = SDL_getenv("TYR3D_BOMBS");  // super bombs at each level's start
+	if (bombs != NULL && SDL_getenv("TYR3D_START") != NULL)
+		player[0].superbombs = (uint)SDL_clamp(SDL_atoi(bombs), 0, 10);
+}
+
 bool dev_background_run(void)
 {
 	return SDL_getenv("TYR3D_WINDOWED") != NULL;
@@ -275,7 +286,8 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 /*
  * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
  * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long; MouseTo<x>x<y>
- * moves the pointer to that window point, where the mouse buttons then click) when that frame is
+ * moves the pointer to that window point, where the mouse buttons then click; WheelUp, WheelDown turn
+ * the mouse wheel a notch) when that frame is
  * presented, then each next one so many milliseconds after the one before (menus wait for keys
  * without presenting frames). The list may be any length.
  */
@@ -334,6 +346,22 @@ static void press_key(const char *name)
 		event.button.y = test_pointer_y;
 		SDL_PushEvent(&event);
 		SDL_AddTimer(hold, release_mouse, (void *)(intptr_t)mouse_button);
+		return;
+	}
+	// WheelUp, WheelDown: a notch of the mouse wheel, where the pointer is.
+	if (strcmp(name, "WheelUp") == 0 || strcmp(name, "WheelDown") == 0)
+	{
+		printf("devtools: turning the wheel %s\n", name + 5);
+		SDL_Event event = { 0 };
+		event.type = SDL_EVENT_MOUSE_WHEEL;
+		event.wheel.windowID = SDL_GetWindowID(main_window);
+		event.wheel.y = name[5] == 'U' ? 1.0f : -1.0f;
+		event.wheel.integer_y = name[5] == 'U' ? 1 : -1;
+		event.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
+		event.wheel.mouse_x = test_pointer_x;
+		event.wheel.mouse_y = test_pointer_y;
+		SDL_SetAtomicInt(&key_pressed, 1);
+		SDL_PushEvent(&event);
 		return;
 	}
 	// (A pointer event of its own: the system pointer stays where it is.)

@@ -53,6 +53,8 @@ void mouseGetRelativePosition(Sint32 *out_x, Sint32 *out_y);
 // view, on the player's plane), whether it moved since the game last took the news, and putting
 // the pointer at a game position (where the ship is).
 bool mouse_pointer_game(float *out_x, float *out_y);
+// Tyrian3D: the pointer's position in the window (points); false while it is hidden (keys pressed).
+bool mouse_pointer_window(float *out_x, float *out_y);
 bool mouse_pointer_moved(void);
 bool mouse_take_pointer_moved(void);
 void mouse_place_pointer(float x, float y);

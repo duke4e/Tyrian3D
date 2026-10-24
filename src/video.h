@@ -82,6 +82,9 @@ void JE_clr256(SDL_Surface *);
 void JE_showVGA(void);
 void JE_showVGA3D(void);
 void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2);  // JE_barShade darkened a box
+// Around shading that isn't a menu's box (a bar's shadow, JE_barDrawShadow): not counted as one, so the
+// 3D view's menu shows it as the darkened pixels it is (and nothing of it once it is gone).
+void video_backdrop_ignore_shades(bool ignore);
 // The store's illustration of the ship: begun before it is drawn, ended once it is; what goes on its
 // box under the ship's model besides the box itself is drawn on video_showcase_backdrop (NULL if none).
 void video_showcase_begin(void);

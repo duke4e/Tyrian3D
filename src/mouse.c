@@ -22,8 +22,11 @@
 #include "nortvars.h"
 #include "palette.h"
 #include "sprite.h"
+#include "ui.h"
 #include "video.h"
 #include "vga256d.h"
+
+#include <math.h>
 
 #if defined(TARGET_GP2X) || defined(TARGET_DINGUX)
 bool has_mouse = false;
@@ -131,13 +134,63 @@ static int pointer_wanted = 0;  // frames to show the pointer with
 static JE_byte pointer_shape;
 static Uint8 pointer_filter;
 
+// The modern UI's pointer (ui_pointer_image): smooth, its size in window points (and a picture twice
+// as large for high-density displays); made again when the shape or the size changes.
+static SDL_Cursor *hd_pointer_cursor(JE_byte shape)
+{
+	static SDL_Cursor *cursor = NULL;
+	static int made_shape = -1, made_size = 0;
+	const int size = (int)lroundf(ui_pointer_points());
+	if (cursor != NULL && made_shape == shape && made_size == size)
+		return cursor;
+	SDL_Surface *images[2] = { NULL, NULL };
+	int hot_x = 0, hot_y = 0;
+	for (int k = 0; k < 2; ++k)
+	{
+		const int s = size * (k + 1);
+		images[k] = SDL_CreateSurface(s, s, SDL_PIXELFORMAT_RGBA32);
+		if (images[k] == NULL)
+			continue;
+		int hx, hy;
+		if (!ui_pointer_image(shape, s, (Uint32 *)images[k]->pixels, &hx, &hy) || images[k]->pitch != s * 4)
+		{
+			SDL_DestroySurface(images[k]);
+			images[k] = NULL;
+			continue;
+		}
+		if (k == 0)
+		{
+			hot_x = hx;
+			hot_y = hy;
+		}
+	}
+	if (images[0] != NULL && images[1] != NULL)
+		SDL_AddSurfaceAlternateImage(images[0], images[1]);
+	SDL_Cursor *made = images[0] != NULL ? SDL_CreateColorCursor(images[0], hot_x, hot_y) : NULL;
+	for (int k = 0; k < 2; ++k)
+		SDL_DestroySurface(images[k]);
+	if (made != NULL)
+	{
+		SDL_SetCursor(made);
+		if (cursor != NULL)
+			SDL_DestroyCursor(cursor);
+		cursor = made;
+		made_shape = shape;
+		made_size = size;
+	}
+	return cursor;
+}
+
 // The game's pointer picture as a system cursor, scale times its size (and twice that for
-// high-density displays), in the current palette; made again when any of that changes.
+// high-density displays), in the current palette; made again when any of that changes. With the
+// modern UI, its own smooth pointer.
 static SDL_Cursor *pointer_cursor(JE_byte shape, Uint8 filter, int scale)
 {
 	static SDL_Cursor *cursor = NULL;
 	static Uint32 made_hash = 0;
 
+	if (ui_modern())
+		return hd_pointer_cursor(shape);
 	if (shopSpriteSheet.data == NULL)
 		return NULL;
 	const MousePointerSpriteInfo *info = &mousePointerSprites[shape];

@@ -21,12 +21,20 @@ typedef struct
 	bool mouse_direct;  // the mouse moves the ship as far as it moves (else as in the original)
 	bool hud_modern;    // a few gauges over the scene (else the original panel beside it)
 	bool playfield_wide;  // the 3D view's wide playfield (l3d_field_wide), from the next level on
+	bool menus_modern;    // the menus in the new style over the 3D view (ui.h), else the original screens
+	bool screens_fill;    // with them, the old 320x200 screens fill the window's height (else as Scaling Mode says)
+	int ui_scale;         // the size of the menus and the HUD, per cent (settings3d_ui_scale_*)
 } Settings3D;
 
 extern Settings3D settings3d;
 
 int settings3d_camera_count(void);
 const char *settings3d_camera_name(int preset);
+
+// The UI scale's choices (per cent): count, the i-th, and which one a value is (nearest).
+int settings3d_ui_scale_count(void);
+int settings3d_ui_scale_value(int i);
+int settings3d_ui_scale_index(int percent);
 
 // Reads the settings from their section (NULL: defaults), then the environment's overrides.
 void settings3d_load(const ConfigSection *section);
@@ -35,7 +43,8 @@ void settings3d_save(ConfigSection *section);
 // Makes the settings take effect (view, models, camera, music).
 void settings3d_apply(void);
 
-typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD } Settings3DField;
+typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
+               S3D_SCREENS, S3D_UI_SCALE } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

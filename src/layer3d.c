@@ -72,6 +72,7 @@ static const struct
 	// (under the sky enemies, as the game draws it then: between background 2 and them)
 	[L3D_BG3_LOW]      = { "bg3-low",     13.0f },
 	[L3D_OVERLAY]      = { "overlay",      0.0f },
+	[L3D_HUD]          = { "hud",          0.0f },
 };
 
 float l3d_terrain_headroom = 0;
@@ -80,7 +81,8 @@ float l3d_layer_height(L3DLayerType type)
 {
 	// Above the ground and its enemies, room for the terrain's raised ground (render_gpu.c); background 2
 	// drawn under the ground enemies stays with the ground.
-	const bool above = type != L3D_GROUND && type != L3D_BG2_LOW && type != L3D_GROUND_ENEMY && type != L3D_OVERLAY;
+	const bool above = type != L3D_GROUND && type != L3D_BG2_LOW && type != L3D_GROUND_ENEMY && type != L3D_OVERLAY &&
+	                   type != L3D_HUD;
 	return layer_info[type].height + (above ? l3d_terrain_headroom : 0.0f);
 }
 

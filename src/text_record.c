@@ -75,7 +75,8 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
 	centred_text = NULL;
 	if (font > 2)
 		return;
-	const bool playfield = l3d_enabled && l3d_capturing && surface == game_screen && l3d_current_layer() == L3D_OVERLAY;
+	const bool playfield = l3d_enabled && l3d_capturing && surface == game_screen &&
+	                       (l3d_current_layer() == L3D_OVERLAY || l3d_current_layer() == L3D_HUD);
 	if (!playfield && !recording(surface))
 		return;
 	const int width = JE_textWidth(text, font);
@@ -112,6 +113,7 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
 	r->font = (int)font;
 	r->align = placed_centred ? 1 : alignment;
 	r->shadow_only = shadow_only;
+	r->hud = playfield && l3d_current_layer() == L3D_HUD;
 	// The text and its shadows (up to 2 pixels off), within the screen.
 	r->x = SDL_max(x - 2, 0);
 	r->y = SDL_max(y - 2, 0);

@@ -62,6 +62,7 @@ void JE_dBar3(SDL_Surface *surface, JE_integer x,  JE_integer y,  JE_integer num
 
 void JE_barDrawShadow(SDL_Surface *surface, JE_word x, JE_word y, JE_word res, JE_word col, JE_word amt, JE_word xsize, JE_word ysize)
 {
+	video_backdrop_ignore_shades(true);  // Tyrian3D: its shadows aren't menu boxes (video.h)
 	xsize--;
 	ysize--;
 
@@ -81,6 +82,7 @@ void JE_barDrawShadow(SDL_Surface *surface, JE_word x, JE_word y, JE_word res, J
 		JE_barShade(surface, x+2, y+2, x+xsize+2, y+ysize+2);
 		fill_rectangle_xy(surface, x,y, x+xsize, y+ysize, col+(12 / res * amt));
 	}
+	video_backdrop_ignore_shades(false);
 }
 
 void JE_wipeKey(void)

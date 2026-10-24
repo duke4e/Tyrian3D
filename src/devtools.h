@@ -35,6 +35,8 @@ bool dev_godmode(void);
 // Every tick of a level: TYR3D_LEVEL_TICKS=<n> ends levels (cleared) after n ticks, and
 // TYR3D_LEVEL_DIE=<n> destroys the ship after n ticks, for testing what comes after them.
 void dev_level_tick(void);
+// At a level's start (after the game has set its items): TYR3D_BOMBS, with TYR3D_START.
+void dev_level_start_items(void);
 
 // True for TYR3D_WINDOWED runs, which keep playing without the window's focus.
 bool dev_background_run(void);

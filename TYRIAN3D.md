@@ -65,13 +65,27 @@ The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
 sprites), shadows, effects (explosion particles, glowing shots), a camera preset (Standard,
-Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; shield, armor
-and power at the bottom right, the guns' power and the sidekicks' ammunition at the top right,
-fading while the ship is under them; the level's name as it starts) or Classic (the original
-panel beside the playfield; two players always have it). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
-change the first two as well. In a level, Escape's options have **3D Options** with the same
+Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
+round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
+guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
+and special weapon at the bottom left, the boss bar and the level timer at the top, all from the
+game's state (the game's own drawing of them is left out), fading while the ship is near them; the
+level's name as it starts; under a menu the game shows over the level) or Classic (the original
+panel beside the playfield; two players always have it). The **Graphics** page adds the menus:
+Modern (the new UI over the 3D view, below) or Classic (the original screens), Screens: Fill (the
+game's other 320x200 screens fill the window's height, in whole steps and then smoothly, over a
+blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
+(75-150 %). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
+change the first two as well. In a level, Escape's options have **3D Options** with the 3D page's
 settings and the music (SoundFont or AdLib), each changed with Left/Right, Enter or a click and
 taking effect at once (`ingame_options_3d` in `mainint.c`).
+
+**The modern UI** (Menus: Modern, the 3D view): the title screen, setup and its pages and pickers,
+and the new game's choices (players, episode, difficulty, timed battle) in dark glass panels with
+brass rims over the screen's picture, in Oxanium, at any window size (`src/ui.c`); the mouse works on
+the panels (hover, click, the wheel moves through the items), the keys and the joystick as ever.
+The pointer is a smooth one sized in window points. The original screens stay for Menus: Classic and
+the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
 3D) plays in all the 3D view shows: the whole width the game draws (game x 0-319 instead of
@@ -222,7 +236,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
-| `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's) when that frame shows, then each next one so many milliseconds after the one before; any length |
+| `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's; `WheelUp`, `WheelDown` turn the mouse wheel a notch) when that frame shows, then each next one so many milliseconds after the one before; any length |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
@@ -239,6 +253,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_TEST_EXPLOSION=<x>,<y>,<every>` | A large explosion at this screen point every so many frames, to look at the particles |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |
+| `TYR3D_SPECIAL=<n>`, `TYR3D_BOMBS=<n>` | With `TYR3D_START`: a special weapon (its id in the item data), super bombs at each level's start (0-10) |
 | `TYR3D_WINDOWED=1` | Run in a window in the corner of the screen without taking the focus, and keep playing without it (`tools/capture_run.sh` sets it) |
 | `TYR3D_EXPORT_MUSIC=<dir>` | Export every song as a MIDI file (with the General MIDI instruments the composer set for MIDI devices), and the instruments they use (`instruments.json`) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |
@@ -254,6 +269,10 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_DUMP_AHEAD=1` | Frame dumps include the frames shown between ticks |
 | `TYR3D_SOFTWARE_POINTER=1` | Draw the mouse pointer into the screen as the original does, instead of the system pointer |
 | `TYR3D_HUD=modern\|classic` | The HUD over the playfield, or the original panel beside it |
+| `TYR3D_MENUS=modern\|classic` | The menus in the modern UI's style, or the original screens (as Graphics > Menus) |
+| `TYR3D_SCREENS=fill\|integer` | With the modern UI: the old 320x200 screens fill the window's height over a blurred copy, or as Scaling Mode says |
+| `TYR3D_UI_SCALE=<percent>` | The modern UI's and the HUD's size (50-200; the setting has 75-150) |
+| `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
@@ -328,6 +347,20 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   on top; the HUD panel at four times its resolution (Scale2x twice). If the panel's picture
   has been upscaled (`upscale/out/hud_1p.png`, `hud_2p.png`, from `tools/make_atlases.py`), that
   picture is drawn, and only the pixels the game changed on it (gauges, text) come from the game.
+- **The modern UI** (`src/ui.c`). Sizes are virtual units, 1080 to the window's height times the
+  UI scale, with a smallest size for text in the window's pixels; everything is placed in a 16:9
+  safe area (the window, at most 16:9 wide, centred). Panels are octagons (cut corners) drawn as quads
+  with a pixel-wide soft edge, the blurred picture under them as frosted glass; text from Oxanium's
+  rasters; all of it through the overlay's quads (`rgpu_ui_*`), as the HUD. A menu keeps drawing the
+  original screen and publishes what it shows (`ui_menu_publish`: items, selection, an open picker,
+  where the original takes the mouse on each); while the screen still shows that (98 % of its pixels),
+  `rgpu_present_ui` draws the screen's picture (its texts taken off) and the menu in the new style.
+  The pointer's window position on a widget is handed to the menu as a point of the original's item
+  (`mapWindowPointToScreen`), so the menu's own code takes the mouse as ever; the wheel is Up and
+  Down. The old screens' fill: the screen magnified in whole steps into a target, then drawn smoothly
+  (`sharp_steps`), the window round it a blurred copy (80x50, made again only when the picture
+  changes). The game's displays on the playfield (score, lives, bombs, special, boss bar, timer) are
+  a layer of their own (`L3D_HUD`), left out under the modern HUD.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested

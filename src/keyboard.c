@@ -24,6 +24,7 @@
 #include "network.h"
 #include "opentyr.h"
 #include "settings3d.h"
+#include "ui.h"
 #include "video.h"
 #include "video_scale.h"
 
@@ -157,6 +158,13 @@ void mouseGetRelativePosition(Sint32 *const out_x, Sint32 *const out_y)
 bool mouse_pointer_game(float *const out_x, float *const out_y)
 {
 	return video_window_to_game(pointerWindowX, pointerWindowY, out_x, out_y);
+}
+
+bool mouse_pointer_window(float *const out_x, float *const out_y)
+{
+	*out_x = pointerWindowX;
+	*out_y = pointerWindowY;
+	return !mouseInactive;
 }
 
 bool mouse_pointer_moved(void)
@@ -324,6 +332,21 @@ void service_SDL_events(JE_boolean clear_new)
 						break;
 				}
 				break;
+
+			case SDL_EVENT_MOUSE_WHEEL:
+			{
+				// Tyrian3D: over a modern UI's menu (ui.h) the wheel moves through its items, as the
+				// up and down keys do.
+				const float y = ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -ev.wheel.y : ev.wheel.y;
+				if (ui_wheel_moves(y))
+				{
+					newkey = true;
+					lastkey_scan = y > 0 ? SDL_SCANCODE_UP : SDL_SCANCODE_DOWN;
+					lastkey_mod = SDL_KMOD_NONE;
+					return;
+				}
+				break;
+			}
 
 			case SDL_EVENT_TEXT_INPUT:
 				SDL_strlcpy(last_text, ev.text.text, COUNTOF(last_text));

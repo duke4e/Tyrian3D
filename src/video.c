@@ -34,6 +34,7 @@
 #include "render_gpu.h"
 #include "settings3d.h"
 #include "sprite.h"
+#include "ui.h"
 #include "video_scale.h"
 
 #include <assert.h>
@@ -307,6 +308,13 @@ static void calc_dst_render_rect(SDL_Rect *const dst_rect)
 	int win_w, win_h;
 	SDL_GetWindowSize(main_window, &win_w, &win_h);
 
+	// Tyrian3D: the modern UI's screens fill the window's height (ui_fill_screens).
+	if (ui_fill_screens())
+	{
+		ui_fill_rect(win_w, win_h, dst_rect);
+		return;
+	}
+
 	int maxh_width, maxw_height;
 
 	switch (scaling_mode)
@@ -387,9 +395,16 @@ static void take_backdrop(void)
 	backdrop_valid = true;
 }
 
+static int shades_ignored = 0;  // see video_backdrop_ignore_shades
+
+void video_backdrop_ignore_shades(bool ignore)
+{
+	shades_ignored += ignore ? 1 : -1;
+}
+
 void video_backdrop_shade(const SDL_Surface *surface, int x1, int y1, int x2, int y2)
 {
-	if (backdrop_valid && surface->pixels == VGAScreenSeg->pixels && backdrop_shade_count < BACKDROP_SHADES)
+	if (backdrop_valid && shades_ignored <= 0 && surface->pixels == VGAScreenSeg->pixels && backdrop_shade_count < BACKDROP_SHADES)
 	{
 		int *r = backdrop_shades[backdrop_shade_count++];
 		r[0] = x1;
@@ -631,6 +646,7 @@ static void present_screen(SDL_Surface *src_surface)
 
 	SDL_Rect dst_rect;
 	calc_dst_render_rect(&dst_rect);
+	ui_screen_shown(false);
 
 	// A level's start with the modern HUD: not the panel the game fades in (the HUD's gauges show over
 	// the level once it plays), the window black.
@@ -639,6 +655,21 @@ static void present_screen(SDL_Surface *src_surface)
 		rgpu_present_blank();
 		last_output_rect = dst_rect;
 		last_frame_was_3d = false;
+		mouse_frame_shown();
+		return;
+	}
+
+	// A menu in the modern UI's style (ui.h): while the screen shows what the menu published.
+	if (ui_screen_holds(src_surface))
+	{
+		backdrop_valid = false;
+		sim_valid = false;
+		rgpu_present_ui();
+		int win_w, win_h;
+		SDL_GetWindowSize(main_window, &win_w, &win_h);
+		ui_fill_rect(win_w, win_h, &last_output_rect);  // (as the picture shows)
+		last_frame_was_3d = false;
+		ui_screen_shown(true);
 		mouse_frame_shown();
 		return;
 	}
@@ -702,6 +733,7 @@ void JE_showVGA3D(void)
 	fast_skipped = 0;
 	take_backdrop();
 	showcase_valid = sim_valid = false;
+	ui_screen_shown(false);
 
 	// TYR3D_TURBO (dev): only every so many ticks shows, so the game isn't held up by the display.
 	static int turbo = -1, skipped = 0;
@@ -861,6 +893,9 @@ void mapScreenPointToWindow(Sint32 *const inout_x, Sint32 *const inout_y)
 /** Maps a specified point in window coordinates to game screen coordinates. */
 void mapWindowPointToScreen(Sint32 *const inout_x, Sint32 *const inout_y)
 {
+	// Tyrian3D: on a modern UI's screen, the point of the original's item the pointer is on (ui.h).
+	if (ui_map_pointer((float)*inout_x, (float)*inout_y, inout_x, inout_y))
+		return;
 	*inout_x = (2 * (*inout_x - last_output_rect.x) + 1) * VGAScreen->w / (2 * last_output_rect.w);
 	*inout_y = (2 * (*inout_y - last_output_rect.y) + 1) * VGAScreen->h / (2 * last_output_rect.h);
 }

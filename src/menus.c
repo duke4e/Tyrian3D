@@ -32,6 +32,7 @@
 #include "picload.h"
 #include "rogue.h"
 #include "sprite.h"
+#include "ui.h"
 #include "vga256d.h"
 #include "video.h"
 
@@ -39,6 +40,31 @@ char episode_name[EPISODE_MAX + 1][31];  // Tyrian3D: + episode 6
 char difficulty_name[7][21];
 char gameplay_name[GAMEPLAY_NAME_COUNT][26];
 char timed_battle_name[4][23];
+
+/*
+ * Tyrian3D: each menu as it shows, for the modern UI (ui.h): its items where the original takes the
+ * mouse on them, which can't be chosen, what each does; over the menu's picture (VGAScreen2).
+ */
+static void publish_choices(UIScreenKind kind, const char *title, const char *const *texts, const char *const *hints,
+                            size_t count, size_t selected, const int *widths, const int *xs, int y_items, int dy_items,
+                            int h_item, const bool *disabled, int pips)
+{
+	UIMenu *menu = ui_menu_begin(kind, title);
+	for (size_t i = 0; i < count; ++i)
+	{
+		UIItem *item = ui_menu_add(menu, UI_ITEM_ACTION, texts[i], xs[i], y_items + dy_items * (int)i, widths[i], h_item);
+		if (hints != NULL && hints[i] != NULL)
+			SDL_strlcpy(item->hint, hints[i], sizeof(item->hint));
+		item->disabled = disabled != NULL && disabled[i];
+		if (pips > 0)
+		{
+			item->pips = pips;
+			item->pips_on = (int)i + 1;
+		}
+	}
+	menu->selected = (int)selected;
+	ui_menu_publish(menu, VGAScreen, VGAScreen2);
+}
 
 bool gameplaySelect(void)
 {
@@ -93,6 +119,27 @@ bool gameplaySelect(void)
 
 			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
 			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+		}
+		{
+			static const char *const hints[] = {
+				"The story: the shop between levels, your ship and savings kept.",
+				"Straight into the levels, power-ups instead of the shop.",
+				"Score as much as you can before the time runs out.",
+				"Two ships side by side, power-ups instead of the shop.",
+				"Not available in this version.",
+				"Three acts, one life: a new route and new cards every run.",
+			};
+			const char *texts[COUNTOF(gameplay_name)];
+			int xs[COUNTOF(gameplay_name)];
+			bool disabled[COUNTOF(gameplay_name)];
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				texts[i] = i == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[i + 1];
+				xs[i] = xCenter - wMenuItem[i] / 2;
+				disabled[i] = i == MENU_ITEM_NETWORK;
+			}
+			publish_choices(UI_SCREEN_PLAYERS, gameplay_name[0], texts, hints, menuItemsCount, selectedIndex, wMenuItem, xs,
+			                yMenuItems, dyMenuItems, hMenuItem, disabled, 0);
 		}
 
 		if (restart)
@@ -303,6 +350,19 @@ bool episodeSelect(void)
 
 			draw_font_hv_shadow(VGAScreen, xMenuItem, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 		}
+		{
+			const char *texts[EPISODE_MAX];
+			int xs[EPISODE_MAX];
+			bool disabled[EPISODE_MAX];
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				texts[i] = episode_name[i + 1];
+				xs[i] = xMenuItem;
+				disabled[i] = !episodeAvail[i];
+			}
+			publish_choices(UI_SCREEN_EPISODES, episode_name[0], texts, NULL, menuItemsCount, selectedIndex, wMenuItem, xs, yMenuItems,
+			                dyMenuItems, hMenuItem, disabled, 0);
+		}
 
 		if (restart)
 		{
@@ -490,6 +550,25 @@ bool difficultySelect(void)
 
 			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
 			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0), false, 2);
+		}
+		{
+			static const char *const hints[] = {
+				"A gentler start, for learning the levels.",
+				"The challenge as it was meant.",
+				"For seasoned pilots.",
+				"Only for the best.",
+				"You asked for it.",
+				"The hidden last word in difficulty.",
+			};
+			const char *texts[COUNTOF(difficulty_name)];
+			int xs[COUNTOF(difficulty_name)];
+			for (size_t i = 0; i < menuItemsVisibleCount; ++i)
+			{
+				texts[i] = difficulty_name[i + 1];
+				xs[i] = xCenter - wMenuItem[i] / 2;
+			}
+			publish_choices(UI_SCREEN_DIFFICULTY, difficulty_name[0], texts, hints, menuItemsVisibleCount, selectedIndex, wMenuItem, xs,
+			                yMenuItems, dyMenuItems, hMenuItem, NULL, 6);
 		}
 
 		if (restart)
@@ -732,6 +811,17 @@ bool timedBattleSelect(void)
 
 			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
 			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0), false, 2);
+		}
+		{
+			const char *texts[COUNTOF(timed_battle_name)];
+			int xs[COUNTOF(timed_battle_name)];
+			for (size_t i = 0; i < menuItemsCount; ++i)
+			{
+				texts[i] = timed_battle_name[i + 1];
+				xs[i] = xCenter - wMenuItem[i] / 2;
+			}
+			publish_choices(UI_SCREEN_TIMED, timed_battle_name[0], texts, NULL, menuItemsCount, selectedIndex, wMenuItem, xs,
+			                yMenuItems, dyMenuItems, hMenuItem, NULL, 0);
 		}
 
 		if (restart)

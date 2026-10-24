@@ -54,6 +54,7 @@
 #include "vga256d.h"
 #include "video.h"
 #include "settings3d.h"
+#include "ui.h"
 #include "video_scale.h"
 #include "viewer.h"
 #include "xmas.h"
@@ -151,6 +152,29 @@ static const char *getPlayfieldPickerItem(size_t i, char *buffer, size_t bufferS
 	return i == 0 ? "Wide" : "Original";
 }
 
+static const char *getMenusPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "Modern" : "Classic";
+}
+
+static const char *getScreensPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "Fill" : "Integer";
+}
+
+static size_t getUiScalePickerItemsCount(void)
+{
+	return (size_t)settings3d_ui_scale_count();
+}
+
+static const char *getUiScalePickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	snprintf(buffer, bufferSize, "%d%%", settings3d_ui_scale_value((int)i));
+	return buffer;
+}
+
 static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
 {
 	(void)buffer, (void)bufferSize;
@@ -194,6 +218,9 @@ void setupMenu(void)
 		MENU_ITEM_HUD,
 		MENU_ITEM_PLAYFIELD,
 		MENU_ITEM_DEBUG,
+		MENU_ITEM_MENUS,
+		MENU_ITEM_SCREENS,
+		MENU_ITEM_UI_SCALE,
 	} MenuItemId;
 
 	typedef enum
@@ -217,7 +244,7 @@ void setupMenu(void)
 	typedef struct
 	{
 		const char *header;
-		const MenuItem items[12];
+		const MenuItem items[16];
 	} Menu;
 
 	static const Menu menus[] = {
@@ -240,6 +267,9 @@ void setupMenu(void)
 				{ MENU_ITEM_DISPLAY, "Display:", "Change the display mode.", getDisplayPickerItemsCount, getDisplayPickerItem },
 				{ MENU_ITEM_SCALER, "Scaler:", "Change the pixel art scaling algorithm.", getScalerPickerItemsCount, getScalerPickerItem },
 				{ MENU_ITEM_SCALING_MODE, "Scaling Mode:", "Change the scaling mode.", getScalingModePickerItemsCount, getScalingModePickerItem },
+				{ MENU_ITEM_MENUS, "Menus:", "Menus in the new style over the 3D view, or the original screens.", getTwoItemsCount, getMenusPickerItem },
+				{ MENU_ITEM_SCREENS, "Screens:", "The game's other screens fill the window's height, or in whole steps (Scaling Mode).", getTwoItemsCount, getScreensPickerItem },
+				{ MENU_ITEM_UI_SCALE, "UI Scale:", "The size of the new menus and the HUD.", getUiScalePickerItemsCount, getUiScalePickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -324,9 +354,12 @@ void setupMenu(void)
 		// Draw menu items.
 
 		size_t menuItemsCount = 0;
+		static char values[16][48];  // Tyrian3D: each item's value as drawn (the modern UI's, ui.h)
 		for (size_t i = 0; menuItems[i].id != (MenuItemId)-1; ++i)
 		{
 			menuItemsCount += 1;
+			if (i < COUNTOF(values))
+				values[i][0] = '\0';
 
 			const MenuItem *const menuItem = &menuItems[i];
 
@@ -353,14 +386,17 @@ void setupMenu(void)
 				}
 
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, value, normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				SDL_strlcpy(values[i], value, sizeof(values[i]));
 				break;
 
 			case MENU_ITEM_SCALER:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, scalers[scaler].name, normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				SDL_strlcpy(values[i], scalers[scaler].name, sizeof(values[i]));
 				break;
 
 			case MENU_ITEM_SCALING_MODE:
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, scaling_mode_names[scaling_mode], normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				SDL_strlcpy(values[i], scaling_mode_names[scaling_mode], sizeof(values[i]));
 				break;
 
 			case MENU_ITEM_VIEW_3D:
@@ -372,8 +408,14 @@ void setupMenu(void)
 			case MENU_ITEM_MOUSE:
 			case MENU_ITEM_HUD:
 			case MENU_ITEM_PLAYFIELD:
+			case MENU_ITEM_MENUS:
+			case MENU_ITEM_SCREENS:
+			case MENU_ITEM_UI_SCALE:
 			{
 				const size_t choice =
+					menuItem->id == MENU_ITEM_MENUS ? !settings3d.menus_modern :
+					menuItem->id == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
+					menuItem->id == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
 					menuItem->id == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 					menuItem->id == MENU_ITEM_HUD ? !settings3d.hud_modern :
 					menuItem->id == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -382,7 +424,9 @@ void setupMenu(void)
 					menuItem->id == MENU_ITEM_MODELS ? !settings3d.models :
 					menuItem->id == MENU_ITEM_SHADOWS ? !settings3d.shadows :
 					menuItem->id == MENU_ITEM_EFFECTS ? !settings3d.effects : (size_t)settings3d.camera;
-				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, menuItem->getPickerItem(choice, buffer, sizeof(buffer)), normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				const char *value = menuItem->getPickerItem(choice, buffer, sizeof(buffer));
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, value, normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+				SDL_strlcpy(values[i], value, sizeof(values[i]));
 				break;
 			}
 
@@ -429,6 +473,50 @@ void setupMenu(void)
 
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, value, normal_font, left_aligned, 15, -3 + (selected ? 2 : 0), false, 2);
 			}
+		}
+
+		// Tyrian3D: the page as it shows, for the modern UI (ui.h): each item where the original takes the
+		// mouse on its name and its value (the volumes' bars and the pickers that open from their values;
+		// the others' rows act as their names do), the open picker's choices.
+		{
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_SETUP, menu->header);
+			if (currentMenu != MENU_SETUP)
+				SDL_strlcpy(ui->crumb, "SETUP", sizeof(ui->crumb));
+			for (size_t i = 0; i < menuItemsCount && i < COUNTOF(values); ++i)
+			{
+				const MenuItem *menuItem = &menuItems[i];
+				const int y = yMenuItems + dyMenuItems * (int)i;
+				const bool bar = menuItem->id == MENU_ITEM_MUSIC_VOLUME || menuItem->id == MENU_ITEM_SOUND_VOLUME;
+				const bool choice = menuItem->getPickerItem != NULL;
+				UIItem *item = ui_menu_add(ui, bar ? UI_ITEM_BAR : choice ? UI_ITEM_CHOICE : UI_ITEM_ACTION, menuItem->name,
+				                           xMenuItemName, y, wMenuItemName, hMenuItem);
+				SDL_strlcpy(item->value, values[i], sizeof(item->value));
+				SDL_strlcpy(item->hint, menuItem->description, sizeof(item->hint));
+				const bool value_acts = bar || menuItem->id == MENU_ITEM_DISPLAY || menuItem->id == MENU_ITEM_SCALER ||
+				                        menuItem->id == MENU_ITEM_SCALING_MODE;
+				if (value_acts)
+					item->hit_value = (SDL_Rect){ xMenuItemValue, y, wMenuItemValue, hMenuItem };
+				if (bar)
+				{
+					const bool music = menuItem->id == MENU_ITEM_MUSIC_VOLUME;
+					item->bar = (music ? tyrMusicVolume : fxVolume) / 255.0f;
+					item->muted = music ? music_disabled : samples_disabled;
+				}
+			}
+			ui->selected = (int)*selectedMenuItemIndex;
+			if (currentPicker != MENU_ITEM_NONE)
+			{
+				const MenuItem *selectedMenuItem = &menuItems[*selectedMenuItemIndex];
+				const size_t pickerItemsCount = selectedMenuItem->getPickerItemsCount();
+				for (size_t i = 0; i < pickerItemsCount && i < UI_PICKER_ITEMS; ++i)
+				{
+					SDL_strlcpy(ui->picker[i], selectedMenuItem->getPickerItem(i, buffer, sizeof(buffer)), sizeof(ui->picker[i]));
+					ui->picker_hit[i] = (SDL_Rect){ xMenuItemValue, yPicker + dyPickerItem * (int)i, wMenuItemValue, hPickerItem };
+				}
+				ui->picker_count = (int)SDL_min(pickerItemsCount, (size_t)UI_PICKER_ITEMS);
+				ui->picker_selected = (int)pickerSelectedIndex;
+			}
+			ui_menu_publish(ui, VGAScreen, VGAScreen2);
 		}
 
 		if (restart)
@@ -680,11 +768,17 @@ void setupMenu(void)
 				case MENU_ITEM_MOUSE:
 				case MENU_ITEM_HUD:
 				case MENU_ITEM_PLAYFIELD:
+				case MENU_ITEM_MENUS:
+				case MENU_ITEM_SCREENS:
+				case MENU_ITEM_UI_SCALE:
 				{
 					JE_playSampleNum(S_CLICK);
 
 					currentPicker = selectedMenuItemId;
 					pickerSelectedIndex =
+						selectedMenuItemId == MENU_ITEM_MENUS ? !settings3d.menus_modern :
+						selectedMenuItemId == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
+						selectedMenuItemId == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
 						selectedMenuItemId == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 						selectedMenuItemId == MENU_ITEM_HUD ? !settings3d.hud_modern :
 						selectedMenuItemId == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -940,6 +1034,18 @@ void setupMenu(void)
 				case MENU_ITEM_PLAYFIELD:
 					settings3d.playfield_wide = pickerSelectedIndex == 0;
 					settings3d_changed(S3D_PLAYFIELD);
+					break;
+				case MENU_ITEM_MENUS:
+					settings3d.menus_modern = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_MENUS);
+					break;
+				case MENU_ITEM_SCREENS:
+					settings3d.screens_fill = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_SCREENS);
+					break;
+				case MENU_ITEM_UI_SCALE:
+					settings3d.ui_scale = settings3d_ui_scale_value((int)pickerSelectedIndex);
+					settings3d_changed(S3D_UI_SCALE);
 					break;
 				default:
 					break;
