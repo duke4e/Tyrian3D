@@ -151,11 +151,6 @@ float p3d_light_energy(const P3DLight *l, float ahead)
 	return t >= 1 ? 0 : l->energy * (1 - t) * (1 - 0.5f * t);
 }
 
-void p3d_smoke(float x, float y, float height, float size)
-{
-	smoke(x, y, height, 1, size, 52);
-}
-
 // Billowing fire: noisy puffs that swell, rise a little and cool from white-hot to dark red.
 static void fireball(float x, float y, float height, int count, float size, float life, float spread)
 {

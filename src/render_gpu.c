@@ -55,9 +55,6 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
-// Wrecks (L3DObject.wreck): their height and brightness.
-#define WRECK_SLUMP 0.45f
-#define WRECK_SHADE 0.3f
 #define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
 #define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
 
@@ -2713,8 +2710,8 @@ static float appear_alpha(Uint8 step)
 }
 
 // A model object's transform at the given height (its translation's), on its plane before aligned():
-// where it is drawn, turned, scaled and centred (add_object_batches; wrecks slump, and what would
-// sink is raised, after this).
+// where it is drawn, turned, scaled and centred (add_object_batches; what would sink is raised,
+// after this).
 static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded, bool mirror, float height)
 {
 	const M3DModel *model = &m3d_models[object->model];
@@ -2776,9 +2773,6 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				const M3DModel *model = &m3d_models[model_index];
 				const float height = object_bases[o] + object->height + object_lifts[o];
 				Mat4 transform = object_transform(object, loaded, mirror, height);
-				if (object->wreck)  // slumped to under half its height
-					for (int k = 1; k < 12; k += 4)
-						transform.m[k] *= WRECK_SLUMP;
 				// Nothing sinks into the ground: models centred on their layer's height (items on
 				// the ground enemies' layer) are lifted by what their turned bounds reach below it
 				// (the ground under them: as high above it as they would stand above a flat ground).
@@ -2786,7 +2780,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				                    fabsf(transform.m[9]) * loaded->half[2];
 				if (!model->keep_origin && height - reach < 0.3f + object_lifts[o])
 					transform.m[13] += 0.3f + object_lifts[o] - (height - reach);
-				write_instance(instances + *instance_count * 24, &transform, object->wreck ? WRECK_SHADE : 1.0f);
+				write_instance(instances + *instance_count * 24, &transform, 1.0f);
 				++*instance_count;
 				if (clip_log)  // (where it is drawn)
 				{
@@ -4259,7 +4253,7 @@ static float terrain_lift(float x, float y)
 }
 
 /*
- * What stands on the ground (its enemies, their wrecks, explosions and lights) stands on the ground as
+ * What stands on the ground (its enemies, explosions and lights) stands on the ground as
  * it is drawn. The ground's terrain rows are drawn aligned on their plane (aligned(): k times as large
  * about the point below the camera, so the relief is drawn k times as high, about 1.23), and an object
  * is aligned at its own height, a little less enlarged: the world point under it is the drawn ground of
@@ -4636,7 +4630,7 @@ static bool object_footprint(const L3DObject *object, bool mirror, float footpri
 		y0 = SDL_min(y0, y);
 		y1 = SDL_max(y1, y);
 	}
-	footprint[4] = (y1 - y0) * (object->wreck ? WRECK_SLUMP : 1.0f);
+	footprint[4] = y1 - y0;
 	return true;
 }
 
@@ -4648,7 +4642,7 @@ static bool object_footprint(const L3DObject *object, bool mirror, float footpri
 // others' on the sprites' grid (L3DObject.group: which object).
 static bool lifted_piece(const L3DObject *object)
 {
-	return object->layer == L3D_GROUND_ENEMY && object->group != 0 && !object->wreck && object->model >= 0 &&
+	return object->layer == L3D_GROUND_ENEMY && object->group != 0 && object->model >= 0 &&
 	       object->model < m3d_model_count && m3d_models[object->model].keep_origin;
 }
 
@@ -4668,7 +4662,7 @@ static bool ground_model_log_on(void)
 
 static void log_ground_model(const L3DObject *object, bool mirror, float base, const float footprint[5])
 {
-	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->wreck || object->model < 0 ||
+	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->model < 0 ||
 	    object->model >= m3d_model_count)
 		return;
 	const LoadedModel *loaded = get_model(object->model);
@@ -6202,7 +6196,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	for (int o = 0; o < frame->object_count && clearing_count < MAX_CLEARINGS && lift_ground != NULL; ++o)
 	{
 		const L3DObject *object = &frame->objects[o];
-		if (object->layer != L3D_GROUND_ENEMY || object->wreck)
+		if (object->layer != L3D_GROUND_ENEMY)
 			continue;
 		int mx, my;
 		if (!b3d_map_point(lift_ground, object->x, object->y, &mx, &my))
@@ -6289,8 +6283,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 /*
  * TYR3D_LOG_CLIP=1 (dev): where raised ground or a background hides part of an enemy's model that
  * should show, or shows part the game hides. In every CLIP_LOG_EVERY of the game's frames, the first
- * shown (as captured, not moved on between ticks), and in every frame dumped: each enemy drawn as a model (not volumes, wrecks or
- * the side decor) has its model's triangles placed as add_object_batches draws them (lifted, turned,
+ * shown (as captured, not moved on between ticks), and in every frame dumped: each enemy drawn as a model (not volumes or the
+ * side decor) has its model's triangles placed as add_object_batches draws them (lifted, turned,
  * scaled, aligned) and rasterized as the camera sees them (clip_view_model): the points of it that
  * would show with nothing else drawn. Each of those is checked, in world space as the depth test
  * checks it, against what add_background_batches drew (clip_surfaces):
@@ -6687,7 +6681,7 @@ static void log_clipping(const L3DFrame *frame)
 	for (int o = 0; o < frame->object_count; ++o)
 	{
 		const L3DObject *object = &frame->objects[o];
-		if (!clip_drawn[o] || object->enemy_sheet == 0 || object->wreck || object->model < 0 || object->model >= m3d_model_count)
+		if (!clip_drawn[o] || object->enemy_sheet == 0 || object->model < 0 || object->model >= m3d_model_count)
 			continue;
 		const LoadedModel *loaded = &loaded_models[object->model];
 		const float *centre = loaded->center, *half = loaded->half;

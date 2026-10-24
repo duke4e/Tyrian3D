@@ -62,8 +62,6 @@ float p3d_light_energy(const P3DLight *light, float ahead);
 // explosion type (see explosion_data). True if the particles stand for the explosion's sprite
 // (explosions, hits, smoke): the 3D view then leaves the sprite out.
 bool p3d_explosion(int x, int y, int type);
-// A wisp of dark smoke rising from (x, y), e.g. from a wreck.
-void p3d_smoke(float x, float y, float height, float size);
 
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range

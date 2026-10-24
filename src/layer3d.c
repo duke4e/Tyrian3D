@@ -374,12 +374,6 @@ bool l3d_add_object(int model, float x, float y, float height, float yaw, float 
 	return true;
 }
 
-void l3d_wreck_last_object(void)
-{
-	if (l3d_capturing && l3d_frame.object_count > 0)
-		l3d_frame.objects[l3d_frame.object_count - 1].wreck = true;
-}
-
 void l3d_ghost_last_object(void)
 {
 	if (l3d_capturing && l3d_frame.object_count > 0)
