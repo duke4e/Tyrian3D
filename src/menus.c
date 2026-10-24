@@ -86,13 +86,13 @@ bool gameplaySelect(void)
 			const char *const text = i == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[i + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
-			const int x = xCenter - wMenuItem[i] / 2;
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
 			const bool disabled = i == MENU_ITEM_NETWORK;
 
-			draw_font_hv_shadow(VGAScreen, x, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
+			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
+			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 		}
 
 		if (restart)
@@ -484,12 +484,12 @@ bool difficultySelect(void)
 			const char *const text = difficulty_name[i + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
-			const int x = xCenter - wMenuItem[i] / 2;
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
 
-			draw_font_hv_shadow(VGAScreen, x, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
+			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
+			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0), false, 2);
 		}
 
 		if (restart)
@@ -726,12 +726,12 @@ bool timedBattleSelect(void)
 			const char *const text = timed_battle_name[i + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
-			const int x = xCenter - wMenuItem[i] / 2;
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
 
-			draw_font_hv_shadow(VGAScreen, x, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
+			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
+			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0), false, 2);
 		}
 
 		if (restart)

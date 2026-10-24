@@ -1651,9 +1651,11 @@ start_level_first:
 	JE_outText(VGAScreen, 268, twoPlayerMode ? 76 : 118, levelName, 12, 4);
 	printf("level: %s (episode %d)\n", levelName, episodeNum);  // Tyrian3D: for logs and sweeps
 
+	video_level_intro(true);  // Tyrian3D: no panel fading in with the modern HUD (video.h)
 	JE_showVGA();
 	JE_gammaCorrect(&colors, gammaCorrection);
 	fade_palette(colors, 50, 0, 255);
+	video_level_intro(false);
 
 	if (explosionSpriteSheet.data == NULL)
 		JE_loadCompShapes(&explosionSpriteSheet, '6');
@@ -4339,14 +4341,15 @@ bool titleScreen(void)
 				const char *const text = menuText[i];
 
 				wMenuItem[i] = JE_textWidth(text, normal_font);
-				const int x = xCenter - wMenuItem[i] / 2;
 				const int y = yMenuItems + hMenuItem * i;
 
-				draw_font_hv(VGAScreen, x - 1, y - 1, menuText[i], normal_font, left_aligned, 15, -10);
-				draw_font_hv(VGAScreen, x + 1, y + 1, menuText[i], normal_font, left_aligned, 15, -10);
-				draw_font_hv(VGAScreen, x + 1, y - 1, menuText[i], normal_font, left_aligned, 15, -10);
-				draw_font_hv(VGAScreen, x - 1, y + 1, menuText[i], normal_font, left_aligned, 15, -10);
-				draw_font_hv(VGAScreen, x,     y,     menuText[i], normal_font, left_aligned, 15, -3);
+				// Tyrian3D: drawn centred (as they were at xCenter - wMenuItem[i] / 2), so the 3D view's texts are.
+				const int x = xCenter;
+				draw_font_hv(VGAScreen, x - 1, y - 1, menuText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x + 1, y + 1, menuText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x + 1, y - 1, menuText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x - 1, y + 1, menuText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x,     y,     menuText[i], normal_font, centered, 15, -3);
 			}
 
 			memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);

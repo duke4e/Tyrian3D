@@ -34,6 +34,10 @@ void rgpu_shutdown(void);
 
 // dst is the 320x200 screen's rectangle in window coordinates.
 void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst);
+// The window black (nothing of the screen).
+void rgpu_present_blank(void);
+// Whether the 3D view shows the modern HUD (gauges over the scene) rather than the game's panel.
+bool rgpu_modern_hud(void);
 // hud is the 8-bit screen holding the HUD; its playfield area is replaced by the 3D view.
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
 // The same frame again, `ticks` of the game's ticks later: what moves (the maps, objects with a

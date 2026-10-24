@@ -30,6 +30,13 @@ static int depth = 0;          // nested text drawing calls
 static TextRecord *open = NULL;  // the outermost call's record, while it draws
 static const SDL_Surface *open_surface = NULL;
 
+static const char *centred_text = NULL;  // the text JE_fontCenter has just placed (text_record_centred)
+
+void text_record_centred(const char *text)
+{
+	centred_text = text;
+}
+
 // Records are kept for the screens the game shows (not the playfield it draws a level's frames on:
 // its texts are part of the 3D frame).
 static bool recording(const SDL_Surface *surface)
@@ -60,7 +67,13 @@ static void copy_rect(const SDL_Surface *surface, const TextRecord *r, Uint8 *ou
 void text_record_begin(const SDL_Surface *surface, int x, int y, const char *text, unsigned int font, int alignment,
                        bool shadow_only)
 {
-	if (depth++ > 0 || font > 2)
+	if (depth++ > 0)
+		return;
+	// Placed centred by JE_fontCenter (its callers draw what it placed right away: its note is for this
+	// drawing only), else aligned as the call says.
+	const bool placed_centred = alignment == 0 && text != NULL && text == centred_text;
+	centred_text = NULL;
+	if (font > 2)
 		return;
 	const bool playfield = l3d_enabled && l3d_capturing && surface == game_screen && l3d_current_layer() == L3D_OVERLAY;
 	if (!playfield && !recording(surface))
@@ -97,8 +110,7 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
 	r->text_h = glyphs_height(text, font);
 	SDL_strlcpy(r->text, text, sizeof(r->text));
 	r->font = (int)font;
-	// Centred on the screen (JE_fontCenter) counts as centred too.
-	r->align = alignment == 0 && abs(x + text_width / 2 - 160) <= 2 && text_width > 0 ? 1 : alignment;
+	r->align = placed_centred ? 1 : alignment;
 	r->shadow_only = shadow_only;
 	// The text and its shadows (up to 2 pixels off), within the screen.
 	r->x = SDL_max(x - 2, 0);

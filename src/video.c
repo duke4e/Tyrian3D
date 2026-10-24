@@ -618,12 +618,30 @@ static void present_sim(SDL_Surface *screen, const SDL_Rect *dst_rect)
 	rgpu_present_showcase(screen, &show, dst_rect);
 }
 
+static bool level_intro = false;  // see video_level_intro
+
+void video_level_intro(bool on)
+{
+	level_intro = on;
+}
+
 static void present_screen(SDL_Surface *src_surface)
 {
 	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
 
 	SDL_Rect dst_rect;
 	calc_dst_render_rect(&dst_rect);
+
+	// A level's start with the modern HUD: not the panel the game fades in (the HUD's gauges show over
+	// the level once it plays), the window black.
+	if (level_intro && l3d_enabled && rgpu_modern_hud())
+	{
+		rgpu_present_blank();
+		last_output_rect = dst_rect;
+		last_frame_was_3d = false;
+		mouse_frame_shown();
+		return;
+	}
 
 	if (backdrop_holds(src_surface))
 	{

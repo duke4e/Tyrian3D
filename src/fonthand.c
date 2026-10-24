@@ -101,6 +101,7 @@ void JE_dString(SDL_Surface * screen, int x, int y, const char *s, unsigned int 
 
 int JE_fontCenter(const char *s, unsigned int font)
 {
+	text_record_centred(s);  // Tyrian3D: the 3D view draws it again centred (text_record.h)
 	return 160 - (JE_textWidth(s, font) / 2);
 }
 

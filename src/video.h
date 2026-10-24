@@ -92,6 +92,9 @@ void video_showcase_end(void);
 void video_sim_begin(void);
 bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y);
 bool video_sim_ship(int x, int y);
+// Tyrian3D: a level's start (on), as its panel fades in on black, until it plays (off). With the
+// modern HUD the 3D view shows no panel, so the window stays black until the level's first frame.
+void video_level_intro(bool on);
 // Tyrian3D: waits for the game's next tick (the delay set with setDelay*), showing the last 3D
 // frame again as often as the display refreshes, moved on in time (rgpu_present_3d_ahead).
 void video_wait_tick_3d(void);

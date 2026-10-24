@@ -32,6 +32,10 @@ void text_record_begin(const SDL_Surface *surface, int x, int y, const char *tex
                        bool shadow_only);
 void text_record_end(void);
 
+// JE_fontCenter's note that it has placed this text centred on the screen: its next drawing (the
+// same string, wherever the caller then moves it) counts as centred.
+void text_record_centred(const char *text);
+
 // The records a screen still shows (each text's changed pixels mostly as drawn), oldest first, and
 // the screen with all of them taken back (320 x 200).
 int text_records_on(const SDL_Surface *screen, const TextRecord **out, int max, Uint8 *untexted);

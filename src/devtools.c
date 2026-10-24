@@ -12,6 +12,7 @@
 #include "params.h"
 #include "player.h"
 #include "varz.h"
+#include "video.h"
 
 #include <SDL3/SDL.h>
 
@@ -273,19 +274,24 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 
 /*
  * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
- * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long) when that
- * frame is presented, then each next one so many milliseconds after the one before (menus wait for
- * keys without presenting frames).
+ * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long; MouseTo<x>x<y>
+ * moves the pointer to that window point, where the mouse buttons then click) when that frame is
+ * presented, then each next one so many milliseconds after the one before (menus wait for keys
+ * without presenting frames). The list may be any length.
  */
-static char test_keys[256];
+static char *test_keys = NULL;  // a copy of the variable's value, for the program's life
 static const char *next_test_key = NULL;
+static float test_pointer_x = 0, test_pointer_y = 0;  // where MouseTo put the pointer (window points)
 
 static Uint32 SDLCALL release_mouse(void *userdata, SDL_TimerID timer, Uint32 interval)
 {
 	(void)timer, (void)interval;
 	SDL_Event event = { 0 };
 	event.type = SDL_EVENT_MOUSE_BUTTON_UP;
+	event.button.windowID = SDL_GetWindowID(main_window);
 	event.button.button = (Uint8)(intptr_t)userdata;
+	event.button.x = test_pointer_x;
+	event.button.y = test_pointer_y;
 	SDL_PushEvent(&event);
 	return 0;
 }
@@ -321,10 +327,32 @@ static void press_key(const char *name)
 		printf("devtools: pressing %s for %u ms\n", name, hold);
 		SDL_Event event = { 0 };
 		event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+		event.button.windowID = SDL_GetWindowID(main_window);
 		event.button.button = (Uint8)mouse_button;
 		event.button.down = true;
+		event.button.x = test_pointer_x;
+		event.button.y = test_pointer_y;
 		SDL_PushEvent(&event);
 		SDL_AddTimer(hold, release_mouse, (void *)(intptr_t)mouse_button);
+		return;
+	}
+	// (A pointer event of its own: the system pointer stays where it is.)
+	int to_x = 0, to_y = 0;
+	if (sscanf(name, "MouseTo%dx%d", &to_x, &to_y) == 2)
+	{
+		printf("devtools: moving the pointer to %d,%d\n", to_x, to_y);
+		SDL_Event event = { 0 };
+		event.type = SDL_EVENT_MOUSE_MOTION;
+		event.motion.windowID = SDL_GetWindowID(main_window);
+		event.motion.x = (float)to_x;
+		event.motion.y = (float)to_y;
+		const float dx = to_x - test_pointer_x, dy = to_y - test_pointer_y;
+		event.motion.xrel = dx != 0 || dy != 0 ? dx : 1;  // (it moved: the game shows the pointer)
+		event.motion.yrel = dy;
+		test_pointer_x = (float)to_x;
+		test_pointer_y = (float)to_y;
+		SDL_SetAtomicInt(&key_pressed, 1);
+		SDL_PushEvent(&event);
 		return;
 	}
 	const SDL_Scancode scancode = SDL_GetScancodeFromName(name);
@@ -368,9 +396,8 @@ static void test_keys_on_frame(void)
 	if (next_test_key == NULL)
 	{
 		const char *value = SDL_getenv("TYR3D_TEST_KEYS");
-		if (value == NULL)
+		if (value == NULL || (test_keys = SDL_strdup(value)) == NULL)
 			return;
-		snprintf(test_keys, sizeof(test_keys), "%s", value);
 		next_test_key = test_keys;
 	}
 	if (next_test_key == test_keys && strtol(test_keys, NULL, 10) == frame)

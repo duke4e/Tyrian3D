@@ -145,9 +145,33 @@ typedef struct
 	float px[4], py[4], pa[4];
 } HudQuad;
 
-#define MAX_HUD_QUADS 1024
-static HudQuad hud_quads[MAX_HUD_QUADS];
-static int hud_quad_count = 0;
+// As many as a frame needs (a help page's letters take two each, the letter and its shadow): the
+// room grows when a frame needs more and is kept, so frames don't allocate once the busiest has shown.
+#define HUD_QUADS_FIRST 2048
+static HudQuad *hud_quads = NULL;
+static int hud_quad_count = 0, hud_quad_room = 0;
+
+// Room for n more quads after hud_quad_count (false without the memory for them).
+static bool hud_quads_room(int n)
+{
+	if (hud_quad_count + n <= hud_quad_room)
+		return true;
+	int room = SDL_max(hud_quad_room, HUD_QUADS_FIRST);
+	while (room < hud_quad_count + n)
+		room *= 2;
+	HudQuad *grown = SDL_realloc(hud_quads, sizeof(*grown) * (size_t)room);
+	if (grown == NULL)
+		return false;
+	hud_quads = grown;
+	hud_quad_room = room;
+	return true;
+}
+
+// A new quad after the others (NULL without the memory for it).
+static HudQuad *hud_quad_add(void)
+{
+	return hud_quads_room(1) ? &hud_quads[hud_quad_count++] : NULL;
+}
 static Uint32 spot_rgba[SPOT_W * SPOT_H];
 static Uint32 atlas_rgba[L3D_WIDTH * ATLAS_H];
 
@@ -727,11 +751,17 @@ void rgpu_shutdown(void)
 
 /* --- Helpers ------------------------------------------------------------------------------- */
 
+static float text_density = 1;  // the window's pixels per point in the frame being made (text_raster_for)
+static Uint32 text_frames = 0;  // frames begun, for the text rasters' use (forget_idle_text_rasters)
+
 static bool begin_frame(BTBHGPUWindowReport *report)
 {
 	BTBHGPUPlatformSnapshot snapshot;
 	if (btbh_gpu_window_begin_frame(window, report, &snapshot) != BTBH_GPU_OK)
 		return false;
+	if (report->logical_height > 0)
+		text_density = (float)report->drawable_height / report->logical_height;
+	++text_frames;
 	return report->drawable_width > 0 && report->drawable_height > 0 && !report->minimized;
 }
 
@@ -811,8 +841,32 @@ static void push_quad(BTBHGPUCanvasVertex *v, const CanvasQuad *q, float texture
 static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlight, bool clear,
                            const BTBHGPUWindowReport *frame)
 {
-	static BTBHGPUCanvasVertex vertices[6 * (MAX_CANVAS_QUADS + 3 + MAX_HUD_QUADS)];
-	BTBHGPUCanvasBatch batches_2d[MAX_CANVAS_QUADS + 3 + MAX_HUD_QUADS] = { { 0 } };
+	// Six vertices and at most a batch for each quad: the spotlight, the screen's (a panel's two: its
+	// picture and the panel), the HUD's, the fade. Grown as a frame needs more, and kept.
+	static BTBHGPUCanvasVertex *vertices = NULL;
+	static BTBHGPUCanvasBatch *batches_2d = NULL;
+	static int room = 0;
+	const int fixed = 2 + 2 * MAX_CANVAS_QUADS;
+	if (fixed + hud_quad_count > room)
+	{
+		const int grown = SDL_max(fixed + hud_quad_count, SDL_max(2 * room, fixed + HUD_QUADS_FIRST));
+		BTBHGPUCanvasVertex *v = SDL_realloc(vertices, sizeof(*v) * 6 * (size_t)grown);
+		if (v != NULL)
+			vertices = v;
+		BTBHGPUCanvasBatch *b = SDL_realloc(batches_2d, sizeof(*b) * (size_t)grown);
+		if (b != NULL)
+			batches_2d = b;
+		if (v != NULL && b != NULL)
+			room = grown;
+		else if (room < fixed)
+		{
+			hud_quad_count = 0;
+			return;
+		}
+		else
+			hud_quad_count = room - fixed;  // (no memory for more: the last of them go)
+	}
+	memset(batches_2d, 0, sizeof(*batches_2d) * (size_t)(fixed + hud_quad_count));
 	int batch_count_2d = 0;
 	uint32_t vertex_count = 0;
 
@@ -978,6 +1032,16 @@ static void present_canvas(const CanvasQuad *quads, int quad_count, bool spotlig
 }
 
 /* --- 2D ------------------------------------------------------------------------------------ */
+
+void rgpu_present_blank(void)
+{
+	BTBHGPUWindowReport frame;
+	if (!begin_frame(&frame))
+		return;
+	hud_quad_count = 0;
+	canvas_fade[3] = 0;
+	present_canvas(NULL, 0, false, true, &frame);
+}
 
 void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 {
@@ -1293,8 +1357,7 @@ static void add_outside_shade(const Camera3D *camera, float reference, float cli
 		count += shade_quads(made + count, (int)COUNTOF(made) - count, corner_soft, 3, clip_x);
 		count += shade_quads(made + count, (int)COUNTOF(made) - count, corner, 4, clip_x);
 	}
-	count = SDL_min(count, MAX_HUD_QUADS - hud_quad_count);
-	if (count <= 0)
+	if (count <= 0 || !hud_quads_room(count))
 		return;
 	memmove(hud_quads + count, hud_quads, sizeof(hud_quads[0]) * (size_t)hud_quad_count);
 	memcpy(hud_quads, made, sizeof(made[0]) * (size_t)count);
@@ -1762,6 +1825,11 @@ static bool modern_hud(void)
 	return settings3d.hud_modern && !twoPlayerMode;
 }
 
+bool rgpu_modern_hud(void)
+{
+	return modern_hud();
+}
+
 static Layout3D layout_3d(float window_w, float window_h, const SDL_Rect *dst)
 {
 	Layout3D layout = { .split = true };
@@ -2053,9 +2121,9 @@ static void hud_panel_hd(const SDL_Surface *hud)
  */
 static void hud_quad(float x, float y, float w, float h, const float left[4], const float right[4])
 {
-	if (hud_quad_count == MAX_HUD_QUADS)
+	HudQuad *q = hud_quad_add();
+	if (q == NULL)
 		return;
-	HudQuad *q = &hud_quads[hud_quad_count++];
 	*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1 };
 	memcpy(q->left, left, sizeof(q->left));
 	memcpy(q->right, right != NULL ? right : left, sizeof(q->right));
@@ -2065,41 +2133,96 @@ static void hud_quad(float x, float y, float w, float h, const float left[4], co
  * Text in Oxanium (assets/fonts, OFL), for the HUD and the game's own texts over the 3D view: the
  * game's three fonts as three weights (large: bold, normal: semibold, tiny: medium), drawn from the
  * fork's glyph atlases at any size. Sizes by cap height (the height of a capital letter).
+ *
+ * Texts are laid out with each font's metrics at one size (text_sizes), and their glyphs drawn from
+ * rasters of the font at sizes a sixth of an octave apart (text_raster), each made the first time a
+ * text needs it: the smallest at or above the size the text shows at in the window's pixels, so
+ * glyphs are shrunk by less than a step, at whole pixels of the window (a single raster for all
+ * sizes, without mipmaps, shrank small text 4-5 times, roughly, and magnified big text, softly).
  */
 enum { TEXT_LARGE, TEXT_NORMAL, TEXT_TINY, TEXT_FONTS };
 #define TEXT_GLYPHS 95  // ASCII 32-126
+#define TEXT_RASTER_OCTAVE 6    // raster sizes a sixth of an octave apart (12 %) ...
+#define TEXT_RASTER_FIRST -18  // ... from 1/8 of the layout size ...
+#define TEXT_RASTER_LAST 8     // ... to 2.5 times
+#define TEXT_RASTERS (TEXT_RASTER_LAST - TEXT_RASTER_FIRST + 1)
 
-static BTBHGPUFont *text_fonts[TEXT_FONTS];
-static BTBHGPUFontGlyph text_glyphs[TEXT_FONTS][TEXT_GLYPHS];
-static float text_cap[TEXT_FONTS];  // cap height in the atlas' pixels
+static const char *const text_files[TEXT_FONTS] = { "Oxanium-Bold.ttf", "Oxanium-SemiBold.ttf", "Oxanium-Medium.ttf" };
+static const uint32_t text_sizes[TEXT_FONTS] = { 72, 60, 52 };  // the layout's (pixel heights)
+static BTBHGPUFontGlyph text_glyphs[TEXT_FONTS][TEXT_GLYPHS];   // the layout's metrics
+static float text_cap[TEXT_FONTS];  // cap height in the layout's pixels
 static bool text_loaded = false, text_ok = false;
+
+typedef struct
+{
+	bool tried;
+	BTBHGPUFont *font;
+	float scale;  // its pixels per layout pixel
+	Uint32 used;  // text_frames when text was last drawn from it
+	BTBHGPUFontGlyph glyphs[TEXT_GLYPHS];
+} TextRaster;
+static TextRaster text_rasters[TEXT_FONTS][TEXT_RASTERS];
+#define TEXT_RASTER_IDLE 600  // frames a raster isn't drawn from before it may go
+
+// Rasters no text has been drawn from for a while (sizes the window no longer shows: it was resized)
+// go when another is made, so they don't pile up. (Not the layout's: the fallback.)
+static void forget_idle_text_rasters(void)
+{
+	for (int f = 0; f < TEXT_FONTS; ++f)
+		for (int i = 0; i < TEXT_RASTERS; ++i)
+		{
+			TextRaster *r = &text_rasters[f][i];
+			if (r->font != NULL && i != -TEXT_RASTER_FIRST && text_frames - r->used > TEXT_RASTER_IDLE)
+			{
+				btbh_gpu_font_destroy(r->font);
+				r->font = NULL;
+				r->tried = false;
+			}
+		}
+}
+
+// A font's raster `step` steps from its layout size (loaded the first time; NULL if it can't be).
+static TextRaster *text_raster(int font, int step)
+{
+	TextRaster *r = &text_rasters[font][step - TEXT_RASTER_FIRST];
+	if (r->tried)
+		return r->font != NULL ? r : NULL;
+	forget_idle_text_rasters();
+	r->tried = true;
+	const uint32_t size = (uint32_t)SDL_max(lroundf(text_sizes[font] * exp2f(step / (float)TEXT_RASTER_OCTAVE)), 4L);
+	uint32_t codepoints[TEXT_GLYPHS];
+	for (int i = 0; i < TEXT_GLYPHS; ++i)
+		codepoints[i] = 32u + (uint32_t)i;
+	char dir[1024], path[1200];
+	tyr3d_resource_dir("TYR3D_FONT_DIR", TYR3D_FONT_DIR, "fonts", dir, sizeof(dir));
+	snprintf(path, sizeof(path), "%s/%s", dir, text_files[font]);
+	BTBHGPUFontReport report;
+	r->font = btbh_gpu_window_font_load(window, path, size, codepoints, TEXT_GLYPHS, &report);
+	if (r->font == NULL)
+	{
+		fprintf(stderr, "warning: font %s at %u px: %s\n", path, size, report.message);
+		return NULL;
+	}
+	for (int i = 0; i < TEXT_GLYPHS; ++i)
+		btbh_gpu_font_glyph(r->font, codepoints[i], &r->glyphs[i]);
+	r->scale = (float)size / text_sizes[font];
+	printf("text: %s at %u px (atlas %u x %u)\n", text_files[font], size, report.atlas_width, report.atlas_height);
+	return r;
+}
 
 static bool load_text_fonts(void)
 {
 	if (text_loaded)
 		return text_ok;
 	text_loaded = true;
-	static const char *files[TEXT_FONTS] = { "Oxanium-Bold.ttf", "Oxanium-SemiBold.ttf", "Oxanium-Medium.ttf" };
-	static const uint32_t sizes[TEXT_FONTS] = { 72, 60, 52 };
-	uint32_t codepoints[TEXT_GLYPHS];
-	for (int i = 0; i < TEXT_GLYPHS; ++i)
-		codepoints[i] = 32u + (uint32_t)i;
-	char dir[1024], path[1200];
-	tyr3d_resource_dir("TYR3D_FONT_DIR", TYR3D_FONT_DIR, "fonts", dir, sizeof(dir));
 	for (int f = 0; f < TEXT_FONTS; ++f)
 	{
-		snprintf(path, sizeof(path), "%s/%s", dir, files[f]);
-		BTBHGPUFontReport report;
-		text_fonts[f] = btbh_gpu_window_font_load(window, path, sizes[f], codepoints, TEXT_GLYPHS, &report);
-		if (text_fonts[f] == NULL)
-		{
-			fprintf(stderr, "warning: font %s: %s\n", path, report.message);
+		const TextRaster *layout = text_raster(f, 0);
+		if (layout == NULL)
 			return false;
-		}
-		for (int i = 0; i < TEXT_GLYPHS; ++i)
-			btbh_gpu_font_glyph(text_fonts[f], codepoints[i], &text_glyphs[f][i]);
+		memcpy(text_glyphs[f], layout->glyphs, sizeof(text_glyphs[f]));
 		const BTBHGPUFontGlyph *h = &text_glyphs[f]['H' - 32];
-		text_cap[f] = h->height > 0 ? h->height : sizes[f] * 0.7f;
+		text_cap[f] = h->height > 0 ? h->height : text_sizes[f] * 0.7f;
 	}
 	text_ok = true;
 	return true;
@@ -2109,6 +2232,25 @@ static const BTBHGPUFontGlyph *text_glyph(int font, char c)
 {
 	const int i = (unsigned char)c - 32;
 	return i >= 0 && i < TEXT_GLYPHS ? &text_glyphs[font][i] : NULL;
+}
+
+// A position in points at the nearest of the window's pixels.
+static float snap_to_pixel(float points)
+{
+	return roundf(points * text_density) / text_density;
+}
+
+// The raster to draw a font's glyphs from when a layout pixel is `scale` points.
+static const TextRaster *text_raster_for(int font, float scale)
+{
+	const float pixels = scale * text_density;  // window pixels per layout pixel
+	int step = pixels > 0 ? (int)ceilf(TEXT_RASTER_OCTAVE * log2f(pixels) - 0.08f) : 0;  // (1 % over one: that one)
+	step = SDL_clamp(step, TEXT_RASTER_FIRST, TEXT_RASTER_LAST);
+	TextRaster *r = text_raster(font, step);
+	if (r == NULL)
+		r = text_raster(font, 0);
+	r->used = text_frames;
+	return r;
 }
 
 // A string's width at a cap height ('~' toggles the game's highlight and takes no room).
@@ -2135,23 +2277,32 @@ static void text_quads_graded(int font, const char *s, float x, float y, float c
 	if (!load_text_fonts())
 		return;
 	const float scale = cap / text_cap[font];
-	BTBHGPUTexture *atlas = btbh_gpu_font_atlas(text_fonts[font]);
+	// Laid out in the layout's metrics, drawn from the raster for the size it shows at.
+	const TextRaster *raster = text_raster_for(font, scale);
+	BTBHGPUTexture *atlas = btbh_gpu_font_atlas(raster->font);
+	const float points = scale / raster->scale;  // per raster pixel
 	for (int pass = shadow > 0 ? 0 : 1; pass < 2; ++pass)
 	{
 		const float shade[4] = { 0, 0, 0, 0.7f * top[3] };
 		const float d = pass == 0 ? shadow : 0;
 		float pen = x;
 		const float baseline = y + cap;
-		for (const char *p = s; *p != '\0' && hud_quad_count < MAX_HUD_QUADS; ++p)
+		for (const char *p = s; *p != '\0'; ++p)
 		{
 			const BTBHGPUFontGlyph *g = *p == '~' ? NULL : text_glyph(font, *p);
 			if (g == NULL)
 				continue;
-			if (g->width > 0 && g->height > 0)
+			const BTBHGPUFontGlyph *drawn = &raster->glyphs[g - text_glyphs[font]];
+			if (*p != ' ' && drawn->width > 0 && drawn->height > 0)  // (a space's glyph is blank)
 			{
-				HudQuad *q = &hud_quads[hud_quad_count++];
-				*q = (HudQuad){ pen + g->offset_x * scale + d, baseline + g->offset_y * scale + d, g->width * scale,
-				                g->height * scale, g->u0, g->v0, g->u1, g->v1, .texture = atlas, .graded = true };
+				HudQuad *q = hud_quad_add();
+				if (q == NULL)
+					return;
+				// (At whole pixels, so the raster's pixels fall on the window's rather than across two.)
+				*q = (HudQuad){ snap_to_pixel(pen + drawn->offset_x * points + d),
+				                snap_to_pixel(baseline + drawn->offset_y * points + d), drawn->width * points,
+				                drawn->height * points, drawn->u0, drawn->v0, drawn->u1, drawn->v1, .texture = atlas,
+				                .graded = true };
 				const float t0 = SDL_clamp((q->y - d - y) / cap, 0.0f, 1.0f);
 				const float t1 = SDL_clamp((q->y - d + q->h - y) / cap, 0.0f, 1.0f);
 				for (int k = 0; k < 4; ++k)
@@ -2587,9 +2738,10 @@ void rgpu_present_3d_menu(const SDL_Surface *screen, const Uint8 *backdrop, cons
 		*screen_rect = *dst;
 		return;
 	}
-	// (The 2D screen's playfield is game x l3d_view_x and on: where those columns are shown.)
+	// (Where the menu's boxes and texts are shown: the screen's playfield columns at game x 24 and on,
+	// as the original's, whatever part of the wide playfield the 2D view showed; see layout_quads.)
 	const float k = layout.playfield[2] / l3d_field_w();
-	screen_rect->x = (int)(layout.playfield[0] + (l3d_view_x - l3d_field_x()) * k);
+	screen_rect->x = (int)(layout.playfield[0] + (L3D_PLAYFIELD_X - l3d_field_x()) * k);
 	screen_rect->y = (int)layout.playfield[1];
 	screen_rect->w = (int)(k * SCREEN_W + 0.5f);
 	screen_rect->h = (int)(layout.playfield[3] * SCREEN_H / L3D_PLAYFIELD_H + 0.5f);
@@ -8458,9 +8610,10 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	if (menu.on)
 	{
-		// (The 2D screen's playfield shows game x l3d_view_x and on.)
+		// The menu's texts where its boxes are (layout_quads shows the screen's playfield columns at
+		// game x 24 and on, the original's place, wherever on the wide playfield the 2D view was).
 		menu.map[2] = layout.playfield[2] / l3d_field_w();
-		menu.map[0] = layout.playfield[0] + (l3d_view_x - l3d_field_x()) * menu.map[2];
+		menu.map[0] = layout.playfield[0] + (L3D_PLAYFIELD_X - l3d_field_x()) * menu.map[2];
 		menu.map[1] = layout.playfield[1];
 		menu.map[3] = layout.playfield[3] / L3D_PLAYFIELD_H;
 	}
