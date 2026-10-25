@@ -1805,7 +1805,8 @@ static void shop_under(const UIMenu *m, Box u)
 			text(FONT_SEMIBOLD, s->players[k].name, x, y, key, C_DIM, ALIGN_LEFT);
 			char score[32];
 			grouped(strtoul(s->players[k].score, NULL, 10), score, sizeof(score));
-			text_graded(FONT_BOLD, score, x + col_w, y - U(2), CAP_HEAD(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+			if (s->players[k].score[0] != '\0')  // (twin-stick's turret: the ship's score is both's)
+				text_graded(FONT_BOLD, score, x + col_w, y - U(2), CAP_HEAD(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
 			y += key + U(14);
 			char fitted[48];
 			fit_text(FONT_BOLD, s->players[k].ship, name_cap, col_w, fitted, sizeof(fitted));
@@ -4408,7 +4409,7 @@ void ui_build_hud(const UIView *view)
 
 	// Two players: a panel each at the bottom corners (the left player's at the left).
 	float top_right_w = 0;  // (the boss bar keeps clear of it)
-	const bool two = twoPlayerMode && !galagaMode;
+	const bool two = twoPlayerMode && !galagaMode && !twin_stick();  // (twin-stick: one player's, player.h)
 	if (two)
 	{
 		static float shown2[2][2] = { { -1, -1 }, { -1, -1 } };
@@ -4467,15 +4468,18 @@ void ui_build_hud(const UIView *view)
 	}
 
 	// Top right: the guns' power (pips; 15 once a gun is overclocked past 11), the sidekicks' ammunition.
+	// (Twin-stick: the turret's gun, its charge and the sidekicks are player 2's: player.h.)
 	if (!two)
 	{
+		const Player *gun_of[2] = { p, twin_stick() ? &player[1] : p }, *sk = gun_of[1];
+		const bool charge = twin_stick() && chargeMax > 0;
 		const float pip = SDL_max(U(20), L.px * 6), gap = SDL_max(U(5), L.px * 2);
-		const int most = SDL_max(p->items.weapon[0].power, p->items.weapon[1].power) > 11 ? 15 : 11;
+		const int most = SDL_max(gun_of[0]->items.weapon[0].power, gun_of[1]->items.weapon[1].power) > 11 ? 15 : 11;
 		const float pips_w = most * pip + (most - 1) * gap;
 		int sidekick_rows = 0;
 		for (int i = 0; i < 2; ++i)
-			sidekick_rows += p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0;
-		const int rows = 2 + (sidekick_rows > 0);
+			sidekick_rows += sk->items.sidekick[i] > 0 && sk->sidekick[i].ammo_max > 0;
+		const int rows = 2 + (charge ? 1 : 0) + (sidekick_rows > 0);
 		const Box b = { safe.x + safe.w - margin - (label_w + pips_w + U(40)), safe.y + margin, label_w + pips_w + U(40),
 		                rows * row_h + U(28) };
 		top_right_w = b.w;
@@ -4486,26 +4490,34 @@ void ui_build_hud(const UIView *view)
 		for (int g = 0; g < 2; ++g)
 		{
 			const float y = b.y + U(14) + g * row_h;
-			text(FONT_MEDIUM, g == 0 ? "FRONT" : "REAR", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f },
-			     ALIGN_LEFT);
-			const int level = p->items.weapon[g].id > 0 ? p->items.weapon[g].power : 0;
+			text(FONT_MEDIUM, g == 0 ? "FRONT" : twin_stick() ? "TURRET" : "REAR", b.x + U(20), y + (row_h - cap) / 2, cap,
+			     (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+			const int level = gun_of[g]->items.weapon[g].id > 0 ? gun_of[g]->items.weapon[g].power : 0;
 			pips(b.x + U(20) + label_w, y + (row_h - pip) / 2, 11, SDL_min(level, 11), pip, gap, gun[g]);
 			if (most > 11)
 				pips(b.x + U(20) + label_w + 11 * (pip + gap), y + (row_h - pip) / 2, most - 11, SDL_max(level - 11, 0), pip, gap,
 				     (Colour){ 1.0f, 0.6f, 0.25f, 1 });
 		}
+		if (charge)
+		{
+			// (The turret's charge, which its shots fire with: the two players' charge.)
+			const float y = b.y + U(14) + 2 * row_h;
+			text(FONT_MEDIUM, "CHARGE", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
+			pips(b.x + U(20) + label_w, y + (row_h - pip) / 2, SDL_min((int)chargeMax, 15), SDL_min((int)chargeLevel, 15), pip, gap,
+			     (Colour){ 0.55f, 0.8f, 1.0f, 1 });
+		}
 		if (sidekick_rows > 0)
 		{
-			const float y = b.y + U(14) + 2 * row_h;
+			const float y = b.y + U(14) + (charge ? 3 : 2) * row_h;
 			const float w = (pips_w - U(12)) / 2;
 			text(FONT_MEDIUM, "AMMO", b.x + U(20), y + (row_h - cap) / 2, cap, (Colour){ 0.9f, 0.86f, 0.76f, 0.95f }, ALIGN_LEFT);
 			const Colour ammo = { 0x96 / 255.0f, 0x22 / 255.0f, 0x6c / 255.0f, 1 };  // Tyrian purple, lit
 			for (int i = 0; i < 2; ++i)
-				if (p->items.sidekick[i] > 0 && p->sidekick[i].ammo_max > 0)
+				if (sk->items.sidekick[i] > 0 && sk->sidekick[i].ammo_max > 0)
 				{
 					const float bh = SDL_max(row_h * 0.42f, L.px * 4);
 					bar((Box){ b.x + U(20) + label_w + i * (w + U(12)), y + (row_h - bh) / 2, w, bh },
-					    (float)p->sidekick[i].ammo / p->sidekick[i].ammo_max, ammo, true);
+					    (float)sk->sidekick[i].ammo / sk->sidekick[i].ammo_max, ammo, true);
 				}
 		}
 		hud_fade(mark, b, &fades[1]);
@@ -4516,12 +4528,13 @@ void ui_build_hud(const UIView *view)
 	{
 		const float cap_l = cap_of(15, 9), cap_n = cap_of(36, 16);
 		char score[32];
-		grouped(p->cash, score, sizeof(score));
+		// (Twin-stick: the ship's and the turret's together, as the game's score.)
+		grouped(p->cash + (twin_stick() ? player[1].cash : 0), score, sizeof(score));
 		const float score_w = SDL_max(text_w(FONT_BOLD, score, cap_n), U(160));
 		const bool lives = onePlayerAction || twoPlayerMode;
 		const int extra_lives = lives && p->lives != NULL ? (int)*p->lives - 1 : 0;
 		const bool special_on = p->items.special > 0 && p->items.special < COUNTOF(special);
-		const int bombs = (int)SDL_min(p->superbombs, 10u);
+		const int bombs = (int)SDL_min(p->superbombs + (twin_stick() ? player[1].superbombs : 0), 10u);
 		const float icon = SDL_max(U(34), L.px * 12);
 		float w = score_w + U(48);
 		float extra_h = 0;

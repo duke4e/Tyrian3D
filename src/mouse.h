@@ -44,5 +44,7 @@ void JE_mouseStartFilter(Uint8 filter);
 void JE_mouseReplace(void);
 // Tyrian3D: after each frame shown, shows or hides the system pointer (see mouse.c).
 void mouse_frame_shown(void);
+// Tyrian3D: the pointer shows as a crosshair with the next frames (twin-stick's aim: player.h).
+void mouse_show_crosshair(void);
 
 #endif /* MOUSE_H */

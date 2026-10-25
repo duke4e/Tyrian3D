@@ -76,6 +76,7 @@ bool gameplaySelect(void)
 		MENU_ITEM_2_PLAYER_ARCADE,
 		MENU_ITEM_NETWORK,
 		MENU_ITEM_ROGUE,  // Tyrian3D (rogue.h)
+		MENU_ITEM_TWIN_STICK,  // Tyrian3D (player.h twin_stick)
 	};
 
 	if (shopSpriteSheet.data == NULL)
@@ -87,8 +88,12 @@ bool gameplaySelect(void)
 	int shown[COUNTOF(gameplay_name)];
 	size_t menuItemsCount = 0;
 	for (int id = 0; id <= MENU_ITEM_ROGUE; ++id)
+	{
+		if (id == MENU_ITEM_2_PLAYER_ARCADE)
+			shown[menuItemsCount++] = MENU_ITEM_TWIN_STICK;  // (the one-player modes first)
 		if (id != MENU_ITEM_NETWORK)
 			shown[menuItemsCount++] = id;
+	}
 	size_t selectedIndex = 0;
 
 	const int xCenter = 320 / 2;
@@ -114,7 +119,8 @@ bool gameplaySelect(void)
 		// Draw menu items.
 		for (size_t i = 0; i < menuItemsCount; ++i)
 		{
-			const char *const text = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[shown[i] + 1];
+			const char *const text = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : shown[i] == MENU_ITEM_TWIN_STICK ? "1 Player Twin-Stick"
+			                       : gameplay_name[shown[i] + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
 			const int y = yMenuItems + dyMenuItems * i;
@@ -133,6 +139,7 @@ bool gameplaySelect(void)
 				"Two ships side by side, power-ups instead of the shop.",
 				"Not available in this version.",
 				"Three acts, one life: a new route and new cards every run.",
+				"The linked ship alone: keys or left stick fly, mouse or right stick aim the turret.",
 			};
 			const char *texts[COUNTOF(gameplay_name)];
 			const char *shown_hints[COUNTOF(gameplay_name)];
@@ -140,7 +147,8 @@ bool gameplaySelect(void)
 			bool disabled[COUNTOF(gameplay_name)];
 			for (size_t i = 0; i < menuItemsCount; ++i)
 			{
-				texts[i] = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[shown[i] + 1];
+				texts[i] = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : shown[i] == MENU_ITEM_TWIN_STICK ? "1 Player Twin-Stick"
+				         : gameplay_name[shown[i] + 1];
 				shown_hints[i] = hints[shown[i]];
 				xs[i] = xCenter - wMenuItem[i] / 2;
 				disabled[i] = false;
@@ -272,6 +280,7 @@ bool gameplaySelect(void)
 			case MENU_ITEM_1_PLAYER_ARCADE:
 			case MENU_ITEM_1_PLAYER_TIMED_BATTLE:
 			case MENU_ITEM_2_PLAYER_ARCADE:
+			case MENU_ITEM_TWIN_STICK:
 			{
 				JE_playSampleNum(S_SELECT);
 
@@ -279,7 +288,8 @@ bool gameplaySelect(void)
 
 				onePlayerAction = chosen == MENU_ITEM_1_PLAYER_ARCADE;
 				timedBattleMode = chosen == MENU_ITEM_1_PLAYER_TIMED_BATTLE;
-				twoPlayerMode = chosen == MENU_ITEM_2_PLAYER_ARCADE;
+				twoPlayerMode = chosen == MENU_ITEM_2_PLAYER_ARCADE || chosen == MENU_ITEM_TWIN_STICK;
+				twinStickMode = chosen == MENU_ITEM_TWIN_STICK;  // (a two-player game, one player: player.h)
 				return true;
 			}
 			case MENU_ITEM_NETWORK:

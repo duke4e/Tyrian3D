@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "config_file.h"
+#include "devtools.h"
 #include "file.h"
 #include "keyboard.h"
 #include "nortsong.h"
@@ -98,6 +99,41 @@ bool joystick_analog_angle(int j, float *angle)
 	}
 	
 	return false;
+}
+
+static bool gamepads_started = false;
+
+bool joystick_gamepad_sticks(int j, float *right_x, float *right_y, float *left_trigger, float *right_trigger)
+{
+	assert(j < joysticks);
+	
+	Joystick *js = &joystick[j];
+	if (js->handle == NULL)
+		return false;
+	
+	// (Opened the first time it's asked: the game reads its joysticks as joysticks otherwise.)
+	if (!js->gamepad_tried)
+	{
+		js->gamepad_tried = true;
+		if (!gamepads_started && SDL_InitSubSystem(SDL_INIT_GAMEPAD))
+		{
+			gamepads_started = true;
+			SDL_SetGamepadEventsEnabled(false);
+		}
+		const SDL_JoystickID id = SDL_GetJoystickID(js->handle);
+		if (gamepads_started && SDL_IsGamepad(id))
+			js->gamepad = SDL_OpenGamepad(id);
+		if (js->gamepad != NULL)
+			printf("joystick %d is a gamepad: %s\n", j, SDL_GetGamepadName(js->gamepad));
+	}
+	if (js->gamepad == NULL)
+		return false;
+	
+	*right_x = SDL_GetGamepadAxis(js->gamepad, SDL_GAMEPAD_AXIS_RIGHTX) / (float)joystick_analog_max;
+	*right_y = SDL_GetGamepadAxis(js->gamepad, SDL_GAMEPAD_AXIS_RIGHTY) / (float)joystick_analog_max;
+	*left_trigger = SDL_GetGamepadAxis(js->gamepad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) / (float)joystick_analog_max;
+	*right_trigger = SDL_GetGamepadAxis(js->gamepad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) / (float)joystick_analog_max;
+	return true;
 }
 
 /* gives back value 0..joystick_analog_max indicating that one of the assigned
@@ -287,6 +323,8 @@ void init_joysticks(void)
 	
 	SDL_SetJoystickEventsEnabled(false);
 	
+	dev_attach_test_pad();  // (Tyrian3D: TYR3D_TEST_PAD)
+	
 	SDL_JoystickID *joystick_ids = SDL_GetJoysticks(&joysticks);
 	if (joystick_ids == NULL)
 		joysticks = 0;
@@ -327,11 +365,16 @@ void deinit_joysticks(void)
 		if (joystick[j].handle != NULL)
 		{
 			save_joystick_assignments(&opentyrian_config, j);
+			if (joystick[j].gamepad != NULL)
+				SDL_CloseGamepad(joystick[j].gamepad);
 			SDL_CloseJoystick(joystick[j].handle);
 		}
 	}
 	
 	free(joystick);
+	
+	if (gamepads_started)
+		SDL_QuitSubSystem(SDL_INIT_GAMEPAD);
 	
 	SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
 }

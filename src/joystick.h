@@ -64,6 +64,9 @@ typedef struct
 	
 	Uint32 joystick_delay;
 	bool input_pressed;
+	
+	SDL_Gamepad *gamepad;  // Tyrian3D: the same controller as a gamepad, if SDL knows it as one (twin-stick)
+	bool gamepad_tried;
 }
 Joystick;
 
@@ -75,6 +78,9 @@ extern Joystick *joystick;
 
 int joystick_axis_reduce(int j, int value);
 bool joystick_analog_angle(int j, float *angle);
+// Tyrian3D: twin-stick (player.h): a controller SDL knows as a gamepad, its right stick (-1..1 each way,
+// down and right positive) and its triggers (0..1). False for other joysticks.
+bool joystick_gamepad_sticks(int j, float *right_x, float *right_y, float *left_trigger, float *right_trigger);
 
 void poll_joystick(int j);
 void poll_joysticks(void);

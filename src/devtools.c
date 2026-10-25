@@ -181,6 +181,16 @@ bool dev_setup_game(int episode, int section)
 		inputDevice[0] = 1;
 		inputDevice[1] = 2;
 	}
+	else if (mode != NULL && strcmp(mode, "twin") == 0)
+	{
+		// Twin-stick (player.h), as newGame() sets it up.
+		twoPlayerMode = true;
+		twinStickMode = true;
+		for (uint i = 0; i < COUNTOF(player); ++i)
+			player[i].cash = 0;
+		player[0].items.ship = 11;  // Silver Ship
+		inputDevice[0] = inputDevice[1] = 0;
+	}
 	else if (mode != NULL && sscanf(mode, "timed:%d", &mode_number) == 1)
 	{
 		timedBattleMode = true;
@@ -216,7 +226,7 @@ bool dev_setup_game(int episode, int section)
 			player[1].items.sidekick[k] = 0;
 	}
 	else if (mode != NULL && strcmp(mode, "full") != 0)
-		fprintf(stderr, "warning: TYR3D_MODE must be full, arcade, two, galaga, timed:<1-2> or super:<1-%d>\n",
+		fprintf(stderr, "warning: TYR3D_MODE must be full, arcade, two, twin, galaga, timed:<1-2> or super:<1-%d>\n",
 		        SA_LASTSHIP);
 	initialDifficulty = difficultyLevel;
 
@@ -305,11 +315,92 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
  * TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]: presses a key (an SDL scancode name: P, Escape,
  * Return, Down...; MouseLeft, MouseRight, MouseMiddle; <key>*<ms> holds it that long; MouseTo<x>x<y>
  * moves the pointer to that window point, where the mouse buttons then click; WheelUp, WheelDown turn
- * the mouse wheel a notch; Joy<key> presses the key as a joystick's: joystick.h; Type<text> types the text)
+ * the mouse wheel a notch; Joy<key> presses the key as a joystick's: joystick.h; Type<text> types the text;
+ * with TYR3D_TEST_PAD=1 a virtual gamepad: PadLX<v>, PadLY<v>, PadRX<v>, PadRY<v> put a stick's axis at
+ * v (-1..1, right and down positive) and leave it there, PadLT<v>, PadRT<v> a trigger (0..1), PadA, PadB,
+ * PadX, PadY, PadBack, PadStart, PadLB, PadRB press a button)
  * when that frame is
  * presented, then each next one so many milliseconds after the one before (menus wait for keys
  * without presenting frames). The list may be any length.
  */
+static SDL_Joystick *test_pad = NULL;  // TYR3D_TEST_PAD's virtual gamepad
+
+void dev_attach_test_pad(void)
+{
+	if (SDL_getenv("TYR3D_TEST_PAD") == NULL || test_pad != NULL)
+		return;
+	// (A test window runs without the focus, where SDL would drop the pad's presses.)
+	SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+	SDL_VirtualJoystickDesc desc;
+	SDL_INIT_INTERFACE(&desc);
+	desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+	desc.naxes = SDL_GAMEPAD_AXIS_COUNT;  // (in the gamepad's order: left x, y, right x, y, the triggers)
+	desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+	desc.name = "Tyrian3D test pad";
+	const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
+	if (id == 0 || (test_pad = SDL_OpenJoystick(id)) == NULL)
+	{
+		fprintf(stderr, "devtools: no test pad: %s\n", SDL_GetError());
+		return;
+	}
+	printf("devtools: test pad attached\n");
+}
+
+// A Pad key (TYR3D_TEST_PAD); false if the name isn't one.
+static bool press_pad_key(const char *name, Uint32 hold);
+
+static Uint32 SDLCALL release_pad_button(void *userdata, SDL_TimerID timer, Uint32 interval)
+{
+	(void)timer, (void)interval;
+	if (test_pad != NULL)
+		SDL_SetJoystickVirtualButton(test_pad, (int)(intptr_t)userdata, false);
+	return 0;
+}
+
+static bool press_pad_key(const char *name, Uint32 hold)
+{
+	if (strncmp(name, "Pad", 3) != 0 || name[3] == '\0')
+		return false;
+	name += 3;
+	if (test_pad == NULL)
+	{
+		fprintf(stderr, "devtools: Pad%s without TYR3D_TEST_PAD\n", name);
+		return true;
+	}
+	static const struct { const char *name; int axis; bool trigger; } axes[] = {
+		{ "LX", SDL_GAMEPAD_AXIS_LEFTX, false }, { "LY", SDL_GAMEPAD_AXIS_LEFTY, false },
+		{ "RX", SDL_GAMEPAD_AXIS_RIGHTX, false }, { "RY", SDL_GAMEPAD_AXIS_RIGHTY, false },
+		{ "LT", SDL_GAMEPAD_AXIS_LEFT_TRIGGER, true }, { "RT", SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, true },
+	};
+	for (size_t i = 0; i < SDL_arraysize(axes); ++i)
+		if (strncmp(name, axes[i].name, 2) == 0 && name[2] != '\0')
+		{
+			// (a trigger's axis runs from its minimum at rest to its maximum)
+			const float v = SDL_clamp(strtof(name + 2, NULL), axes[i].trigger ? 0.0f : -1.0f, 1.0f);
+			const Sint16 value = (Sint16)SDL_clamp(axes[i].trigger ? -32768.0f + v * 65535.0f : v * 32767.0f, -32768.0f, 32767.0f);
+			printf("devtools: pad %s at %.2f\n", axes[i].name, v);
+			if (!SDL_SetJoystickVirtualAxis(test_pad, axes[i].axis, value))
+				fprintf(stderr, "devtools: pad %s: %s\n", axes[i].name, SDL_GetError());
+			return true;
+		}
+	static const struct { const char *name; int button; } buttons[] = {
+		{ "A", SDL_GAMEPAD_BUTTON_SOUTH }, { "B", SDL_GAMEPAD_BUTTON_EAST }, { "X", SDL_GAMEPAD_BUTTON_WEST },
+		{ "Y", SDL_GAMEPAD_BUTTON_NORTH }, { "Back", SDL_GAMEPAD_BUTTON_BACK }, { "Start", SDL_GAMEPAD_BUTTON_START },
+		{ "LB", SDL_GAMEPAD_BUTTON_LEFT_SHOULDER }, { "RB", SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER },
+	};
+	for (size_t i = 0; i < SDL_arraysize(buttons); ++i)
+		if (strcmp(name, buttons[i].name) == 0)
+		{
+			printf("devtools: pressing pad %s for %u ms\n", name, hold);
+			if (!SDL_SetJoystickVirtualButton(test_pad, buttons[i].button, true))
+				fprintf(stderr, "devtools: pad %s: %s\n", name, SDL_GetError());
+			SDL_AddTimer(hold, release_pad_button, (void *)(intptr_t)buttons[i].button);
+			return true;
+		}
+	fprintf(stderr, "devtools: no pad key Pad%s\n", name);
+	return true;
+}
+
 static char *test_keys = NULL;  // a copy of the variable's value, for the program's life
 static const char *next_test_key = NULL;
 static float test_pointer_x = 0, test_pointer_y = 0;  // where MouseTo put the pointer (window points)
@@ -351,6 +442,8 @@ static void press_key(const char *name)
 		*star = '\0';
 	}
 	name = key;
+	if (press_pad_key(name, hold))
+		return;
 	const int mouse_button = strcmp(name, "MouseLeft") == 0 ? SDL_BUTTON_LEFT : strcmp(name, "MouseRight") == 0 ? SDL_BUTTON_RIGHT
 	                       : strcmp(name, "MouseMiddle") == 0 ? SDL_BUTTON_MIDDLE : 0;
 	if (mouse_button != 0)

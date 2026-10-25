@@ -162,6 +162,7 @@ extern JE_boolean gameJustLoaded;
 extern JE_boolean galagaMode;
 extern JE_boolean extraGame;
 extern JE_boolean twoPlayerMode, twoPlayerLinked, onePlayerAction, timedBattleMode, superTyrian, trentWin;
+extern bool twinStickMode;  // Tyrian3D: one player with the two players' linked ship (player.h twin_stick)
 extern JE_byte superArcadeMode;
 extern JE_byte superArcadePowerUp;
 extern JE_real linkGunDirec;

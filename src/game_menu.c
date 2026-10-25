@@ -459,7 +459,39 @@ static void shop_publish(void)
 		s->armor = SDL_clamp(player[0].armor / 28.0f, 0.0f, 1.0f);
 		s->shield = SDL_clamp(shields[player[0].items.shield].mpwr / 14.0f, 0.0f, 1.0f);
 	}
-	if (twoPlayerMode)
+	if (twin_stick())
+	{
+		// Tyrian3D: twin-stick (player.h), one player: the score, then the ship and its turret side by side
+		// (their ships stand over them): each one's gun and its power, the lives, the bombs.
+		const ulong score = player[0].cash + player[1].cash;
+		snprintf(s->caption, sizeof(s->caption), "Score %lu", score);
+		s->player_count = 2;
+		for (int k = 0; k < 2; ++k)
+		{
+			const Player *p = &player[k];
+			SDL_strlcpy(s->players[k].name, k == 0 ? "Ship" : "Turret", sizeof(s->players[k].name));
+			if (k == 0)
+				shop_ship_name(p->items.ship, s->players[k].ship, sizeof(s->players[k].ship), s->ship_class, 0);
+			else
+				SDL_strlcpy(s->players[k].ship, "Dragonwing", sizeof(s->players[k].ship));
+			if (k == 0)
+				snprintf(s->players[k].score, sizeof(s->players[k].score), "%lu", score);
+			else
+				s->players[k].score[0] = '\0';
+			const int w = k == 0 ? FRONT_WEAPON : REAR_WEAPON;
+			char weapon[48] = "-";
+			if (p->items.weapon[w].id > 0)
+				shop_item_name(w == FRONT_WEAPON ? 3 : 4, p->items.weapon[w].id, weapon, sizeof(weapon));
+			SDL_strlcpy(s->players[k].weapon, weapon, sizeof(s->players[k].weapon));
+			s->players[k].power = p->items.weapon[w].id > 0 ? p->items.weapon[w].power : 0;
+			s->players[k].power_max = s->players[k].power > 11 ? 15 : 11;
+			s->players[k].lives = k == 0 && p->lives != NULL ? (int)*p->lives - 1 : -1;
+			s->players[k].bombs = (int)p->superbombs;
+			s->players[k].input[0] = '\0';  // (the menu's Fly and Aim say it)
+		}
+		s->ship_class[0] = '\0';
+	}
+	else if (twoPlayerMode)
 	{
 		char one[24], two[24];
 		shop_plain_text(one, miscText[40], sizeof(one));
@@ -712,7 +744,15 @@ static void shop_publish(void)
 			}
 			if (curMenu == MENU_MOUSE_CONFIG && x == 5)
 				it->gap_before = true;
-			if (curMenu == MENU_2_PLAYER_ARCADE && (x == 3 || x == 4))
+			if (curMenu == MENU_2_PLAYER_ARCADE && (x == 3 || x == 4) && twin_stick())
+			{
+				// Tyrian3D: twin-stick (player.h): what flies the ship and what aims the turret.
+				SDL_strlcpy(it->label, x == 3 ? "Fly" : "Aim", sizeof(it->label));
+				SDL_strlcpy(it->value, x == 3 ? "Keys / Left stick" : "Mouse / Right stick", sizeof(it->value));
+				it->kind = UI_ITEM_CHOICE;
+				it->disabled = true;
+			}
+			else if (curMenu == MENU_2_PLAYER_ARCADE && (x == 3 || x == 4))
 			{
 				const int i = x - 3;
 				it->kind = UI_ITEM_CHOICE;
@@ -1450,7 +1490,13 @@ void JE_itemScreen(void)
 		}
 
 		/* 2 player input devices */
-		if (curMenu == MENU_2_PLAYER_ARCADE)
+		if (curMenu == MENU_2_PLAYER_ARCADE && twin_stick())
+		{
+			// Tyrian3D: twin-stick (player.h): one player's controls.
+			JE_dString(VGAScreen, 186, 38 + 2 * 16, "Keys/Pad", SMALL_FONT_SHAPES);
+			JE_dString(VGAScreen, 186, 38 + 4 * 16, "Mouse/Pad", SMALL_FONT_SHAPES);
+		}
+		else if (curMenu == MENU_2_PLAYER_ARCADE)
 		{
 			for (uint i = 0; i < COUNTOF(inputDevice); i++)
 			{
@@ -2199,6 +2245,8 @@ void JE_itemScreen(void)
 					{
 					case 3:
 					case 4:
+						if (twin_stick())
+							break;  // (Tyrian3D: twin-stick's controls are its own)
 						JE_playSampleNum(S_CURSOR);
 
 						int temp = curSel[curMenu] - 3;
@@ -2292,6 +2340,8 @@ void JE_itemScreen(void)
 					{
 					case 3:
 					case 4:
+						if (twin_stick())
+							break;  // (Tyrian3D: twin-stick's controls are its own)
 						JE_playSampleNum(S_CURSOR);
 
 						int temp = curSel[curMenu] - 3;
@@ -3784,6 +3834,8 @@ void JE_menuFunction(JE_byte select)
 			break;
 		case 3:
 		case 4:
+			if (twin_stick())
+				break;  // (Tyrian3D: twin-stick's controls are its own)
 			JE_playSampleNum(S_CURSOR);
 
 			int temp = curSel[curMenu] - 3;

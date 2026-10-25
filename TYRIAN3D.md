@@ -196,6 +196,38 @@ The acts, their levels, the items and the unlocks are `assets/content/rogue.cfg`
 unlocks, runs) is `tyrian3d_rogue.cfg` beside `opentyrian.cfg`. A run skips the episode scripts'
 shops, story texts and pictures, and never writes the player's save slots.
 
+## Twin-stick
+
+Start New Game → **1 Player Twin-Stick**: one player alone with the two players' linked ship (in a
+two-player game the ships join into one when they meet: player 1 flies it, player 2 turns and fires
+the Dragonwing's gun). It is a two-player arcade game (the Silver Ship with the Dragonwing behind it,
+power-ups instead of the shop, the two-player Game Menu between levels) whose two players are one:
+
+* **Keyboard and mouse**: the arrows (or WASD, unless the keys are bound to something else) fly the
+  ship; the mouse aims the turret, which turns to the pointer (a brass crosshair; the ship doesn't
+  follow the mouse, whatever the mouse setting); the left button, or the fire key, fires the front
+  gun and the turret together; the other buttons and keys do what the settings say (the sidekicks,
+  super bombs, the rear gun's mode).
+* **Controller**: the left stick (or the pad) flies, the right stick aims (let go, the turret keeps
+  its way), the right trigger or the fire button fires both guns, the left trigger fires the
+  sidekicks. The sticks are read through SDL's gamepad API, so any controller SDL knows as a gamepad
+  has them; the buttons are the joystick settings' as ever.
+* Whichever was moved last aims: the mouse or the right stick.
+* The ship and the turret are always linked (the sidekick buttons don't part them); the turret is
+  never hit on its own (only the ship's hits count), armor pick-ups go whole to the ship, and the
+  turret goes and comes back with the ship: its lives are the ship's (the front gun's
+  power, as in arcade play); the rear power-ups power the turret, the sidekicks are the turret's, as
+  player 2's are. The difficulty is as chosen (two players' is a step harder).
+* The modern HUD is one player's: the score (both guns' together), lives, super bombs and special
+  weapon at the bottom left, shield and armor at the bottom right, the front gun, the turret, its
+  charge (the two players' charge gun, which the turret fires) and the sidekicks' ammunition at the
+  top right. The store's Game Menu shows the ship and the turret side by side with the score and
+  each one's gun, and Fly and Aim in place of the two players' input devices. Pick-up messages are
+  one player's. The classic HUD keeps the original's two-player panel.
+* A twin-stick game is saved as a two-player game whose input devices are both "any" (0), which is
+  how a save, and the arcade's continue after game over, know it again (`twinStickMode`,
+  `twin_stick()` in `player.h`; `JE_playerMovement` in `mainint.c`).
+
 ## Episode 6
 
 Episode 6, "The Grey Books" (plan: `docs/plans/2026-10-09-epizoda-6.md`), is written in the game's
@@ -455,7 +487,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LEVEL_TICKS=<n>`, `TYR3D_LEVEL_DIE=<n>` | End every level as cleared after n ticks, or destroy the ship after n ticks (for testing what follows) |
 | `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the first frame shown after the game has taken each test key (its key, button, wheel or pointer event) instead of every n-th (menus) |
 | `TYR3D_UPSCALE_DIR=<dir>` | Where the HD resources are: `tiles/*.hdt`, `sheets/*.hd`, `hud_1p.png`, `hud_2p.png`, `pictures/pic_NN.png` (default `data/hd`) |
-| `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
+| `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `twin` (twin-stick), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
+| `TYR3D_TEST_PAD=1` | A virtual gamepad ("Tyrian3D test pad", which SDL takes in background windows too) that `TYR3D_TEST_KEYS`' Pad keys drive: `PadLX<v>`, `PadLY<v>`, `PadRX<v>`, `PadRY<v>` put a stick's axis at v (-1..1, right and down positive) and leave it there, `PadLT<v>`, `PadRT<v>` a trigger (0..1), `PadA`, `PadB`, `PadX`, `PadY`, `PadBack`, `PadStart`, `PadLB`, `PadRB` press a button (`*<ms>` holds it) |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |

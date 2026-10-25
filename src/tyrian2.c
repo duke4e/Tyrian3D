@@ -2127,7 +2127,8 @@ level_loop:
 
 	allPlayersGone = all_players_dead() &&
 	                 ((*player[0].lives == 1 && player[0].exploding_ticks == 0) || (!onePlayerAction && !twoPlayerMode)) &&
-	                 ((*player[1].lives == 1 && player[1].exploding_ticks == 0) || !twoPlayerMode);
+	                 ((*player[1].lives == 1 && player[1].exploding_ticks == 0) || !twoPlayerMode ||
+	                  twin_stick());  // (Tyrian3D: the twin-stick turret goes with the ship's last life)
 
 	/*-----MUSIC FADE------*/
 	if (musicFade)
@@ -2879,7 +2880,7 @@ draw_player_shot_loop_end:
 				{
 					for (uint i = 0; i < (twoPlayerMode ? 2 : 1); ++i)
 					{
-						if (player[i].is_alive &&
+						if (player[i].is_alive && !(i == 1 && twin_stick()) &&  // (Tyrian3D: the twin-stick turret isn't hit)
 						    enemyShot[z].sx > player[i].x - (signed)player[i].shot_hit_area_x &&
 						    enemyShot[z].sx < player[i].x + (signed)player[i].shot_hit_area_x &&
 						    enemyShot[z].sy > player[i].y - (signed)player[i].shot_hit_area_y &&
@@ -4875,10 +4876,19 @@ bool newGame(void)
 
 			player[0].items.ship = 11;  // Silver Ship
 
-			difficultyLevel++;
+			// Tyrian3D: twin-stick (player.h), one player alone: both inputs "any" (as its saves keep
+			// it), the difficulty as chosen (two players' is a step harder).
+			if (twinStickMode)
+			{
+				inputDevice[0] = inputDevice[1] = 0;
+			}
+			else
+			{
+				difficultyLevel++;
 
-			inputDevice[0] = 1;
-			inputDevice[1] = 2;
+				inputDevice[0] = 1;
+				inputDevice[1] = 2;
+			}
 		}
 		else if (richMode)
 		{

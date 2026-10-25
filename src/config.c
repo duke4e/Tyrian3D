@@ -168,6 +168,7 @@ JE_boolean galagaMode;
 JE_boolean extraGame;
 
 JE_boolean twoPlayerMode, twoPlayerLinked, onePlayerAction, timedBattleMode, superTyrian;
+bool twinStickMode = false;
 JE_boolean trentWin = false;
 JE_byte    superArcadeMode;
 
@@ -497,6 +498,8 @@ void JE_loadGame(JE_byte slot)
 	secretHint = saveFiles[slot-1].secretHint;
 	inputDevice[0] = saveFiles[slot-1].input1;
 	inputDevice[1] = saveFiles[slot-1].input2;
+	// Tyrian3D: a twin-stick game is a two-player one with both inputs "any" (player.h).
+	twinStickMode = twoPlayerMode && inputDevice[0] == 0 && inputDevice[1] == 0;
 
 	for (uint port = 0; port < 2; ++port)
 	{

@@ -247,6 +247,74 @@ static SDL_Cursor *pointer_cursor(JE_byte shape, Uint8 filter, int scale)
 	return cursor;
 }
 
+static int crosshair_wanted = 0;  // frames to show the crosshair with (mouse_show_crosshair)
+
+// The crosshair: a ring, four ticks out of it and a dot, brass with a dark rim, a little larger than the
+// modern pointer (and a picture twice as large for high-density displays); made again when the size
+// changes.
+static SDL_Cursor *crosshair_cursor(void)
+{
+	static SDL_Cursor *cursor = NULL;
+	static int made_size = 0;
+	const int size = SDL_max((int)lroundf(ui_pointer_points() * 1.15f), 17) | 1;  // (odd: a middle pixel)
+	if (cursor != NULL && made_size == size)
+		return cursor;
+	SDL_Surface *images[2] = { NULL, NULL };
+	for (int k = 0; k < 2; ++k)
+	{
+		const int s = size * (k + 1);
+		images[k] = SDL_CreateSurface(s, s, SDL_PIXELFORMAT_RGBA32);
+		if (images[k] == NULL)
+			continue;
+		const float c = (s - 1) / 2.0f, r = s * 0.27f, w = s * 0.04f + 0.35f, rim = 1.1f * (k + 1);
+		const float tick_out = c - rim - 0.5f;
+		for (int y = 0; y < s; ++y)
+		{
+			Uint8 *row = (Uint8 *)images[k]->pixels + y * images[k]->pitch;
+			for (int x = 0; x < s; ++x)
+			{
+				// How far outside the shape (negative inside): the ring, the ticks, the dot.
+				const float dx = x - c, dy = y - c, d = sqrtf(dx * dx + dy * dy);
+				const float along = SDL_max(fabsf(dx), fabsf(dy)), across = SDL_min(fabsf(dx), fabsf(dy));
+				float e = fabsf(d - r) - w;
+				e = SDL_min(e, SDL_max(across - w, SDL_max(r - along, along - tick_out)));
+				e = SDL_min(e, d - w * 1.4f);
+				const float fill = SDL_clamp(0.5f - e, 0.0f, 1.0f), dark = SDL_clamp(0.5f - (e - rim), 0.0f, 1.0f) * 0.8f;
+				const float a = fill + dark * (1 - fill);
+				Uint8 *px = row + x * 4;
+				px[0] = (Uint8)(a > 0 ? (0xf0 * fill + 0x1c * dark * (1 - fill)) / a : 0);
+				px[1] = (Uint8)(a > 0 ? (0xc8 * fill + 0x13 * dark * (1 - fill)) / a : 0);
+				px[2] = (Uint8)(a > 0 ? (0x6e * fill + 0x08 * dark * (1 - fill)) / a : 0);
+				px[3] = (Uint8)lroundf(a * 255);
+			}
+		}
+	}
+	if (images[0] != NULL && images[1] != NULL)
+		SDL_AddSurfaceAlternateImage(images[0], images[1]);
+	SDL_Cursor *made = images[0] != NULL ? SDL_CreateColorCursor(images[0], size / 2, size / 2) : NULL;
+	if (images[0] != NULL && SDL_getenv("TYR3D_DUMP_DIR") != NULL)  // (dev: the picture, to look at)
+	{
+		char path[1024];
+		snprintf(path, sizeof(path), "%s/crosshair.bmp", SDL_getenv("TYR3D_DUMP_DIR"));
+		SDL_SaveBMP(images[1] != NULL ? images[1] : images[0], path);
+	}
+	for (int k = 0; k < 2; ++k)
+		SDL_DestroySurface(images[k]);
+	if (made != NULL)
+	{
+		if (cursor != NULL)
+			SDL_DestroyCursor(cursor);
+		cursor = made;
+		made_size = size;
+	}
+	return cursor;
+}
+
+void mouse_show_crosshair(void)
+{
+	crosshair_wanted = 2;
+}
+
 void mouse_frame_shown(void)
 {
 	if (!has_mouse || !native_pointer())
@@ -258,6 +326,15 @@ void mouse_frame_shown(void)
 			SDL_SetCursor(cursor);
 		SDL_ShowCursor();
 		--pointer_wanted;
+	}
+	else if (crosshair_wanted > 0 && !SDL_GetWindowRelativeMouseMode(main_window))
+	{
+		// (With the keys held too: the keys fly, the mouse aims.)
+		SDL_Cursor *cursor = crosshair_cursor();
+		if (cursor != NULL && SDL_GetCursor() != cursor)
+			SDL_SetCursor(cursor);
+		SDL_ShowCursor();
+		--crosshair_wanted;
 	}
 	else
 	{

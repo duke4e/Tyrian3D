@@ -1361,6 +1361,7 @@ void JE_initPlayerData(void)
 	superArcadeMode = SA_NONE;
 	superTyrian = false;
 	twoPlayerMode = false;
+	twinStickMode = false;
 	timedBattleMode = false;
 
 	secretHint = (mt_rand() % 3) + 1;
@@ -4525,6 +4526,65 @@ void player_pointer_lead(float lead[2])
 	lead[1] = y - mouse_ship->y;
 }
 
+/*
+ * Tyrian3D: twin-stick (player.h). The ship's controls (player 1's) are the game's: keys (WASD as the
+ * arrows too), the joysticks, the mouse's buttons, a controller's right trigger as fire and its left
+ * one as both sidekicks' buttons. The turret (player 2) takes the same buttons each tick and turns
+ * where the player aims: at the pointer (the mouse moved last: the ship doesn't follow it, a crosshair
+ * shows it) or the right stick's way (it was pushed last; let go, the turret keeps it).
+ */
+static bool twin_buttons[4];
+static enum { TWIN_AIM_NONE, TWIN_AIM_POINTER, TWIN_AIM_STICK } twin_aim = TWIN_AIM_NONE;
+static float twin_stick_direc;  // the right stick's way, as linkGunDirec (0 down the screen, pi up)
+
+// A WASD key, held, flying the twin-stick ship (unless the game's keys have it for something else).
+static bool twin_key(SDL_Scancode key)
+{
+	if (!twin_stick() || !keysactive[key])
+		return false;
+	for (uint i = 0; i < COUNTOF(keySettings); ++i)
+		if (keySettings[i] == key)
+			return false;
+	return true;
+}
+
+// A controller's right stick and triggers, for the twin-stick ship.
+static void twin_stick_pad(int j)
+{
+	float rx, ry, lt, rt;
+	if (!joystick_gamepad_sticks(j, &rx, &ry, &lt, &rt))
+		return;
+	if (rx * rx + ry * ry > 0.35f * 0.35f)
+	{
+		// (Seen from the side, the stick turned as controls_move turns the ship's.)
+		const float x = l3d_sideways && l3d_enabled ? ry : rx, y = l3d_sideways && l3d_enabled ? -rx : ry;
+		twin_aim = TWIN_AIM_STICK;
+		twin_stick_direc = atan2f(x, y);
+	}
+	button[0] |= rt > 0.5f;
+	button[1] |= lt > 0.5f;
+	button[2] |= lt > 0.5f;
+}
+
+// The twin-stick turret's way, where the player aims it.
+static void twin_stick_aim(void)
+{
+	float direc = linkGunDirec;
+	float px, py;
+	if (twin_aim == TWIN_AIM_STICK)
+		direc = twin_stick_direc;
+	else if (twin_aim == TWIN_AIM_POINTER && mouse_pointer_game(&px, &py))
+	{
+		// From the turret (behind the ship, as the linked ship places it), round its middle.
+		const float dx = px - (player[0].x + 7.0f), dy = py - (player[0].y + 15.0f);
+		if (dx * dx + dy * dy > 4.0f * 4.0f)
+			direc = atan2f(dx, dy);
+	}
+	if (direc < 0)
+		direc += 2 * M_PI;
+	linkGunDirec = direc;
+}
+
 // The ship moved by the controls (keys, a digital pad): seen from the side (the 3D view turned
 // clockwise, the level scrolling to the right), right is up the level and down is right on it.
 // What moves the ship otherwise (the autopilot, constant play) goes in the level's terms.
@@ -4567,6 +4627,27 @@ void JE_playerMovement(Player *this_player,
 
 		if (this_player->weapon_mode > tempW)
 			this_player->weapon_mode = 1;
+	}
+
+	// Tyrian3D: twin-stick (player.h): the turret goes with the ship (it is never hit on its own:
+	// JE_playerCollide, the enemies' shots) and comes back with it, linked; it reads no controls of
+	// its own (it takes the ship's).
+	const bool twin_turret = twin_stick() && playerNum_ == 2;
+	if (twin_turret)
+	{
+		if (!player[0].is_alive)
+		{
+			this_player->is_alive = false;
+			this_player->exploding_ticks = 0;
+			return;
+		}
+		if (!this_player->is_alive)
+		{
+			this_player->is_alive = true;
+			this_player->x = player[0].x;
+			this_player->y = player[0].y + 8;
+		}
+		twoPlayerLinked = true;
 	}
 
 #ifdef WITH_NETWORK
@@ -4734,7 +4815,7 @@ redo:
 				}
 
 				/* joystick input */
-				if ((inputDevice == 0 || inputDevice >= 3) && joysticks > 0)
+				if ((inputDevice == 0 || inputDevice >= 3) && joysticks > 0 && !twin_turret)
 				{
 					int j = inputDevice  == 0 ? 0 : inputDevice - 3;
 					int j_max = inputDevice == 0 ? joysticks : inputDevice - 3 + 1;
@@ -4763,13 +4844,16 @@ redo:
 
 						ingamemenu_pressed |= joystick[j].action_pressed[4];
 						pause_pressed |= joystick[j].action_pressed[5];
+
+						if (twin_stick())
+							twin_stick_pad(j);
 					}
 				}
 
 				service_SDL_events(false);
 
 				/* mouse input */
-				if ((inputDevice == 0 || inputDevice == 2) && has_mouse)
+				if ((inputDevice == 0 || inputDevice == 2) && has_mouse && !twin_turret)
 				{
 					button[0] |= mouse_pressed[0];
 					button[1] |= mouse_pressed[1];
@@ -4779,7 +4863,14 @@ redo:
 					Sint32 mouseXR;
 					Sint32 mouseYR;
 					mouseGetRelativePosition(&mouseXR, &mouseYR);
-					if (settings3d.mouse_direct && !isNetworkGame)
+					if (twin_stick())
+					{
+						// (Tyrian3D: twin-stick: the pointer aims the turret, the ship doesn't follow it.)
+						if (mouse_take_pointer_moved())
+							twin_aim = TWIN_AIM_POINTER;
+						mouse_ship = NULL;
+					}
+					else if (settings3d.mouse_direct && !isNetworkGame)
 					{
 						pointer_moved = mouse_take_pointer_moved();
 						mouse_ship = this_player;
@@ -4794,13 +4885,13 @@ redo:
 				}
 
 				/* keyboard input */
-				if ((inputDevice == 0 || inputDevice == 1) && !play_demo)
+				if ((inputDevice == 0 || inputDevice == 1) && !play_demo && !twin_turret)
 				{
 					controls_move(this_player,
-					              (keysactive[keySettings[KEY_SETTING_LEFT]] ? -CURRENT_KEY_SPEED : 0) +
-					              (keysactive[keySettings[KEY_SETTING_RIGHT]] ? CURRENT_KEY_SPEED : 0),
-					              (keysactive[keySettings[KEY_SETTING_UP]] ? -CURRENT_KEY_SPEED : 0) +
-					              (keysactive[keySettings[KEY_SETTING_DOWN]] ? CURRENT_KEY_SPEED : 0));
+					              (keysactive[keySettings[KEY_SETTING_LEFT]] || twin_key(SDL_SCANCODE_A) ? -CURRENT_KEY_SPEED : 0) +
+					              (keysactive[keySettings[KEY_SETTING_RIGHT]] || twin_key(SDL_SCANCODE_D) ? CURRENT_KEY_SPEED : 0),
+					              (keysactive[keySettings[KEY_SETTING_UP]] || twin_key(SDL_SCANCODE_W) ? -CURRENT_KEY_SPEED : 0) +
+					              (keysactive[keySettings[KEY_SETTING_DOWN]] || twin_key(SDL_SCANCODE_S) ? CURRENT_KEY_SPEED : 0));
 
 					button[0] = button[0] || keysactive[keySettings[KEY_SETTING_FIRE]];
 					button[3] = button[3] || keysactive[keySettings[KEY_SETTING_CHANGE_FIRE]];
@@ -4862,6 +4953,18 @@ redo:
 							demo_keys_wait = 0;
 						}
 					}
+				}
+
+				// Tyrian3D: twin-stick: the turret fires with the ship's controls; the crosshair shows
+				// where the pointer aims it.
+				if (twin_stick())
+				{
+					if (playerNum_ == 1)
+						memcpy(twin_buttons, button, sizeof(twin_buttons));
+					else
+						memcpy(button, twin_buttons, sizeof(twin_buttons));
+					if (playerNum_ == 1 && twin_aim == TWIN_AIM_POINTER)
+						mouse_show_crosshair();
 				}
 
 				if (l3d_sideways && l3d_enabled)
@@ -5005,6 +5108,11 @@ redo:
 
 			/*Linking Routines*/
 
+			// Tyrian3D: twin-stick: always linked (the sidekick buttons don't part them), the turret
+			// turned where the player aims it.
+			if (twin_turret)
+				twin_stick_aim();
+
 			if (twoPlayerMode && !twoPlayerLinked && this_player->x == *mouseX_ && this_player->y == *mouseY_ &&
 			    abs(player[0].x - player[1].x) < 8 && abs(player[0].y - player[1].y) < 8 &&
 			    player[0].is_alive && player[1].is_alive && !galagaMode)
@@ -5012,7 +5120,7 @@ redo:
 				twoPlayerLinked = true;
 			}
 
-			if (playerNum_ == 1 && (button[3-1] || button[2-1]) && !galagaMode)
+			if (playerNum_ == 1 && (button[3-1] || button[2-1]) && !galagaMode && !twin_stick())
 				twoPlayerLinked = false;
 
 			if (twoPlayerMode && twoPlayerLinked && playerNum_ == 2 &&
@@ -6043,7 +6151,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 
 							if (isNetworkGame)
 								snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(1), miscTextB[4-1], special[evalue - 32100].name);
-							else if (twoPlayerMode)
+							else if (twoPlayerMode && !twin_stick())  // (Tyrian3D: twin-stick's one player as one player's)
 								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[43-1], special[evalue - 32100].name);
 							else
 								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[64-1], special[evalue - 32100].name);
@@ -6060,7 +6168,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							if (isNetworkGame)
 								snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(2), miscTextB[4-1], options[evalue - 32000].name);
 							else
-								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[44-1], options[evalue - 32000].name);
+								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[twin_stick() ? 64-1 : 44-1], options[evalue - 32000].name);
 							JE_drawTextWindow(tempStr);
 
 							// if picked up a different sidekick than player already has, then reset sidekicks to least powerful, else power them up
@@ -6108,7 +6216,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							if (isNetworkGame)
 								snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(2), miscTextB[4-1], weaponPort[evalue - 31000].name);
 							else
-								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[44-1], weaponPort[evalue - 31000].name);
+								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[twin_stick() ? 64-1 : 44-1], weaponPort[evalue - 31000].name);
 							JE_drawTextWindow(tempStr);
 							player[1].items.weapon[REAR_WEAPON].id = evalue - 31000;
 							shotMultiPos[SHOT_REAR] = 0;
@@ -6135,7 +6243,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							if (isNetworkGame)
 								snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(1), miscTextB[4-1], weaponPort[evalue - 30000].name);
 							else
-								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[43-1], weaponPort[evalue - 30000].name);
+								snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[twin_stick() ? 64-1 : 43-1], weaponPort[evalue - 30000].name);
 							JE_drawTextWindow(tempStr);
 							player[0].items.weapon[FRONT_WEAPON].id = evalue - 30000;
 							shotMultiPos[SHOT_FRONT] = 0;
@@ -6169,7 +6277,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 				}
 				else if (evalue > 20000)
 				{
-					if (twoPlayerLinked)
+					if (twoPlayerLinked && !twin_stick())  // (Tyrian3D: twin-stick: the turret has no use for it)
 					{
 						// share the armor evenly between linked players
 						for (uint i = 0; i < COUNTOF(player); ++i)
@@ -6219,7 +6327,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					{
 						if (isNetworkGame)
 							snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(1), miscTextB[4-1], miscText[45-1]);
-						else if (twoPlayerMode)
+						else if (twoPlayerMode && !twin_stick())  // (Tyrian3D: twin-stick's one player as one player's)
 							snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[43-1], miscText[45-1]);
 						else
 							strcpy(tempStr, miscText[45-1]);
@@ -6232,7 +6340,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					{
 						if (isNetworkGame)
 							snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(2), miscTextB[4-1], miscText[46-1]);
-						else if (twoPlayerMode)
+						else if (twoPlayerMode && !twin_stick())
 							snprintf(tempStr, sizeof(tempStr), "%s %s", miscText[44-1], miscText[46-1]);
 						else
 							strcpy(tempStr, miscText[46-1]);
@@ -6279,7 +6387,8 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					JE_setupExplosion(enemy_screen_x, enemy[z].ey, 0, enemyDat[enemy[z].enemytype].explosiontype, true, false);
 				}
 				else if (this_player->invulnerable_ticks == 0 && enemyAvail[z] == 0 &&
-				         (enemyDat[enemy[z].enemytype].explosiontype & 1) == 0) // explosiontype & 1 == 0: not ground enemy
+				         (enemyDat[enemy[z].enemytype].explosiontype & 1) == 0 && // explosiontype & 1 == 0: not ground enemy
+				         !(twin_stick() && playerNum_ == 2))  // (Tyrian3D: the twin-stick turret isn't hit)
 				{
 					int armorleft = enemy[z].armorleft;
 					if (armorleft > damageRate)

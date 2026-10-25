@@ -25,6 +25,7 @@
 #include "mouse.h"
 #include "network.h"
 #include "opentyr.h"
+#include "player.h"
 #include "settings3d.h"
 #include "ui.h"
 #include "video.h"
@@ -117,8 +118,9 @@ void init_keyboard(void)
 void mouseSetRelative(bool enable)
 {
 	// Tyrian3D: with the direct mouse the ship goes where the (hidden) pointer is, so the pointer
-	// keeps moving as on the desktop; it is only kept in the window.
-	if (settings3d.mouse_direct)
+	// keeps moving as on the desktop; it is only kept in the window. So too where it aims twin-stick's
+	// turret (player.h).
+	if (settings3d.mouse_direct || twin_stick())
 	{
 		SDL_SetWindowRelativeMouseMode(main_window, false);
 		SDL_SetWindowMouseGrab(main_window, enable && windowHasFocus);

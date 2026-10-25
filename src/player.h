@@ -121,6 +121,17 @@ static inline bool all_players_dead(void)
 	return (!player[0].is_alive && (!twoPlayerMode || !player[1].is_alive));
 }
 
+/*
+ * Tyrian3D: twin-stick, a mode one player plays alone with the two players' linked ship: player 1 is
+ * the ship (keys or the left stick fly it), player 2 its turret (the Dragonwing's linked gun: the
+ * mouse or the right stick aims it), one fire for both. A two-player arcade game whose inputs are
+ * both 0 ("any"), as its saves keep it. The turret lives and dies with the ship and is never hit.
+ */
+static inline bool twin_stick(void)
+{
+	return twinStickMode && twoPlayerMode && !galagaMode;
+}
+
 static inline bool all_players_alive(void)
 {
 	return (player[0].is_alive && (!twoPlayerMode || player[1].is_alive));
