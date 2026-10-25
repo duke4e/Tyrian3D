@@ -14,7 +14,7 @@
     "  bunkers stand on rock in the water, MINERS' red spires and mounds are its rock).",
     "skip_maps: maps (hashes) the tool leaves alone (their .era and .std stay as they are), and why.",
     "no_palms: maps (hashes) whose painted palms stay painted.",
-    "upper_maps: background 3's maps (hashes) cleaned too, where the top enemies riding them stand (the ground log's riding: lines; no copies of their tiles elsewhere), and their levels. TYRIAN's (ad33fadb8ad32f83) and DELIANI's (1e524e1fa31872b1) wait for their wreck models."
+    "upper_maps: background 3's maps (hashes) cleaned too, where the top enemies riding them stand (the ground log's riding: lines; no copies of their tiles elsewhere), and their levels."
   ],
   "keep": [
     "torm_fall",
@@ -46,6 +46,8 @@
   },
   "no_palms": [],
   "upper_maps": {
-    "9976802307715f92": "HOLES"
+    "ad33fadb8ad32f83": "TYRIAN",
+    "9976802307715f92": "HOLES",
+    "1e524e1fa31872b1": "DELIANI"
   }
 }
