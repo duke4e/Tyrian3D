@@ -595,8 +595,8 @@
     "archive": {
       "name": "Archive (data narrator)",
       "role": "Reads the data and archive entries: system datafluxes, weapon notes, ARCHIVE DATA references, sensor reports, logs and ledgers. Also plays the network editor.",
-      "description": "An encyclopedia entry read aloud: neutral, informed and unhurried, with a very dry deadpan for the entries 'Rated: Not Funny' and the absurd ones (hot dog generators, people pretzel dough). Female, 40s, a contrast to the many male characters.",
-      "voice_prompt": "A woman in her forties with a clear, cool, articulate voice. A reference archive's narrator: neutral, knowledgeable and composed, with a very dry, understated deadpan for the absurd entries. Even, unhurried delivery with precise diction, like a documentary narrator. Perfect audio quality.",
+      "description": "The archive's computer reading an entry: a female synthetic voice, crisp, clipped and quick, the way a 90s strategy game's military AI announces things (the user: more robotic, like Siri or EVA from Command & Conquer); the deadpan of the absurd entries ('Rated: Not Funny', hot dog generators) comes from the words, not the delivery.",
+      "voice_prompt": "A female computer voice, an artificial intelligence with a crisp, clipped, slightly synthetic and digitally processed tone. A military database interface reading reference entries: precise, efficient, cool and emotionless, every consonant sharp, like the announcer of a 1990s real-time strategy game or a phone assistant. Brisk, fast, even pace with short pauses. Perfect audio quality.",
       "settings": {
         "stability": 1.0,
         "similarity_boost": 0.8,
@@ -609,7 +609,7 @@
           "ARCHIVE DATA"
         ]
       },
-      "voice_id": "0XPGi2XzpapXoc5zpPG8",
+      "voice_id": "jQJRuzwgf8noMB7L9aKJ",
       "narrator": true,
       "usage": {
         "cubes": [
@@ -647,7 +647,7 @@
           14
         ]
       },
-      "adopted_preview": "1-1"
+      "adopted_preview": "2-1"
     },
     "narrator": {
       "name": "Narrator (the story texts between levels)",
@@ -724,8 +724,8 @@
     "guidebook": {
       "name": "the Guidebook ('Scenic guide to the universe')",
       "role": "Travel-guide narrator for the planets (sender 'Guidebook'; 'Windy' on four entries in episode 4). Also plays Pib the cat and Zinglon in the Eleven Commandments trailer.",
-      "description": "Breezy travel-show patter that cheerfully recommends deadly places: wry, sardonic, deadpan delivery of terrible advice; in one entry the writer steps out of the guide to wonder about a sequel. Male, late 40s.",
-      "voice_prompt": "A British man in his late forties with a rich, genial, plummy voice. A travel-guide host who cheerfully recommends terrible places: wry, sardonic and deadpan, delighted with his own dry wit. Smooth, lilting delivery with a twinkle, at a relaxed pace. Perfect audio quality.",
+      "description": "Breezy travel-show patter that cheerfully recommends deadly places: a quick, chatty host with a smirk, selling terrible holidays as highlights (the user: less documentary, nothing like an epic fantasy narrator; faster). In one entry the writer steps out of the guide to wonder about a sequel. Male, mid 30s.",
+      "voice_prompt": "A British man in his mid thirties with a bright, light, quick and chatty voice. A cheeky travel-show presenter breezily recommending dreadful places as if they were holiday highlights: upbeat, conversational and sardonic, with a smirk in his voice. Casual and playful, not grand, solemn or theatrical: nothing like a documentary or an epic film narrator. Brisk, fast pace. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.8,
@@ -741,7 +741,7 @@
           "^Scenic guide to the universe"
         ]
       },
-      "voice_id": "PhjL6BGV1UViFKKTd7iN",
+      "voice_id": "j3wagKZnuCRraIgh1wWc",
       "narrator": true,
       "usage": {
         "cubes": [
@@ -763,7 +763,7 @@
           3
         ]
       },
-      "adopted_preview": "1-1"
+      "adopted_preview": "2-3"
     },
     "newsreader": {
       "name": "News reader",
