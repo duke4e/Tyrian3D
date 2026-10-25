@@ -264,9 +264,21 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   alive and never firing, so every enemy lives out its path) and logs its script as it runs; for every spawn it draws the new enemy's
   sprites and gives each GBC enemy type the PC enemy whose sprite looks most like it (silhouette and
   shading against the PC atlases in `upscale/in`, 4-part enemies as 48x56 blocks, at the 1.5x scale;
-  the enemies of the original level first), into `data/gbc/enemies` (`Lnn.json`, and
-  `Lnn_matches.png`: each type beside its candidates). `enemy_overrides.json` corrects a type by
-  eye (`"L23:29": [episode, enemy]`, or `null` to leave it out).
+  the enemies of the original level first; of a type's frames only those of about its main one's
+  size and shape, as the frames can catch a neighbour), into `data/gbc/enemies` (`Lnn.json`, and
+  `Lnn_matches.png`: each type beside its candidates). The PC enemies made of several are candidates
+  too (`composites()`): the original levels spawn their parts together, each at its offset (the long
+  rockets, the face with arms, the robots of four, the green bombers, the desert bunkers); a group of
+  one enemy (a row of fighters) is not one, and a chain with a run of the same part (a rocket's
+  body) also comes with that run of one and of two, as the GBC versions are shorter.
+  `enemy_overrides.json` holds the corrections by eye (`"L23:29": [episode, enemy]`,
+  `[episode, enemy, 4]` for an event 12 block, `[episode, [[enemy, dx, dy], ...]]` for a composite,
+  or `null` to leave the type out; checked over all 24 levels on 2026-10-25); their sprite sheets are
+  loaded before the other types' (after the boss's). `review.py` draws the sheets for that check:
+  `Lnn_review.png` (one row per look of the level's types, most spawned first: the GBC sprite, the
+  PC enemy the level uses, the six best candidates with the sheets each needs, green if loaded;
+  composites' parts in `Lnn_review.txt`) and `Lnn_pool.png` (every enemy of the originals the level
+  condenses).
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of
@@ -283,7 +295,10 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   an event 11 ends the level if the boss is never destroyed (as the originals have one near 8100;
   after the boss block's last event where that runs longer). What the GBC script does past its map's
   top (while its boss arena loops) is pressed into the time before the boss (at most clock 7000). Every GBC type is a PC enemy: the best candidate on the level's
-  sheets (4-part ones as event 12 blocks).
+  sheets (4-part ones as event 12 blocks, a composite's parts each spawned at its offset from the
+  GBC enemy's top left, in its link; a GBC block record is the pieces of one big enemy, two columns
+  one robot, so a type with a PC enemy of several parts makes it once). `episode.py` names the spawns it leaves out (types never seen
+  in the flight, or with no candidate on the level's sheets).
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
   into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text
@@ -315,8 +330,9 @@ levels and the item data): the table of a level file's entries holds 100 now (`l
 42, and a longer file overran it). A background whose pointer runs past its map's top (a long level
 at the layer's speed) draws nothing there (`backgrnd.c`) rather than reading outside the map. `TYR3D_START=7:<section>` starts
 one of its levels (the levels are the even sections, 2-48). Stages 1-5 of the plan: the maps, shops,
-songs, enemies, bosses, story and the 3D terrain; next: the enemies checked by eye, the GBC's own
-bosses and big ships.
+songs, enemies, bosses, story and the 3D terrain, and the enemies checked by eye; next: the GBC's own
+bosses and its big ships that the PC game has no counterpart for (SAVARA II's red bomber, the GBC's
+DELI claws, ASTEROID2's tripods are stand-ins).
 
 ## Custom episodes
 

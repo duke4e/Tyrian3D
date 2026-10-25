@@ -334,6 +334,7 @@ def enemies(spec, look):
     the PC ones found for its types; the boss the original level's (a placement); the sprite sheets
     they need (at most 4: the less used types take a candidate on the loaded ones)."""
     import script
+    import enemies as EN
     path = os.path.join(GBC, 'enemies', f"L{spec['gbc']:02d}.json")
     if not os.path.exists(path):
         return [], [], []
@@ -379,34 +380,40 @@ def enemies(spec, look):
                     boss_banks.update(waves.sheets_of(boss_source.enemies, e['d1'] + k))
     def sheet(c):
         """The sheets a candidate needs ({99}: none it can be drawn with, e.g. sheet 0)."""
-        b = set().union(*(waves.sheets_of(enemies_of(c['episode']), c['enemy'] + k) for k in range(c.get('parts', 1))))
+        b = set().union(*(waves.sheets_of(enemies_of(c['episode']), n) for n in EN.part_numbers(c['enemy'], c.get('parts', 1))))
         return {99} if (0 in b or not b) else b
-    need = Counter()
-    for t, cs in cands.items():
-        need.update({b: use[t] for b in sheet(cs[0])})
-    banks = [b for b, _ in boss_banks.most_common()][:4]  # (the boss's all: its parts and launches show)
-    for b, _ in need.most_common():
-        if len(banks) < 4 and b not in banks and b != 99:
-            banks.append(b)
-    for t, cs in cands.items():
-        ok = [c for c in cs if sheet(c) <= set(banks)]
-        if ok:
-            types[t] = (ok[0]['episode'], ok[0]['enemy'], ok[0].get('parts', 1))
-    # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], or null to
-    # leave a type out); their sheets join the loaded ones while there is room
-    over = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
-    for key, v in over.items():
+    # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], [episode, enemy, 4]
+    # (event 12's block), [episode, [[enemy, dx, dy], ...]] (a composite) or null to leave a type out):
+    # their sheets are loaded before the candidates' (after the boss's)
+    over = {}
+    for key, v in (json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}).items():
         lv, t = key.split(':')
         if int(lv[1:]) != spec['gbc']:
             continue
-        t = int(t, 16)
         if v is None:
-            types.pop(t, None)
+            over[int(t, 16)] = None
+        elif isinstance(v[1], list):
+            over[int(t, 16)] = dict(episode=v[0], enemy=v[1][0][0], parts=v[1])
+        else:
+            over[int(t, 16)] = dict(episode=v[0], enemy=v[1], parts=v[2] if len(v) > 2 else 1)
+    need, need_over = Counter(), Counter()
+    for t, cs in cands.items():
+        if over.get(t):
+            need_over.update({b: use[t] for b in sheet(over[t])})
+        elif t not in over:
+            need.update({b: use[t] for b in sheet(cs[0])})
+    banks = [b for b, _ in boss_banks.most_common()][:4]  # (the boss's all: its parts and launches show)
+    for b, _ in need_over.most_common() + need.most_common():
+        if len(banks) < 4 and b not in banks and b != 99:
+            banks.append(b)
+    for t, cs in cands.items():
+        if t in over and over[t] is None:
             continue
-        need_b = waves.sheets_of(enemies_of(v[0]), v[1])
-        if need_b <= set(banks) or len(set(banks) | need_b) <= 4:
-            banks += sorted(need_b - set(banks))
-            types[t] = (v[0], v[1], v[2] if len(v) > 2 else 1)
+        ok = ([over[t]] if over.get(t) and sheet(over[t]) <= set(banks) else []) + [c for c in cs if sheet(c) <= set(banks)]
+        if ok:
+            types[t] = (ok[0]['episode'], ok[0]['enemy'], EN.parts_key(ok[0].get('parts', 1)))
+    json.dump(dict(banks=banks, types={f'{t:02x}': list(v) for t, v in types.items()}),  # (for review.py)
+              open(os.path.join(GBC, 'enemies', f"L{spec['gbc']:02d}_chosen.json"), 'w'))
     ground = ground_enemies()
     # the clock: 1.5 x the GBC position along its map; what the GBC script does past the map's top
     # (while its boss's arena loops) is pressed into the time before the boss (at most clock 7000:
@@ -427,7 +434,9 @@ def enemies(spec, look):
                                end=start + max([e['t'] for e in boss['events']] + [0])))
     review_enemies(spec['gbc'], types, use)
     print(f"  {len(records)} GBC records -> {len(events)} events, {len(types)}/{len(d['types'])} types as PC enemies, "
-          f"sheets {banks}, boss {boss_source.name if boss else None}")
+          f"sheets {banks}, boss {boss_source.name if boss else None}"
+          + (f", spawns left out (type: count) {dict((f'{t:02x}', n) for t, n in use.items() if t not in types)}"
+             if any(t not in types for t in use) else ''))
     return events, placements, banks
 
 

@@ -138,7 +138,7 @@ def atlas():
     """The PC enemies' frames from the atlases (cells of 32x36 with the 24x28 sprite at 4,4):
     (episode, enemy, sheet, sprite, RGBA, parts), and the 4-part enemies (event 12: enemies d1..d1+3
     as a 2x2 block, part 1 right of part 0, 2 above it, 3 above 1) of the original levels as 48x56
-    composites, with parts 4."""
+    composites, with parts 4, and the enemies made of several (composites(): parts their list)."""
     sys.path.insert(0, os.path.join(G.ROOT, 'tools', 'content', 'episode6'))
     import waves
     idx = json.load(open(os.path.join(ATLAS, 'atlases.json')))
@@ -172,7 +172,101 @@ def atlas():
         for k, (x, y) in enumerate([(0, 28), (24, 28), (0, 0), (24, 0)]):
             comp[y:y + 28, x:x + 24] = parts[k]
         out.append((ep, d1, 'block', d1, comp, 4))
+    for ep, parts in composites():
+        if any((ep, n) not in cells for n, _, _ in parts):
+            continue
+        w, h = max(dx for _, dx, _ in parts) + 24, max(dy for _, _, dy in parts) + 28
+        comp = Image.new('RGBA', (w, h))
+        for n, dx, dy in parts:
+            part = Image.fromarray(cells[(ep, n)])
+            comp.alpha_composite(part, (dx, dy))
+        out.append((ep, parts[0][0], 'comp', parts[0][0], np.array(comp), parts))
     return out
+
+
+LAYERS = {6: 'ground', 10: 'ground', 17: 'ground at bottom', 15: 'sky', 18: 'sky at bottom', 7: 'top',
+          23: 'top at bottom'}
+
+
+def composites():
+    """The PC enemies made of several (the original levels spawn their parts together, each at its
+    offset: a long rocket, a face with arms, a robot of four): (episode, parts), parts ((enemy, dx, dy),
+    ...) with the offsets from the top left part in PC pixels (y down), in the order they're drawn.
+    Groups of the same enemy (a row of fighters) aren't; a chain with a run of the same part (a rocket's
+    body) also comes with the run of one and of two."""
+    sys.path.insert(0, os.path.join(G.ROOT, 'tools', 'content', 'episode6'))
+    import waves
+    import levels as lv
+    found = {}
+    for ep in range(1, 6):
+        for s in lv.read_strings(os.path.join(G.ROOT, 'data', 'tyrian2000', f'levels{ep}.dat')):
+            if not s.startswith(']L'):
+                continue
+            try:
+                src = waves.Source(ep, s[13:22].strip())
+            except Exception:
+                continue
+            at = {}
+            for e in src.events:
+                if e['type'] in LAYERS and e['d1'] > 0:
+                    at.setdefault((e['t'], LAYERS[e['type']]), []).append((e['d1'], e['d2'], e['d5']))
+            for spawns in at.values():
+                spawns = list(dict.fromkeys(spawns))
+                left = set(range(len(spawns)))
+                while left:
+                    group, todo = set(), [left.pop()]
+                    while todo:
+                        i = todo.pop()
+                        group.add(i)
+                        near = {j for j in left if abs(spawns[j][1] - spawns[i][1]) <= 24 and abs(spawns[j][2] - spawns[i][2]) <= 28}
+                        left -= near
+                        todo += near
+                    parts = [spawns[i] for i in sorted(group)]
+                    if not 2 <= len(parts) <= 9 or len({n for n, _, _ in parts}) < 2:
+                        continue
+                    x0, y0 = min(x for _, x, _ in parts), min(y for _, _, y in parts)
+                    parts = tuple((n, x - x0, y - y0) for n, x, y in parts)
+                    if max(dx for _, dx, _ in parts) > 6 * 24 or max(dy for _, _, dy in parts) > 4 * 28:
+                        continue
+                    for v in shortened(parts):
+                        found.setdefault((ep, tuple(sorted(v))), v)  # (one drawing order for each)
+    return sorted((ep, v) for (ep, _), v in found.items())
+
+
+def shortened(parts):
+    """A composite and, if its parts lie in a line (a step of 24 or 28 apart) with a run of the same
+    part, the same with the run of one and of two."""
+    out = [parts]
+    for axis, step in ((1, 24), (2, 28)):
+        other = 3 - axis
+        if len({p[other] for p in parts}) != 1:
+            continue
+        line = sorted(parts, key=lambda p: p[axis])
+        runs = []
+        for p in line:
+            if runs and runs[-1][0][0] == p[0]:
+                runs[-1].append(p)
+            else:
+                runs.append([p])
+        if all(len(r) <= 2 for r in runs):
+            continue
+        for keep in (1, 2):
+            seq = [p[0] for r in runs for p in r[:keep]]
+            gap = line[1][axis] - line[0][axis] if len(line) > 1 else step
+            v = tuple((n, gap * k if axis == 1 else 0, gap * k if axis == 2 else 0) for k, n in enumerate(seq))
+            if len(v) >= 2:
+                out.append(v)
+    return out
+
+
+def parts_key(parts):
+    """A candidate's parts as a key: 1, 4 (event 12's block) or the composite's ((enemy, dx, dy), ...)."""
+    return parts if isinstance(parts, int) else tuple(tuple(p) for p in parts)
+
+
+def part_numbers(n, parts):
+    """The enemy numbers a candidate is made of."""
+    return [n + k for k in range(parts)] if isinstance(parts, int) else [p[0] for p in parts]
 
 
 def pool(levels):
@@ -232,7 +326,8 @@ class Matcher:
             if key in seen:
                 continue
             seen.add(key)
-            out.append(dict(episode=int(c[0]), enemy=int(c[1]), sheet=c[2], sprite=int(c[3]), parts=int(c[5]),
+            out.append(dict(episode=int(c[0]), enemy=int(c[1]), sheet=c[2], sprite=int(c[3]),
+                            parts=c[5] if isinstance(c[5], int) else [list(p) for p in c[5]],
                             score=float(scores[i])))
             if len(out) == n:
                 break
@@ -284,7 +379,11 @@ def main():
                 keys.setdefault(im.tobytes() + bytes(im.shape[:2]), [im, 0])[1] += 1
             img = max(keys.values(), key=lambda v: v[1])[0]
             frames = [v[0] for v in sorted(keys.values(), key=lambda v: -v[1])[:6]]
-            cands = matcher.best(frames, ep, n=30, prefer=prefer)
+            # (the matched ones: its frames of about the main one's size and shape; a neighbour can be caught)
+            m0 = unit(features(frames[0])[0])
+            near = frames[:1] + [f for f in frames[1:] if all(0.75 <= f.shape[k] / frames[0].shape[k] <= 1.34 for k in (0, 1))
+                                 and unit(features(f)[0]) @ m0 > 0.6]
+            cands = matcher.best(near, ep, n=30, prefer=prefer)
             types[str(t)] = dict(pc=cands[0], candidates=cands, size=list(img.shape[:2]), groups=sorted(d['groups']))
             sheet.append((t, img, cands))
             Image.fromarray(img).save(os.path.join(OUT, f'L{level:02d}_type{t:02x}.png'))
@@ -309,7 +408,8 @@ def review(level, sheet, matcher):
         d = ImageDraw.Draw(row)
         d.text((0, 68), f'{t:02x}', fill=(255, 255, 255))
         for k, c in enumerate(cands):
-            pc = Image.fromarray(cell[(c['sheet'], c['sprite'], c['parts'])]).resize((64, 72), Image.NEAREST)
+            pc = Image.fromarray(cell[(c['sheet'], c['sprite'], parts_key(c['parts']))])
+            pc = pc.resize((64, min(72, int(64 * pc.height / pc.width))), Image.NEAREST)
             row.paste(pc, (64 + k * 80, 0), pc)
             d.text((64 + k * 80, 70), f"{c['episode']}:{c['enemy']} {c['score']:.2f}", fill=(255, 255, 0))
         rows.append(row)

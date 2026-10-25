@@ -6,7 +6,8 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
 
     03/04 a x y g      enemy of type a at (x, y) in group g     -> 15 (sky) / 6 (ground), link of g
     21-24              the same on Hard / Normal and up          -> 66 (skip on easier) + the enemy
-    28+                a block of enemies (columns, rows by the command's bits, 16 px apart)
+    28+                a block of enemies (columns, rows by the command's bits, 16 px apart; the
+                       pieces of one big enemy: one PC enemy of several parts if its type has one)
     13/1d vx vy . g    group's speed (99: keep)                 -> 19
     14 cx cy rx g      group zig-zag: every |c| frames the speed  -> 20 (+ 27 for the turn speed)
                        steps by 1, turning at rx
@@ -67,7 +68,8 @@ class Links:
 
 def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None):
     """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
-    types: GBC type -> (episode, enemy, parts: 1, or 4 for a 4-part enemy) or None (left out); enemies_of(ep) -> that episode's enemy
+    types: GBC type -> (episode, enemy, parts: 1, 4 for a 4-part enemy (event 12) or a composite's
+    ((enemy, dx, dy), ...), its parts spawned each at its offset) or None (left out); enemies_of(ep) -> that episode's enemy
     data; ground_of((ep, n)) -> True if the PC enemy stands on the ground; clock(position) -> the PC
     clock (default 1.5 x the position). Returns the events."""
     clock = clock or (lambda p: round(SCALE * p))
@@ -81,14 +83,16 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
         if pc is None:
             return []
         ep, n, parts = pc
-        if cmd >= 0x28:
+        if cmd >= 0x28 and parts == 1:
             k = cmd - 0x28
             cols, rows = ((k >> 1) & 3) + 1, (k >> 3) + 1
         else:
+            # (a block of pieces is one big GBC enemy, e.g. two columns one robot: the type's PC enemy
+            # of several parts was found for the whole of it, so it is made once)
             cols = rows = 1
         link = links.get(g, t)
         ground = ground_of(pc)
-        data = enemies_of(ep).get(n, {})
+        datas = [enemies_of(ep).get(m, {}) for m in ([p[0] for p in parts] if isinstance(parts, tuple) else [n])]
         evs = []
         for j in range(rows):
             for i in range(cols):
@@ -101,17 +105,25 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
                     evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), 0, min(127, y + 28), 0 if ground else 2, link, ep=ep))
                     if not ground and link:
                         evs.append(ev(t, 19, -99, -99, 0, 0, speed, link))
+                elif isinstance(parts, tuple):
+                    # a composite: its parts with their offsets from its top left, in one link
+                    for m, dx, dy in parts:
+                        yy = max(-128, min(127, y + dy))
+                        if ground:
+                            evs.append(ev(t, GROUND, m, round(x + dx) + 27, 0, yy, 0, link, ep=ep))
+                        else:
+                            evs.append(ev(t, SKY, m, round(x + dx), 0, yy, speed, link, ep=ep))
                 elif ground:
                     evs.append(ev(t, GROUND, n, round(x) + 27, 0, y, 0, link, ep=ep))
                 else:
                     evs.append(ev(t, SKY, n, round(x), 0, y, speed, link, ep=ep))
         # GBC enemies start still: the PC enemy's own moves undone (by its link; alone: none to undo)
         if link and not ground:
-            if data.get('xmove') or data.get('ymove'):
+            if any(d.get('xmove') or d.get('ymove') for d in datas):
                 evs.append(ev(t, 19, 0, 0, 0, 0, 0, link))
-            if data.get('xcaccel') or data.get('ycaccel'):
+            if any(d.get('xcaccel') or d.get('ycaccel') for d in datas):
                 evs.append(ev(t, 20, 0, 0, 0, 0, 0, link))
-            if data.get('xaccel') or data.get('yaccel'):
+            if any(d.get('xaccel') or d.get('yaccel') for d in datas):
                 evs.append(ev(t, 55, 0, 0, 0, 0, 0, link))
         return evs
 

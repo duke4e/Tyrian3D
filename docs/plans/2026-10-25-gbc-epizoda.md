@@ -36,7 +36,9 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 2. **Neprijatelji.** ✅ GBC skripta je port PC event sustava (13 = 19 brzina grupe, 14 = 20 cik-cak, 16 =
    20 ubrzanje, 0b = 39, 02 = 2, 00 = 66, 21-24 težina, 28+ blokovi); svaki GBC tip dobiva PC
    neprijatelja po spriteu (silueta, sjenčanje, boja, svi frameovi; najprije neprijatelji PC levela
-   koje GBC level sažima). Ručne ispravke: `tools/gbc/enemy_overrides.json`.
+   koje GBC level sažima). Ručne ispravke: `tools/gbc/enemy_overrides.json` (svih 24 levela pregledano
+   2026-10-25, `tools/gbc/review.py`); PC neprijatelji od više dijelova (rakete, lice s rukama, roboti,
+   zeleni bombarderi, bunkeri) kao kandidati i spawn dio po dio.
 3. **Bossovi i krajevi levela.** ✅ (prvi prolaz) Boss originalnog PC levela (ili srodnog, gdje original
    nema bossa) umjesto GBC bossa. Ostaje: GBC-ovi vlastiti bossovi i veliki brodovi ručno.
 4. **Priča.** ✅ GBC tekstovi redom (`tools/gbc/story.py`) kao data cubeovi s PC portretima govornika,
@@ -47,7 +49,8 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 
 ## Otvoreno
 
-- Pregled podudaranja neprijatelja po levelima (`data/gbc/episode7/preview/Lnn_enemies.png`).
+- GBC-ovi brodovi bez PC parnjaka (crveni bombarder SAVARA II, crvene kliješta DELI levela, tronošci
+  ASTEROID2) zasad imaju zamjene.
 - Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima).
 
 ## Podaci i git
