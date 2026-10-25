@@ -90,7 +90,12 @@ typedef struct
 	Uint32 group;         // the object an enemy is a piece of (l3d_group_last_object): the time of the
 	Uint8 group_link;     // events that made it + 1 (0: none) and the link it was made with (0: none)
 	Uint32 key;           // which object it is from frame to frame (l3d_key_last_object), 0: not known
+	Uint8 standin;        // a stand-in for the map's painting where no enemy covers it (tyrian2.c draw_standins):
+	                      // L3D_STANDIN_OWN its look's model as it is, L3D_STANDIN_PLACEHOLDER slumped and darkened
 } L3DObject;
+
+#define L3D_STANDIN_OWN 1
+#define L3D_STANDIN_PLACEHOLDER 2
 
 #define L3D_MAX_OBJECTS 1024
 
@@ -287,6 +292,8 @@ void l3d_enemy_last_object(char sheet, unsigned int first_sprite);
 // link a little apart in time (a boss's rows), side by side and moving alike, are one object and stand
 // at one height on raised ground (render_gpu.c compute_object_lifts); other pieces never join.
 void l3d_group_last_object(Uint32 group, Uint8 link);
+// The last object added stands in for what the map painted at its place (L3DObject.standin).
+void l3d_standin_last_object(Uint8 mode);
 extern float l3d_pointer_lead[2];
 
 // Key ranges (an enemy slot, shot index and the like is added).

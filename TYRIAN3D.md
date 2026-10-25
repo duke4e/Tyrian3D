@@ -266,7 +266,8 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
-| `TYR3D_ERASE=0` | Ground enemies' objects painted into the map stay in the ground under their models |
+| `TYR3D_ERASE=0` | The maps' clean ground is left out: the objects, wrecks and palms painted into the map stay in the ground under their models, and no stand-ins are drawn |
+| `TYR3D_LOG_STANDINS=1` | Every 30th frame, print the stand-ins shown on the screen (their look, placeholder or own model, where, and the nearest enemy) and how many are covered by their enemies (with frame dumps, `dump:` lines say which 3D frame a dump is) |
 | `TYR3D_DARK_LIGHTING=0` | Spotlight levels show the game's lit cone as an overlay, instead of being dark and lit by the ship's lamp |
 | `TYR3D_RC=off\|low\|high` | The radiance cascades: light of what glows spreads over the playfield (default low, with Effects) |
 | `TYR3D_RC_INTENSITY=<0-2>` | How much light they add (default 1) |
@@ -411,6 +412,23 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   `ui_screen_done`, so the next screen can't match its picture. The key hints show the joystick's pad
   and buttons when the last key came from the joystick (`push_key` counts its keys:
   `joystick_last_input`).
+- **Clean ground and stand-ins** (`tools/terrain/make_cleanground.py`, `src/tyrian2.c` `draw_standins`).
+  The maps paint under many ground enemies what is left of them once destroyed (a crater, a burnt housing,
+  a broken pyramid), or the object itself, or its base; in 2D the sprite covers it while the enemy lives, in
+  3D it showed under and round the model. Offline, each ground map's painted art at the places where ground
+  enemies stand (and its copies where none stands), and the desert maps' painted palms, are erased and
+  filled with the map's own ground round them (`assets/terrain/<map>.era`: pixels taken from the map at an
+  offset, so the palette effects and the HD tiles fill them too; `erase_painted_enemies` applies them as
+  the terrain's rows are made). Only where something 3D takes the place: landscape the game animates
+  (waterfalls), the rock arches and paintings without a model stay. Where the original shows the painting
+  (before the enemy comes, once it is destroyed, where none ever stands), the 3D view shows its model, a
+  stand-in (`assets/terrain/<map>.std`): the look the game leaves when the enemy is destroyed, the object's
+  own model where the map paints the object as it is, or until a wreck model is made the enemy's model
+  slumped and darkened (`render_gpu.c` `STANDIN_SLUMP`, `STANDIN_SHADE`). A stand-in is drawn while no ground
+  enemy of its looks (the enemy itself, its damaged and dead looks, what it turns into) stands on its place;
+  it is only drawn, the game knows nothing of it. The terrain and the vegetation are made on the clean
+  ground, so grass grows round the turrets and the palms stand on bare sand; the plants are kept off the
+  models' footprints, and in the game cleared only under the enemies that move.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested
@@ -494,7 +512,9 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
 | `tools/terrain/make_terrain.py` | Terrain for the background maps: `classify` sorts an exported ground map's pixels into surfaces (a review image in `export/terrain`), `build` writes `assets/terrain/<map>.ter` from the settings in `tools/terrain/levels.json` (class heights, chasms where space is black, backgrounds 2 and 3 as solids, or with `"ground": true` a background 2 that covers the whole ground under its enemies as the ground itself; level pads under what stands and gentle roads along what moves, as far as the terrain drawn under them reaches, so their models stand flat; solids clear round what the models cover) and a relief image to review (with the enemies' tracks), `sheets` puts the reliefs on contact sheets (needs numpy, scipy, PIL) |
 | `tools/fix_macho_tls.py` | Makes pip's scipy load on macOS 27 (its modules' zero-fill thread-local sections carry a file offset the new dyld refuses): clears the offsets and signs the modules again. The terrain tools' Python is a venv in `~/Library/Caches/Tyrian3D/tools-venv` (numpy, scipy, Pillow from pip, then this over its `site-packages`) |
-| `tools/terrain/make_vegetation.py` | Vegetation for the ground maps: palms (green patches on desert maps, `"palms": true`), trees (textured green areas) and grass (smooth green areas), clear of the ground enemies, into `assets/terrain/<map>.veg` |
+| `tools/terrain/make_cleanground.py` | Clean ground (replaces `make_erasures.py`): for the ground maps, the art painted under and round the ground enemies (wrecks, housings, stumps, the objects themselves, their copies where none stands) and the painted palms, erased and filled with the map's own ground round them, where a model takes its place, into `assets/terrain/<map>.era`; the stand-ins shown there while no enemy covers the place into `assets/terrain/<map>.std`; review pictures `export/terrain/<map>_clean.png` and `export/terrain/standins.txt` (what stands in for each look). Overrides (paintings that stay, stand-in looks, maps left alone) in `tools/terrain/cleanground.json`. Run it before `make_terrain.py build` and `make_vegetation.py`, which take the clean ground |
+| `tools/terrain/footprints.py` | What the ground enemies' models cover of the ground seen from above (their triangles as the renderer turns and scales them), for the clean ground and the vegetation's keep-out; `check` compares them with the renderer's `groundmodel:` boxes |
+| `tools/terrain/make_vegetation.py` | Vegetation for the ground maps, on the clean ground: palms (where the maps paint them on desert maps, `"palms": true`), trees (textured green areas) and grass (smooth green areas), off the footprints of the models that stand on the map (ground enemies and stand-ins), into `assets/terrain/<map>.veg` |
 | `tools/terrain/ground_log.sh` | Plays every level fast with the autopilot and collects where the ground enemies stand and move, and what their models cover, into `export/terrain/ground.txt` (the terrain keeps them on the ground) |
 | `tools/sweep.sh` | Plays every section of the episodes with the autopilot, one run after another, and reports each run's level, whether it ran to the end and its warnings |
 | `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `data/hd/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x), and its pictures to look at and kept medians to `upscale/out/tiles`. `--requantize` writes them again from the kept medians. Tiles are per tileset and shape, so generated maps get them too |

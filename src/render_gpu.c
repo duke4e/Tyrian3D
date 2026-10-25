@@ -60,6 +60,10 @@
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
 #define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
 #define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
+// Stand-ins for a painting that has no model yet (L3D_STANDIN_PLACEHOLDER): the enemy's own model, this
+// much of its height and this bright.
+#define STANDIN_SLUMP 0.45f
+#define STANDIN_SHADE 0.35f
 
 // Direction the sun's light travels: from above and the top left of the screen, as the sprites
 // are lit. TYR3D_SUN=<x>,<y>,<z> overrides it, for tuning.
@@ -3590,6 +3594,9 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				const M3DModel *model = &m3d_models[model_index];
 				const float height = object_bases[o] + object->height + object_lifts[o];
 				Mat4 transform = object_transform(object, loaded, mirror, height);
+				if (object->standin == L3D_STANDIN_PLACEHOLDER)  // (a wreck's place, until it has a model)
+					for (int k = 1; k < 12; k += 4)
+						transform.m[k] *= STANDIN_SLUMP;
 				// Nothing sinks into the ground: models centred on their layer's height (items on
 				// the ground enemies' layer) are lifted by what their turned bounds reach below it
 				// (the ground under them: as high above it as they would stand above a flat ground).
@@ -3598,7 +3605,8 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				if (!model->keep_origin && height - reach < 0.3f + object_lifts[o])
 					transform.m[13] += 0.3f + object_lifts[o] - (height - reach);
 				const Mat4 world = object_world(o, &transform);
-				write_instance_world(instances + *instance_count * 24, &world, 1.0f);
+				write_instance_world(instances + *instance_count * 24, &world,
+				                     object->standin == L3D_STANDIN_PLACEHOLDER ? STANDIN_SHADE : 1.0f);
 				++*instance_count;
 				if (clip_log)  // (where it is drawn)
 				{
@@ -5918,7 +5926,7 @@ static bool ground_model_log_on(void)
 
 static void log_ground_model(const L3DObject *object, bool mirror, float base, const float footprint[5])
 {
-	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->model < 0 ||
+	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->standin != 0 || object->model < 0 ||
 	    object->model >= m3d_model_count)
 		return;
 	const LoadedModel *loaded = get_model(object->model);
@@ -7100,55 +7108,6 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 	return ring->texture != NULL ? ring : NULL;
 }
 
-// Under the 3D palms, the palms painted in the map give way to the ground round them: their green
-// pixels take the average colour of the other pixels just outside the palm.
-static void erase_painted_palms(Uint32 *rgba, int width, int map_row, int scale)
-{
-	const B3DVegetation *veg = b3d_vegetation();
-	if (veg == NULL || map_row < 0 || map_row >= veg->rows)
-		return;
-	const int top = map_row * B3D_TILE_H, rows = B3D_TILE_H * scale;  // (the row at that scale)
-	for (int r = SDL_max(map_row - 1, 0); r <= SDL_min(map_row + 1, veg->rows - 1); ++r)
-		for (int i = veg->row_start[r]; i < veg->row_start[r + 1]; ++i)
-		{
-			const B3DPlant *p = &veg->plants[i];
-			if (p->kind != B3D_PALM)
-				continue;
-			const float radius = p->size / 8.0f * 1.15f * scale;
-			const int cx = p->x * scale, cy = (p->y - top) * scale;
-			// The ground round the palm.
-			float sum[3] = { 0, 0, 0 };
-			int n = 0;
-			const int ring_r = (int)radius + 3 * scale;
-			for (int y = SDL_max(cy - ring_r, 0); y <= SDL_min(cy + ring_r, rows - 1); ++y)
-				for (int x = SDL_max(cx - ring_r, 0); x <= SDL_min(cx + ring_r, width - 1); ++x)
-				{
-					const float d = sqrtf((float)((x - cx) * (x - cx) + (y - cy) * (y - cy)));
-					const Uint8 *c = (const Uint8 *)&rgba[y * width + x];
-					if (d < radius || d > radius + 3 * scale || c[3] == 0 || (c[1] > c[0] && c[1] > c[2]) ||
-					    c[0] + c[1] + c[2] < 150)
-						continue;
-					sum[0] += c[0];
-					sum[1] += c[1];
-					sum[2] += c[2];
-					++n;
-				}
-			if (n == 0)
-				continue;
-			for (int y = SDL_max(cy - (int)radius, 0); y <= SDL_min(cy + (int)radius, rows - 1); ++y)
-				for (int x = SDL_max(cx - (int)radius, 0); x <= SDL_min(cx + (int)radius, width - 1); ++x)
-				{
-					Uint8 *c = (Uint8 *)&rgba[y * width + x];
-					const bool green = c[1] > c[0] && c[1] > c[2];
-					const bool dark = c[0] + c[1] + c[2] < 150;  // the palm's outline and shadow
-					if (c[3] == 0 || (!green && !dark) || (x - cx) * (x - cx) + (y - cy) * (y - cy) > radius * radius)
-						continue;
-					for (int k = 0; k < 3; ++k)
-						c[k] = (Uint8)(sum[k] / n);
-				}
-		}
-}
-
 // Puts a map row into its slot of the ring, unless it is there already.
 // A map pixel's palette index (the exported map's pixels, the generated columns included), or -1
 // where it is clear.
@@ -7319,8 +7278,6 @@ static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int se
 					*wet = water_color;
 			}
 	}
-	if (set == 1)
-		erase_painted_palms(rgba, ring->width, map_row, 1);
 	erase_painted_enemies(rgba, ring->width, t, set, map_row, colors);
 	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
 	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
@@ -7369,11 +7326,46 @@ static void terrain_ring_row_hd(TerrainRing *ring, const B3DTerrain *t, int set,
 			}
 		}
 	}
-	if (set == 1)
-		erase_painted_palms(hd, w, map_row, scale);
 	erase_painted_enemies_hd(hd, w, t, set, map_row, colors, scale);
 	bleed_into_clear(hd, w, 0, h);
 	btbh_gpu_texture_update_rgba8(ring->hd, (const uint8_t *)hd, 0, (Uint32)(slot * h), (Uint32)w, (Uint32)h);
+}
+
+// Whether a ground object has moved over the map since it was first seen (by its key): standing ones
+// don't (the vegetation tool keeps the plants off their footprints), objects without a key count as moving.
+static Uint32 plants_frame = 0;
+
+static bool moves_on_map(Uint32 key, int mx, int my)
+{
+	enum { SLOTS = 1024, FORGET = 600 };
+	static struct
+	{
+		Uint32 key, seen;
+		int x, y;
+		bool moved;
+	} first[SLOTS];
+	if (key == 0)
+		return true;
+	unsigned int at = (key * 2654435761u) % SLOTS;
+	for (int probe = 0; probe < 16; ++probe, at = (at + 1) % SLOTS)
+	{
+		if (first[at].key == key && plants_frame - first[at].seen < FORGET)
+		{
+			first[at].seen = plants_frame;
+			first[at].moved |= abs(first[at].x - mx) > 2 || abs(first[at].y - my) > 2;
+			return first[at].moved;
+		}
+		if (first[at].key == 0 || plants_frame - first[at].seen >= FORGET)
+		{
+			first[at].key = key;
+			first[at].seen = plants_frame;
+			first[at].x = mx;
+			first[at].y = my;
+			first[at].moved = false;
+			return false;
+		}
+	}
+	return true;
 }
 
 /*
@@ -7945,18 +7937,20 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 	make_plant_meshes(veg, tint_set != 0 ? tint_hue : -1, tint_brightness, colors);
 	const B3DTerrain *ground = frame_terrains[1];
 
-	// No plants under ground enemies, where they are now (the vegetation tool clears only where
-	// they stand still): a circle round each, in the map's pixels.
+	// No plants under ground enemies that move over the map, where they are now (the vegetation tool
+	// keeps them off the models' footprints where enemies and stand-ins stand still): a circle round each,
+	// in the map's pixels.
 	enum { MAX_CLEARINGS = 128 };
 	float clearings[MAX_CLEARINGS][3];
 	int clearing_count = 0;
+	++plants_frame;
 	for (int o = 0; o < frame->object_count && clearing_count < MAX_CLEARINGS && lift_ground != NULL; ++o)
 	{
 		const L3DObject *object = &frame->objects[o];
-		if (object->layer != L3D_GROUND_ENEMY)
+		if (object->layer != L3D_GROUND_ENEMY || object->standin != 0)
 			continue;
 		int mx, my;
-		if (!b3d_map_point(lift_ground, object->x, object->y, &mx, &my))
+		if (!b3d_map_point(lift_ground, object->x, object->y, &mx, &my) || !moves_on_map(object->key, mx, my))
 			continue;
 		const M3DModel *model = object->model >= 0 && object->model < m3d_model_count ? &m3d_models[object->model] : NULL;
 		const float radius = (model != NULL && model->size > 0 ? model->size / 2.0f : 13.0f) + 3.0f;

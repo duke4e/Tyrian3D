@@ -1661,6 +1661,79 @@ const B3DErasures *b3d_erasures(int set)
 	return state->present ? &state->erasures : NULL;
 }
 
+static struct
+{
+	unsigned int made_for;  // b3d_map_generation + 1, or 0
+	bool present;
+	B3DStandins standins;
+	B3DStandin *list;
+} standin_state;
+
+const B3DStandins *b3d_standins(void)
+{
+	static int enabled = -1;
+	if (enabled < 0)
+		enabled = SDL_getenv("TYR3D_ERASE") == NULL || SDL_atoi(SDL_getenv("TYR3D_ERASE")) != 0;
+	if (!enabled)
+		return NULL;
+	if (standin_state.made_for == b3d_map_generation + 1)
+		return standin_state.present ? &standin_state.standins : NULL;
+	standin_state.made_for = b3d_map_generation + 1;
+	standin_state.present = false;
+	free(standin_state.list);
+	standin_state.list = NULL;
+
+	char dir[1024], path[1200];
+	snprintf(path, sizeof(path), "%s/%016llx.std",
+	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
+	         (unsigned long long)b3d_map_hash(1));
+	FILE *f = fopen(path, "r");
+	if (f == NULL)
+		return NULL;
+	int capacity = 0, count = 0;
+	char line[512];
+	while (fgets(line, sizeof(line), f) != NULL)
+	{
+		if (line[0] == '#' || line[0] == '\n')
+			continue;
+		B3DStandin s;
+		memset(&s, 0, sizeof(s));
+		int sheet = 0, sprite = 0, large = 0, group = 0, used = 0;
+		char mode[16];
+		if (sscanf(line, "%f %f %d:%d %d %15s %d%n", &s.x, &s.y, &sheet, &sprite, &large, mode, &group, &used) != 7)
+			continue;
+		s.sheet = (char)sheet;
+		s.sprite = (Uint16)sprite;
+		s.large = large != 0;
+		s.mode = SDL_strcmp(mode, "placeholder") == 0 ? L3D_STANDIN_PLACEHOLDER : L3D_STANDIN_OWN;
+		s.group = (Uint16)group;
+		const char *at = line + used;
+		int cover_sheet, cover_sprite, n;
+		while (s.cover_count < B3D_STANDIN_COVERS && sscanf(at, " %d:%d%n", &cover_sheet, &cover_sprite, &n) == 2)
+		{
+			s.cover_sheet[s.cover_count] = (char)cover_sheet;
+			s.cover_sprite[s.cover_count++] = (Uint16)cover_sprite;
+			at += n;
+		}
+		if (count == capacity)
+		{
+			capacity = capacity ? capacity * 2 : 64;
+			B3DStandin *grown = realloc(standin_state.list, sizeof(B3DStandin) * (size_t)capacity);
+			if (grown == NULL)
+				break;
+			standin_state.list = grown;
+		}
+		standin_state.list[count++] = s;
+	}
+	fclose(f);
+	standin_state.standins.count = count;
+	standin_state.standins.standins = standin_state.list;
+	standin_state.present = count > 0;
+	if (count > 0)
+		printf("standins: %s (%d)\n", path, count);
+	return standin_state.present ? &standin_state.standins : NULL;
+}
+
 const B3DVegetation *b3d_vegetation(void)
 {
 	static int enabled = -1;

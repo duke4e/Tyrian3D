@@ -86,6 +86,40 @@ def load_map(name):
     return info, rgba[..., :3], rgba[..., 3] > 0.5
 
 
+def read_erasures(name):
+    """The map's clean-up (assets/terrain/<map>.era, make_cleanground.py): [(x, y, mask, dx, dy)]."""
+    path = os.path.join(OUT, f"{name}.era")
+    if not os.path.exists(path):
+        return []
+    raw = open(path, "rb").read()
+    magic, version, count = struct.unpack_from("<4sII", raw, 0)
+    if magic != b"TYER":
+        return []
+    blob = zlib.decompress(raw[12:])
+    out, o = [], 0
+    for _ in range(count):
+        x, y, w, h, dx, dy = struct.unpack_from("<HHBBhh", blob, o)
+        o += 10
+        out.append((x, y, np.frombuffer(blob[o:o + w * h], np.uint8).reshape(h, w).astype(bool), dx, dy))
+        o += w * h
+    return out
+
+
+def cleaned(name, rgb):
+    """The map as the 3D view draws it: its clean-up applied (each erased pixel the map's pixel at the offset)."""
+    pieces = read_erasures(name)
+    if not pieces:
+        return rgb
+    out = rgb.copy()
+    H, W = rgb.shape[:2]
+    for x, y, m, dx, dy in pieces:
+        ys, xs = np.nonzero(m)
+        ys, xs = ys + y, xs + x
+        ok = (ys < H) & (xs < W) & (ys + dy >= 0) & (ys + dy < H) & (xs + dx >= 0) & (xs + dx < W)
+        out[ys[ok], xs[ok]] = rgb[ys[ok] + dy, xs[ok] + dx]
+    return out
+
+
 def features(rgb):
     lum = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
     mean = ndimage.uniform_filter(lum, 7)
@@ -95,11 +129,14 @@ def features(rgb):
                            ndimage.gaussian_filter(lum, 6) * 1.5])
 
 
-def classify(rgb, k):
+def classify(rgb, k, fit=None):
+    """Classes of the map's pixels; fit: the map the classes are found on (the map as exported, so a map's
+    classes keep their numbers when its clean-up changes; rgb is then the clean ground)."""
     lum, feat = features(rgb)
     flat = feat.reshape(-1, feat.shape[2])
+    fit_flat = flat if fit is None else features(fit)[1].reshape(-1, feat.shape[2])
     np.random.seed(1)
-    centroids, _ = kmeans2(flat[::13], k, seed=1, minit="++")
+    centroids, _ = kmeans2(fit_flat[::13], k, seed=1, minit="++")
     labels = np.empty(flat.shape[0], np.int32)
     for start in range(0, flat.shape[0], 1 << 20):  # in chunks: the distances are k times the map
         chunk = flat[start:start + (1 << 20)]
@@ -716,8 +753,9 @@ def material_heights(rgb, labels, s):
     return out
 
 
-def heights(name, rgb, opaque, info, s):
-    """The heights (game pixels) and where there is nothing (holes)."""
+def heights(name, rgb, opaque, info, s, fit=None):
+    """The heights (game pixels) and where there is nothing (holes). rgb: the clean ground; fit: the map as
+    exported (its classes)."""
     if info["background"] > 1 and not s.get("ground"):
         h, hole = solid_heights(rgb, opaque, s)
         # Clear where ground enemies are under it (in the game hidden under the background): they
@@ -725,7 +763,7 @@ def heights(name, rgb, opaque, info, s):
         standing, _ = ground_enemies(name)
         hole |= solid_clearance(name, h.shape, info["background"])
         return h, hole, standing
-    lum, labels, _ = classify(rgb, s["classes"])
+    lum, labels, _ = classify(rgb, s["classes"], fit)
     target = np.zeros(labels.shape, np.float32)
     inherit = np.zeros(labels.shape, bool)
     class_heights = dict(s["heights"])
@@ -799,9 +837,10 @@ def relief_image(rgb, h, hole, standing, top, tracks=()):
 
 
 def cmd_build(name):
-    info, rgb, opaque = load_map(name)
+    info, exported, opaque = load_map(name)
+    rgb = cleaned(name, exported) if info["background"] == 1 else exported  # (the clean ground, make_cleanground.py)
     s = settings(name)
-    h, hole, standing = heights(name, rgb, opaque, info, s)
+    h, hole, standing = heights(name, rgb, opaque, info, s, None if rgb is exported else exported)
     # Samples every SAMPLE pixels, at the samples' corners (the grid the game builds meshes on).
     grid = np.pad(h[::SAMPLE, ::SAMPLE], ((0, 1), (0, 1)), mode="edge")
     holes = np.pad(hole[::SAMPLE, ::SAMPLE], ((0, 1), (0, 1)), mode="edge")

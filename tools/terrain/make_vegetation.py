@@ -7,8 +7,12 @@ the game draws as models on the terrain (palms and trees standing, grass as blad
 - Trees: large green areas of strong texture (canopies): a tree on each bright top (palms with
   "forest": "palm" in levels.json, for palm jungles).
 - Grass: large smooth green areas: clumps of blades every few pixels.
-No palms or trees where ground enemies stand (export/terrain/ground.txt; the game clears the plants
-under the ones that move as they pass), and nothing over holes. "vegetation": false in a map's levels.json entry turns it off.
+Plants grow on the clean ground (the map with its clean-up applied, assets/terrain/<map>.era from
+make_cleanground.py: the objects' painted art erased), palms where the map paints them (they take the painted
+palms' place). They are kept off the models' real footprints where ground enemies stand (export/terrain/ground.txt;
+footprints.py: grass off the models' low parts, palms and trees off all of them) and where stand-ins stand
+(assets/terrain/<map>.std); the game clears the plants under the ones that move as they pass. Nothing over holes.
+"vegetation": false in a map's levels.json entry turns it off.
 
 usage: <python with numpy, scipy and PIL> tools/terrain/make_vegetation.py <map hash>... | all
 
@@ -29,6 +33,7 @@ from scipy import ndimage
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import make_terrain as mt  # noqa: E402
+import footprints as fpr  # noqa: E402
 
 PALM, TREE, GRASS = 0, 1, 2
 BIG_REGION = 1500      # pixels: a green area this large is a forest or a meadow
@@ -45,7 +50,8 @@ def peaks(field, mask, distance):
     return list(zip(xs.tolist(), ys.tolist()))
 
 
-def detect(name, rgb, s):
+def green_regions(rgb):
+    """Green areas: (green, big ones (forests, meadows), small ones (palms))."""
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     green = (g > r * 1.12) & (g > b * 1.05) & (g > 0.12)
     green = ndimage.binary_closing(green, np.ones((3, 3), bool))
@@ -53,16 +59,54 @@ def detect(name, rgb, s):
     sizes = ndimage.sum(green, labels, range(1, n + 1)) if n else np.zeros(0)
     big = np.isin(labels, 1 + np.nonzero(sizes >= BIG_REGION)[0])
     small = np.isin(labels, 1 + np.nonzero((sizes >= 12) & (sizes < BIG_REGION))[0])
+    return green, big, small
+
+
+def keep_off(name, shape):
+    """Where no plants grow: the footprints of the models of what stands on the map (the ground log's
+    standing enemies and the stand-ins), all of each (palms, trees) and its low part (grass), a pixel round;
+    a sprite's size for what has no model."""
+    full = np.zeros(shape, bool)
+    low = np.zeros(shape, bool)
+    places = []
+    for t in mt.ground_tracks(name):
+        if t.standing and t.look is not None:
+            places.append((chr(t.look[0]).lower(), t.look[1], float(t.x.mean()), float(t.y.mean()), t.size))
+    path = os.path.join(mt.OUT, f"{name}.std")
+    if os.path.exists(path):
+        for line in open(path):
+            if line.startswith("#"):
+                continue
+            p = line.split()
+            code, sprite = (int(v) for v in p[2].split(":"))
+            places.append((chr(code).lower(), sprite, float(p[0]), float(p[1]), 24 if p[3] == "1" else 12))
+    plain = []
+    for letter, sprite, x, y, size in places:
+        fp = fpr.footprint(letter, sprite)
+        if fp is None:
+            plain.append((x, y, size))
+            continue
+        fpr.stamp(full, fp, x, y, "full", 2)
+        fpr.stamp(low, fp, x, y, "low", 1)
+    full |= mt.footprint(shape, plain, 5)
+    low |= mt.footprint(shape, plain, 2)
+    return full, low
+
+
+def detect(name, rgb, s, painted=None):
+    """The plants: palms on the map as painted (painted, if given: the map as exported), trees and grass on
+    rgb (the clean ground)."""
+    green, big, small = green_regions(rgb)
+    if painted is not None:
+        small = green_regions(painted)[2]
     lum = rgb @ np.array([0.299, 0.587, 0.114], np.float32)
     mean = ndimage.uniform_filter(lum, 9)
     spread = np.sqrt(np.maximum(ndimage.uniform_filter(lum * lum, 9) - mean * mean, 0))
     texture = ndimage.uniform_filter(spread, 25)
 
-    # Not where ground enemies stand, nor over space. (Where they pass, the game clears the plants
-    # under them as they go; grass is low: kept clear a little less.)
-    standing, _ = mt.ground_enemies(name)
-    keep_clear = mt.footprint(lum.shape, standing, 5)
-    keep_low = mt.footprint(lum.shape, standing, 2)
+    # Not on what stands on the map, nor over space. (Where enemies pass, the game clears the plants
+    # under them as they go.)
+    keep_clear, keep_low = keep_off(name, lum.shape)
     if s.get("void") == "hole":
         keep_clear |= mt.void_mask(rgb)
         keep_low |= mt.void_mask(rgb)
@@ -75,7 +119,7 @@ def detect(name, rgb, s):
         soft = ndimage.gaussian_filter(small.astype(np.float32), 3.0)
         for x, y in peaks(soft, small & ~keep_clear, 7):
             plants.append((x, y, PALM, 7.0 + rng.random() * 2.0, rng.random(), 0.85 + rng.random() * 0.3))
-        colours[0] = rgb[small].mean(0)
+        colours[0] = (painted if painted is not None else rgb)[small].mean(0)
         colours[1] = np.array([0.42, 0.30, 0.18]) * (0.6 + 0.8 * lum[~green].mean())
 
     forest = big & (texture > FOREST_TEXTURE)
@@ -112,14 +156,15 @@ def detect(name, rgb, s):
 
 
 def cmd_build(name):
-    info, rgb, _ = mt.load_map(name)
+    info, painted, _ = mt.load_map(name)
     s = mt.settings(name)
     path = os.path.join(mt.OUT, f"{name}.veg")
     if info["background"] != 1 or s.get("vegetation") is False:
         if os.path.exists(path):
             os.remove(path)
         return
-    plants, colours, (forest, meadow, small) = detect(name, rgb, s)
+    rgb = mt.cleaned(name, painted)
+    plants, colours, (forest, meadow, small) = detect(name, rgb, s, painted)
     if not plants:
         if os.path.exists(path):
             os.remove(path)

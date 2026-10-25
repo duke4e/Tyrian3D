@@ -3,8 +3,9 @@
 level's maps (TYR3D_EXPORT_MAPS) and writes their side columns (TYR3D_SIDES_WRITE), the ground
 enemies' places are collected (tools/terrain/ground_log.sh), the levels' terrain settings (their
 "terrain" in levels/*.json) go into tools/terrain/levels.json under the maps' hashes, then the
-terrain (make_terrain.py) and vegetation (make_vegetation.py) are built. Maps of earlier versions
-of the levels (episode 6's entries no level uses any more) are taken out, with their assets.
+clean ground (make_cleanground.py), terrain (make_terrain.py) and vegetation (make_vegetation.py)
+are built. Maps of earlier versions of the levels (episode 6's entries no level uses any more) are
+taken out, with their assets.
 
 usage: <python with numpy, scipy and PIL> tools/content/episode6/terrain.py [level...]
        (the game built; levels by name, default all)
@@ -82,7 +83,7 @@ def main(names):
     # Earlier versions' maps out (their settings and assets).
     for h in [h for h, s in settings.items() if s.get("level") in episode6 and h not in keep]:
         del settings[h]
-        for ext in ("ter", "veg", "era"):
+        for ext in ("ter", "veg", "era", "std"):
             path = os.path.join(ROOT, "assets", "terrain", f"{h}.{ext}")
             if os.path.exists(path):
                 os.remove(path)
@@ -92,8 +93,10 @@ def main(names):
     sections_ = " ".join(found[n] for n in names)
     subprocess.run([os.path.join(ROOT, "tools", "terrain", "ground_log.sh"), "60"] + sections_.split(), check=True,
                    stdout=subprocess.DEVNULL)
-    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
     ground = [h for h in built if settings[h].get("background", 1) == 1]
+    if ground:  # (the clean ground first: the terrain and the vegetation are made on it)
+        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_cleanground.py")] + ground, check=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
     subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + ground, check=True)
     return 0
 

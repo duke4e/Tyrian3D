@@ -1009,6 +1009,103 @@ static void draw_coming_enemies(int enemy_offset)
 	}
 }
 
+/*
+ * Tyrian3D: stand-ins. Where the 3D view's clean ground (tools/terrain/make_cleanground.py) erased what
+ * the ground map paints of an object (what is left of it once destroyed, or the object itself), the
+ * original shows that painting whenever the enemy's sprite doesn't cover it: before the enemy comes, once
+ * it is destroyed, and where none ever stands. So the model of that painting (assets/terrain/<map>.std:
+ * the look the game leaves standing when it is destroyed, the object's own model, or a placeholder) is
+ * shown at its place on the map while no ground enemy of its looks (alive, dead, coming or what it turns
+ * into) is drawn there. Only shown; it touches nothing of the game.
+ */
+#define STANDIN_KEY 0x70000u  // (after layer3d.c L3D_KEY_DEPARTED)
+#define STANDIN_GROUP 0x40000000u
+#define STANDIN_COVERED 6.5f   // game pixels: an enemy of its looks this near covers it
+#define STANDIN_FAR (-420)     // game pixels: the furthest row worth showing above the screen
+#define STANDIN_BELOW 330
+
+static bool standin_covered(const B3DStandin *s, float x, float y)
+{
+	for (int o = 0; o < l3d_frame.object_count; ++o)
+	{
+		const L3DObject *object = &l3d_frame.objects[o];
+		if (object->layer != L3D_GROUND_ENEMY || object->enemy_sheet == 0 || object->standin != 0 ||
+		    fabsf(object->x - x) > STANDIN_COVERED || fabsf(object->y - y) > STANDIN_COVERED)
+			continue;
+		for (int k = 0; k < s->cover_count; ++k)
+			if (s->cover_sheet[k] == object->enemy_sheet && s->cover_sprite[k] == object->enemy_sprite)
+				return true;
+	}
+	return false;
+}
+
+static void draw_standins(void)
+{
+	if (!l3d_capturing || !m3d_enabled || endLevel)
+		return;
+	const B3DStandins *standins = b3d_standins();
+	if (standins == NULL)
+		return;
+	const L3DBackground *ground = NULL;
+	for (int b = 0; b < l3d_frame.background_count; ++b)
+		if (l3d_frame.backgrounds[b].set == 1)
+			ground = &l3d_frame.backgrounds[b];
+	float ox, oy;  // where the map's corner is on the screen (the map moves as a whole)
+	if (ground == NULL || !b3d_screen_point(ground, 0.0f, 0.0f, &ox, &oy))
+		return;
+	static int log_on = -1;  // TYR3D_LOG_STANDINS=1: every 30th frame, the stand-ins shown on the screen
+	if (log_on < 0)
+		log_on = SDL_getenv("TYR3D_LOG_STANDINS") != NULL;
+	const bool log_now = log_on && l3d_frame_number % 30 == 0;
+	int shown = 0, covered = 0;
+	for (int i = 0; i < standins->count; ++i)
+	{
+		const B3DStandin *s = &standins->standins[i];
+		const float x = ox + s->x, y = oy + s->y;
+		if (y < STANDIN_FAR || y > STANDIN_BELOW)
+			continue;
+		if (standin_covered(s, x, y))
+		{
+			covered += y >= 0;
+			continue;
+		}
+		const M3DAppearance look = m3d_enemy_appearance(s->sheet, s->sprite, s->large, L3D_GROUND_ENEMY);
+		if (look.model < 0 || !l3d_add_object(look.model, x, y, look.height, look.yaw, 0.0f, 0))
+			continue;
+		if (log_now && y >= 0 && y < 200)
+		{
+			// (and the nearest ground enemy, to see why it doesn't cover it)
+			const L3DObject *near = NULL;
+			float best = 1e9f;
+			for (int o = 0; o < l3d_frame.object_count; ++o)
+			{
+				const L3DObject *object = &l3d_frame.objects[o];
+				const float d = fabsf(object->x - x) + fabsf(object->y - y);
+				if (object->enemy_sheet != 0 && object->standin == 0 && d < best)
+				{
+					best = d;
+					near = object;
+				}
+			}
+			printf("standin: frame %u look %c%d %s at %.0f,%.0f", l3d_frame_number, s->sheet, s->sprite,
+			       s->mode == L3D_STANDIN_PLACEHOLDER ? "placeholder" : "own", x, y);
+			if (near != NULL)
+				printf(" nearest %c%u (layer %d) at %+.1f,%+.1f", near->enemy_sheet, near->enemy_sprite, (int)near->layer,
+				       near->x - x, near->y - y);
+			printf("\n");
+			++shown;
+		}
+		l3d_enemy_last_object(s->sheet, s->sprite);
+		l3d_group_last_object(STANDIN_GROUP + s->group, 0);
+		l3d_key_last_object(STANDIN_KEY + (Uint32)i, NULL, NULL);
+		l3d_standin_last_object(s->mode);
+		if (look.layer > 0)
+			l3d_layer_last_object((L3DLayerType)(look.layer - 1));
+	}
+	if (log_now)
+		printf("standins: frame %u shown %d covered %d (on the screen)\n", l3d_frame_number, shown, covered);
+}
+
 // Tyrian3D: an enemy's force field as it acts (particles3d.h), a ring every so often.
 static void show_field(int enemy_index, int x, int y, P3DField field, float reach)
 {
@@ -2263,6 +2360,7 @@ level_loop:
 	JE_drawEnemy(100);
 	draw_coming_enemies(25);
 	draw_coming_enemies(75);
+	draw_standins();
 
 	if (enemyOnScreen == 0 || enemyOnScreen == lastEnemyOnScreen)
 	{

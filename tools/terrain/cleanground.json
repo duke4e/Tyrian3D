@@ -1,0 +1,35 @@
+{
+  "_doc": [
+    "Overrides for tools/terrain/make_cleanground.py (clean ground under the 3D view's ground objects).",
+    "keep: models (name prefixes) whose painting stays: landscape the game animates or builds from enemies",
+    "  (TORM's, BONUS' and ROOST's waterfalls, FRUIT's glyph trees, the rock arches standing on painted rock),",
+    "  and what the map paints as landscape (FRUIT's geodesic balls leave a hole into space; the gun silos of",
+    "  SAVARA, SAVARA IV, REEF and DIG SITE are pits in the fortress walls).",
+    "standin: a piece's look -> the look whose model stands in for the painting once the piece is gone",
+    "  (sheet letter and first sprite, as models.cfg names them; x<hex> for a symbol). Dead looks (dgr with",
+    "  dlevel -1, which the game itself leaves standing) are taken without a line here; damaged looks only",
+    "  where they are the painted picture. Pieces with neither get a placeholder: their own model, slumped",
+    "  and darkened, until stage 4 gives them a wreck model of their own (a line here then).",
+    "keep_maps: as keep, for one map (hash): where a look's painting is landscape there only (BOTANY B's cliff",
+    "  bunkers stand on rock in the water, MINERS' red spires and mounds are its rock).",
+    "skip_maps: maps (hashes) the tool leaves alone (their .era and .std stay as they are), and why.",
+    "no_palms: maps (hashes) whose painted palms stay painted."
+  ],
+  "keep": ["torm_fall", "fruit_glyph", "rock_arch", "desert_rock_tip", "fruit_geoball", "gun_silo"],
+  "standin": {
+    "m1": "m3",
+    "u79": "u77",
+    "c283": "c267",
+    "c245": "c229",
+    "j1": "j3",
+    "j77": "j41"
+  },
+  "keep_maps": {
+    "81a5109eefde534b": ["cliff_bunker"],
+    "8362fe151f78556b": ["red_spire", "red_mound"]
+  },
+  "skip_maps": {
+    "fd012f6c792344d7": "CORE: its cell spheres and bubbles lie in lava that flows between painted rocks; the fills cut the rocks"
+  },
+  "no_palms": []
+}

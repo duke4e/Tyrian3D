@@ -226,10 +226,11 @@ typedef struct
 const B3DVegetation *b3d_vegetation(void);
 
 /*
- * Erasures (tools/terrain/make_erasures.py, assets/terrain/<map>.era): where a map has a ground
- * enemy's object painted into its tiles (or the ground around it its sprite carries), under its
- * model, the pixels to replace with the map's own pixels at an offset (a whole number of tiles away).
- * Positions in the exported map's pixels (the generated columns included), in order of y.
+ * Erasures (tools/terrain/make_cleanground.py, assets/terrain/<map>.era): where a map has a ground
+ * enemy's object or what is left of it painted into its tiles, its painted palms, and the objects'
+ * tiles in the generated columns, the pixels to replace with the map's own pixels at an offset (the
+ * ground round them). Positions in the exported map's pixels (the generated columns included), in
+ * order of y; each at most a tile.
  */
 typedef struct
 {
@@ -247,6 +248,36 @@ typedef struct
 
 // The erasures of a background's current map, or NULL (none, or TYR3D_ERASE=0).
 const B3DErasures *b3d_erasures(int set);
+
+/*
+ * Stand-ins (tools/terrain/make_cleanground.py, assets/terrain/<map>.std): where the clean-up erased
+ * what the ground map painted of an object (what is left of it once destroyed, or the object itself), the
+ * model of that painting, which the 3D view shows while no ground enemy of its looks covers its place
+ * (tyrian2.c draw_standins). Positions in the exported map's pixels (the generated columns included).
+ */
+#define B3D_STANDIN_COVERS 8
+
+typedef struct
+{
+	float x, y;
+	char sheet;          // the look whose model stands in: its sheet's letter (as L3DObject.enemy_sheet)
+	Uint16 sprite;       // and first sprite
+	bool large;
+	Uint8 mode;          // L3D_STANDIN_OWN or L3D_STANDIN_PLACEHOLDER
+	Uint16 group;        // the stand-ins of one object (they stand and lean together)
+	int cover_count;     // the looks that cover it: the enemy's own, its damaged and dead looks, what it
+	char cover_sheet[B3D_STANDIN_COVERS];  // turns into when destroyed
+	Uint16 cover_sprite[B3D_STANDIN_COVERS];
+} B3DStandin;
+
+typedef struct
+{
+	int count;
+	const B3DStandin *standins;
+} B3DStandins;
+
+// The current ground map's stand-ins, or NULL (none, or TYR3D_ERASE=0).
+const B3DStandins *b3d_standins(void);
 
 // The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
 // collected), or -1 for an empty entry.
