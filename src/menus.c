@@ -83,8 +83,13 @@ bool gameplaySelect(void)
 
 	bool restart = true;
 
-	const size_t menuItemsCount = COUNTOF(gameplay_name) - 1 + 1;
-	size_t selectedIndex = MENU_ITEM_1_PLAYER_FULL_GAME;
+	// Tyrian3D: the items shown, without network play (the user: take the modem play option away).
+	int shown[COUNTOF(gameplay_name)];
+	size_t menuItemsCount = 0;
+	for (int id = 0; id <= MENU_ITEM_ROGUE; ++id)
+		if (id != MENU_ITEM_NETWORK)
+			shown[menuItemsCount++] = id;
+	size_t selectedIndex = 0;
 
 	const int xCenter = 320 / 2;
 	const int yMenuHeader = 20;
@@ -109,13 +114,13 @@ bool gameplaySelect(void)
 		// Draw menu items.
 		for (size_t i = 0; i < menuItemsCount; ++i)
 		{
-			const char *const text = i == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[i + 1];
+			const char *const text = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[shown[i] + 1];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
-			const bool disabled = i == MENU_ITEM_NETWORK;
+			const bool disabled = false;
 
 			// Tyrian3D: drawn centred (as it was at xCenter - wMenuItem[i] / 2), so the 3D view's text is.
 			draw_font_hv_shadow(VGAScreen, xCenter, y, text, normal_font, centered, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
@@ -130,15 +135,17 @@ bool gameplaySelect(void)
 				"Three acts, one life: a new route and new cards every run.",
 			};
 			const char *texts[COUNTOF(gameplay_name)];
+			const char *shown_hints[COUNTOF(gameplay_name)];
 			int xs[COUNTOF(gameplay_name)];
 			bool disabled[COUNTOF(gameplay_name)];
 			for (size_t i = 0; i < menuItemsCount; ++i)
 			{
-				texts[i] = i == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[i + 1];
+				texts[i] = shown[i] == MENU_ITEM_ROGUE ? "Rogue Run" : gameplay_name[shown[i] + 1];
+				shown_hints[i] = hints[shown[i]];
 				xs[i] = xCenter - wMenuItem[i] / 2;
-				disabled[i] = i == MENU_ITEM_NETWORK;
+				disabled[i] = false;
 			}
-			publish_choices(UI_SCREEN_PLAYERS, gameplay_name[0], texts, hints, menuItemsCount, selectedIndex, wMenuItem, xs,
+			publish_choices(UI_SCREEN_PLAYERS, gameplay_name[0], texts, shown_hints, menuItemsCount, selectedIndex, wMenuItem, xs,
 			                yMenuItems, dyMenuItems, hMenuItem, disabled, 0);
 		}
 
@@ -258,7 +265,8 @@ bool gameplaySelect(void)
 
 		if (action)
 		{
-			switch (selectedIndex)
+			const int chosen = shown[selectedIndex];
+			switch (chosen)
 			{
 			case MENU_ITEM_1_PLAYER_FULL_GAME:
 			case MENU_ITEM_1_PLAYER_ARCADE:
@@ -269,9 +277,9 @@ bool gameplaySelect(void)
 
 				fade_black(10);
 
-				onePlayerAction = selectedIndex == MENU_ITEM_1_PLAYER_ARCADE;
-				timedBattleMode = selectedIndex == MENU_ITEM_1_PLAYER_TIMED_BATTLE;
-				twoPlayerMode = selectedIndex == MENU_ITEM_2_PLAYER_ARCADE;
+				onePlayerAction = chosen == MENU_ITEM_1_PLAYER_ARCADE;
+				timedBattleMode = chosen == MENU_ITEM_1_PLAYER_TIMED_BATTLE;
+				twoPlayerMode = chosen == MENU_ITEM_2_PLAYER_ARCADE;
 				return true;
 			}
 			case MENU_ITEM_NETWORK:
