@@ -184,7 +184,10 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 		const bool key = melodic && (reg[0xb0 + ch] & 0x20) != 0;
 		const double pitch = channel_pitch(ch);
 
-		const bool restart = key && (!v->on || keyoff_written[ch] || fabs(pitch - v->note_pitch) > BEND_RANGE);
+		// (A drum strikes only as its key goes on: its pitch sliding or stepping (arpeggios) is the drum's sound
+		// on the chip, not new strokes.)
+		const bool drum_now = v->on ? v->drum : instrument_drum(lds_channel_sound[ch]);
+		const bool restart = key && (!v->on || keyoff_written[ch] || (!drum_now && fabs(pitch - v->note_pitch) > BEND_RANGE));
 		if (v->on && (!key || restart))
 		{
 			if (!v->faded)
