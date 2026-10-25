@@ -329,8 +329,10 @@ class Context:
         return [{"pronunciation_dictionary_id": d["id"], "version_id": d["version_id"]}]
 
     def cubes(self):
+        """The cubes to voice, then the story texts between levels (numbered from 101 in each
+        episode, the end's hints from 201: export_cubes.py), which are voiced as cubes are."""
         for ep in self.script["episodes"]:
-            for c in ep["cubes"]:
+            for c in ep["cubes"] + ep.get("stories", []):
                 if not c["skip"]:
                     yield c
 
@@ -895,7 +897,8 @@ def build(ctx, only=None, speakers=None, referenced_only=False):
         duration_ms = round(len(pcm) * 1000 / rate)
         segs = [{"segment": j["seg"]["index"], "speaker": j["seg"]["speaker"], "voice": j["conf"]["root"],
                  "start_ms": round(w0), "end_ms": round(w1), "chars": len(j["text"])} for j, w0, w1, _, _, _ in windows]
-        manifest["cubes"][c["id"]] = {"file": out_rel, "title": c["title"], "duration_ms": duration_ms,
+        manifest["cubes"][c["id"]] = {"kind": c.get("kind", "cube"), "file": out_rel, "title": c["title"],
+                                     "text_hash": c["text_hash"], "duration_ms": duration_ms,
                                      "bytes": os.path.getsize(out_path), "segments": segs,
                                      "lines_ms": line_times(c, piece_times(windows), duration_ms)}
         built += 1
@@ -967,12 +970,18 @@ def write_manifest(ctx, manifest, fmt_name, rate, target):
             del manifest["cubes"][cid]
     manifest["cubes"] = dict(sorted(manifest["cubes"].items(), key=lambda kv: tuple(int(x) for x in kv[0].split(":"))))
     save_json(os.path.join(ctx.out, "manifest.json"), manifest)
-    lines = ["# Tyrian3D data cube voices (tools/voices/generate.py). One cube a line:",
-             "# episode cube duration_ms line_count start_ms_of_each_line...",
-             f"# format {fmt_name}, {rate} Hz mono, {target['I']} LUFS; files: e<episode>/<cube>.wav"]
+    # The game's list (src/voiceover.c): a voice plays only over the text whose hash it carries.
+    lines = ["# Tyrian3D voices (tools/voices/generate.py), read by src/voiceover.c. One voice a line:",
+             "# cube <episode> <cube> <text hash> <duration_ms> <file> <line_count> <start_ms of each reader line...>",
+             "# story <text hash> <duration_ms> <file>   (a story text between levels, found by its text)",
+             f"# format {fmt_name}, {rate} Hz mono, {target['I']} LUFS"]
     for cid, e in manifest["cubes"].items():
         ep, n = cid.split(":")
-        lines.append(f"{ep} {n} {e['duration_ms']} {len(e['lines_ms'])} " + " ".join(str(t) for t in e["lines_ms"]))
+        if e.get("kind") == "story":
+            lines.append(f"story {e['text_hash']} {e['duration_ms']} {e['file']}")
+        else:
+            lines.append(f"cube {ep} {n} {e['text_hash']} {e['duration_ms']} {e['file']} {len(e['lines_ms'])} "
+                         + " ".join(str(t) for t in e["lines_ms"]))
     with open(os.path.join(ctx.out, "manifest.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 

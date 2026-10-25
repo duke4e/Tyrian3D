@@ -249,6 +249,9 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
 | `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |
+| `TYR3D_VOICES=0\|1` | The data cubes and story texts read aloud, off or on, for the run (default: the setting, Sound → Voices) |
+| `TYR3D_VOICES_DIR=<dir>` | Where the voices are: `manifest.txt`, `e<episode>/<cube>.wav`, `story/e<episode>_<n>.wav` (default `data/voices`; see Voices) |
+| `TYR3D_DEBUG_VOICES=1` | Print each voice event: the manifest read, a voice played (its file, length and load time), stopped or ended, a text without a voice or whose text differs from its voice's |
 | `TYR3D_SOUNDFONT=<file>` | Another SoundFont for the music (for the run; the menus' SoundFont choice, Sound → SoundFont or the in-game options, picks among the `.sf2` files in `data/soundfonts`, kept as `soundfont` in `[tyrian3d]`) |
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
@@ -522,6 +525,7 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
 | `tools/package_macos.sh` | Builds the macOS app bundle |
 | `tools/fetch_soundfont.sh` | Downloads the SoundFonts the music can play through into `data/soundfonts` (checked by SHA-256): GeneralUser GS (the default), FluidR3 GM (MIT, from Debian's package) and Arachno 1.0 (private, non-commercial use only: the app leaves it out); `fetch_soundfont.sh fluid` for one |
+| `tools/voices/export_cubes.py`, `tools/voices/generate.py`, `tools/voices/say_placeholders.py` | The data cubes and story texts read aloud (see Voices): the script from the game's data, the ElevenLabs render, placeholder voices from macOS `say` |
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
 | `tools/hd_sheets.py` | Puts the upscaled atlases back together as 4x sprite sheets (`data/hd/sheets/<sheet>.hd`) for the HD volumes, and copies the upscaled HUD panels to `data/hd` |
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
@@ -541,6 +545,43 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/content/episode6/build.py`, `tools/content/tyrformat.py` | Episode 6 in the game's formats (the encrypted script and data cubes, the level file with the episode's item data); run at build time |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
+
+## Voices
+
+The data cubes and the story texts between levels are read aloud (`src/voiceover.c`): when the store's
+data cube reader opens a cube, or a story text, a warning or an episode's end with its secret hint shows
+(classic or modern menus), its voice plays over the music, which is ducked by about 6 dB (200 ms ramps,
+`loudness.c`), and stops when the text closes (a 30 ms fade); the text stays as the subtitles. Sound →
+**Voices** in Setup is its volume (Left/Right) and on/off (Enter), kept as `voices` and `voice_volume` in
+`[tyrian3d]`; "No voices installed" when there are none.
+
+The voices go in `data/voices` (outside git; `TYR3D_VOICES_DIR`): `e<episode>/<cube>.wav` (the cube's
+number in its episode's `cubetxt` file), `story/e<episode>_<n>.wav` and `manifest.txt`, which lists each
+with the hash of the text it reads (32-bit FNV-1a over the cube's text lines or the story's
+`levelWarningText` lines); the game plays a voice only over its own text, so an edited cube (episode 6's
+are generated) or a custom episode's cubes stay silent. Any WAV SDL reads works; the render writes IMA
+ADPCM, 24 kHz mono, -18 LUFS (`tools/package_macos.sh` copies them into the app when they are there).
+
+Rendering them (ElevenLabs, the user's own subscription; the key is read only from
+`ELEVENLABS_API_KEY` or `~/.config/tyrian3d/elevenlabs_key` and goes only into the request header):
+
+1. `python3 tools/voices/export_cubes.py` writes the script `data/voices/script.json` and the
+   proofreading copy `script.html` from the game's data: 170 cubes (`E:N`), the 96 story texts and
+   hints (`E:101`... in the order of the episode's script, the end's secret hints `E:201`...), split
+   by speaker. `tools/voices/cast.json` has the speakers (28 designed voices; minor parts borrow one,
+   `voice_of`), which cubes and stories each reads (`cube_rules`, by the same ids) and the voice
+   prompts; `pronunciation.json` the names' readings.
+2. `python3 tools/voices/generate.py estimate` (no network): characters, minutes, credits and the plan
+   (about 134,000 characters, 140-163 minutes). `status` shows the account's credits.
+3. `generate.py design [--speaker K]` makes three previews per voice in `data/voices/previews/`;
+   `adopt K N` makes the one chosen the speaker's voice (its `voice_id` in `cast.json`).
+4. `generate.py generate [--only E:N,...] [--jobs 4]` renders what is not in the render cache
+   (`data/voices/cache`, keyed by text, voice and settings: a changed line renders again alone) and
+   builds the WAVs and the manifest; `--retake E:N[:S]` renders a cube or segment again;
+   `generate.py build` rebuilds from the cache without the network.
+
+`tools/voices/say_placeholders.py --out DIR --only 1:1,1:101 --stories` makes placeholder voices with
+macOS's `say` (no account), to try the playback with `TYR3D_VOICES_DIR=DIR`.
 
 ## Roadmap
 
@@ -567,3 +608,5 @@ See `LICENSES.md` for the licenses (the macOS app has them in `Contents/Resource
   Arachno SoundFont by Maxime Abbey, freeware for private, non-commercial use (not in the app) (all
   downloaded by `tools/fetch_soundfont.sh` with their licenses; not in git).
 - Sound effect upscaling: AudioSR by Haohe Liu et al. (run locally, results not in git).
+- Voices of the data cubes and story texts: ElevenLabs text to speech (rendered with the user's own
+  subscription by `tools/voices/generate.py`; not in git).

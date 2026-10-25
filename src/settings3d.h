@@ -1,7 +1,7 @@
 /*
  * Tyrian3D: the player's 3D settings (plan M4.3), set in the setup menu ("3D...") and kept in
  * the [tyrian3d] section of opentyrian.cfg. Environment variables (TYR3D_2D, TYR3D_NO_MODELS,
- * TYR3D_SHADOWS, TYR3D_TILT, ...) override them for a run.
+ * TYR3D_SHADOWS, TYR3D_TILT, TYR3D_VOICES, ...) override them for a run.
  */
 #ifndef SETTINGS3D_H
 #define SETTINGS3D_H
@@ -25,6 +25,8 @@ typedef struct
 	bool screens_fill;    // with them, the old 320x200 screens fill the window's height (else as Scaling Mode says)
 	int ui_scale;         // the size of the menus and the HUD, per cent (settings3d_ui_scale_*)
 	char soundfont[64];   // the SoundFont the music plays through, by name (music_midi_use; "" the default)
+	bool voices;          // the data cubes and story texts read aloud (voiceover.h)
+	int voice_volume;     // their volume, 0-255 (as the music's and the samples')
 } Settings3D;
 
 extern Settings3D settings3d;
@@ -45,7 +47,7 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

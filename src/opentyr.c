@@ -54,6 +54,7 @@
 #include "vga256d.h"
 #include "video.h"
 #include "settings3d.h"
+#include "voiceover.h"
 #include "ui.h"
 #include "video_scale.h"
 #include "viewer.h"
@@ -242,6 +243,7 @@ void setupMenu(void)
 		MENU_ITEM_SCREENS,
 		MENU_ITEM_UI_SCALE,
 		MENU_ITEM_SOUNDFONT,
+		MENU_ITEM_VOICES,  // Tyrian3D: the cubes and story texts read aloud (voiceover.h)
 	} MenuItemId;
 
 	typedef enum
@@ -261,6 +263,10 @@ void setupMenu(void)
 		size_t (*getPickerItemsCount)(void);
 		const char *(*getPickerItem)(size_t i, char *buffer, size_t bufferSize);
 	} MenuItem;
+
+	// Tyrian3D: an item's help line (the voices' says when there are none).
+#define item_description(item) ((item)->id == MENU_ITEM_VOICES && !voiceover_installed() \
+	                                ? "No voices installed: they go in data/voices (tools/voices)." : (item)->description)
 
 	typedef struct
 	{
@@ -315,6 +321,7 @@ void setupMenu(void)
 			.items = {
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
+				{ MENU_ITEM_VOICES, "Voices", "Cubes and story texts read aloud: left/right the volume, Enter on or off." },
 				{ MENU_ITEM_MUSIC_SYNTH, "Music:", "The music as MIDI through a SoundFont, or on the AdLib chip.", getTwoItemsCount, getMusicPickerItem },
 				{ MENU_ITEM_SOUNDFONT, "SoundFont:", "The instruments the music plays on: the SoundFonts in data/soundfonts.", getSoundFontPickerItemsCount, getSoundFontPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
@@ -464,13 +471,19 @@ void setupMenu(void)
 				JE_rectangle(VGAScreen, xMenuItemValue - 2, y - 2, xMenuItemValue + 96, y + 11, 242);
 				break;
 
+			case MENU_ITEM_VOICES:
+				JE_barDrawShadow(VGAScreen, xMenuItemValue, y, 1, settings3d.voices && voiceover_installed() ? 174 : 170,
+				                 (settings3d.voice_volume + 4) / 8, 2, 10);
+				JE_rectangle(VGAScreen, xMenuItemValue - 2, y - 2, xMenuItemValue + 96, y + 11, 242);
+				break;
+
 			default:
 				break;
 			}
 		}
 
 		// Draw status text.
-		JE_textShade(VGAScreen, xMenuItemName, 190, menuItems[*selectedMenuItemIndex].description, 15, 4, PART_SHADE);
+		JE_textShade(VGAScreen, xMenuItemName, 190, item_description(&menuItems[*selectedMenuItemIndex]), 15, 4, PART_SHADE);
 
 		// Draw picker box and items.
 
@@ -510,17 +523,23 @@ void setupMenu(void)
 			{
 				const MenuItem *menuItem = &menuItems[i];
 				const int y = yMenuItems + dyMenuItems * (int)i;
-				const bool bar = menuItem->id == MENU_ITEM_MUSIC_VOLUME || menuItem->id == MENU_ITEM_SOUND_VOLUME;
+				const bool bar = menuItem->id == MENU_ITEM_MUSIC_VOLUME || menuItem->id == MENU_ITEM_SOUND_VOLUME ||
+				                 menuItem->id == MENU_ITEM_VOICES;
 				const bool choice = menuItem->getPickerItem != NULL;
 				UIItem *item = ui_menu_add(ui, bar ? UI_ITEM_BAR : choice ? UI_ITEM_CHOICE : UI_ITEM_ACTION, menuItem->name,
 				                           xMenuItemName, y, wMenuItemName, hMenuItem);
 				SDL_strlcpy(item->value, values[i], sizeof(item->value));
-				SDL_strlcpy(item->hint, menuItem->description, sizeof(item->hint));
+				SDL_strlcpy(item->hint, item_description(menuItem), sizeof(item->hint));
 				const bool value_acts = bar || menuItem->id == MENU_ITEM_DISPLAY || menuItem->id == MENU_ITEM_SCALER ||
 				                        menuItem->id == MENU_ITEM_SCALING_MODE;
 				if (value_acts)
 					item->hit_value = (SDL_Rect){ xMenuItemValue, y, wMenuItemValue, hMenuItem };
-				if (bar)
+				if (menuItem->id == MENU_ITEM_VOICES)
+				{
+					item->bar = settings3d.voice_volume / 255.0f;
+					item->muted = !settings3d.voices || !voiceover_installed();
+				}
+				else if (bar)
 				{
 					const bool music = menuItem->id == MENU_ITEM_MUSIC_VOLUME;
 					item->bar = (music ? tyrMusicVolume : fxVolume) / 255.0f;
@@ -637,6 +656,15 @@ void setupMenu(void)
 										JE_playSampleNum(S_CURSOR);
 										break;
 									}
+									case MENU_ITEM_VOICES:
+									{
+										JE_playSampleNum(S_CURSOR);
+
+										int value = (lastmouse_x - xMenuItemValue) * 255 / (wMenuItemValue - 1);
+										settings3d.voice_volume = MIN(MAX(0, value), 255);
+										settings3d_changed(S3D_VOICES);
+										break;
+									}
 									default:
 										break;
 									}
@@ -698,6 +726,14 @@ void setupMenu(void)
 						JE_playSampleNum(S_CURSOR);
 						break;
 					}
+					case MENU_ITEM_VOICES:
+					{
+						JE_playSampleNum(S_CURSOR);
+
+						settings3d.voice_volume = MAX(0, settings3d.voice_volume - 8);
+						settings3d_changed(S3D_VOICES);
+						break;
+					}
 					default:
 						break;
 					}
@@ -719,6 +755,14 @@ void setupMenu(void)
 						JE_changeVolume(&tyrMusicVolume, 0, &fxVolume, 8);
 
 						JE_playSampleNum(S_CURSOR);
+						break;
+					}
+					case MENU_ITEM_VOICES:
+					{
+						JE_playSampleNum(S_CURSOR);
+
+						settings3d.voice_volume = MIN(255, settings3d.voice_volume + 8);
+						settings3d_changed(S3D_VOICES);
 						break;
 					}
 					default:
@@ -884,6 +928,14 @@ void setupMenu(void)
 					samples_disabled = !samples_disabled;
 
 					JE_playSampleNum(S_CLICK);
+					break;
+				}
+				case MENU_ITEM_VOICES:
+				{
+					JE_playSampleNum(S_CLICK);
+
+					settings3d.voices = !settings3d.voices;
+					settings3d_changed(S3D_VOICES);
 					break;
 				}
 				default:

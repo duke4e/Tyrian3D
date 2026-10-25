@@ -38,6 +38,15 @@ for f in GeneralUser-GS.sf2 FluidR3_GM.sf2; do
 		cp "$ROOT/data/soundfonts/$f" "$APP/Contents/Resources/soundfonts/"
 	fi
 done
+# The voices of the data cubes and story texts (tools/voices), when they have been rendered: the
+# WAVs and the game's list of them, not the scripts and the render cache beside them.
+if [ -f "$ROOT/data/voices/manifest.txt" ]; then
+	mkdir -p "$APP/Contents/Resources/voices"
+	cp "$ROOT/data/voices/manifest.txt" "$APP/Contents/Resources/voices/"
+	for d in "$ROOT"/data/voices/e[0-9]* "$ROOT/data/voices/story"; do
+		[ -d "$d" ] && cp -R "$d" "$APP/Contents/Resources/voices/"
+	done
+fi
 
 # Licenses (LICENSES.md lists what they cover).
 LICENSES="$APP/Contents/Resources/licenses"

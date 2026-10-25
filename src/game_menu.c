@@ -42,6 +42,7 @@
 #include "vga256d.h"
 #include "ui.h"
 #include "video.h"
+#include "voiceover.h"
 
 #include <assert.h>
 
@@ -72,6 +73,7 @@ struct cube_struct
 	int face_sprite;
 	char text[90][36];
 	int last_line;
+	Uint32 voice_hash;  // Tyrian3D: its text's, which its voice must match (voiceover.h)
 };
 
 /*** Globals ***/
@@ -1506,6 +1508,9 @@ void JE_itemScreen(void)
 
 				NETWORK_KEEP_ALIVE();
 
+				// Tyrian3D: the data cube being read, read aloud (voiceover.h).
+				voiceover_cube(episodeNum, curMenu == MENU_DATA_CUBE_SUB ? cubeList[currentCube] : 0, cube[currentCube].voice_hash);
+
 				mouseCursor = MOUSE_POINTER_NORMAL;
 
 				col += colC;
@@ -2309,6 +2314,8 @@ void JE_itemScreen(void)
 
 	} while (!(quit || gameLoaded || jumpSection));
 
+	voiceover_stop();  // Tyrian3D
+
 #ifdef WITH_NETWORK
 	if (!quit && isNetworkGame)
 	{
@@ -2515,6 +2522,7 @@ bool load_cube(int cube_slot, int cube_index)
 	read_encrypted_pascal_string(cube[cube_slot].header, sizeof(cube[cube_slot].header), f);
 
 	uint line = 0, line_chars = 0, line_width = 0;
+	cube[cube_slot].voice_hash = VOICEOVER_HASH_START;
 
 	// for each line of decrypted text, split the line into words
 	// and add them individually to the lines of wrapped text
@@ -2525,6 +2533,8 @@ bool load_cube(int cube_slot, int cube_index)
 		// end of data
 		if (buf[0] == '*')
 			break;
+
+		cube[cube_slot].voice_hash = voiceover_hash(cube[cube_slot].voice_hash, buf);  // Tyrian3D
 
 		// new paragraph
 		if (strlen(buf) == 0)

@@ -60,6 +60,7 @@
 #include "varz.h"
 #include "vga256d.h"
 #include "video.h"
+#include "voiceover.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -142,6 +143,9 @@ static void story_publish(void)
 
 void story_begin(int kind, int score_lines)
 {
+	// The text read aloud (voiceover.h): an ending's past its score lines and the blank line after them.
+	voiceover_story(levelWarningText, kind == UI_STORY_ENDING ? score_lines + 1 : 0, levelWarningLines);
+
 	story.on = ui_modern();
 	if (!story.on)
 		return;
@@ -165,6 +169,7 @@ void story_line(int line)
 void story_end(void)
 {
 	story.on = false;
+	voiceover_stop();
 }
 
 void story_refresh(void)
@@ -176,6 +181,7 @@ void story_refresh(void)
 // The characters of the line being revealed so far, published as the frame shows.
 static void story_shown(int chars)
 {
+	voiceover_update();
 	if (!story.on)
 		return;
 	story.chars = chars;

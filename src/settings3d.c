@@ -8,6 +8,7 @@
 #include "music_midi.h"
 #include "render_gpu.h"
 #include "video.h"
+#include "voiceover.h"
 
 #include <SDL3/SDL.h>
 
@@ -16,15 +17,15 @@
 
 Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
                           .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
-                          .screens_fill = true, .ui_scale = 100 };
+                          .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255 };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
 static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
                              .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
-                             .screens_fill = true, .ui_scale = 100 };
+                             .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255 };
 static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse, overridden_hud,
-            overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale;
+            overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale, overridden_voices;
 
 static const int ui_scales[] = { 75, 90, 100, 115, 130, 150 };
 
@@ -99,6 +100,10 @@ void settings3d_load(const ConfigSection *section)
 		const char *soundfont;
 		if (config_get_string_option(section, "soundfont", &soundfont))
 			SDL_strlcpy(chosen.soundfont, soundfont, sizeof(chosen.soundfont));
+		config_get_bool_option(section, "voices", &chosen.voices);
+		const char *voice_volume;
+		if (config_get_string_option(section, "voice_volume", &voice_volume))
+			chosen.voice_volume = SDL_clamp(SDL_atoi(voice_volume), 0, 255);
 		const char *camera;
 		if (config_get_string_option(section, "camera", &camera))
 			for (int i = 0; i < (int)COUNTOF(cameras); ++i)
@@ -138,6 +143,9 @@ void settings3d_load(const ConfigSection *section)
 	const char *ui_scale = SDL_getenv("TYR3D_UI_SCALE");  // per cent
 	if ((overridden_ui_scale = ui_scale != NULL))
 		settings3d.ui_scale = SDL_clamp(SDL_atoi(ui_scale), 50, 200);
+	const char *voices = SDL_getenv("TYR3D_VOICES");  // 0 or 1
+	if ((overridden_voices = voices != NULL))
+		settings3d.voices = SDL_atoi(voices) != 0;
 }
 
 void settings3d_changed(Settings3DField field)
@@ -195,6 +203,12 @@ void settings3d_changed(Settings3DField field)
 	case S3D_SOUNDFONT:
 		SDL_strlcpy(chosen.soundfont, settings3d.soundfont, sizeof(chosen.soundfont));
 		break;
+	case S3D_VOICES:
+		chosen.voices = settings3d.voices;
+		chosen.voice_volume = settings3d.voice_volume;
+		overridden_voices = false;
+		voiceover_settings_changed();
+		break;
 	}
 }
 
@@ -216,6 +230,9 @@ void settings3d_save(ConfigSection *section)
 	snprintf(percent, sizeof(percent), "%d", overridden_ui_scale ? chosen.ui_scale : settings3d.ui_scale);
 	config_set_string_option(section, "ui_scale", percent);
 	config_set_string_option(section, "soundfont", settings3d.soundfont);
+	config_set_bool_option(section, "voices", overridden_voices ? chosen.voices : settings3d.voices, NO_YES);
+	snprintf(percent, sizeof(percent), "%d", settings3d.voice_volume);
+	config_set_string_option(section, "voice_volume", percent);
 }
 
 void settings3d_apply(void)

@@ -223,6 +223,66 @@ def load_cube(strings, cube_index, font):
     return cube
 
 
+def text_hash(lines):
+    """The game's hash of a text (src/voiceover.c voiceover_hash): 32-bit FNV-1a over each line's
+    bytes and a newline, as 8 hex digits. A voice plays only over the text it was made from."""
+    h = 2166136261
+    for line in lines:
+        for b in line + b"\n":
+            h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+    return f"{h:08x}"
+
+
+def load_stories(levels_path):
+    """The story texts of an episode's script (src/tyrian2.c): each ']W' command's lines up to the
+    next '#' (a text between levels; ']Wy' a warning), and the nine secret hints after ']Q' (an
+    episode's end shows its score and one of them). As cubes, each is a cube-like dict whose
+    source_lines are the lines the game keeps in levelWarningText; its voice is found by their
+    hash (text_hash), whatever the order the game reaches them in."""
+    stories = []
+    if not os.path.exists(levels_path):
+        return stories
+    strings = read_strings(levels_path)
+    i = 0
+    while i < len(strings):
+        s = strings[i]
+        kind = None
+        if s.startswith(b"]W"):
+            kind = "warning" if s[2:3] == b"y" else "text"
+            blocks = 1
+        elif s.startswith(b"]Q"):
+            kind, blocks = "hint", 9
+        i += 1
+        if kind is None:
+            continue
+        for _ in range(blocks):
+            lines = []
+            while i < len(strings) and strings[i][:1] != b"#":
+                lines.append(strings[i])
+                i += 1
+            i += 1  # the '#'
+            if any(has_words(cp437(l)) for l in lines):
+                stories.append({"kind": kind, "source_lines": lines})
+    return stories
+
+
+def story_raw(lines, kind):
+    """A story's lines as load_cube's result, for paragraphs_of: every word shown. A hint's
+    "Secret Hint 1-2-3:" label is not read, and its heading ("ASTEROID 2") is a paragraph."""
+    if kind == "hint" and lines and re.match(rb"^Secret Hint [\d-]+:\s*$", lines[0]):
+        rest = lines[1:]
+        while rest and not rest[0].strip():
+            rest = rest[1:]
+        lines = rest[:1] + [b""] + rest[1:] if len(rest) > 1 else rest
+    raw = {"source_lines": lines, "words": [], "lines": [], "last_line": 0, "dropped": []}
+    for li, line in enumerate(lines):
+        if not line:
+            continue  # (an empty line has no words: a paragraph break, as in a cube)
+        for w in line.split(b" "):
+            raw["words"].append({"line": li, "word": w, "game_line": li})
+    return raw
+
+
 def cube_count(strings):
     """Cubes a file holds: '*' strings, less the last one, which only ends the last cube."""
     return max(0, sum(1 for s in strings if s[:1] == b"*") - 1)
@@ -836,7 +896,7 @@ def main():
                 "paragraphs": [{"text": p["text"], "break": p["break"]} for p in paras],
                 "segments": segments, "lines": game_lines(raw, word_pos),
                 "chars": sum(s["chars"] for s in segments), "notes": notes,
-                "audio": f"e{episode}/{n}.wav",
+                "audio": f"e{episode}/{n}.wav", "text_hash": text_hash(raw["source_lines"]),
             }
             voices_here = {}
             for s in segments:
@@ -856,6 +916,43 @@ def main():
                 if s["chars"] > 4800:
                     problems.append(f"{cube_id} segment {s['index']}: {s['chars']} characters (eleven_v3 takes 5000)")
             ep["cubes"].append(cube)
+
+        # The story texts between levels, numbered from 101 in each episode (the hints from 201).
+        ep["stories"] = []
+        counts = {"text": 100, "warning": 100, "hint": 200}
+        for st in load_stories(os.path.join(base, f"levels{episode}.dat")):
+            kind = "hint" if st["kind"] == "hint" else "text"
+            counts[kind] += 1
+            n = counts[kind]
+            story_id = f"{episode}:{n}"
+            raw = story_raw(st["source_lines"], st["kind"])
+            paras, _ = paragraphs_of(raw)
+            rules = dict(cast.get("cube_rules", {}).get(story_id, {}))
+            # A warning in the comm system's voice, a hint in the designer's, the rest told by the narrator.
+            warning = st["kind"] == "warning" and st["source_lines"][0].startswith(b"Warning")
+            speaker = rules.get("speaker") or ("system" if warning else "designer" if st["kind"] == "hint" else "narrator")
+            segments = build_segments(story_id, paras, segment_cube(story_id, paras, speaker, rules, cast), cast, max_chars, [])
+            story = {
+                "id": story_id, "episode": episode, "cube": n, "kind": "story", "story_kind": st["kind"],
+                "title": clean_display(cp437(st["source_lines"][0])), "sender": "", "face_sprite": -1,
+                "referenced": True, "skip": rules.get("skip"), "speaker": speaker, "speaker_by": "story rule" if rules.get("speaker") else st["kind"],
+                "speakers": sorted({x["speaker"] for x in segments}),
+                "paragraphs": [{"text": p["text"], "break": p["break"]} for p in paras],
+                "segments": segments, "lines": [], "chars": sum(x["chars"] for x in segments), "notes": [],
+                # (levelWarningText keeps 60 characters and a NUL; a longer line runs into the next row)
+                "audio": f"story/e{episode}_{n}.wav", "text_hash": text_hash([l[:61] for l in st["source_lines"]]),
+                "text": " ".join(p["text"] for p in paras),
+            }
+            for x in segments:
+                if x["speaker"] not in cast["speakers"]:
+                    problems.append(f"{story_id}: speaker {x['speaker']!r} is not in cast.json")
+                    continue
+                u = usage[x["speaker"]]
+                if story_id not in u["cubes"]:
+                    u["cubes"].append(story_id)
+                u["characters"] += x["chars"]
+                u["segments"] += 1
+            ep["stories"].append(story)
         script["episodes"].append(ep)
 
     all_cubes = [c for ep in script["episodes"] for c in ep["cubes"]]
@@ -865,6 +962,8 @@ def main():
         "cubes_not_listed": [c["id"] for c in voiced if not c["referenced"]],
         "segments": sum(len(c["segments"]) for c in voiced), "characters": sum(c["chars"] for c in voiced),
         "characters_by_episode": {str(ep["episode"]): sum(c["chars"] for c in ep["cubes"]) for ep in script["episodes"]},
+        "stories": sum(len(ep["stories"]) for ep in script["episodes"]),
+        "story_characters": sum(st["chars"] for ep in script["episodes"] for st in ep["stories"] if not st["skip"]),
     }
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "script.json"), "w", encoding="utf-8") as f:
@@ -879,7 +978,7 @@ def main():
     write_html(os.path.join(args.out, "script.html"), script, cast, faces)
 
     for want in args.show:
-        for c in all_cubes:
+        for c in all_cubes + [st for ep in script["episodes"] for st in ep["stories"]]:
             if c["id"] == want:
                 print(f"== {c['id']} {c['title']!r} sender {c['sender']!r} face {c['face_sprite'] + 1} speaker {c['speaker']} skip {c['skip']}")
                 for i, p in enumerate(c["paragraphs"]):
@@ -890,6 +989,8 @@ def main():
     print(f"{t['cubes']} cubes in 6 episodes: {t['cubes_voiced']} to voice, {t['cubes_skipped']} skipped "
           f"(placeholders); {t['segments']} segments, {t['characters']:,} characters")
     print("characters by episode: " + ", ".join(f"{k}: {v:,}" for k, v in t["characters_by_episode"].items()))
+    print(f"{t['stories']} story texts between levels and hints (numbered from 101 and 201 in each episode): "
+          f"{t['story_characters']:,} characters")
     if t["cubes_not_listed"]:
         print("voiced but never listed by their episode's script: " + " ".join(t["cubes_not_listed"]))
     for c in all_cubes:

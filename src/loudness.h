@@ -51,4 +51,12 @@ void set_volume(Uint8 musicVolume, Uint8 sampleVolume);
 
 void multiSamplePlay(const Sint16 *samples, size_t sampleCount, Uint8 chan, Uint8 vol);
 
+// Tyrian3D: the voice channel (voiceover.h), over the music (ducked meanwhile) and the samples.
+// voice_channel_play starts samples (mono, 16-bit, at audioSampleRate, SDL_malloc'd; NULL: none) and
+// fades out the voice playing. Both calls put in done[] the buffers the mixer no longer reads (0-2,
+// returned), for the caller to SDL_free; collect also tells whether a voice is still playing.
+int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2]);
+int voice_channel_collect(Sint16 *done[2], bool *playing);
+void voice_channel_volume(Uint8 volume);
+
 #endif /* LOUDNESS_H */

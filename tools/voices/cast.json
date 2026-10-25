@@ -75,6 +75,7 @@
           "1:19",
           "1:22",
           "3:19",
+          "3:102",
           "4:5",
           "4:6",
           "4:17",
@@ -86,8 +87,8 @@
           "4:39",
           "4:48"
         ],
-        "segments": 25,
-        "characters": 13758,
+        "segments": 27,
+        "characters": 13951,
         "portraits": [
           8
         ]
@@ -512,10 +513,17 @@
       "usage": {
         "cubes": [
           "1:1",
-          "4:52"
+          "4:52",
+          "4:107",
+          "4:109",
+          "4:111",
+          "4:112",
+          "4:113",
+          "4:114",
+          "4:115"
         ],
-        "segments": 2,
-        "characters": 1231,
+        "segments": 10,
+        "characters": 2351,
         "portraits": [
           4
         ]
@@ -634,6 +642,53 @@
           3,
           14
         ]
+      }
+    },
+    "narrator": {
+      "name": "Narrator (the story texts between levels)",
+      "role": "Reads the texts the game shows between levels (the episode script's ]W commands): Trent's story told to him in the second person ('Now that you've saved the crisis on Savara...'), the episodes' ends and the cliffhangers between them.",
+      "description": "A storyteller, not a character: warm, wry and unhurried, telling the player their own story ('you'), with a straight face for the game's jokes (the Mega Soundchair, the insta-cocoa) and real weight for its losses (Trent's parents and friend). Male, about 50.",
+      "voice_prompt": "A man around fifty with a warm, rich, slightly husky baritone. A science-fiction audiobook narrator telling the listener their own story in the second person: unhurried, wry and intimate, with a straight face for the jokes and quiet gravity for the losses. Clear diction, natural pace, close and warm. Perfect audio quality.",
+      "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.8,
+        "style": 0.2,
+        "speed": 0.98
+      },
+      "match": {},
+      "voice_id": "",
+      "narrator": true,
+      "usage": {
+        "cubes": [
+          "1:102",
+          "1:103",
+          "1:104",
+          "1:105",
+          "2:101",
+          "3:101",
+          "3:102",
+          "3:103",
+          "4:101",
+          "4:102",
+          "4:103",
+          "4:104",
+          "4:105",
+          "4:106",
+          "4:108",
+          "4:109",
+          "4:110",
+          "4:116",
+          "4:117",
+          "4:118",
+          "5:101",
+          "5:102",
+          "6:102",
+          "6:109",
+          "6:110"
+        ],
+        "segments": 26,
+        "characters": 5308,
+        "portraits": []
       }
     },
     "editor": {
@@ -761,12 +816,15 @@
       "narrator": true,
       "usage": {
         "cubes": [
+          "1:106",
+          "1:107",
+          "1:108",
           "4:50",
           "5:1",
           "6:10"
         ],
-        "segments": 5,
-        "characters": 2089,
+        "segments": 8,
+        "characters": 2628,
         "portraits": [
           1,
           14
@@ -796,14 +854,66 @@
           "1:33",
           "1:34",
           "1:35",
+          "1:201",
+          "1:202",
+          "1:203",
+          "1:204",
+          "1:205",
+          "1:206",
+          "1:207",
+          "1:208",
+          "1:209",
+          "2:201",
+          "2:202",
+          "2:203",
+          "2:204",
+          "2:205",
+          "2:206",
+          "2:207",
+          "2:208",
+          "2:209",
+          "3:201",
+          "3:202",
+          "3:203",
+          "3:204",
+          "3:205",
+          "3:206",
+          "3:207",
+          "3:208",
+          "3:209",
           "4:53",
           "4:54",
           "4:59",
           "4:60",
-          "4:61"
+          "4:61",
+          "4:201",
+          "4:202",
+          "4:203",
+          "4:204",
+          "4:205",
+          "4:206",
+          "4:207",
+          "4:208",
+          "4:209",
+          "5:201",
+          "5:202",
+          "5:203",
+          "5:204",
+          "5:205",
+          "5:206",
+          "5:207",
+          "5:208",
+          "6:201",
+          "6:202",
+          "6:203",
+          "6:204",
+          "6:205",
+          "6:206",
+          "6:207",
+          "6:208"
         ],
-        "segments": 9,
-        "characters": 7826,
+        "segments": 61,
+        "characters": 12684,
         "portraits": []
       }
     },
@@ -930,6 +1040,8 @@
           "1:13",
           "1:15",
           "1:30",
+          "1:101",
+          "2:102",
           "3:5",
           "4:4",
           "4:6",
@@ -944,10 +1056,18 @@
           "4:39",
           "4:48",
           "4:50",
-          "5:6"
+          "5:6",
+          "5:103",
+          "6:101",
+          "6:103",
+          "6:104",
+          "6:105",
+          "6:106",
+          "6:107",
+          "6:108"
         ],
-        "segments": 21,
-        "characters": 1479,
+        "segments": 31,
+        "characters": 2634,
         "portraits": [
           2
         ]
@@ -1602,6 +1722,21 @@
         ]
       }
     },
+    "citizen": {
+      "name": "a panic-stricken Savaran citizen",
+      "role": "Interviewed in the news between levels (episode 1) about the stolen ale.",
+      "description": "A frantic, out-of-breath citizen close to tears over the ale.",
+      "voice_of": "harble",
+      "match": {},
+      "usage": {
+        "cubes": [
+          "1:107"
+        ],
+        "segments": 1,
+        "characters": 175,
+        "portraits": []
+      }
+    },
     "hazudra_band": {
       "name": "Hazudra band (intercepted)",
       "role": "Intercepted Hazudra radio (6:6, 6:26).",
@@ -1678,6 +1813,23 @@
         ]
       },
       "why": "Jacob's ad with the gnomes' jingle; stage directions to the editor"
+    },
+    "1:106": {
+      "speaker": "rob_neither",
+      "why": "story text: the news"
+    },
+    "1:107": {
+      "speaker": "rob_neither",
+      "quotes": "citizen",
+      "why": "story text: the news quoting a citizen"
+    },
+    "1:108": {
+      "speaker": "rob_neither",
+      "why": "story text: the news, the anchor's own comment"
+    },
+    "3:102": {
+      "quotes": "transon",
+      "why": "story text: Transon on the comm screen"
     },
     "4:15": {
       "quotes": "sci",
@@ -1785,6 +1937,39 @@
         ]
       },
       "why": "testimonial, doctor and announcer in three scenes"
+    },
+    "4:107": {
+      "speaker": "trent",
+      "why": "story text: Trent's own thoughts"
+    },
+    "4:109": {
+      "inline": [
+        [
+          "This is no work of Microsol! Who could have built that incredible ship\\? What has this planet done to my ship\\?",
+          "trent"
+        ]
+      ],
+      "why": "story text: Trent's thoughts, then the narrator"
+    },
+    "4:111": {
+      "speaker": "trent",
+      "why": "story text: what Trent yells (4:110 ends 'you yell:')"
+    },
+    "4:112": {
+      "speaker": "trent",
+      "why": "story text: Trent's own thoughts"
+    },
+    "4:113": {
+      "speaker": "trent",
+      "why": "story text: Trent's own thoughts"
+    },
+    "4:114": {
+      "speaker": "trent",
+      "why": "story text: Trent's own thoughts"
+    },
+    "4:115": {
+      "speaker": "trent",
+      "why": "story text: Trent to his computer"
     }
   },
   "ambiguous": [

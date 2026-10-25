@@ -74,6 +74,21 @@ static size_t channelSampleCount[CHANNEL_COUNT] = { 0 };
 static Uint8 channelVolume[CHANNEL_COUNT];
 #define CHANNEL_VOLUME_LEVELS 8
 
+// Tyrian3D: the voice channel (voiceover.h): the voice playing and the one fading out after it was
+// replaced or stopped (~30 ms), mixed over the rest; the music ducked (~6 dB, ~200 ms ramps) while
+// a voice speaks. The buffers belong to voiceover.c, which frees them once the mixer is done.
+typedef struct
+{
+	Sint16 *samples;
+	size_t count, pos;
+	int fade_left;  // the fading voice's samples to go
+} VoiceSlot;
+static VoiceSlot voiceCurrent, voiceFading;
+static Uint8 voiceVolume = 255;
+static int voiceFadeSamples = 1323;
+#define VOICE_DUCK_ONE (1 << 16)  // Q16 gain on the music
+static Sint32 voiceDuck = VOICE_DUCK_ONE, voiceDuckLow = 32845, voiceDuckStep = 4;  // (-6 dB)
+
 static void audioCallback(void *userdata, Uint8 *stream, int size);
 static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
 
@@ -116,6 +131,9 @@ bool init_audio(void)
 	volumeFactorTable[0] = 0;
 	for (size_t i = 1; i < 256; ++i)
 		volumeFactorTable[i] = TO_FIXED(powf(10, (255 - i) * (-volumeRange / (20.0f * 255))));
+
+	voiceFadeSamples = audioSampleRate * 30 / 1000;
+	voiceDuckStep = SDL_max(1, (VOICE_DUCK_ONE - voiceDuckLow) / (audioSampleRate / 5));
 
 	opl_init();
 
@@ -224,6 +242,20 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 			samples[i] = 0;
 	}
 
+	// Tyrian3D: the music ducked while a voice speaks.
+	const Sint32 duckTarget = voiceCurrent.pos < voiceCurrent.count ? voiceDuckLow : VOICE_DUCK_ONE;
+	if (voiceDuck != VOICE_DUCK_ONE || duckTarget != VOICE_DUCK_ONE)
+	{
+		for (int i = 0; i < samplesCount; ++i)
+		{
+			if (voiceDuck > duckTarget)
+				voiceDuck = SDL_max(duckTarget, voiceDuck - voiceDuckStep);
+			else if (voiceDuck < duckTarget)
+				voiceDuck = SDL_min(duckTarget, voiceDuck + voiceDuckStep);
+			samples[i] = (Sint16)((samples[i] * voiceDuck) >> 16);
+		}
+	}
+
 	Sint32 musicVolumeFactor = volumeFactorTable[musicVolume];
 	if (!music_midi_active())
 		musicVolumeFactor *= 2;  // OPL emulator is too quiet
@@ -276,6 +308,94 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 			remainingCount -= 1;
 		}
 	}
+
+	// Tyrian3D: the voice over it all (even with the music and the samples off).
+	if (voiceCurrent.pos < voiceCurrent.count || voiceFading.fade_left > 0)
+	{
+		const Sint32 voiceFactor = volumeFactorTable[voiceVolume];
+		for (int i = 0; i < samplesCount; ++i)
+		{
+			Sint32 voice = 0;
+			if (voiceCurrent.pos < voiceCurrent.count)
+				voice += voiceCurrent.samples[voiceCurrent.pos++] * voiceFactor;
+			if (voiceFading.fade_left > 0 && voiceFading.pos < voiceFading.count)
+			{
+				const Sint32 gain = voiceFactor * voiceFading.fade_left / voiceFadeSamples;
+				voice += voiceFading.samples[voiceFading.pos++] * gain;
+				voiceFading.fade_left -= 1;
+			}
+			const Sint32 sample = samples[i] + FIXED_TO_INT(voice);
+			samples[i] = MIN(MAX(INT16_MIN, sample), INT16_MAX);
+		}
+	}
+}
+
+int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2])
+{
+	int n = 0;
+	if (audioStream == NULL)
+	{
+		if (samples != NULL)
+			done[n++] = samples;
+		return n;
+	}
+
+	SDL_LockAudioStream(audioStream);
+
+	if (voiceFading.samples != NULL)  // (still fading: cut short)
+		done[n++] = voiceFading.samples;
+	voiceFading = (VoiceSlot){ 0 };
+	if (voiceCurrent.samples != NULL)
+	{
+		if (voiceCurrent.pos < voiceCurrent.count)
+		{
+			voiceFading = voiceCurrent;
+			voiceFading.fade_left = voiceFadeSamples;
+		}
+		else
+		{
+			done[n++] = voiceCurrent.samples;
+		}
+	}
+	voiceCurrent = (VoiceSlot){ .samples = samples, .count = samples != NULL ? count : 0 };
+
+	SDL_UnlockAudioStream(audioStream);
+	return n;
+}
+
+int voice_channel_collect(Sint16 *done[2], bool *playing)
+{
+	int n = 0;
+	*playing = false;
+	if (audioStream == NULL)
+		return n;
+
+	SDL_LockAudioStream(audioStream);
+
+	if (voiceCurrent.samples != NULL && voiceCurrent.pos >= voiceCurrent.count)
+	{
+		done[n++] = voiceCurrent.samples;
+		voiceCurrent = (VoiceSlot){ 0 };
+	}
+	if (voiceFading.samples != NULL && (voiceFading.fade_left <= 0 || voiceFading.pos >= voiceFading.count))
+	{
+		done[n++] = voiceFading.samples;
+		voiceFading = (VoiceSlot){ 0 };
+	}
+	*playing = voiceCurrent.samples != NULL;
+
+	SDL_UnlockAudioStream(audioStream);
+	return n;
+}
+
+void voice_channel_volume(Uint8 volume)
+{
+	if (audioStream == NULL)
+		return;
+
+	SDL_LockAudioStream(audioStream);
+	voiceVolume = volume;
+	SDL_UnlockAudioStream(audioStream);
 }
 
 void deinit_audio(void)
@@ -292,6 +412,10 @@ void deinit_audio(void)
 	SDL_QuitSubSystem(SDL_INIT_AUDIO);
 
 	memset(channelSampleCount, 0, sizeof channelSampleCount);
+
+	SDL_free(voiceCurrent.samples);
+	SDL_free(voiceFading.samples);
+	voiceCurrent = voiceFading = (VoiceSlot){ 0 };
 
 	lds_free();
 }
