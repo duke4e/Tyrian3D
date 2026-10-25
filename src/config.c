@@ -385,6 +385,10 @@ static void pitems_to_playeritems(PlayerItems *items, JE_PItemsType pItems, JE_b
 
 void JE_saveGame(JE_byte slot, const char *name)
 {
+	// Tyrian3D: a custom episode isn't saved: it would load as the original episode (episodes.h).
+	if (custom_episode != 0)
+		return;
+
 	saveFiles[slot-1].initialDifficulty = initialDifficulty;
 	saveFiles[slot-1].gameHasRepeated = gameHasRepeated;
 	saveFiles[slot-1].level = saveLevel;
@@ -441,6 +445,7 @@ void JE_saveGame(JE_byte slot, const char *name)
 
 void JE_loadGame(JE_byte slot)
 {
+	custom_episode = 0;  // Tyrian3D: a save is of the game's own episodes (episodes.h)
 	superTyrian = false;
 	onePlayerAction = false;
 	twoPlayerMode = false;

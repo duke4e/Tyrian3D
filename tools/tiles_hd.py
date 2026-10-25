@@ -2,7 +2,7 @@
 """HD background tiles that still tile: upscaled in context.
 
 usage: <python with torch> tools/tiles_hd.py <model.pth> [--maps export/maps] [--out data/hd/tiles]
-           [--work upscale/out/tiles] [--tilesets z,y] [--min 12] [--keep 24] [--tile 192]
+           [--work upscale/out/tiles] [--tilesets z,y] [--min 12] [--keep 24] [--tile 192] [--add]
 
 A tile upscaled on its own gets edges that don't meet its neighbours'. Here whole maps
 (tools/export_maps.sh: every level's maps in parts of 72 rows, with their shape grid) go through the
@@ -19,6 +19,8 @@ fewer) away from the parts' first and last rows (no neighbours across the cut); 
 upscales of a shape are kept for its median. Writes <out>/<tileset>.hdt (what the game loads: data/hd, beside the game's
 data and like it outside the repository) and, in the work folder, <work>/<tileset>.png (the tiles, to look at) and
 <work>/<tileset>_median.npz (for --requantize); a tileset named by a symbol is written x<hex>, as the sprite sheets.
+--add makes only the tiles a tileset's kept medians lack (shapes of maps exported since, such as a custom
+episode's: src/episodes.h), from the parts that have them, and keeps the others as they are.
 
 .hdt: "TYHT", then little-endian u16 version (1), scale, tile width, tile height, tile count, then
 zlib-compressed: per tile its shape number (u16) and scale² · width · height palette indices, row by
@@ -77,14 +79,15 @@ def part_cells(meta, part, rows_in_part):
     return out
 
 
-def pick_parts(parts, minimum):
-    """Greedy: parts with the most still-needed occurrences first, until every shape has enough."""
+def pick_parts(parts, minimum, only=None):
+    """Greedy: parts with the most still-needed occurrences first, until every shape (of only, if
+    given) has enough."""
     usable = []
     totals = {}
     for meta, part in parts:
         rows = 72
         cells = [(r, c, s) for r, c, s in part_cells(meta, part, rows)]
-        inner = [s for r, c, s in cells if 0 < r < rows - 1]
+        inner = [s for r, c, s in cells if 0 < r < rows - 1 and (only is None or s in only)]
         usable.append((meta, part, inner))
         for s in inner:
             totals[s] = totals.get(s, 0) + 1
@@ -178,6 +181,8 @@ def main():
     ap.add_argument("--tile", type=int, default=192)
     ap.add_argument("--requantize", action="store_true",
                     help="only write the .hdt again from the medians kept in <work>/<tileset>_median.npz")
+    ap.add_argument("--add", action="store_true",
+                    help="only the shapes <work>/<tileset>_median.npz lacks; the kept tiles stay as they are")
     args = ap.parse_args()
 
     pal = palette()
@@ -199,7 +204,17 @@ def main():
     model = ups.load_model(args.model, device)
     rng = random.Random(1)
     for tileset in wanted:
-        chosen = pick_parts(groups[tileset], args.min)
+        kept_medians, kept_indices, only = {}, {}, None
+        if args.add:
+            cache = np.load(os.path.join(args.work, file_name(tileset) + "_median.npz"))
+            kept_medians = {int(k[1:]): cache[k] for k in cache.files if k[0] == "m"}
+            kept_indices = {int(k[1:]): cache[k] for k in cache.files if k[0] == "i"}
+            used = {s for meta, part in groups[tileset] for r, c, s in part_cells(meta, part, 72)}
+            only = used - set(kept_medians)
+            print(f"tileset {tileset}: {len(kept_medians)} tiles kept, adding {sorted(only)}", flush=True)
+            if not only:
+                continue
+        chosen = pick_parts(groups[tileset], args.min, only)
         print(f"tileset {tileset}: {len(chosen)} of {len(groups[tileset])} parts", flush=True)
         samples, seen, indices = {}, {}, {}
         for n, (meta, part) in enumerate(chosen):
@@ -208,6 +223,8 @@ def main():
             side = meta.get("side_columns", 0)
             rows = orig.shape[0] // th
             for r, c, shape in part_cells(meta, part, rows):
+                if only is not None and shape not in only:
+                    continue
                 edge_row = r == 0 or r == rows - 1
                 x, y = (side + c) * tw, r * th
                 if shape not in indices:
@@ -229,6 +246,8 @@ def main():
             print(f"  part {n + 1}/{len(chosen)} {part['file']}: {len(samples)} shapes", flush=True)
 
         medians = {s: np.median(np.stack(v).astype(np.float32), axis=0).astype(np.uint8) for s, v in samples.items()}
+        medians.update(kept_medians)
+        indices.update(kept_indices)
         np.savez_compressed(os.path.join(args.work, file_name(tileset) + "_median.npz"),
                             **{f"m{s}": v for s, v in medians.items()}, **{f"i{s}": indices[s] for s in medians})
         write_tileset(args.out, args.work, tileset, medians, indices, pal)

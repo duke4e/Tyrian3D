@@ -40,8 +40,15 @@ bool debug_flight = false;
 typedef struct
 {
 	int episode, section;
+	int custom;  // a custom episode's (1-based, episodes.h), 0 for the game's own
 	char name[16];
 } DebugLevel;
+
+// The levels of one episode are together, a custom episode's apart from the episode it is played as.
+static bool same_episode(const DebugLevel *a, const DebugLevel *b)
+{
+	return a->episode == b->episode && a->custom == b->custom;
+}
 
 #define MAX_LEVELS 160
 static DebugLevel levels[MAX_LEVELS];
@@ -51,13 +58,19 @@ static int level_count = -1;
 static void find_levels(void)
 {
 	level_count = 0;
-	for (int episode = 1; episode <= EPISODE_MAX; ++episode)
+	const int playing_custom = custom_episode;
+	for (int e = 1; e <= EPISODE_MAX + custom_episode_count; ++e)
 	{
-		if (!episodeAvail[episode - 1])
+		// The game's episodes, then the custom episodes (their scripts from their folders).
+		const int custom = e > EPISODE_MAX ? e - EPISODE_MAX : 0;
+		const int episode = custom != 0 ? custom_episodes[custom - 1].episode : e;
+		if (custom == 0 && !episodeAvail[episode - 1])
 			continue;
 		char file[32];
 		snprintf(file, sizeof(file), "levels%d.dat", episode);
+		custom_episode = custom;
 		FILE *f = dir_fopen(data_dir(), file, "rb");
+		custom_episode = playing_custom;
 		if (f == NULL)
 			continue;
 		const long size = ftell_eof(f);
@@ -81,6 +94,7 @@ static void find_levels(void)
 				DebugLevel *l = &levels[level_count++];
 				l->episode = episode;
 				l->section = section;
+				l->custom = custom;
 				SDL_strlcpy(l->name, s + 13, 10);
 				for (int i = (int)strlen(l->name) - 1; i >= 0 && l->name[i] == ' '; --i)
 					l->name[i] = '\0';
@@ -92,6 +106,7 @@ static void find_levels(void)
 
 static void start_flight(const DebugLevel *l)
 {
+	custom_episode = l->custom;
 	dev_setup_game(l->episode, l->section);
 	// Fire power enough to look at what is destroyed.
 	if (player[0].items.weapon[FRONT_WEAPON].power < 6)
@@ -112,11 +127,11 @@ bool debug_pick_and_start(void)
 	bool faded_in = false;
 	for (;;)
 	{
-		const int episode = levels[selected].episode;
+		const DebugLevel *const shown = &levels[selected];
 		int first = selected, last = selected;
-		while (first > 0 && levels[first - 1].episode == episode)
+		while (first > 0 && same_episode(&levels[first - 1], shown))
 			--first;
-		while (last + 1 < level_count && levels[last + 1].episode == episode)
+		while (last + 1 < level_count && same_episode(&levels[last + 1], shown))
 			++last;
 		int top = SDL_clamp(selected - ROWS / 2, first, SDL_max(first, last - ROWS + 1));
 
@@ -125,7 +140,10 @@ bool debug_pick_and_start(void)
 		JE_barShade(VGAScreen, 40, 8, 280, 191);
 		draw_font_hv_shadow(VGAScreen, 160, 12, "Debug Flight", large_font, centered, 15, -3, false, 2);
 		char line[64];
-		snprintf(line, sizeof(line), "< Episode %d >", episode);
+		if (shown->custom != 0)
+			snprintf(line, sizeof(line), "< Custom: %s >", custom_episodes[shown->custom - 1].title);
+		else
+			snprintf(line, sizeof(line), "< Episode %d >", shown->episode);
 		draw_font_hv_shadow(VGAScreen, 160, 30, line, small_font, centered, 15, 2, false, 1);
 		for (int i = top; i <= last && i < top + ROWS; ++i)
 		{
@@ -169,7 +187,7 @@ bool debug_pick_and_start(void)
 			break;
 		case SDL_SCANCODE_LEFT:
 			selected = first > 0 ? first - 1 : level_count - 1;
-			while (selected > 0 && levels[selected - 1].episode == levels[selected].episode)
+			while (selected > 0 && same_episode(&levels[selected - 1], &levels[selected]))
 				--selected;
 			JE_playSampleNum(S_CURSOR);
 			break;

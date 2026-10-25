@@ -73,6 +73,31 @@ SHAPE_FILE = "2478ABCDEFGHIJKLMNOPQRSTU5#V0@3^59'%"   # lvlmast.c shapeFile[]: s
 E6_LEVELS = {"DIG SITE", "REEF", "GREY MOON", "VAULT", "DELI RUIN", "ROOST", "MIGRATION", "DEEP ICE", "GLACIER",
              "COLLECTOR", "CRUSTGATE", "GRAVITRON", "THE CORE", "INVADERS"}
 
+
+def custom_episodes():
+    """{folder name: (episode number, its folder)} of the custom episodes (src/episodes.h), as tools/levels.py finds them."""
+    import levels
+    out = {}
+    for name, script in levels.custom_episodes(ROOT, DATA).items():
+        number = int(os.path.basename(script).lower()[len("levels"):-len(".dat")])
+        out[name] = (number, os.path.dirname(script))
+    return out
+
+
+def custom_levels():
+    """The custom episodes' level names that no episode of the game has: their maps, like episode 6's, don't
+    teach the tilesets (what is plain ground, what objects look like), so the originals' assets stay as they are."""
+    import levels
+    names = lambda path: {name.strip() for _, name in levels.level_sections(path)}
+    game = set().union(*(names(os.path.join(DATA, f"levels{ep}.dat")) for ep in range(1, 6)
+                         if os.path.exists(os.path.join(DATA, f"levels{ep}.dat"))))
+    custom = set().union(set(), *(names(os.path.join(folder, f)) for number, folder in custom_episodes().values()
+                                  for f in os.listdir(folder) if f.lower() == f"levels{number}.dat"))
+    return custom - game
+
+
+DERIVED_LEVELS = E6_LEVELS | custom_levels()   # maps that aren't the game's own
+
 PLAIN_MIN, PLAIN_UNDER = 20, 0.15   # a tile this common and seldom under an object is plain ground,
 PLAIN_COMMON = 60                   # or one this common not mostly under objects (a floor many stand on)
 BASE_EXACT = 0.5     # a tile drawn over a plain tile shares at least this many of its pixels,
@@ -243,6 +268,7 @@ def enemy_looks():
     e6 = os.path.join(ROOT, "assets", "content", "episode6")
     if os.path.exists(os.path.join(e6, "tyrian6.lvl")):
         sets.append((6, e6))
+    sets += [(number, folder) for number, folder in custom_episodes().values() if number >= 4]  # (1-3: tyrian.hdt's)
     for ep, d in sets:
         en = tyrdata.load_items(ep, data_dir=d)["enemies"]
         def look(e):
@@ -349,7 +375,7 @@ def tileset_maps(tileset, originals=True):
     out = []
     for f in sorted(glob.glob(os.path.join(mt.MAPS, "map_*.json"))):
         d = json.load(open(f))
-        if d["tileset"] == tileset and d["background"] == 1 and not (originals and d["level"].strip() in E6_LEVELS):
+        if d["tileset"] == tileset and d["background"] == 1 and not (originals and d["level"].strip() in DERIVED_LEVELS):
             out.append(os.path.basename(f)[4:-5])
     return out
 
@@ -1317,7 +1343,7 @@ def main():
     object_tiles = {}
     report = {}
     for n in learn_from:
-        if load(n)[0]["level"].strip() in E6_LEVELS:
+        if load(n)[0]["level"].strip() in DERIVED_LEVELS:
             continue
         cl, objs, occupied = analyse(n, overrides)
         here = for_map(overrides, n)

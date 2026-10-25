@@ -25,6 +25,13 @@
 #include "lvllib.h"
 #include "lvlmast.h"
 #include "opentyr.h"
+#include "paths3d.h"
+
+#include <SDL3/SDL.h>
+
+#ifndef TYR3D_CUSTOM_DIR
+#define TYR3D_CUSTOM_DIR NULL
+#endif
 
 /* MAIN Weapons Data */
 JE_WeaponPortType weaponPort;
@@ -229,12 +236,21 @@ void JE_loadItemDat(void)
 	content_apply();  // Tyrian3D: new items in the free slots (content.h)
 }
 
+CustomEpisode custom_episodes[CUSTOM_EPISODE_MAX];
+int custom_episode_count = 0;
+int custom_episode = 0;
+
+static int loaded_custom_episode = 0;  // whose files the episode's data was loaded from
+
+static void custom_episodes_scan(void);
+
 void JE_initEpisode(JE_byte newEpisode)
 {
-	if (newEpisode == episodeNum)
+	if (newEpisode == episodeNum && custom_episode == loaded_custom_episode)
 		return;
 	
 	episodeNum = newEpisode;
+	loaded_custom_episode = custom_episode;
 	
 	snprintf(levelFile,    sizeof(levelFile),    "tyrian%hhu.lvl",  episodeNum);
 	snprintf(cube_file,    sizeof(cube_file),    "cubetxt%hhu.dat", episodeNum);
@@ -252,6 +268,124 @@ void JE_scanForEpisodes(void)
 		snprintf(ep_file, sizeof(ep_file), "tyrian%d.lvl", i + 1);
 		episodeAvail[i] = dir_file_exists(data_dir(), ep_file);
 	}
+
+	custom_episodes_scan();
+}
+
+// Tyrian3D: custom episodes (episodes.h).
+
+// A file of a custom episode's folder: as named, else in capitals (as DOS episodes come).
+static FILE *custom_fopen(const char *dir, const char *file, const char *mode)
+{
+	char path[1200];
+	snprintf(path, sizeof(path), "%s/%s", dir, file);
+	FILE *f = fopen(path, mode);
+	if (f == NULL)
+	{
+		char upper[64];
+		SDL_strlcpy(upper, file, sizeof(upper));
+		for (char *c = upper; *c != '\0'; ++c)
+			*c = (char)SDL_toupper(*c);
+		snprintf(path, sizeof(path), "%s/%s", dir, upper);
+		f = fopen(path, mode);
+	}
+	return f;
+}
+
+static bool custom_has(const char *dir, const char *file)
+{
+	FILE *f = custom_fopen(dir, file, "rb");
+	if (f != NULL)
+		fclose(f);
+	return f != NULL;
+}
+
+static SDL_EnumerationResult SDLCALL custom_episode_found(void *userdata, const char *dirname, const char *fname)
+{
+	(void)userdata;
+	if (custom_episode_count >= CUSTOM_EPISODE_MAX || fname[0] == '.' || strlen(fname) >= sizeof(custom_episodes[0].name))
+		return SDL_ENUM_CONTINUE;
+
+	CustomEpisode *c = &custom_episodes[custom_episode_count];
+	snprintf(c->dir, sizeof(c->dir), "%s%s%s", dirname, dirname[strlen(dirname) - 1] == '/' ? "" : "/", fname);
+	SDL_PathInfo info;
+	if (!SDL_GetPathInfo(c->dir, &info) || info.type != SDL_PATHTYPE_DIRECTORY)
+		return SDL_ENUM_CONTINUE;
+	for (int i = 0; i < custom_episode_count; ++i)
+		if (strcmp(custom_episodes[i].name, fname) == 0)
+			return SDL_ENUM_CONTINUE;  // (the same name in both folders: the first)
+
+	c->episode = 0;
+	for (int n = 1; n <= 9 && c->episode == 0; ++n)
+	{
+		char script[16], level[16];
+		snprintf(script, sizeof(script), "levels%d.dat", n);
+		snprintf(level, sizeof(level), "tyrian%d.lvl", n);
+		if (custom_has(c->dir, script) && custom_has(c->dir, level))
+			c->episode = (JE_byte)n;
+	}
+	if (c->episode == 0)
+		return SDL_ENUM_CONTINUE;
+
+	SDL_strlcpy(c->name, fname, sizeof(c->name));
+	SDL_strlcpy(c->title, fname, sizeof(c->title));
+	FILE *f = custom_fopen(c->dir, "name.txt", "r");
+	if (f != NULL)
+	{
+		char line[64];
+		if (fgets(line, sizeof(line), f) != NULL)
+		{
+			line[strcspn(line, "\r\n")] = '\0';
+			if (line[0] != '\0')
+				SDL_strlcpy(c->title, line, sizeof(c->title));
+		}
+		fclose(f);
+	}
+	++custom_episode_count;
+	return SDL_ENUM_CONTINUE;
+}
+
+static int compare_custom_episodes(const void *a, const void *b)
+{
+	return SDL_strcasecmp(((const CustomEpisode *)a)->title, ((const CustomEpisode *)b)->title);
+}
+
+static void custom_episodes_scan(void)
+{
+	custom_episode_count = 0;
+	char resource[1024], beside_data[1100];
+	tyr3d_resource_dir("TYR3D_CUSTOM_DIR", TYR3D_CUSTOM_DIR, "custom", resource, sizeof(resource));
+	snprintf(beside_data, sizeof(beside_data), "%s/custom", data_dir());
+	SDL_EnumerateDirectory(resource, custom_episode_found, NULL);
+	SDL_EnumerateDirectory(beside_data, custom_episode_found, NULL);
+	SDL_qsort(custom_episodes, custom_episode_count, sizeof(*custom_episodes), compare_custom_episodes);
+	for (int i = 0; i < custom_episode_count; ++i)
+		printf("custom episode: %s (%s, as episode %d) in %s\n", custom_episodes[i].title, custom_episodes[i].name,
+		       custom_episodes[i].episode, custom_episodes[i].dir);
+}
+
+int custom_episode_find(const char *name)
+{
+	for (int i = 0; i < custom_episode_count; ++i)
+		if (strcmp(custom_episodes[i].name, name) == 0)
+			return i + 1;
+	return 0;
+}
+
+bool custom_episode_start(int index)
+{
+	if (index < 1 || index > custom_episode_count)
+		return false;
+	custom_episode = index;
+	JE_initEpisode(custom_episodes[index - 1].episode);
+	return true;
+}
+
+FILE *custom_episode_fopen(const char *file, const char *mode)
+{
+	if (custom_episode < 1 || custom_episode > custom_episode_count || mode[0] != 'r' || strcmp(file, "name.txt") == 0)
+		return NULL;
+	return custom_fopen(custom_episodes[custom_episode - 1].dir, file, mode);
 }
 
 unsigned int last_episode(void)

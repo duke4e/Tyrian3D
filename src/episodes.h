@@ -171,4 +171,30 @@ void JE_initEpisode(JE_byte newEpisode);
 unsigned int JE_findNextEpisode(void);
 void JE_scanForEpisodes(void);
 
+// Tyrian3D: custom episodes, made by the community in the game's formats. Each is a folder of
+// data/custom (TYR3D_CUSTOM_DIR) or of the game data's custom folder, holding the episode's
+// levels<N>.dat and tyrian<N>.lvl (optionally cubetxt<N>.dat) as they were named for the episode
+// N they were made as, and optionally name.txt (the name the episode menu shows; else the
+// folder's). The episode menu lists them after the game's episodes; one is played as episode N,
+// every file in its folder standing in for the data's of that name (dir_fopen), the rest the
+// game's own. It isn't saved (a save would load as the original episode N), has no high score
+// (the board is episode N's) and ends at the title screen.
+#define CUSTOM_EPISODE_MAX 3
+
+typedef struct
+{
+	char dir[1024];   // its folder
+	char name[32];    // the folder's name, which TYR3D_START and tools/levels.py use
+	char title[31];   // what the episode menu shows
+	JE_byte episode;  // the episode its files are numbered as
+} CustomEpisode;
+
+extern CustomEpisode custom_episodes[CUSTOM_EPISODE_MAX];
+extern int custom_episode_count;
+extern int custom_episode;  // the custom episode being played, 1-based; 0: the game's own episodes
+
+int custom_episode_find(const char *name);  // by its folder's name, 1-based; 0 if there is none
+bool custom_episode_start(int index);       // play custom episode index (1-based) from here on
+FILE *custom_episode_fopen(const char *file, const char *mode);  // its copy of a data file, or NULL
+
 #endif /* EPISODES_H */

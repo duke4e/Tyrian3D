@@ -1244,6 +1244,16 @@ void JE_nextEpisode(void)
 {
 	strcpy(lastLevelName, "Completed");
 
+	// Tyrian3D: a custom episode ends at the title screen (episodes.h), without a high score: its
+	// board would be the original episode's. (JE_loadMap goes back to the title, as when the
+	// store is quit.)
+	if (custom_episode != 0)
+	{
+		gameLoaded = true;
+		mainLevel = 0;
+		return;
+	}
+
 	if (episodeNum == initial_episode_num && !gameHasRepeated && !isNetworkGame && !constantPlay)
 	{
 		JE_highScoreCheck();

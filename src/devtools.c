@@ -104,10 +104,17 @@ bool dev_start_game(void)
 	started = true;
 
 	int episode = 0, section = 0;
+	// A custom episode by its folder's name: <name>:<section> (episodes.h).
+	char name[32] = "";
+	if (sscanf(start, "%31[^:]:%d", name, &section) == 2 && custom_episode_find(name) != 0 && section >= 1 && section <= 255)
+	{
+		custom_episode = custom_episode_find(name);
+		return dev_setup_game(custom_episodes[custom_episode - 1].episode, section);
+	}
 	if (sscanf(start, "%d:%d", &episode, &section) != 2 || episode < 1 || episode > EPISODE_MAX ||
 	    section < 1 || section > 255)
 	{
-		fprintf(stderr, "warning: TYR3D_START must be <episode>:<section>, got '%s'\n", start);
+		fprintf(stderr, "warning: TYR3D_START must be <episode>:<section> or <custom episode>:<section>, got '%s'\n", start);
 		return false;
 	}
 	return dev_setup_game(episode, section);

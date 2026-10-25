@@ -231,6 +231,35 @@ are in the repository; `build.py` expands them with the game's data at build tim
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
 `export/episode6`.
 
+## Custom episodes
+
+Episodes the community made in the game's own formats play beside the game's, without replacing
+any of its files (`src/episodes.h`). Each is a folder of `data/custom` (`TYR3D_CUSTOM_DIR`; for the
+app, `custom` in the game data's folder) holding the episode's files under the names they have for
+the episode N they were made as: `levels<N>.dat` (the script: shops, levels, texts) and
+`tyrian<N>.lvl` (the maps, their events and, for episodes 4 and up, the item data with the enemies),
+optionally `cubetxt<N>.dat`, in small letters or capitals; `name.txt` (one line) is the name the
+menus show, else the folder's. Start New Game's episode menu lists them after the game's episodes
+("Custom: <name>"; not in a network game), and so does the debug flight. One is played as episode N
+with every file of its folder standing in for the data's of that name (`dir_fopen`; the shapes,
+music and pictures it doesn't have are the game's). It isn't saved (Save Game in its shop does
+nothing: a save would load as the original episode N), has no high score (the board would be
+episode N's) and its end (`]Q`) goes back to the title screen. `TYR3D_START=<folder>:<section>`
+starts one in a test run, and `tools/levels.py` lists their sections that way, so the tools that go
+through every level (`each_level.sh`, `ground_log.sh`, `review.sh`) take them too.
+
+**Camanis 2** (`data/custom/camanis2`, from `LEVELS4.DAT` and `TYRIAN4.LVL` made for episode 4,
+2005): a shop (`Camanis 2 Buy/Sell`), one level, the end. The level is on CAMANIS's ice tileset
+(`shapesw.dat`, a third of its ground rows are CAMANIS's) with backgrounds 2 and 3 empty; its item
+data is episode 4's with 190 enemies changed, most of them episode 1-3 enemies (CAMANIS's and
+IXMUCANE's) copied into episode 4's slots, and a boss of four `b` sheet pieces (link 254) that is
+hit only from clock 8300 (armour 254) and whose death (event 57) ends the level. Its 3D view: the
+missing HD tiles of tileset W (`tools/tiles_hd.py --add`: shapes 248-250, 259, 260, 270), terrain
+`3bf11c7517b5e2ad` (the rocky snow plateaus +18 as CAMANIS's, the rest `~` over the ice at 0),
+clean ground and stand-ins (all 11 looks have CAMANIS's wreck models), its side columns. Of the 63
+enemy looks it shows, one has no model and shows with volume: the ground gun turret that opens the
+level (enemy 267, sheet `2` sprites 41, 131, 43, 93 turning; no original level has it).
+
 ## Environment variables
 
 | Variable | Meaning |
@@ -244,7 +273,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level) |
-| `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
+| `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
@@ -257,6 +286,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |
 | `TYR3D_CONTENT_DIR=<dir>` | Where `items.cfg` and `rogue.cfg` are (default `assets/content`) |
+| `TYR3D_CUSTOM_DIR=<dir>` | Where the custom episodes' folders are (default `data/custom`; see Custom episodes) |
 | `TYR3D_ROGUE=<seed>`, `TYR3D_ROGUE=menu` | A rogue run at once with that seed, or the rogue screen; the profile isn't saved |
 | `TYR3D_ROGUE_AUTO=1` | In a rogue run the screens choose by themselves (whole runs with the autopilot) |
 | `TYR3D_ROGUE_UNLOCKS=all` | Every unlock for that run |
@@ -517,7 +547,7 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | Tool | What it does |
 | --- | --- |
 | `tools/capture_run.sh` | Runs the game in a background window, silent (`TYR3D_AUDIO=1` keeps the sound), and dumps frames (see the environment variables) |
-| `tools/sweep.sh`, `tools/levels.py` | Plays every level for a while and makes a contact sheet per level |
+| `tools/sweep.sh`, `tools/levels.py` | Plays every level for a while and makes a contact sheet per level; `levels.py` lists the level sections (`TYR3D_START`'s), the custom episodes' too |
 | `tools/review.sh` | Visual review: plays each level briefly (or the given episodes or `episode:section`s) in a background window and keeps a few frames per level as PNGs; the big BMP dumps are deleted right away |
 | `tools/blender/render_models.py`, `tools/model_sheet.py` | Renders `.glb` models in one Blender run (`--list` of files), then contact sheets of the enemy models beside their 4x sprites (with a `TYR3D_EXTRACT` catalogue: ordered by how often they appear, by episode; needs PIL) |
 | `tools/catalog_html.py` | Browsable page of the `TYR3D_EXTRACT` catalogue |
@@ -531,12 +561,12 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
 | `tools/terrain/make_terrain.py` | Terrain for the background maps: `classify` sorts an exported ground map's pixels into surfaces (a review image in `export/terrain`), `build` writes `assets/terrain/<map>.ter` from the settings in `tools/terrain/levels.json` (class heights, chasms where space is black, backgrounds 2 and 3 as solids, or with `"ground": true` a background 2 that covers the whole ground under its enemies as the ground itself; level pads under what stands and gentle roads along what moves, as far as the terrain drawn under them reaches, so their models stand flat; solids clear round what the models cover) and a relief image to review (with the enemies' tracks), `sheets` puts the reliefs on contact sheets (needs numpy, scipy, PIL) |
 | `tools/fix_macho_tls.py` | Makes pip's scipy load on macOS 27 (its modules' zero-fill thread-local sections carry a file offset the new dyld refuses): clears the offsets and signs the modules again. The terrain tools' Python is a venv in `~/Library/Caches/Tyrian3D/tools-venv` (numpy, scipy, Pillow from pip, then this over its `site-packages`) |
-| `tools/terrain/make_cleanground.py` | Clean ground (replaces `make_erasures.py`): for the ground maps, the art painted under and round the ground enemies (wrecks, housings, stumps, the objects themselves, their copies where none stands) and the painted palms, erased and filled with the map's own ground round them, where a model takes its place, into `assets/terrain/<map>.era`; the stand-ins shown there while no enemy covers the place into `assets/terrain/<map>.std`; review pictures `export/terrain/<map>_clean.png` and `export/terrain/standins.txt` (what stands in for each look). Overrides (paintings that stay, stand-in looks, maps left alone) in `tools/terrain/cleanground.json`. Run it before `make_terrain.py build` and `make_vegetation.py`, which take the clean ground |
+| `tools/terrain/make_cleanground.py` | Clean ground (replaces `make_erasures.py`): for the ground maps, the art painted under and round the ground enemies (wrecks, housings, stumps, the objects themselves, their copies where none stands) and the painted palms, erased and filled with the map's own ground round them, where a model takes its place, into `assets/terrain/<map>.era`; the stand-ins shown there while no enemy covers the place into `assets/terrain/<map>.std`; review pictures `export/terrain/<map>_clean.png` and `export/terrain/standins.txt` (what stands in for each look). Overrides (paintings that stay, stand-in looks, maps left alone) in `tools/terrain/cleanground.json`. Run it before `make_terrain.py build` and `make_vegetation.py`, which take the clean ground. Episode 6's and the custom episodes' maps are cleaned with what the game's own maps teach about their tilesets, not teaching them |
 | `tools/terrain/footprints.py` | What the ground enemies' models cover of the ground seen from above (their triangles as the renderer turns and scales them), for the clean ground and the vegetation's keep-out; `check` compares them with the renderer's `groundmodel:` boxes |
 | `tools/terrain/make_vegetation.py` | Vegetation for the ground maps, on the clean ground: palms (where the maps paint them on desert maps, `"palms": true`), trees (textured green areas) and grass (smooth green areas), off the footprints of the models that stand on the map (ground enemies and stand-ins), into `assets/terrain/<map>.veg` |
 | `tools/terrain/ground_log.sh` | Plays every level fast with the autopilot and collects where the ground enemies stand and move, and what their models cover, into `export/terrain/ground.txt` (the terrain keeps them on the ground) |
 | `tools/sweep.sh` | Plays every section of the episodes with the autopilot, one run after another, and reports each run's level, whether it ran to the end and its warnings |
-| `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `data/hd/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x), and its pictures to look at and kept medians to `upscale/out/tiles`. `--requantize` writes them again from the kept medians. Tiles are per tileset and shape, so generated maps get them too |
+| `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `data/hd/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x), and its pictures to look at and kept medians to `upscale/out/tiles`. `--requantize` writes them again from the kept medians; `--add` makes only the shapes the kept medians lack (maps exported since, a custom episode's) and keeps the rest. Tiles are per tileset and shape, so generated maps get them too |
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/setup_tools_venv.sh` | Makes the tools' Python (numpy, scipy, Pillow, torch: `~/Library/Caches/Tyrian3D/tools-venv`) and fetches the ESRGAN model 4x-Fatality (`~/Library/Caches/Tyrian3D/esrgan`); downloads ~180 MB |
 | `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |

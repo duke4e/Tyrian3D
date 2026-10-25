@@ -20,6 +20,7 @@
 
 #include "backgrnd.h"
 #include "config.h"
+#include "episodes.h"
 #include "file.h"
 #include "fonthand.h"
 #include "joystick.h"
@@ -1686,7 +1687,8 @@ void JE_itemScreen(void)
 
 				if (curMenu != MENU_LOAD_SAVE)
 				{
-					if (keysactive[SDL_SCANCODE_S] && (keysactive[SDL_SCANCODE_LALT] || keysactive[SDL_SCANCODE_RALT]))
+					if (keysactive[SDL_SCANCODE_S] && (keysactive[SDL_SCANCODE_LALT] || keysactive[SDL_SCANCODE_RALT]) &&
+					    custom_episode == 0)  // Tyrian3D: a custom episode isn't saved (episodes.h)
 					{
 						if (curMenu == MENU_DATA_CUBE_SUB ||
 						    curMenu == MENU_DATA_CUBES)
@@ -3552,6 +3554,11 @@ void JE_menuFunction(JE_byte select)
 			quikSave = false;
 			break;
 		case 3:
+			if (custom_episode != 0)  // Tyrian3D: a custom episode isn't saved (episodes.h)
+			{
+				JE_playSampleNum(S_SPRING);
+				break;
+			}
 			curMenu = MENU_LOAD_SAVE;
 			performSave = true;
 			quikSave = false;

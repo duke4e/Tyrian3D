@@ -18,6 +18,7 @@
  */
 #include "file.h"
 
+#include "episodes.h"
 #include "opentyr.h"
 #include "paths3d.h"
 #include "varz.h"
@@ -172,6 +173,14 @@ const char *data_dir(void)
 // prepend directory and fopen
 FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 {
+	// Tyrian3D: while a custom episode plays, the files of its folder stand in for the data's (episodes.h).
+	if (custom_episode != 0 && strcmp(dir, data_dir()) == 0)
+	{
+		FILE *f = custom_episode_fopen(file, mode);
+		if (f != NULL)
+			return f;
+	}
+
 	char *path = malloc(strlen(dir) + 1 + strlen(file) + 1);
 	sprintf(path, "%s/%s", dir, file);
 

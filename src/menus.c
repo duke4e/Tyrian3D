@@ -312,17 +312,38 @@ bool episodeSelect(void)
 
 	bool restart = true;
 
-	// Tyrian3D: episode 6 too, when its files are there.
-	const size_t menuItemsCount = EPISODE_AVAILABLE + (episodeAvail[EPISODE_MAX - 1] ? 1 : 0);
+	// Tyrian3D: episode 6 too, when its files are there, then the custom episodes (episodes.h; not
+	// over the network: the other player's game may not have them).
+	const size_t episodeCount = EPISODE_AVAILABLE + (episodeAvail[EPISODE_MAX - 1] ? 1 : 0);
+	const size_t customCount = isNetworkGame ? 0 : (size_t)custom_episode_count;
+	const size_t menuItemsCount = episodeCount + customCount;
 	size_t selectedIndex = 0;
+
+	char customNames[CUSTOM_EPISODE_MAX][48];
+	const char *itemNames[EPISODE_MAX + CUSTOM_EPISODE_MAX];
+	bool itemDisabled[EPISODE_MAX + CUSTOM_EPISODE_MAX];
+	for (size_t i = 0; i < menuItemsCount; ++i)
+	{
+		if (i < episodeCount)
+		{
+			itemNames[i] = episode_name[i + 1];
+			itemDisabled[i] = !episodeAvail[i];
+		}
+		else
+		{
+			snprintf(customNames[i - episodeCount], sizeof(*customNames), "Custom: %s", custom_episodes[i - episodeCount].title);
+			itemNames[i] = customNames[i - episodeCount];
+			itemDisabled[i] = false;
+		}
+	}
 
 	const int xCenter = 320 / 2;
 	const int yMenuHeader = 20;
 	const int xMenuItem = 20;
 	const int yMenuItems = 50;
-	const int dyMenuItems = menuItemsCount > EPISODE_AVAILABLE ? 25 : 30;
 	const int hMenuItem = 13;
-	int wMenuItem[EPISODE_MAX] = { 0 };
+	const int dyMenuItems = SDL_min(menuItemsCount > EPISODE_AVAILABLE ? 25 : 30, (195 - hMenuItem - yMenuItems) / (int)SDL_max(menuItemsCount - 1, 1));
+	int wMenuItem[EPISODE_MAX + CUSTOM_EPISODE_MAX] = { 0 };
 
 	for (; ; )
 	{
@@ -340,28 +361,22 @@ bool episodeSelect(void)
 		// Draw menu items.
 		for (size_t i = 0; i < menuItemsCount; ++i)
 		{
-			const char *const text = episode_name[i + 1];
+			const char *const text = itemNames[i];
 
 			wMenuItem[i] = JE_textWidth(text, normal_font);
 			const int y = yMenuItems + dyMenuItems * i;
 
 			const bool selected = i == selectedIndex;
-			const bool disabled = !episodeAvail[i];
+			const bool disabled = itemDisabled[i];
 
 			draw_font_hv_shadow(VGAScreen, xMenuItem, y, text, normal_font, left_aligned, 15, -4 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
 		}
 		{
-			const char *texts[EPISODE_MAX];
-			int xs[EPISODE_MAX];
-			bool disabled[EPISODE_MAX];
+			int xs[EPISODE_MAX + CUSTOM_EPISODE_MAX];
 			for (size_t i = 0; i < menuItemsCount; ++i)
-			{
-				texts[i] = episode_name[i + 1];
 				xs[i] = xMenuItem;
-				disabled[i] = !episodeAvail[i];
-			}
-			publish_choices(UI_SCREEN_EPISODES, episode_name[0], texts, NULL, menuItemsCount, selectedIndex, wMenuItem, xs, yMenuItems,
-			                dyMenuItems, hMenuItem, disabled, 0);
+			publish_choices(UI_SCREEN_EPISODES, episode_name[0], itemNames, NULL, menuItemsCount, selectedIndex, wMenuItem, xs, yMenuItems,
+			                dyMenuItems, hMenuItem, itemDisabled, 0);
 		}
 
 		if (restart)
@@ -481,13 +496,21 @@ bool episodeSelect(void)
 
 		if (action)
 		{
-			if (episodeAvail[selectedIndex])
+			if (!itemDisabled[selectedIndex])
 			{
 				JE_playSampleNum(S_SELECT);
 
 				fade_black(10);
 
-				JE_initEpisode(selectedIndex + 1);
+				if (selectedIndex >= episodeCount)
+				{
+					custom_episode_start((int)(selectedIndex - episodeCount) + 1);
+				}
+				else
+				{
+					custom_episode = 0;
+					JE_initEpisode(selectedIndex + 1);
+				}
 				initial_episode_num = episodeNum;
 				return true;
 			}

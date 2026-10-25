@@ -703,5 +703,16 @@
   "level": "ICESECRET",
   "background": 2,
   "ground": true
+ },
+ "3bf11c7517b5e2ad": {
+  "classes": 6,
+  "heights": {
+   "3": 18,
+   "1": "~",
+   "2": "~",
+   "4": "~",
+   "5": "~"
+  },
+  "level": "Camanis 2"
  }
 }

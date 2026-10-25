@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """List the level sections of the Tyrian episode scripts (levelsN.dat).
 
-Each line is "<episode>:<section> <level name>", usable as TYR3D_START.
+Each line is "<episode>:<section> <level name>", usable as TYR3D_START. Custom episodes
+(data/custom/<name>/, or TYR3D_CUSTOM_DIR: see src/episodes.h) follow as "<name>:<section> <level name>".
 
-usage: tools/levels.py [data_dir] [episode...]
+usage: tools/levels.py [data_dir] [episode or custom episode name...]
 """
 import os
 import sys
@@ -49,14 +50,36 @@ def level_sections(path):
     return result
 
 
+def custom_episodes(root, data_dir):
+    """{folder name: its script} for the custom episodes, as the game finds them (episodes.c)."""
+    found = {}
+    for base in (os.environ.get("TYR3D_CUSTOM_DIR", os.path.join(root, "data", "custom")),
+                 os.path.join(data_dir, "custom")):
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            folder = os.path.join(base, name)
+            if name in found or name.startswith(".") or not os.path.isdir(folder):
+                continue
+            files = {f.lower(): os.path.join(folder, f) for f in os.listdir(folder)}
+            for n in range(1, 10):
+                if f"levels{n}.dat" in files and f"tyrian{n}.lvl" in files:
+                    found[name] = files[f"levels{n}.dat"]
+                    break
+    return found
+
+
 def main():
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     data_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "data", "tyrian2000")
-    episodes = [int(e) for e in sys.argv[2:]] or [1, 2, 3, 4, 5, 6]
+    customs = custom_episodes(root, data_dir)
+    episodes = [int(e) if e.isdigit() else e for e in sys.argv[2:]] or [1, 2, 3, 4, 5, 6] + list(customs)
     for episode in episodes:
         path = os.path.join(data_dir, f"levels{episode}.dat")
         if episode == 6:  # Tyrian3D's episode 6 is content (tools/content/episode6)
             path = os.path.join(root, "assets", "content", "episode6", "levels6.dat")
+        if isinstance(episode, str):
+            path = customs.get(episode, "")
         if not os.path.exists(path):
             continue
         for section, name in level_sections(path):

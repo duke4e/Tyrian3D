@@ -1300,6 +1300,7 @@ int main(int argc, char *argv[])
 		{
 			debug_flight = false;
 			rogue_run = false;
+			custom_episode = 0;  // (episodes.h)
 			if (dev_start_game())
 			{
 				// Tyrian3D dev tool: started a game at a requested level.
