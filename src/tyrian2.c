@@ -1088,6 +1088,8 @@ static void draw_standins(int set)
 			look.model = wreck;
 			mode = L3D_STANDIN_OWN;
 		}
+		else if (mode == L3D_STANDIN_OWN && m3d_standin_model(s->sheet, s->sprite) >= 0)
+			look.model = m3d_standin_model(s->sheet, s->sprite);
 		if (look.model < 0 || !l3d_add_object(look.model, x, y, look.height, look.yaw, 0.0f, 0))
 			continue;
 		if (log_now && y >= 0 && y < 200)

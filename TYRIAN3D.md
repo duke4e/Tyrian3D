@@ -465,8 +465,10 @@ level (enemy 267, sheet `2` sprites 41, 131, 43, 93 turning; no original level h
   (waterfalls), the rock arches and paintings without a model stay. Where the original shows the painting
   (before the enemy comes, once it is destroyed, where none ever stands), the 3D view shows its model, a
   stand-in (`assets/terrain/<map>.std`): the look the game leaves when the enemy is destroyed, the object's
-  own model where the map paints the object as it is, its wreck model (models.cfg `wreck <sheet> <sprite>
-  <model>`: the painting as a model, drawn with the enemy type's options), or until it has one the enemy's
+  own model where the map paints the object as it is (or, where the map paints it in other colours, models.cfg's
+  `standin <sheet> <sprite> <model>`: TYRIAN's and SOH JIN's rubble in rock browns, `tools/glb_palette_remap.py`
+  makes such colour variants), its wreck model (models.cfg `wreck <sheet> <sprite>
+  <model>`: the painting as a model, drawn with the enemy type's options; `none`: nothing), or until it has one the enemy's
   model slumped and darkened (`render_gpu.c` `STANDIN_SLUMP`, `STANDIN_SHADE`). A stand-in is drawn while no ground
   enemy of its looks (the enemy itself, its damaged and dead looks, what it turns into) stands on its place;
   it is only drawn, the game knows nothing of it. The terrain and the vegetation are made on the clean

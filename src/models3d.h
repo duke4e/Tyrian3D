@@ -98,6 +98,9 @@ int m3d_frame_model(char sheet, unsigned int sprite, int model);
 // a launched enemy's look, the map painting what launched it there).
 #define M3D_WRECK_NONE (-2)
 int m3d_wreck_model(char sheet, unsigned int sprite);
+// The model that stands in for a look where the map paints it as it is (models.cfg "standin" lines: the
+// painting's colours where they are not the sprite's), or -1 (its own model).
+int m3d_standin_model(char sheet, unsigned int sprite);
 // A shot's model (models.cfg "shot" lines), for sprite `sprite` of the shots sheet (shots2: the
 // second one); false if it has none (it shows as a volume).
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);
