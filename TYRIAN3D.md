@@ -686,6 +686,13 @@ into the request header):
    builds the WAVs and the manifest; `--retake E:N[:S]` renders a cube or segment again;
    `generate.py build` rebuilds from the cache without the network.
 
+Rendered 2026-10-25 with `eleven_v4` (about 0.44 credits a character; about 69,000 credits with the voice
+design): 167 cubes and the 96 story texts and hints, 137 minutes, 98 MB of WAVs, with the render cache
+(about 400 MB) beside them in `data/voices`. Cubes 4:15, 4:64 and 4:65 wait for Mycroft's voice (the
+account's 30 voices were full). The voices chosen are in `cast.json` (`voice_id`, `adopted_preview`);
+another take of a cube is `generate.py generate --retake E:N`, a speaker's tempo its `settings.speed`
+and `generate.py build --only ...` (from the cache, free).
+
 `tools/voices/say_placeholders.py --out DIR --only 1:1,1:101 --stories` makes placeholder voices with
 macOS's `say` (no account), to try the playback with `TYR3D_VOICES_DIR=DIR`.
 

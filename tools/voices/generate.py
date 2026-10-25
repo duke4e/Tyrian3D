@@ -322,7 +322,9 @@ def request_text(seg, conf, rules):
             text += piece["sep"] or " "
         spans.append((len(text), len(text) + len(t)))
         text += t
-    if not conf["tags"] and not re.search(r"[A-Za-z0-9]", text):
+    # Nothing to say: no words, or (with audio tags) only tags, such as 1:30's song of "[screeching noise]"s,
+    # which the API refuses ("has empty text"): the segment is left out.
+    if not re.search(r"[A-Za-z0-9]", strip_tags(text)):
         return "", spans
     return text, spans
 
