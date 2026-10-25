@@ -655,6 +655,8 @@ static void shop_publish(void)
 				{
 					it->icon_table = OPTION_SHAPES;
 					it->icon_sprite = 25;
+					if (s->cube_player && s->cube_playing == x - 1)  // (the store's player: voiceover.h)
+						SDL_strlcpy(it->badge, s->cube_paused ? "PAUSED" : "PLAYING", sizeof(it->badge));
 				}
 			}
 		}

@@ -2104,6 +2104,9 @@ static void shop_card(Box r, const UIItem *it, bool selected, bool preview)
 		     it->unaffordable ? C_COST_HIGH : selected ? C_GOLD_TOP : mix(C_GOLD_TOP, C_TAN, 0.3f), ALIGN_RIGHT);
 		right_w = SDL_max(text_w(FONT_BOLD, it->value, vc), text_w(FONT_SEMIBOLD, "COST", CAP_KEY())) + U(40);
 	}
+	else if (it->badge[0] != '\0')  // (a data cube the store's player plays: "PLAYING", "PAUSED")
+		right_w = badge(r.x + r.w - U(20), r.y + (r.h - CAP_KEY() * 1.9f) / 2, it->badge, (Colour){ 0.2f, 0.15f, 0.09f, 0.9f }, C_GOLD_TOP,
+		                ALIGN_RIGHT) + U(24);
 	const float text_wd = r.x + r.w - right_w - U(18) - x;
 	const bool stats = it->stat_count > 0 && r.h >= cap + small * 2.2f + U(26);
 	const float total = stats ? cap + U(14) + CAP_KEY() + U(21) : cap;

@@ -831,7 +831,8 @@ data cube reader opens a cube, or a story text, a warning or an episode's end wi
 A cube's voice plays on when its reader closes, until the store closes: the store's data cube player (the
 modern UI's bar under the ship: previous, play or pause, next, the cube playing and how far; P plays or
 pauses, `[` and `]` go to the previous or next cube, wrapping round) plays the store's cubes while you
-shop, and a cube opened in the reader plays from its start. Sound →
+shop, and a cube opened in the reader plays from its start; the Data list marks the cube playing ("PLAYING",
+"PAUSED"). Sound →
 **Voices** in Setup is its volume (Left/Right) and on/off (Enter), kept as `voices` and `voice_volume` in
 `[tyrian3d]`; "No voices installed" when there are none.
 
