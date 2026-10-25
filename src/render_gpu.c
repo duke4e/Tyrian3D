@@ -7,6 +7,7 @@
 #include "backgrnd.h"
 #include "config.h"
 #include "debugmode.h"
+#include "destruct3d.h"
 #include "devtools.h"
 #include "jukebox3d.h"
 #include "font.h"
@@ -132,6 +133,8 @@ static Uint32 hash_colors(const Uint32 colors[256]);
 static void forget_terrain(void);
 static void forget_ui_textures(void);
 static void forget_jukebox_scene(void);
+static void forget_destruct_scene(void);
+static bool present_destruct(void);
 static float cloud_noise(float x, float z, float cell, Uint32 seed);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
@@ -759,6 +762,7 @@ void rgpu_shutdown(void)
 	fade_meshes[0] = fade_meshes[1] = NULL;
 	forget_ui_textures();
 	forget_jukebox_scene();
+	forget_destruct_scene();
 
 	if (device != NULL)
 		btbh_gpu_device_destroy(device);
@@ -1746,7 +1750,7 @@ void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, floa
  * picture shows under the screen's, which keeps only what the game drew on its picture (the logo, texts),
  * in the palette's colours; the new picture fades with the palette.
  */
-#define HD_PICTURE_SAME 0.6f  // the share of the screen's picture as loaded for the new one to show
+#define HD_PICTURE_SAME 0.45f  // the share of the picture's own pixels the screen shows as loaded for the new one to show (a story's text covers some)
 
 #define HD_PICTURE_TSHP2 (PCX_NUM + 1)  // tshp2.pcx, a story picture (]P0), after tyrian.pic's
 
@@ -10457,9 +10461,11 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 	for (int i = 0; i < js->item_count; ++i)
 		order[fill[jukebox_key(&js->items[i])]++] = i;
 
+	// (The ships' palette colours as the store shows them.)
 	Uint32 colors[256];
+	const SDL_Color *store = palettes[pcxpal[0]];
 	for (int i = 0; i < 256; ++i)
-		colors[i] = pack_rgba(palettes[0][i].r, palettes[0][i].g, palettes[0][i].b);
+		colors[i] = pack_rgba(store[i].r, store[i].g, store[i].b);
 	sync_model_cache();
 	int instance_count = 0, batch_count = 0;
 	for (int k = 0; k < KEYS; ++k)
@@ -10573,7 +10579,7 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 	        shader_format, render_w, render_h,
 	        js->view_projection, js->right, js->up, js->position,
 	        &lighting, &post, instances, (uint32_t)instance_count, (uint32_t)instance_count, batches, NULL, NULL, (uint32_t)batch_count,
-	        2, 2, 5, 255, &report) == BTBH_GPU_OK;
+	        0, 0, 1, 255, &report) == BTBH_GPU_OK;  // (linear: a blue-black)
 	if (!drawn)
 	{
 		fprintf(stderr, "warning: jukebox scene failed: %s\n", report.message);
@@ -10599,6 +10605,424 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 		       report.cpu_prepare_milliseconds, report.cpu_geometry_encode_milliseconds);
 		since = now;
 	}
+	return true;
+}
+
+/* --- Destruct (destruct3d.h) ------------------------------------------------------------------- */
+
+static BTBHGPUCustomMesh *destruct_chunks[D3_CHUNKS];
+static unsigned int destruct_chunks_made[D3_CHUNKS];
+static BTBHGPUCustomMesh *destruct_land = NULL, *destruct_sphere = NULL;
+static unsigned int destruct_land_made = 0;
+static BTBHGPUTexture *destruct_sky = NULL, *destruct_planet = NULL, *destruct_glow = NULL;
+static unsigned int destruct_glow_made = 0;
+
+static void forget_destruct_scene(void)
+{
+	// (The window's.)
+	memset(destruct_chunks, 0, sizeof(destruct_chunks));
+	memset(destruct_chunks_made, 0, sizeof(destruct_chunks_made));
+	destruct_land = destruct_sphere = NULL;
+	destruct_land_made = destruct_glow_made = 0;
+	destruct_sky = destruct_planet = destruct_glow = NULL;
+}
+
+// A mesh of destruct3d's on the GPU, made again or updated (NULL when it is empty).
+static BTBHGPUCustomMesh *destruct_mesh(BTBHGPUCustomMesh *mesh, const D3Mesh *m)
+{
+	if (m->vertex_count == 0 || m->index_count == 0)
+	{
+		if (mesh != NULL)
+			btbh_gpu_custom_mesh_destroy(mesh);
+		return NULL;
+	}
+	BTBHGPUCustomMeshReport report;
+	const uint32_t bytes = (uint32_t)m->vertex_count * 24 * sizeof(float);
+	if (mesh != NULL && btbh_gpu_custom_mesh_update(mesh, m->vertices, bytes, m->indices, (uint32_t)m->index_count, &report) == BTBH_GPU_OK)
+		return mesh;
+	if (mesh != NULL)
+		btbh_gpu_custom_mesh_destroy(mesh);
+	mesh = btbh_gpu_window_custom_mesh_create(window, m->vertices, bytes, (uint32_t)m->vertex_count, m->indices, (uint32_t)m->index_count,
+	                                          &report);
+	if (mesh == NULL)
+		fprintf(stderr, "warning: destruct mesh: %s\n", report.message);
+	return mesh;
+}
+
+static BTBHGPUTexture *destruct_texture(const Uint32 *rgba, int w, int h)
+{
+	BTBHGPUTexture *t = create_texture_filtered(w, h, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(t, (const uint8_t *)rgba, 0, 0, (uint32_t)w, (uint32_t)h);
+	return t;
+}
+
+// A batch of one mesh, lit, its colours the mesh's.
+static BTBHGPUSceneGeometryBatch *destruct_batch(BTBHGPUCustomMesh *mesh, const Mat4 *world, float brightness, int *instance_count,
+                                                 int *batch_count)
+{
+	if (mesh == NULL || *batch_count >= MAX_BATCHES || *instance_count >= MAX_INSTANCES)
+		return NULL;
+	write_instance_world(instances + *instance_count * 24, world, brightness);
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = mesh;
+	b->first_instance = (uint32_t)(*instance_count)++;
+	b->instance_count = 1;
+	return b;
+}
+
+// The quad mesh (unit, in its XZ plane) over corners a (its uv 0,0), b (1,0) and d (0,1).
+static Mat4 destruct_quad(const float a[3], const float b[3], const float d[3])
+{
+	Mat4 m = mat4_identity();
+	for (int i = 0; i < 3; ++i)
+	{
+		m.m[0 + i] = b[i] - a[i];
+		m.m[8 + i] = d[i] - a[i];
+		m.m[12 + i] = a[i];
+	}
+	// (Its y: across it, for its normal.)
+	const float *x = &m.m[0], *z = &m.m[8];
+	m.m[4] = x[1] * z[2] - x[2] * z[1];
+	m.m[5] = x[2] * z[0] - x[0] * z[2];
+	m.m[6] = x[0] * z[1] - x[1] * z[0];
+	const float length = sqrtf(m.m[4] * m.m[4] + m.m[5] * m.m[5] + m.m[6] * m.m[6]);
+	for (int i = 4; i < 7; ++i)
+		m.m[i] = length > 0 ? m.m[i] / length : 0;
+	return m;
+}
+
+// A glow facing the camera (additive): at x, y, z, size across, its colour (linear, may be over 1).
+static void destruct_glow_at(float x, float y, float z, float size, const float colour[3], BTBHGPUTexture *texture, int *instance_count)
+{
+	if (*instance_count >= MAX_INSTANCES)
+		return;
+	Mat4 m = mat4_identity();
+	m.m[0] = m.m[5] = m.m[10] = size;
+	m.m[12] = x;
+	m.m[13] = y;
+	m.m[14] = z;
+	float *instance = instances + *instance_count * 24;
+	write_instance_world(instance, &m, 1.0f);
+	memcpy(instance + 16, colour, 3 * sizeof(float));
+	instance[19] = 1;
+	(void)texture;
+	++*instance_count;
+}
+
+static void destruct_glow_batch(int first, int count, BTBHGPUTexture *texture, int *batch_count)
+{
+	if (count <= 0 || *batch_count >= MAX_BATCHES)
+		return;
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = (uint32_t)first;
+	b->instance_count = (uint32_t)count;
+	b->albedo_texture = texture;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+}
+
+// The sun's shadow over the field and the ridge (an orthographic view along the light).
+static void destruct_shadow(const float sun[3], float out[16])
+{
+	const float centre[3] = { D3_W / 2.0f, 100.0f, -30.0f };
+	const float radius = 260.0f, depth = 600.0f;
+	const float hint[3] = { 0, 0, -1 };
+	float right[3] = { hint[1] * sun[2] - hint[2] * sun[1], hint[2] * sun[0] - hint[0] * sun[2], hint[0] * sun[1] - hint[1] * sun[0] };
+	const float rl = sqrtf(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+	for (int i = 0; i < 3; ++i)
+		right[i] /= rl;
+	const float up[3] = { sun[1] * right[2] - sun[2] * right[1], sun[2] * right[0] - sun[0] * right[2], sun[0] * right[1] - sun[1] * right[0] };
+	float eye[3];
+	for (int i = 0; i < 3; ++i)
+		eye[i] = centre[i] - sun[i] * depth;
+	Mat4 view = mat4_identity();
+	float dots[3] = { 0, 0, 0 };
+	for (int i = 0; i < 3; ++i)
+	{
+		view.m[i * 4 + 0] = right[i];
+		view.m[i * 4 + 1] = up[i];
+		view.m[i * 4 + 2] = sun[i];
+		view.m[i * 4 + 3] = 0;
+		dots[0] += right[i] * eye[i];
+		dots[1] += up[i] * eye[i];
+		dots[2] += sun[i] * eye[i];
+	}
+	view.m[12] = -dots[0];
+	view.m[13] = -dots[1];
+	view.m[14] = -dots[2];
+	view.m[15] = 1;
+	Mat4 projection = { { 0 } };
+	projection.m[0] = 1.0f / radius;
+	projection.m[5] = 1.0f / radius;
+	projection.m[10] = 1.0f / (2 * depth);
+	projection.m[15] = 1.0f;
+	const Mat4 result = mat4_mul(&projection, &view);
+	memcpy(out, result.m, sizeof(result.m));
+}
+
+// Destruct's scene over the whole window and its screen's panels over it; false if it couldn't be drawn.
+static bool present_destruct(void)
+{
+	BTBHGPUWindowReport frame;
+	if (!begin_frame(&frame))
+		return true;  // (nothing to show this time)
+	hud_quad_count = 0;
+	canvas_fade[3] = 0;
+	shown_view.valid = false;
+	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
+	const D3Tick *tick = destruct3d_state();
+	D3Camera camera;
+	destruct3d_camera(w / SDL_max(h, 1.0f), &camera);
+
+	// The GPU's copies: the ridge's chunks that changed, the land, the pictures.
+	for (int c = 0; c < D3_CHUNKS; ++c)
+	{
+		D3Mesh m;
+		const unsigned int made = destruct3d_chunk(c, &m);
+		if (made != destruct_chunks_made[c])
+		{
+			destruct_chunks[c] = destruct_mesh(destruct_chunks[c], &m);
+			destruct_chunks_made[c] = made;
+		}
+	}
+	{
+		D3Mesh m;
+		const unsigned int made = destruct3d_back(&m);
+		if (made != destruct_land_made)
+		{
+			destruct_land = destruct_mesh(destruct_land, &m);
+			destruct_land_made = made;
+		}
+	}
+	float planet_centre[3], planet_radius;
+	{
+		D3Mesh m;
+		destruct3d_planet(&camera, &m, planet_centre, &planet_radius);
+		if (destruct_sphere == NULL)
+			destruct_sphere = destruct_mesh(NULL, &m);
+	}
+	if (destruct_sky == NULL)
+	{
+		int tw, th;
+		const Uint32 *rgba = destruct3d_sky(&tw, &th);
+		destruct_sky = destruct_texture(rgba, tw, th);
+		rgba = destruct3d_planet_texture(&tw, &th);
+		destruct_planet = destruct_texture(rgba, tw, th);
+		destruct_glow = create_texture_filtered(D3_W, D3_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	}
+	const Uint32 *glow_rgba;
+	bool glowing;
+	const unsigned int glow_made = destruct3d_glow(&glow_rgba, &glowing);
+	if (glow_made != destruct_glow_made)
+	{
+		btbh_gpu_texture_update_rgba8(destruct_glow, (const uint8_t *)glow_rgba, 0, 0, D3_W, D3_H);
+		destruct_glow_made = glow_made;
+	}
+
+	int instance_count = 0, batch_count = 0;
+	static Uint8 casts_shadow[MAX_BATCHES];
+	memset(casts_shadow, 0, sizeof(casts_shadow));
+	const bool shadows = shadows_enabled();
+	// The sky, far away.
+	{
+		const Mat4 m = destruct_quad(camera.sky[0], camera.sky[1], camera.sky[3]);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 1.0f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->albedo_texture = destruct_sky;
+			b->unlit_enabled = 1;
+		}
+	}
+	// The planet, lit by the sun.
+	{
+		const Mat4 chain[] = { mat4_translation(planet_centre[0], planet_centre[1], planet_centre[2]), mat4_scaling(planet_radius),
+		                       mat4_rotation(0, 18.0f) };
+		const Mat4 m = mat4_chain((int)COUNTOF(chain), chain);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(destruct_sphere, &m, 1.0f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->albedo_texture = destruct_planet;
+			b->roughness = 0.95f;
+		}
+	}
+	// The land behind, the ridge.
+	{
+		const Mat4 m = mat4_identity();
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(destruct_land, &m, 1.0f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->roughness = 0.95f;
+		}
+		for (int c = 0; c < D3_CHUNKS; ++c)
+		{
+			b = destruct_batch(destruct_chunks[c], &m, 1.0f, &instance_count, &batch_count);
+			if (b != NULL)
+			{
+				b->roughness = 0.92f;
+				casts_shadow[batch_count - 1] = shadows;
+			}
+		}
+	}
+	// The units and the walls: the game's sprites with volume, standing up in the game's plane.
+	{
+		const Uint32 colors_hash = hash_colors(rgb_palette);
+		VolumeSheet *entry = get_volume_sheet(&destructSpriteSheet, rgb_palette, colors_hash);
+		for (int i = 0; entry != NULL && i < tick->unit_count + tick->wall_count; ++i)
+		{
+			const bool wall = i >= tick->unit_count;
+			const float x = wall ? tick->walls[i - tick->unit_count].x : tick->units[i].x;
+			const float top = wall ? tick->walls[i - tick->unit_count].y : tick->units[i].y - 13;
+			const int sprite = wall ? 42 : tick->units[i].sprite;
+			BTBHGPUCustomMesh *mesh = get_volume_mesh(entry, (unsigned int)sprite, false, V3D_STYLE_RAISED, 0);
+			const Mat4 chain[] = { mat4_translation(x + 6, 200 - (top + 7), -D3_PLANE), mat4_rotation(0, 90.0f) };
+			const Mat4 m = mat4_chain((int)COUNTOF(chain), chain);
+			BTBHGPUSceneGeometryBatch *b = destruct_batch(mesh, &m, 1.0f, &instance_count, &batch_count);
+			if (b != NULL)
+			{
+				b->albedo_texture = filtered_volume_texture(entry, rgb_palette, colors_hash, 0);
+				b->unlit_enabled = 1;
+				b->alpha_cutoff = 0.5f;
+				casts_shadow[batch_count - 1] = shadows;
+			}
+		}
+	}
+	// The field's fire in the game's plane.
+	if (glowing)
+	{
+		const float a[3] = { 0, 200, -D3_PLANE + 1.5f }, b3[3] = { D3_W, 200, -D3_PLANE + 1.5f }, d[3] = { 0, 0, -D3_PLANE + 1.5f };
+		const Mat4 m = destruct_quad(a, b3, d);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 2.4f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->albedo_texture = destruct_glow;
+			b->unlit_enabled = 1;
+			b->transparency_enabled = 1;
+			b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		}
+	}
+	// The shots, glowing, with their trails; the crosshairs.
+	{
+		int first = instance_count;
+		for (int i = 0; i < tick->shot_count; ++i)
+		{
+			const D3Shot *s = &tick->shots[i];
+			const bool laser = s->type >= 11 && s->type <= 14;  // (the lasers' blue)
+			const float hot[3] = { laser ? 0.8f : 4.0f, laser ? 2.2f : 3.0f, laser ? 6.0f : 1.4f };
+			for (int k = 0; k < 4; ++k)
+			{
+				const float f = 1.0f - k * 0.24f;
+				const float colour[3] = { hot[0] * f * f, hot[1] * f * f * f, hot[2] * f * f * f };
+				destruct_glow_at(s->x - s->xmov * k * 1.4f, 200 - (s->y - s->ymov * k * 1.4f), -D3_PLANE, (k == 0 ? 7.0f : 5.5f) * f,
+				                 colour, particle_texture, &instance_count);
+			}
+		}
+		destruct_glow_batch(first, instance_count - first, particle_texture, &batch_count);
+		first = instance_count;
+		for (int s = 0; s < 2; ++s)
+			if (tick->aim[s])
+			{
+				const float gold[3] = { 1.6f, 1.15f, 0.55f };
+				destruct_glow_at(tick->aim_x[s], 200 - tick->aim_y[s], -D3_PLANE + 2, 9.0f, gold, ring_texture, &instance_count);
+			}
+		destruct_glow_batch(first, instance_count - first, ring_texture, &batch_count);
+	}
+
+	BTBHGPUSceneLighting lighting;
+	memset(&lighting, 0, sizeof(lighting));
+	lighting.spot_falloff = 1.0f;
+	lighting.spot_inner_cutoff = 0.92388f;
+	lighting.spot_outer_cutoff = 0.70711f;
+	lighting.spot_range = 50.0f;
+	lighting.ambient_red = 0.55f;
+	lighting.ambient_green = 0.56f;
+	lighting.ambient_blue = 0.72f;
+	lighting.ambient_energy = 0.55f;
+	float sun[3] = { 0.5f, -0.78f, -0.45f };
+	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+	for (int i = 0; i < 3; ++i)
+		sun[i] /= sun_length;
+	lighting.directional_x = sun[0];
+	lighting.directional_y = sun[1];
+	lighting.directional_z = sun[2];
+	lighting.directional_energy = 3.6f;
+	lighting.directional_red = 1.0f;
+	lighting.directional_green = 0.93f;
+	lighting.directional_blue = 0.82f;
+	set_environment(&lighting);
+	for (int i = 0; i < 27; ++i)
+		lighting.irradiance_sh[i] *= 0.25f;
+	if (shadows)
+	{
+		lighting.directional_shadow_enabled = 1;
+		lighting.directional_shadow_softness = 1.0f;
+		destruct_shadow(sun, lighting.directional_shadow_view_projection);
+	}
+	// The explosions' light.
+	for (int i = 0; i < tick->blast_count && lighting.point_light_count < BTBH_GPU_SCENE_POINT_LIGHTS; ++i)
+	{
+		const D3Blast *e = &tick->blasts[i];
+		if (e->type == 2)  // (dirt thrown, no fire)
+			continue;
+		const float left = 1.0f - e->width / (float)SDL_max(e->max, 1);
+		float *l = lighting.point_lights[lighting.point_light_count++];
+		l[0] = (float)e->x;
+		l[1] = 200.0f - e->y;
+		l[2] = -D3_PLANE + 6;
+		l[3] = 24.0f + e->max * 2.5f;
+		l[4] = 1.0f;
+		l[5] = 0.55f;
+		l[6] = 0.22f;
+		l[7] = 3.0f * left * SDL_min(e->max / 20.0f, 1.5f);
+	}
+
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, &frame, &render_w, &render_h);
+	post.exposure = ui_screen_fade();
+
+	// The panels' glass: the scene blurred, made again each frame.
+	if (scene_blur_targets(w, h))
+	{
+		frost_texture = scene_blur[SCENE_BLUR_STEPS - 1];
+		cover_map[0] = cover_map[1] = 0;
+		cover_map[2] = w;
+		cover_map[3] = h;
+		blur_ready = true;
+	}
+	BTBHGPUSceneReport report;
+	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        camera.view_projection, camera.right, camera.up, camera.position,
+	        &lighting, &post, instances, (uint32_t)instance_count, (uint32_t)instance_count, batches, NULL, casts_shadow, (uint32_t)batch_count,
+	        2, 2, 5, 255, &report) == BTBH_GPU_OK;
+	if (!drawn)
+		fprintf(stderr, "warning: destruct scene failed: %s\n", report.message);
+	if (drawn && blur_ready)
+	{
+		BTBHGPUTextureReport capture_report;
+		scene_capture = btbh_gpu_window_capture_pending_scene_texture(window, &capture_report);
+		if (scene_capture == NULL)
+			blur_ready = false;
+	}
+	else
+		blur_ready = false;
+
+	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density, .picture = { 0, 0, w, h } };
+	ui_build_screen(&view);
+	present_canvas(NULL, 0, false, !drawn, &frame);
+	blur_ready = false;
 	return true;
 }
 
@@ -10781,6 +11205,9 @@ static void add_pane_overlay(const RGPUShowcase *show, const float rect[4], cons
 
 void rgpu_present_ui(const RGPUShowcase *scene)
 {
+	// Destruct in 3D (destruct3d.h): its field, its units and shots, its screens over them.
+	if (ui_published_is(UI_SCREEN_DESTRUCT) && destruct3d_active() && present_destruct())
+		return;
 	BTBHGPUWindowReport frame;
 	if (!begin_frame(&frame))
 		return;

@@ -616,7 +616,7 @@ game loads them from `data/hd` (beside `data/tyrian2000`; `TYR3D_UPSCALE_DIR` ov
 `hud_2p.png` (the HUD panel). Without them the game draws the original pixels. `pictures/pic_NN.png` and
 `pictures/tshp2.png` are the game's full-screen pictures drawn anew (by hand or an image generator, from
 `TYR3D_EXPORT_PICTURES`' pictures, in the same frame at any size; `tools/hd_pictures.py <dir>` puts them there, a
-picture with alpha laid on black): where the screen shows one of them much as the game loaded it (60 % of its own,
+picture with alpha laid on black): where the screen shows one of them much as the game loaded it (45 % of its own,
 not black, pixels or more: the logos as the game starts, the title, the menus' backgrounds, a story's picture), in
 the modern UI or the old screens, the new picture shows under the screen, which keeps only what the game drew over
 its picture (the title's logo, texts), and fades with the palette, to black or white (the median over the picture's
