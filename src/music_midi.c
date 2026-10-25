@@ -128,6 +128,14 @@ static int instrument_program(int inst)
 	return s != NULL ? s->midinst & 0x7f : 0;
 }
 
+// Whether the instrument is a drum on MIDI devices: its program 128 and up, the General MIDI drum note
+// (program - 128) on the drum channel (163, 164 bass drums, 166, 168 snares, 170 the closed hi-hat...).
+static bool instrument_drum(int inst)
+{
+	const SoundBank *s = lds_sound(inst);
+	return s != NULL && (s->midinst & 0x80) != 0;
+}
+
 // The instrument's transposition for MIDI (signed semitones), as Loudness played it on MIDI
 // devices, where the FM patch sounds in another octave than its notes.
 static int instrument_transpose(int inst)
@@ -175,16 +183,39 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 		if (v->on && (!key || restart))
 		{
 			if (!v->faded)
-				emit(t, update, 0x80 | ch, v->note, 0);
+				emit(t, update, 0x80 | (v->drum ? MIDI_DRUM_CHANNEL : ch), v->note, 0);
 			MidiInstrumentUse *u = &t->use[v->inst & 0xff];
 			u->seconds += (update - v->started) / 69.5;
 			v->on = false;
 			v->faded = false;
 		}
-		if (restart && pitch > 0)
+		if (restart && pitch > 0 && instrument_drum(lds_channel_sound[ch]))
+		{
+			// A drum: its note on the drum channel, as loud as the chip sounds it.
+			const int inst = lds_channel_sound[ch];
+			v->note = instrument_program(inst);
+			v->note_pitch = pitch;
+			v->inst = inst;
+			v->started = update;
+			v->start_level = channel_db(ch, 0);
+			v->on = true;
+			v->drum = true;
+			v->faded = v->start_level >= SILENT_DB;
+			if (!v->faded)
+				emit(t, update, 0x90 | MIDI_DRUM_CHANNEL, v->note,
+				     SDL_max(1, db_to_midi(v->start_level, 0) * instrument_velocity(inst) / 127));
+			MidiInstrumentUse *u = &t->use[inst & 0xff];
+			if (u->notes == 0 || pitch < u->lowest)
+				u->lowest = pitch;
+			if (u->notes == 0 || pitch > u->highest)
+				u->highest = pitch;
+			++u->notes;
+		}
+		else if (restart && pitch > 0)
 		{
 			const int inst = lds_channel_sound[ch];
 			const int program = instrument_program(inst);
+			v->drum = false;
 			if (program != v->program)
 			{
 				emit(t, update, 0xc0 | ch, program, -1);
@@ -229,10 +260,10 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 		else if (v->on && !v->faded && channel_db(ch, (update - v->started) / 69.5) >= SILENT_DB)
 		{
 			// Faded out on the chip (its envelope, its level) while the key is held.
-			emit(t, update, 0x80 | ch, v->note, 0);
+			emit(t, update, 0x80 | (v->drum ? MIDI_DRUM_CHANNEL : ch), v->note, 0);
 			v->faded = true;
 		}
-		else if (v->on && !v->faded)
+		else if (v->on && !v->faded && !v->drum)
 		{
 			// Vibrato and slides as pitch bends, the level's changes (fades, tremolo, the envelope) as expression.
 			const int bend = SDL_clamp((int)lround(8192 + (pitch - v->note_pitch) / BEND_RANGE * 8192), 0, 16383);
@@ -279,7 +310,7 @@ void midi_translator_end(MidiTranslator *t, Uint32 update)
 		if (t->voices[ch].on)
 		{
 			if (!t->voices[ch].faded)
-				emit(t, update, 0x80 | ch, t->voices[ch].note, 0);
+				emit(t, update, 0x80 | (t->voices[ch].drum ? MIDI_DRUM_CHANNEL : ch), t->voices[ch].note, 0);
 			t->voices[ch].on = false;
 			t->voices[ch].faded = false;
 		}

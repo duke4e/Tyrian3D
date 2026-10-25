@@ -35,6 +35,7 @@ typedef struct
 	int expression;      // last expression sent
 	double start_level;  // how far below full level the chip sounded it as it started (dB; its velocity)
 	bool faded;          // the chip's note has faded out (its envelope) while its key is held: note off sent
+	bool drum;           // a drum's (its instrument's MIDI program 128 and up): on the drum channel
 	int program;         // last program sent, or -1
 	int inst;            // LDS instrument of the sounding note
 	Uint32 started;      // update it started

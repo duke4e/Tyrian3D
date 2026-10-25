@@ -219,11 +219,11 @@ void dev_export_music(const char *dir)
 				continue;
 			fprintf(json, "%s\n  {\"song\": %u, \"instrument\": %d, \"program\": %d, \"midi\": [%d, %d, %d], "
 			        "\"modulator\": [%d, %d, %d, %d, %d], \"carrier\": [%d, %d, %d, %d, %d], \"feedback\": %d, "
-			        "\"notes\": %u, \"lowest\": %.1f, \"highest\": %.1f, \"seconds\": %.1f}",
+			        "\"notes\": %u, \"lowest\": %.1f, \"highest\": %.1f, \"seconds\": %.1f, \"raw\": [%d, %d, %d]}",
 			        ftell(json) > 1 ? "," : "", song + 1, inst, s->midinst & 0x7f, s->midvelo, s->midkey, s->midtrans,
 			        s->mod_misc, s->mod_vol, s->mod_ad, s->mod_sr, s->mod_wave,
 			        s->car_misc, s->car_vol, s->car_ad, s->car_sr, s->car_wave, s->feedback,
-			        use[inst].notes, use[inst].lowest, use[inst].highest, use[inst].seconds);
+			        use[inst].notes, use[inst].lowest, use[inst].highest, use[inst].seconds, s->midinst, s->middum1, s->middum2);
 		}
 	}
 	if (json != NULL)
