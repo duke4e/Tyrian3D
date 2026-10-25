@@ -883,6 +883,49 @@ void shop_dialog_publish(const char *title, const char *text, const char *field_
 	ui_dialog_publish(VGAScreen);
 }
 
+// The front or rear weapon's choices' powers (curSel[MENU_UPGRADES] 3 or 4) as its choices open: the
+// owned weapon's, 1 for the others and the owned's for "Done". (Tyrian3D: from JE_itemScreen, for one
+// click opening the part too.)
+static void reset_temp_weapon_power(int *temp_weapon_power)
+{
+	const uint item       = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].id,
+	           item_power = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].power,
+	           i = curSel[MENU_UPGRADES] - 2;  // 1 or 2 (front or rear)
+
+	// set power level of owned weapon
+	for (int slot = 0; slot < itemAvailMax[itemAvailMap[i]-1]; ++slot)
+	{
+		if (itemAvail[itemAvailMap[i]-1][slot] == item)
+			temp_weapon_power[slot] = item_power;
+		else
+			temp_weapon_power[slot] = 1;
+	}
+
+	// set power level for "Done"
+	temp_weapon_power[itemAvailMax[itemAvailMap[i]-1]] = item_power;
+}
+
+// Tyrian3D: whether one click on a choice of the store's menus chooses it (the modern UI; the original's
+// first click only selects it): not a part's choices (the first click tries one on the ship, the next
+// buys it), the volumes' rows, the map's planets or the saved games.
+static bool shop_one_click(int selection)
+{
+	if (!ui_modern())
+		return false;
+	switch (curMenu)
+	{
+	case MENU_UPGRADE_SUB:
+	case MENU_PLAY_NEXT_LEVEL:
+	case MENU_LOAD_SAVE:
+		return false;
+	case MENU_OPTIONS:
+	case MENU_LIMITED_OPTIONS:
+		return selection != 4 && selection != 5;
+	default:
+		return true;
+	}
+}
+
 void JE_itemScreen(void)
 {
 	bool quit = false;
@@ -1000,21 +1043,7 @@ void JE_itemScreen(void)
 		    (curSel[curMenu] == 3 || curSel[curMenu] == 4))
 		{
 			// reset temp_weapon_power[] every time we select upgrading front or back
-			const uint item       = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].id,
-			           item_power = player[0].items.weapon[curSel[MENU_UPGRADES] - 3].power,
-			           i = curSel[MENU_UPGRADES] - 2;  // 1 or 2 (front or rear)
-
-			// set power level of owned weapon
-			for (int slot = 0; slot < itemAvailMax[itemAvailMap[i]-1]; ++slot)
-			{
-				if (itemAvail[itemAvailMap[i]-1][slot] == item)
-					temp_weapon_power[slot] = item_power;
-				else
-					temp_weapon_power[slot] = 1;
-			}
-
-			// set power level for "Done"
-			temp_weapon_power[itemAvailMax[itemAvailMap[i]-1]] = item_power;
+			reset_temp_weapon_power(temp_weapon_power);
 		}
 
 		if (curMenu == MENU_PLAY_NEXT_LEVEL)
@@ -1749,8 +1778,32 @@ void JE_itemScreen(void)
 				service_SDL_events(false);
 				mouseButton = JE_mousePosition(&mouseX, &mouseY);
 				inputDetected = newkey || mouseButton > 0;
-				// Tyrian3D: the data cubes' player's buttons (the modern UI's own: ui.h).
-				switch (ui_modern() ? ui_take_press() : 0)
+				// Tyrian3D: the modern UI's own widgets (ui.h): the data cubes' player's buttons; a choice's
+				// card on the parts' page opens its part with that choice tried on the ship (as a click on
+				// it there: the next click buys it).
+				const int ui_action = ui_modern() ? ui_take_press() : 0;
+				if (ui_action >= UI_ACTION_ITEM && curMenu == MENU_UPGRADES && curSel[MENU_UPGRADES] < menuChoices[MENU_UPGRADES])
+				{
+					const int part = curSel[MENU_UPGRADES], selection = ui_action - UI_ACTION_ITEM + 2;
+					JE_playSampleNum(S_CLICK);
+					JE_menuFunction(part);
+					if (curMenu == MENU_UPGRADE_SUB && selection < menuChoices[MENU_UPGRADE_SUB] && selection != curSel[MENU_UPGRADE_SUB])
+					{
+						if (JE_getCost(part, itemAvail[itemAvailMap[part - 2] - 1][selection - 2]) > player[0].cash)
+						{
+							JE_playSampleNum(S_CLINK);
+						}
+						else
+						{
+							if (part == 4)
+								player[0].weapon_mode = 1;
+							curSel[MENU_UPGRADE_SUB] = selection;
+							if (part == 3 || part == 4)
+								player[0].items.weapon[part - 3].power = temp_weapon_power[selection - 2];
+						}
+					}
+				}
+				switch (ui_action)
 				{
 				case UI_ACTION_PREV:
 					voiceover_player_step(-1);
@@ -1968,6 +2021,15 @@ void JE_itemScreen(void)
 						if (curSel[curMenu] == selection)
 						{
 							JE_menuFunction(curSel[curMenu]);
+						}
+						else if (shop_one_click(selection))
+						{
+							// Tyrian3D: the modern UI chooses at one click (without the frame the selection
+							// shows in, which sets the weapons' powers up as they open).
+							curSel[curMenu] = selection;
+							if (curMenu == MENU_UPGRADES && (selection == 3 || selection == 4))
+								reset_temp_weapon_power(temp_weapon_power);
+							JE_menuFunction(selection);
 						}
 						else
 						{

@@ -113,7 +113,10 @@ screens (its menu with the profile, the unlocks, the act's map with its nodes na
 ringed, the cards and the merchants as large cards with their tiers, the messages as cards). The
 mouse works on the panels (hover, click, the wheel moves through the items, the pages and the cards
 and scrolls a data cube's text), the keys and the joystick as ever; when the joystick was used
-last, the key hints show its pad and buttons. The pointer is a smooth one sized in window points.
+last, the key hints show its pad and buttons. In the store one click chooses (the original's first
+click only selects; `shop_one_click`), but a part's choices, where the first click tries one on the
+ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games;
+a choice's card on Upgrade Ship opens its part with that choice tried. The pointer is a smooth one sized in window points.
 The original screens stay for Menus: Classic and the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in

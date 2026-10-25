@@ -2076,7 +2076,7 @@ static void shop_files(const UIMenu *m, Box area)
 // has it.
 static void shop_card(Box r, const UIItem *it, bool selected, bool preview)
 {
-	const bool hover = !selected && !preview && hovered(r);
+	const bool hover = !selected && hovered(r);
 	panel(r, U(10), selected ? PANEL_CARD : hover ? PANEL_BAR : PANEL_HOVER);
 	const float cap = CAP_ITEM(), small = CAP_SMALL();
 	float x = r.x + U(18);
@@ -2097,7 +2097,9 @@ static void shop_card(Box r, const UIItem *it, bool selected, bool preview)
 	else if (it->value[0] != '\0')
 	{
 		const float vc = cap * 1.05f;
-		text(FONT_SEMIBOLD, "COST", r.x + r.w - U(22), r.y + (r.h - vc - CAP_KEY() - U(6)) / 2, CAP_KEY(), C_DIM, ALIGN_RIGHT);
+		// (The choice tried on the ship: "BUY", what Enter or a click on it again does.)
+		const char *label = selected && !it->unaffordable && !preview ? "BUY" : "COST";
+		text(FONT_SEMIBOLD, label, r.x + r.w - U(22), r.y + (r.h - vc - CAP_KEY() - U(6)) / 2, CAP_KEY(), selected ? C_SUB : C_DIM, ALIGN_RIGHT);
 		text(FONT_BOLD, it->value, r.x + r.w - U(22), r.y + (r.h - vc - CAP_KEY() - U(6)) / 2 + CAP_KEY() + U(6), vc,
 		     it->unaffordable ? C_COST_HIGH : selected ? C_GOLD_TOP : mix(C_GOLD_TOP, C_TAN, 0.3f), ALIGN_RIGHT);
 		right_w = SDL_max(text_w(FONT_BOLD, it->value, vc), text_w(FONT_SEMIBOLD, "COST", CAP_KEY())) + U(40);
@@ -2190,6 +2192,8 @@ static void shop_cards(const UIMenu *m, Box area, bool preview)
 			shop_card(r, it, i == selected, preview);
 		if (!preview)
 			add_hit(r, it->hit);
+		else
+			add_action(r, UI_ACTION_ITEM + i);  // (the store opens its part with it: game_menu.c)
 	}
 	if (scrolls)
 	{
