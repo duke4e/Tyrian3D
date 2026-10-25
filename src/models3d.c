@@ -421,10 +421,12 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		int model;
 		if (wreck_model_count == (int)COUNTOF(wreck_models))
 			WARN("too many wreck models");
-		else if (!parse_kind(tokens[3], &model) || model < 0)
+		else if (strcmp(tokens[3], "none") != 0 && (!parse_kind(tokens[3], &model) || model < 0))
 			WARN("unknown model '%s'", tokens[3]);
 		else
 		{
+			if (strcmp(tokens[3], "none") == 0)
+				model = M3D_WRECK_NONE;
 			wreck_models[wreck_model_count].sheet = parse_sheet(tokens[1]);
 			wreck_models[wreck_model_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
 			wreck_models[wreck_model_count].model = model;

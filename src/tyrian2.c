@@ -1073,6 +1073,8 @@ static void draw_standins(void)
 		// A placeholder gives way to the look's wreck model where there is one (models.cfg "wreck").
 		Uint8 mode = s->mode;
 		const int wreck = mode == L3D_STANDIN_PLACEHOLDER ? m3d_wreck_model(s->sheet, s->sprite) : -1;
+		if (wreck == M3D_WRECK_NONE)
+			continue;
 		if (wreck >= 0)
 		{
 			look.model = wreck;
