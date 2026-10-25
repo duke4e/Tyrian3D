@@ -1007,18 +1007,50 @@ def piece_painted_as_is(p, mask, box):
     return (under & ~eq).sum() / under.sum() < 0.2
 
 
-def piece_erased_share(p, mask, box):
+def piece_erased_share(p, mask, box, others=None):
     """How much of the piece's place is erased art: the share of its sprite's pixels, or 1 when its sprite's
-    box holds at least 30 erased pixels (a stump or a pad under a small sprite)."""
+    box holds at least 30 erased pixels (a stump or a pad under a small sprite), not counting those under the
+    object's other pieces (others: their sprites, in the box; a bunker's base erased under its top's box)."""
     X0, Y0, W, H = box
     h, w = p.pic.shape
     ys, xs = p.y0 - Y0, p.x0 - X0
     a0, b0, a1, b1 = max(ys, 0), max(xs, 0), min(ys + h, H), min(xs + w, W)
     if a1 <= a0 or b1 <= b0:
         return 0.0
-    if mask[a0:a1, b0:b1].sum() >= 30:
+    erased = mask[a0:a1, b0:b1]
+    if others is not None:
+        erased = erased & ~(others[a0:a1, b0:b1] & ~p.mask[a0 - ys:a1 - ys, b0 - xs:b1 - xs])
+    if erased.sum() >= 30:
         return 1.0
     return float((mask[a0:a1, b0:b1] & p.mask[a0 - ys:a1 - ys, b0 - xs:b1 - xs]).sum() / max(p.mask.sum(), 1))
+
+
+_wreck_looks = None
+
+
+def wreck_looks():
+    """The looks models.cfg gives a wreck model ("wreck <sheet> <sprite> <model>")."""
+    global _wreck_looks
+    if _wreck_looks is None:
+        _wreck_looks = set()
+        for line in open(os.path.join(ROOT, "assets", "models", "models.cfg")):
+            t = line.split()
+            if len(t) >= 4 and t[0] == "wreck" and t[3] != "none":
+                _wreck_looks.add(parse_look(t[1] + t[2]))
+    return _wreck_looks
+
+
+def sprites_mask(pieces, box):
+    """The pieces' sprites in an object's box."""
+    X0, Y0, W, H = box
+    out = np.zeros((H, W), bool)
+    for p in pieces:
+        h, w = p.pic.shape
+        ys, xs = p.y0 - Y0, p.x0 - X0
+        a0, b0, a1, b1 = max(ys, 0), max(xs, 0), min(ys + h, H), min(xs + w, W)
+        if a1 > a0 and b1 > b0:
+            out[a0:a1, b0:b1] |= p.mask[a0 - ys:a1 - ys, b0 - xs:b1 - xs]
+    return out
 
 
 def build(name, overrides, object_tiles, report):
@@ -1051,8 +1083,9 @@ def build(name, overrides, object_tiles, report):
         if not mask.any():
             continue
         keep = np.zeros_like(mask)
+        sprites = sprites_mask(g, box) if touch is None else None
         for p in g:
-            share = piece_erased_share(p, mask, box) if touch is None else 1.0
+            share = piece_erased_share(p, mask, box, sprites) if touch is None else 1.0
             spec = standin_spec(p.letter, p.sprite, piece_painted_as_is(p, mask, box), overrides)
             if spec is None:
                 # its painting stays: the art under its sprite is not erased
@@ -1068,6 +1101,11 @@ def build(name, overrides, object_tiles, report):
                 continue
             if share >= 0.15:
                 specs.append((p, spec))
+        # A piece painted as it is beside its object's wrecked pieces is part of the wreck's painting (a
+        # pyramid's foot under its broken top): where its look has a wreck model, that stands in for it too.
+        if any(sp[2] == "placeholder" for _, sp in specs):
+            specs = [(p, (sl, ss, "placeholder", cov) if mode == "own" and (sl, ss) == (p.letter, p.sprite) and
+                      (p.letter, p.sprite) in wreck_looks() else (sl, ss, mode, cov)) for p, (sl, ss, mode, cov) in specs]
         if keep.any():
             lab, n = ndimage.label(mask, np.ones((3, 3), bool))
             hit = np.unique(lab[keep & mask])
