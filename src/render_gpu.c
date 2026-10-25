@@ -8,6 +8,7 @@
 #include "config.h"
 #include "debugmode.h"
 #include "devtools.h"
+#include "jukebox3d.h"
 #include "font.h"
 #include "fonthand.h"
 #include "keyboard.h"
@@ -18,6 +19,7 @@
 #include "palette.h"
 #include "particles3d.h"
 #include "picload.h"
+#include "file.h"
 #include "paths3d.h"
 #include "rogue.h"
 #include "settings3d.h"
@@ -129,6 +131,7 @@ static void forget_hd_sheets(void);
 static Uint32 hash_colors(const Uint32 colors[256]);
 static void forget_terrain(void);
 static void forget_ui_textures(void);
+static void forget_jukebox_scene(void);
 static float cloud_noise(float x, float z, float cell, Uint32 seed);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
@@ -755,6 +758,7 @@ void rgpu_shutdown(void)
 	quad_mesh = NULL;
 	fade_meshes[0] = fade_meshes[1] = NULL;
 	forget_ui_textures();
+	forget_jukebox_scene();
 
 	if (device != NULL)
 		btbh_gpu_device_destroy(device);
@@ -809,6 +813,10 @@ static struct
 } menu;
 
 static const Uint8 *screen_without_texts(const SDL_Surface *screen);
+// Pictures drawn anew (data/hd/pictures, rgpu_ui_picture's section).
+static int hd_picture;
+static int match_hd_picture(const Uint8 *picture, Uint32 *rgba);
+static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h);
 static bool fonts_enabled(void);
 static const TextRecord *frame_texts[32];
@@ -1484,14 +1492,15 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	hud_quad_count = 0;
 	blur_ready = false;
 	const bool whole = screen->w == SCREEN_W && screen->h >= SCREEN_H;
+	const Uint8 *pixels = NULL;
 	if (l3d_enabled && whole)
 	{
-		convert_pixels(screen_without_texts(screen), screen_rgba);
+		pixels = screen_without_texts(screen);
+		convert_pixels(pixels, screen_rgba);
 		screen_text_quads(dst->x, dst->y, dst->w / (float)SCREEN_W, dst->h / (float)SCREEN_H, SCREEN_W, SCREEN_H);
 	}
 	else
 		convert_screen(screen, screen_rgba);
-	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 
 	CanvasQuad quad = whole_screen_quad(dst);
 	if (whole && ui_fill_screens())
@@ -1501,8 +1510,18 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 		add_surround(dst, (float)frame.logical_width, (float)frame.logical_height);
 		quad.sharp = true;
 	}
+	// A picture drawn anew (the logos as the game starts, the title before its menu): under the screen,
+	// which keeps only what the game drew over it.
+	hd_picture = pixels != NULL ? match_hd_picture(pixels, screen_rgba) : 0;
+	if (hd_picture != 0)
+	{
+		add_hd_picture(0, 0, SCREEN_W, SCREEN_H, (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 1);
+		hud_under = hud_quad_count;
+	}
+	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	present_canvas(&quad, 1, false, true, &frame);
 	blur_ready = false;
+	hd_picture = 0;
 }
 
 /* --- The UI's drawing (ui.c) ----------------------------------------------------------------- */
@@ -1729,13 +1748,50 @@ void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, floa
  */
 #define HD_PICTURE_SAME 0.6f  // the share of the screen's picture as loaded for the new one to show
 
+#define HD_PICTURE_TSHP2 (PCX_NUM + 1)  // tshp2.pcx, a story picture (]P0), after tyrian.pic's
+
 static struct
 {
 	BTBHGPUTexture *texture;
-	Uint8 *original;  // the picture as the game loads it
-} hd_pictures[PCX_NUM + 1];
-static int hd_picture = 0;               // the picture shown anew this frame (0: none)
+	Uint8 *original;         // the picture as the game loads it
+	SDL_Color palette[256];  // in its palette
+	int uses[256];           // how many of its pixels have each colour
+} hd_pictures[HD_PICTURE_TSHP2 + 1];
+
+// tshp2.pcx as JE_loadPCX reads it: 320 x 200 run-length pixels after the header, its palette at the end.
+static bool load_tshp2(Uint8 *pixels, SDL_Color *palette)
+{
+	char path[1024];
+	snprintf(path, sizeof(path), "%s/tshp2.pcx", data_dir());
+	size_t size = 0;
+	Uint8 *data = SDL_LoadFile(path, &size);
+	if (data == NULL || size < 128 + 769)
+	{
+		SDL_free(data);
+		return false;
+	}
+	const Uint8 *pal = data + size - 769;
+	for (int i = 0; i < 256; ++i)
+		palette[i] = pal[0] == 12 ? (SDL_Color){ pal[1 + i * 3], pal[2 + i * 3], pal[3 + i * 3], 255 } : (SDL_Color){ 0, 0, 0, 255 };
+	size_t at = 128;
+	for (int i = 0; i < SCREEN_W * SCREEN_H && at < size;)
+	{
+		const Uint8 p = data[at++];
+		if ((p & 0xc0) == 0xc0 && at < size)
+		{
+			const Uint8 v = data[at++];
+			for (int k = 0; k < (p & 0x3f) && i < SCREEN_W * SCREEN_H; ++k)
+				pixels[i++] = v;
+		}
+		else
+			pixels[i++] = p;
+	}
+	SDL_free(data);
+	return true;
+}
+static int hd_picture = 0;  // the picture shown anew this frame (0: none)
 static float hd_picture_brightness = 1;  // how bright the palette is against the picture's own
+static float hd_picture_white = 0;       // or how far it has faded to white
 
 static void find_hd_pictures(void)
 {
@@ -1746,9 +1802,12 @@ static void find_hd_pictures(void)
 	char dir[1024], path[1200];
 	const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
 	SDL_Surface *surface = NULL;
-	for (int n = 1; n <= PCX_NUM; ++n)
+	for (int n = 1; n <= HD_PICTURE_TSHP2; ++n)
 	{
-		snprintf(path, sizeof(path), "%s/pictures/pic_%02d.png", base, n);
+		if (n == HD_PICTURE_TSHP2)
+			snprintf(path, sizeof(path), "%s/pictures/tshp2.png", base);
+		else
+			snprintf(path, sizeof(path), "%s/pictures/pic_%02d.png", base, n);
 		if (!SDL_GetPathInfo(path, NULL))
 			continue;
 		BTBHGPUTextureReport report;
@@ -1764,15 +1823,60 @@ static void find_hd_pictures(void)
 			fprintf(stderr, "warning: picture %s: %s\n", path, texture == NULL ? report.message : "no memory");
 			continue;
 		}
-		JE_loadPic(surface, (JE_byte)n, false);
-		for (int y = 0; y < SCREEN_H; ++y)
-			memcpy(original + y * SCREEN_W, (const Uint8 *)surface->pixels + y * surface->pitch, SCREEN_W);
+		if (n == HD_PICTURE_TSHP2)
+		{
+			if (!load_tshp2(original, hd_pictures[n].palette))
+			{
+				fprintf(stderr, "warning: picture %s: can't read tshp2.pcx in %s\n", path, data_dir());
+				free(original);
+				continue;
+			}
+		}
+		else
+		{
+			// (JE_loadPic sets the game's colors too: kept as they were. Its palette is read when it is matched:
+			// this may run before the game has loaded its palettes.)
+			Palette kept;
+			memcpy(kept, colors, sizeof(kept));
+			JE_loadPic(surface, (JE_byte)n, false);
+			memcpy(colors, kept, sizeof(kept));
+			for (int y = 0; y < SCREEN_H; ++y)
+				memcpy(original + y * SCREEN_W, (const Uint8 *)surface->pixels + y * surface->pitch, SCREEN_W);
+		}
 		hd_pictures[n].texture = texture;
 		hd_pictures[n].original = original;
+		for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
+			++hd_pictures[n].uses[original[i]];
 		printf("picture %d drawn anew: %s\n", n, path);
 	}
 	if (surface != NULL)
 		SDL_DestroySurface(surface);
+}
+
+// The median of n values, each counted weight times (empty: none).
+static float weighted_median(const float *v, const int *weight, int n, float none)
+{
+	long total = 0;
+	for (int i = 0; i < n; ++i)
+		total += weight[i];
+	if (total == 0)
+		return none;
+	// (Few values: a selection by repeated minimum is fast enough.)
+	static bool used[256];
+	memset(used, 0, sizeof(used));
+	long seen = 0;
+	for (int k = 0; k < n; ++k)
+	{
+		int m = -1;
+		for (int i = 0; i < n; ++i)
+			if (!used[i] && (m < 0 || v[i] < v[m]))
+				m = i;
+		used[m] = true;
+		seen += weight[m];
+		if (seen * 2 >= total)
+			return v[m];
+	}
+	return none;
 }
 
 // The picture drawn anew that the screen's picture is (0: none) and, if one, the screen's pixels in rgba
@@ -1780,22 +1884,29 @@ static void find_hd_pictures(void)
 static int match_hd_picture(const Uint8 *picture, Uint32 *rgba)
 {
 	find_hd_pictures();
-	int best = 0, best_same = (int)(SCREEN_W * SCREEN_H * HD_PICTURE_SAME);
-	for (int n = 1; n <= PCX_NUM; ++n)
+	// (Counting the picture's own pixels, not its empty colour 0: a black screen is no picture.)
+	int best = 0;
+	float best_share = HD_PICTURE_SAME;
+	for (int n = 1; n <= HD_PICTURE_TSHP2; ++n)
 	{
 		if (hd_pictures[n].original == NULL)
 			continue;
-		int same = 0;
+		int same = 0, own = 0;
 		for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
-			same += picture[i] == hd_pictures[n].original[i];
-		if (same > best_same)
+			if (hd_pictures[n].original[i] != 0)
+			{
+				++own;
+				same += picture[i] == hd_pictures[n].original[i];
+			}
+		const float share = own > 0 ? same / (float)own : 0.0f;
+		if (share > best_share)
 		{
 			best = n;
-			best_same = same;
+			best_share = share;
 		}
 	}
 	if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
-		for (int n = 1; n <= PCX_NUM; ++n)
+		for (int n = 1; n <= HD_PICTURE_TSHP2; ++n)
 			if (hd_pictures[n].original != NULL)
 			{
 				int same = 0;
@@ -1809,16 +1920,29 @@ static int match_hd_picture(const Uint8 *picture, Uint32 *rgba)
 	for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
 		if (picture[i] == original[i])
 			rgba[i] = 0;
-	// (The palette's fade since the picture was loaded in its own.)
-	const SDL_Color *own = palettes[pcxpal[best - 1]];
-	float was = 0, now = 0;
+	// (The palette's fade since the picture was loaded in its own: towards black or white, the median over the
+	// colours it has, weighed by their pixels, so that colours the screen animates (the title's) don't count.)
+	const SDL_Color *own = best == HD_PICTURE_TSHP2 ? hd_pictures[best].palette : palettes[pcxpal[best - 1]];
+	float dark[256], light[256];
+	int weight[256], n = 0;
 	for (int i = 0; i < 256; ++i)
 	{
+		const SDL_Color o = own[i];
+		const int sum = o.r + o.g + o.b;
+		if (hd_pictures[best].uses[i] == 0 || sum < 60 || sum > 3 * 230)
+			continue;
 		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
-		was += own[i].r + own[i].g + own[i].b;
-		now += c[0] + c[1] + c[2];
+		dark[n] = SDL_min((c[0] + c[1] + c[2]) / (float)sum, 1.0f);
+		light[n] = SDL_clamp(((c[0] + c[1] + c[2]) - sum) / (float)(3 * 255 - sum), 0.0f, 1.0f);
+		weight[n++] = hd_pictures[best].uses[i];
 	}
-	hd_picture_brightness = was > 0 ? SDL_clamp(now / was, 0.0f, 1.0f) : 1.0f;
+	hd_picture_brightness = weighted_median(dark, weight, n, 1.0f);
+	hd_picture_white = weighted_median(light, weight, n, 0.0f);
+	if (hd_picture_white < 0.02f)
+		hd_picture_white = 0;
+	if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
+		printf("debug picture shown %d: share %.3f brightness %.3f white %.3f (%d colours)\n", best, best_share, hd_picture_brightness,
+		       hd_picture_white, n);
 	return best;
 }
 
@@ -1831,6 +1955,8 @@ static void add_hd_picture(float sx, float sy, float sw, float sh, float x, floa
 	const float b = hd_picture_brightness;
 	*q = (HudQuad){ x, y, w, h, sx / SCREEN_W, sy / SCREEN_H, (sx + sw) / SCREEN_W, (sy + sh) / SCREEN_H, { b, b, b, alpha },
 	                { b, b, b, alpha }, .texture = hd_pictures[hd_picture].texture };
+	if (hd_picture_white > 0 && (q = hud_quad_add()) != NULL)  // (a fade to white over it)
+		*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1, { 1, 1, 1, alpha * hd_picture_white }, { 1, 1, 1, alpha * hd_picture_white } };
 }
 
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
@@ -10267,6 +10393,222 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	blur_ready = false;
 }
 
+/* --- The jukebox's visuals (jukebox3d.h) -------------------------------------------------- */
+
+static BTBHGPUCustomMesh *jukebox_meshes[J3D_SHAPES];
+static BTBHGPUTexture *planet_texture = NULL;
+
+static void forget_jukebox_scene(void)
+{
+	memset(jukebox_meshes, 0, sizeof(jukebox_meshes));  // (the window's)
+	planet_texture = NULL;
+}
+
+static BTBHGPUCustomMesh *jukebox_mesh(J3DShape shape)
+{
+	if (shape == J3D_GLOW || shape == J3D_RING || shape == J3D_DOT)
+		return billboard_mesh;
+	if (jukebox_meshes[shape] == NULL)
+	{
+		const float *vertices;
+		const Uint32 *indices;
+		int vertex_count, index_count;
+		jukebox3d_mesh(shape, &vertices, &vertex_count, &indices, &index_count);
+		BTBHGPUCustomMeshReport report;
+		jukebox_meshes[shape] = btbh_gpu_window_custom_mesh_create(window, vertices, (size_t)vertex_count * 24 * sizeof(float),
+		                                                           (uint32_t)vertex_count, indices, (uint32_t)index_count, &report);
+		if (jukebox_meshes[shape] == NULL)
+			fprintf(stderr, "warning: jukebox mesh: %s\n", report.message);
+	}
+	return jukebox_meshes[shape];
+}
+
+// The order the items are drawn in batches: by shape, look and texture (models each their own).
+static int jukebox_key(const J3DItem *it)
+{
+	return (it->shape * 3 + it->look) * 2 + (it->textured ? 1 : 0);
+}
+
+// The jukebox's scene over the whole window, under its panel (whose glass shows it blurred). True if
+// it was drawn.
+static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
+{
+	const float w = (float)frame->logical_width, h = (float)frame->logical_height;
+	const UIMenu *published = ui_published();
+	const J3DScene *js = jukebox3d_frame(w, h, published != NULL && !published->jukebox.hidden);
+	if (planet_texture == NULL)
+	{
+		int tw, th;
+		const Uint32 *pixels = jukebox3d_planet_texture(&tw, &th);
+		planet_texture = create_texture_filtered(tw, th, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+		btbh_gpu_texture_update_rgba8(planet_texture, (const uint8_t *)pixels, 0, 0, (uint32_t)tw, (uint32_t)th);
+	}
+
+	// The items in batches of the same shape, look and texture.
+	enum { KEYS = J3D_SHAPES * 3 * 2 };
+	static int order[J3D_MAX_ITEMS];
+	int starts[KEYS + 1] = { 0 };
+	for (int i = 0; i < js->item_count; ++i)
+		++starts[jukebox_key(&js->items[i]) + 1];
+	for (int k = 0; k < KEYS; ++k)
+		starts[k + 1] += starts[k];
+	int fill[KEYS];
+	memcpy(fill, starts, sizeof(fill));
+	for (int i = 0; i < js->item_count; ++i)
+		order[fill[jukebox_key(&js->items[i])]++] = i;
+
+	Uint32 colors[256];
+	for (int i = 0; i < 256; ++i)
+		colors[i] = pack_rgba(palettes[0][i].r, palettes[0][i].g, palettes[0][i].b);
+	sync_model_cache();
+	int instance_count = 0, batch_count = 0;
+	for (int k = 0; k < KEYS; ++k)
+	{
+		if (starts[k] == starts[k + 1])
+			continue;
+		const J3DItem *first = &js->items[order[starts[k]]];
+		if (first->shape == J3D_MODEL)
+		{
+			for (int n = starts[k]; n < starts[k + 1]; ++n)
+			{
+				const J3DItem *it = &js->items[order[n]];
+				Mat4 placement;
+				memcpy(placement.m, it->m, sizeof(placement.m));
+				add_showcase_model(it->model, &placement, 1.0f, 1.0f, colors, &instance_count, &batch_count);
+			}
+			continue;
+		}
+		BTBHGPUCustomMesh *mesh = jukebox_mesh((J3DShape)first->shape);
+		if (mesh == NULL || batch_count >= MAX_BATCHES)
+			continue;
+		const int first_instance = instance_count;
+		for (int n = starts[k]; n < starts[k + 1] && instance_count < MAX_INSTANCES; ++n)
+		{
+			const J3DItem *it = &js->items[order[n]];
+			Mat4 m;
+			memcpy(m.m, it->m, sizeof(m.m));
+			if (it->shape == J3D_RING || it->shape == J3D_DOT)
+			{
+				// (The quad's y along the shape's z: lying in its XZ plane.)
+				for (int c = 0; c < 4; ++c)
+				{
+					const float t = m.m[4 + c];
+					m.m[4 + c] = m.m[8 + c];
+					m.m[8 + c] = t;
+				}
+			}
+			float *instance = instances + instance_count * 24;
+			write_instance_world(instance, &m, 1.0f);
+			memcpy(instance + 16, it->color, 4 * sizeof(float));
+			++instance_count;
+		}
+		BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = mesh;
+		b->first_instance = (uint32_t)first_instance;
+		b->instance_count = (uint32_t)(instance_count - first_instance);
+		b->roughness = js->roughness;
+		b->metalness = js->metalness;
+		if (first->textured)
+			b->albedo_texture = planet_texture;
+		if (first->look != J3D_LIT)
+			b->unlit_enabled = 1;
+		if (first->look == J3D_ADDITIVE)
+		{
+			b->transparency_enabled = 1;
+			b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+			b->albedo_texture = first->shape == J3D_RING ? ring_texture : particle_texture;
+			if (first->shape == J3D_GLOW)
+				b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		}
+	}
+
+	BTBHGPUSceneLighting lighting;
+	memset(&lighting, 0, sizeof(lighting));
+	lighting.spot_falloff = 1.0f;
+	lighting.spot_inner_cutoff = 0.92388f;
+	lighting.spot_outer_cutoff = 0.70711f;
+	lighting.spot_range = 50.0f;
+	lighting.ambient_red = js->ambient[0];
+	lighting.ambient_green = js->ambient[1];
+	lighting.ambient_blue = js->ambient[2];
+	lighting.ambient_energy = js->ambient_energy;
+	lighting.directional_x = js->sun[0];
+	lighting.directional_y = js->sun[1];
+	lighting.directional_z = js->sun[2];
+	lighting.directional_energy = js->sun_energy;
+	lighting.directional_red = js->sun_color[0];
+	lighting.directional_green = js->sun_color[1];
+	lighting.directional_blue = js->sun_color[2];
+	lighting.point_light_count = (uint32_t)SDL_min(js->light_count, BTBH_GPU_SCENE_POINT_LIGHTS);
+	memcpy(lighting.point_lights, js->lights, sizeof(float) * 8 * lighting.point_light_count);
+
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, frame, &render_w, &render_h);
+	post.bloom_intensity = settings3d.effects ? js->bloom : 0;
+	post.bloom_threshold = js->bloom_threshold;
+	post.bloom_knee = 0.25f;
+	post.bloom_radius = 1.4f;
+	// (Fading in and out as the jukebox's palette does.)
+	post.exposure = js->exposure * ui_screen_fade();
+
+	// The panel's glass: the scene blurred, made again each frame (it moves).
+	if (scene_blur_targets(w, h))
+	{
+		frost_texture = scene_blur[SCENE_BLUR_STEPS - 1];
+		cover_map[0] = cover_map[1] = 0;
+		cover_map[2] = w;
+		cover_map[3] = h;
+		blur_ready = true;
+	}
+	BTBHGPUSceneReport report;
+	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        js->view_projection, js->right, js->up, js->position,
+	        &lighting, &post, instances, (uint32_t)instance_count, (uint32_t)instance_count, batches, NULL, NULL, (uint32_t)batch_count,
+	        2, 2, 5, 255, &report) == BTBH_GPU_OK;
+	if (!drawn)
+	{
+		fprintf(stderr, "warning: jukebox scene failed: %s\n", report.message);
+		return false;
+	}
+	if (blur_ready)
+	{
+		BTBHGPUTextureReport capture_report;
+		scene_capture = btbh_gpu_window_capture_pending_scene_texture(window, &capture_report);
+		if (scene_capture == NULL)
+			blur_ready = false;
+	}
+	static int profile = -1;
+	if (profile < 0)
+		profile = SDL_getenv("TYR3D_PROFILE") != NULL;
+	static int frames = 0;
+	static Uint64 since = 0;
+	if (profile && ++frames % 240 == 0)
+	{
+		const Uint64 now = SDL_GetTicksNS();
+		printf("jukebox: %.1f frames a second, %d items, %d instances, %d batches, %d lights; cpu prepare %.2f ms, encode %.2f ms\n",
+		       since != 0 ? 240 * 1e9 / (double)(now - since) : 0.0, js->item_count, instance_count, batch_count, js->light_count,
+		       report.cpu_prepare_milliseconds, report.cpu_geometry_encode_milliseconds);
+		since = now;
+	}
+	return true;
+}
+
+void rgpu_present_ui_again(void)
+{
+	ahead = 1;
+	rgpu_present_ui(NULL);
+	ahead = 0;
+}
+
 /* --- The modern UI's screens (ui.h), and their 3D scene (the store's ship) ------------------ */
 
 /*
@@ -10448,15 +10790,19 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
 	SDL_Rect dst;
 	ui_fill_rect(frame.logical_width, frame.logical_height, &dst);
-	make_blur(screen_rgba, w, h);
+	// The jukebox: its visuals under its panel, instead of the original's stars (jukebox3d.h).
+	bool drawn = ui_published_is(UI_SCREEN_JUKEBOX) && present_jukebox_scene(&frame);
+	const bool jukebox = drawn;
+	if (!jukebox)
+		make_blur(screen_rgba, w, h);
 	// (A picture drawn anew: the screen then only what the game drew over it, after the blur.)
-	hd_picture = match_hd_picture(ui_screen_picture(), screen_rgba);
+	hd_picture = jukebox ? 0 : match_hd_picture(ui_screen_picture(), screen_rgba);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
 	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
-	const bool whole = ui_screen_whole_picture();
+	const bool whole = ui_screen_whole_picture() && !jukebox;
 	float pane[4], box[4];
-	const bool with_scene = scene != NULL && ui_scene_pane(&view, pane, box);
+	const bool with_scene = scene != NULL && !jukebox && ui_scene_pane(&view, pane, box);
 	if (whole)
 	{
 		add_surround(&dst, w, h);
@@ -10466,9 +10812,8 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 			hud_under = hud_quad_count;  // (under the screen's quad)
 		}
 	}
-	else
+	else if (!jukebox)
 		add_backdrop(w, h, with_scene ? pane : NULL);
-	bool drawn = false;
 	if (with_scene)
 	{
 		if (ui_screen_scene() == UI_SCENE_SIM && scene->backdrop != NULL)
