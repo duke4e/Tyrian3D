@@ -33,15 +33,65 @@ DATA = os.path.join(ROOT, "data", "tyrian2000")
 ENDING = [
     "Ixmucane's core is gone, and with it the last",
     "of Microsol's hold on the system.",
-    "",
-    "Gencore will call it a success. Trent Hawkins",
-    "calls it a long way home.",
 ]
+# The GBC speakers' PC portraits (cube faces: 8 Transon, 6 Reid, 7 Vykromod, 11 Dougan, 14 News, 10 the
+# captain, 4 Mondus, 1 data (Javi's in the originals), 2 archive data, 13 alerts) and their cubes' titles
+SPEAKERS = {
+    "NEWS": (14, "HOLO NEWS", "News"), "VYKROMOD": (7, "INCOMING TRANSMISSION", "Vykromod"),
+    "TRANSON": (8, "MESSAGE FROM GENCORE", "Transon"), "DOUGAN": (11, "INCOMING TRANSMISSION", "Dougan"),
+    "SAVARA": (13, "DISTRESS CALL FROM SAVARA", "Savara"), "JAVI": (1, "GENCORE SECURITY", "Javi"),
+    "CAPTAIN": (10, "INCOMING TRANSMISSION", "Captain"), "REID": (6, "INCOMING TRANSMISSION", "Reid"),
+    "TECH": (2, "CODED MESSAGE", "Data"), "STATIC": (13, "SHIP'S COMPUTER", "Alert"),
+    "MONDUS": (4, "INCOMING TRANSMISSION", "Mondus"), None: (17, "PERSONAL LOG", "Trent"),
+}
+# Names in the GBC texts (all capitals there): written with their capitals and marked (~)
+NAMES = ["Transon", "Lohk", "Gencore", "Microsol", "Trent", "Hawkins", "Savara", "Javi", "Onukala", "Reid",
+         "Mendivian", "Deliani", "Ixmucane", "Harble", "Wom", "Torm", "Camanis", "Dougan", "Vykromod",
+         "Mondus", "Hazudra", "Tyrian", "Gyges", "Midway", "Terraform", "Zinglon", "Ixmucane", "Asteroid"]
+WIDTH = 62
 HINTS = [
     ["Did you know?", "These levels come from Tyrian 2000 for the", "Game Boy Color (World Tree Games, 2000)."],
     ["Did you know?", "The Game Boy Color version was finished", "but never sold; it became freeware in 2007."],
     ["Did you know?", "Here every GBC level is flown with the", "PC game's ships, weapons and enemies."],
 ]
+
+
+def sentences(text, width=None, marks=True):
+    """A GBC text ('/' a new line, '|' a new page, all capitals) as lines of the cubes: in sentences'
+    capitals, names marked, wrapped to WIDTH, pages apart."""
+    import re
+    names = {n.upper(): n for n in NAMES}
+    out = []
+    # a page that ends mid-sentence goes on into the next one
+    pages = []
+    for page in text.split("|"):
+        if pages and not pages[-1].rstrip().endswith((".", "!", "?", "..")):
+            pages[-1] += "/" + page
+        else:
+            pages.append(page)
+    for page in pages:
+        flat = " ".join(w for w in page.replace("/", " ").split(" ") if w)
+        flat = flat.lower()
+        flat = re.sub(r"(^|[.!?]\s+)([a-z])", lambda m: m.group(1) + m.group(2).upper(), flat)
+        flat = re.sub(r"\bi\b", "I", flat)
+        flat = re.sub(r"\bi'", "I'", flat)
+
+        def name(m):
+            w = m.group(0)
+            n = names.get(w.upper())
+            return (f"~{n}~" if marks else n) if n else w
+        flat = re.sub(r"[A-Za-z]+", name, flat)
+        line = ""
+        for w in flat.split(" "):
+            if len(line.replace("~", "")) + 1 + len(w.replace("~", "")) > (width or WIDTH) and line:
+                out.append(line)
+                line = w
+            else:
+                line = (line + " " + w).strip()
+        if line:
+            out.append(line)
+        out.append("")
+    return out[:-1]
 
 
 def planets():
@@ -91,7 +141,7 @@ def shops():
     return out
 
 
-def script(stages, levels, planet_of):
+def script(stages, levels, planet_of, cube_numbers, ending_text):
     """levels7.dat: each stage a shop section (the planet map's one destination, the items: the
     originals' shops, from episode 1's first to episode 4's, spread over the episode) and its level's
     section; then the ending."""
@@ -104,12 +154,16 @@ def script(stages, levels, planet_of):
         shop_section, level_section = 2 * i + 1, 2 * i + 2
         planet = planet_of.get(tuple(stage["pc"]), 1)
         shop = all_shops[min(len(all_shops) - 1, i * len(all_shops) // n)]
-        lines += [f"*{shop_section} SECTION - Tyrian GBC Stage {i + 1} - {level['name']}",
-                  "]?[ 00", f"]G[ {origin:02d} 1 {planet:02d} {level_section:03d}", "]I["] + shop + [""]
+        cubes = cube_numbers[i]
+        lines += [f"*{shop_section} SECTION - Tyrian GBC Stage {i + 1} - {level['name']}"]
+        if cubes:
+            lines += [f"]+[ {len(cubes):02d}"]
+        lines += [f"]?[ {len(cubes):02d} {' '.join(f'{c:03d}' for c in cubes)}".rstrip(),
+                  f"]G[ {origin:02d} 1 {planet:02d} {level_section:03d}", "]I["] + shop + [""]
         origin = planet
         lines += [f"*{level_section} SECTION - Tyrian GBC {level['name']}",
                   tf.level_line(level_section + 1 if i + 1 < n else ending, level["name"], level["song"], i + 1), ""]
-    lines += [f"*{ending} SECTION - Tyrian GBC Ending", "]M 008[", "]P 005[", "]Wn 03["] + ENDING + \
+    lines += [f"*{ending} SECTION - Tyrian GBC Ending", "]M 008[", "]P 005[", "]Wn 03["] + (ending_text or ENDING) + \
              ["#", "]F[", "]Q[", "#"]
     for k in range(9):
         lines += HINTS[k % len(HINTS)] + ["#"]
@@ -121,7 +175,8 @@ def main():
     if not os.path.exists(index):
         print(f"{SRC}: no GBC levels (tools/gbc/extract.py, tools/gbc/episode.py), episode 7 not written")
         return 0
-    stages = json.load(open(index))
+    episode = json.load(open(index))
+    stages = episode["stages"]
     levels = [json.load(open(os.path.join(SRC, "levels", st["slug"] + ".json"))) for st in stages]
     os.makedirs(OUT, exist_ok=True)
     for level in levels:
@@ -141,8 +196,20 @@ def main():
         entries += level_entries(level, importer)
     entries.append(bytes(importer.data))
     tf.write_level_file(os.path.join(OUT, "tyrian7.lvl"), entries)
-    tf.write_strings(os.path.join(OUT, "levels7.dat"), script(stages, levels, planets()))
-    tf.write_strings(os.path.join(OUT, "cubetxt7.dat"), ["*"])
+    # the story as data cubes, numbered in order; the ending's text
+    cubes, numbers, n = [], [], 0
+    for st in stages:
+        numbers.append([])
+        for c in st.get("cubes", []):
+            n += 1
+            face, title, header = SPEAKERS.get(c["speaker"], SPEAKERS[None])
+            cubes += [f"*{n:02d} {face:02d}", title, header] + sentences(c["text"])
+            numbers[-1].append(n)
+    ending = []
+    for c in episode.get("ending", []):
+        ending += sentences(c["text"], 58, marks=False) + [""]  # (a text window: 60 characters, no marks)
+    tf.write_strings(os.path.join(OUT, "levels7.dat"), script(stages, levels, planets(), numbers, ending[:-1]))
+    tf.write_strings(os.path.join(OUT, "cubetxt7.dat"), cubes + ["*"])
     print(f"{OUT}: {len(levels)} levels")
     return 0
 

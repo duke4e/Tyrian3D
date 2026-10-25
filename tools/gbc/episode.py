@@ -467,7 +467,17 @@ def main():
         slug = f"{i:02d}_L{spec['gbc']:02d}"
         json.dump(level, open(os.path.join(OUT, 'levels', slug + '.json'), 'w'))
         pv.save(os.path.join(OUT, 'preview', slug + '.png'))
-    json.dump([dict(s, slug=f"{i:02d}_L{s['gbc']:02d}") for i, s in enumerate(LEVELS, 1)],
+    # the story (tools/gbc/story.py): a shop shows what the GBC game tells after the level before it
+    # (the opening in the first shop); the ending is the GBC one
+    story = json.load(open(os.path.join(GBC, 'story.json'))) if os.path.exists(os.path.join(GBC, 'story.json')) else None
+    stages, pending = [], story['opening'] if story else []
+    for i, s in enumerate(LEVELS, 1):
+        st = dict(s, slug=f"{i:02d}_L{s['gbc']:02d}")
+        st['cubes'], pending = pending, []
+        if story and not s.get('arcade'):
+            pending = story['after'].get(str(s['gbc']), [])
+        stages.append(st)
+    json.dump(dict(stages=stages, ending=story['ending'] if story else []),
               open(os.path.join(OUT, 'episode.json'), 'w'), indent=1)
 
 

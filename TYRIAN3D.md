@@ -278,8 +278,14 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   with the map, so sky ones get the scroll as fixedmovey. The GBC boss (whose script runs from RAM)
   is the original level's boss, placed as episode 6 places them; the GBC types without a good match
   (its bosses and big ships, for now) are left out.
+* `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
+  (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
+  into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text
+  after each level (News, Javi, Reid, Vykromod, the captain...), the ending.
 * `tools/content/gbc/build.py` (standard library; run by the build when `data/gbc/episode7` is
-  there) expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
+  there) makes the story the episode's data cubes (each shop holds what the GBC game tells after the
+  level before it; the GBC capitals in sentence case, the names marked; the speaker's PC portrait:
+  Transon, Reid, Vykromod, the captain, the news...) and the GBC ending its ending, expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
   item data (`enemydata.py`) and writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
   the originals' shops of episodes 1-4 spread over the episode, the planet map pointing at the
   original level's planet; the original level's song) and `cubetxt7.dat`.
@@ -288,8 +294,8 @@ The game finds those files in the content directory as it finds episode 6's (`sr
 "Episode 7: Tyrian GBC" in the episode menu when they are there. It is played on its own: a full
 game doesn't go on to it after episode 6 (`last_episode`), and its end goes back to the title screen
 without a high score (the save file's tables are episodes 1-6's). `TYR3D_START=7:<section>` starts
-one of its levels (the levels are the even sections, 2-48). Stages 1 and 2 of the plan: the maps,
-shops, songs and enemies; next: the GBC bosses and big ships, the story and shops by the GBC game.
+one of its levels (the levels are the even sections, 2-48). Stages 1, 2 and 4 of the plan: the maps,
+shops, songs, enemies and story; next: the GBC bosses and big ships, the 3D terrain of its maps.
 
 ## Custom episodes
 
