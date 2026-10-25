@@ -31,6 +31,7 @@ OUT = os.path.join(GBC, 'episode7')
 SCALE = 1.5           # PC pixels per GBC pixel
 ROWS = 300            # layer 1 rows
 LOOK_EVENTS = {1, 2, 3, 8, 9, 21, 28, 29, 42, 43, 44, 48, 64, 65, 72, 73}  # as episode 6's generate.py
+OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
 
@@ -253,6 +254,114 @@ def autotile(spec, img, grids, letter):
     return layer1, n_rows
 
 
+_ground = None
+
+
+def ground_enemies():
+    """{(episode, enemy): True} for the PC enemies the original levels make on the ground more often
+    than in the air (spawn events 6, 10, 17, 56, and 12 on a ground layer)."""
+    global _ground
+    if _ground is None:
+        import levels as lv
+        from collections import Counter
+        votes = Counter()
+        for e_ in range(1, 6):
+            for s in lv.read_strings(os.path.join(sources.tyrdata.DATA, f'levels{e_}.dat')):
+                if not s.startswith(']L'):
+                    continue
+                try:
+                    src = waves.Source(e_, s[13:22].strip())
+                except Exception:
+                    continue
+                for e in src.events:
+                    if e['type'] not in waves.SPAWNS or e['d1'] <= 0:
+                        continue
+                    ground = e['type'] in (6, 10, 17, 56) or (e['type'] == 12 and e['d6'] in (0, 1, 4))
+                    for k in range(4 if e['type'] == 12 else 1):
+                        votes[(e_, e['d1'] + k)] += 1 if ground else -1
+        _ground = {k: v > 0 for k, v in votes.items()}
+    return _ground
+
+
+def enemies(spec, look):
+    """The GBC script (data/gbc/enemies, tools/gbc/enemies.py) as PC events (script.py), its enemies
+    the PC ones found for its types; the boss the original level's (a placement); the sprite sheets
+    they need (at most 4: the less used types take a candidate on the loaded ones)."""
+    import script
+    path = os.path.join(GBC, 'enemies', f"L{spec['gbc']:02d}.json")
+    if not os.path.exists(path):
+        return [], [], []
+    d = json.load(open(path))
+    rom = open(os.path.join(GBC, 'Tyrian.gb'), 'rb').read()
+
+    def ro(a):
+        return a if a < 0x4000 else d['bank'] * 0x4000 + a - 0x4000
+    # the main script: the records run in order until the boss takes the script elsewhere
+    last, prev_at, prev_pos = -1, -1, -1
+    for e in d['executed']:
+        if e['at'] < prev_at or e['pos'] < prev_pos:
+            break
+        last, prev_at, prev_pos = e['at'], e['at'], e['pos']
+    records = [list(rom[ro(d['events'] + 5 * i):ro(d['events'] + 5 * i) + 5]) for i in range(last + 1)]
+    positions = [rom[ro(d['events_pos'] + 2 * i)] | (rom[ro(d['events_pos'] + 2 * i + 1)] << 8) for i in range(last + 1)]
+    data = {}
+
+    def enemies_of(e_):
+        if e_ not in data:
+            data[e_] = sources.tyrdata.load_items(e_)['enemies']
+        return data[e_]
+    # types: their PC enemies (a poor match is left out: the GBC bosses and big ships, for now)
+    from collections import Counter
+    use = Counter(r[1] for r in records if r[0] in (3, 4, 0x21, 0x22, 0x23, 0x24) or r[0] >= 0x28)
+    types, cands = {}, {}
+    for t, info in d['types'].items():
+        if info.get('pc') and info['pc']['score'] >= 0.3 and info['pc'].get('parts', 1) == 1:
+            cands[int(t)] = [c for c in info['candidates'] if c.get('parts', 1) == 1 and c['score'] >= 0.3]
+    boss = look.boss()
+    boss_banks = Counter()
+    if boss:
+        for e in boss['events']:
+            if e['type'] in waves.SPAWNS and e['d1'] > 0:
+                for k in range(4 if e['type'] == 12 else 1):
+                    boss_banks.update(waves.sheets_of(look.enemies, e['d1'] + k))
+    sheet = lambda c: waves.sheets_of(enemies_of(c['episode']), c['enemy'])
+    need = Counter()
+    for t, cs in cands.items():
+        need.update({b: use[t] for b in sheet(cs[0])})
+    banks = [b for b, _ in boss_banks.most_common()][:2]
+    for b, _ in need.most_common():
+        if len(banks) < 4 and b not in banks:
+            banks.append(b)
+    for t, cs in cands.items():
+        ok = [c for c in cs if sheet(c) <= set(banks)]
+        if ok:
+            types[t] = (ok[0]['episode'], ok[0]['enemy'])
+    # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], or null to
+    # leave a type out); their sheets join the loaded ones while there is room
+    over = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
+    for key, v in over.items():
+        lv, t = key.split(':')
+        if int(lv[1:]) != spec['gbc']:
+            continue
+        t = int(t, 16)
+        if v is None:
+            types.pop(t, None)
+            continue
+        need_b = waves.sheets_of(enemies_of(v[0]), v[1])
+        if need_b <= set(banks) or len(set(banks) | need_b) <= 4:
+            banks += sorted(need_b - set(banks))
+            types[t] = tuple(v)
+    ground = ground_enemies()
+    events = script.translate(records, positions, types, enemies_of, lambda k: ground.get(k, False))
+    placements = []
+    if boss:
+        start = round(1.5 * positions[-1]) if positions else 4000
+        placements.append(dict(kind='boss', episode=look.episode, name=look.name, start=min(start, 7000)))
+    print(f"  {len(records)} GBC records -> {len(events)} events, {len(types)}/{len(d['types'])} types as PC enemies, "
+          f"sheets {banks}, boss {look.name if boss else None}")
+    return events, placements, banks
+
+
 def make_level(spec):
     rows_gbc, img = gbc_level(spec['gbc'])
     gbc_map = rows_gbc['map']
@@ -268,16 +377,24 @@ def make_level(spec):
     ids = sorted(model.count)
     layer1, n_rows = space(spec, img, grids, letter) if spec.get('space') else autotile(spec, img, grids, letter)
     maps = [layer1, [[0] * 14 for _ in range(600)], [[0] * 15 for _ in range(600)]]
-    # events: the original's look at the start, no random enemies, the end when the GBC map has passed
+    # events: the original's look at the start, no random enemies, the GBC script's enemies (with the
+    # original's boss in place of the GBC one), the end
     look = waves.Source(ep, pcname)
-    events = [dict(e) for e in look.events if e['t'] == 0 and e['type'] in LOOK_EVENTS]
+    enemy_events, placements, banks = enemies(spec, look)
+    events = [dict(e) for e in look.events if e['t'] == 0 and e['type'] in LOOK_EVENTS
+              and not (e['type'] in (2, 3) and any(x['t'] == 0 and x['type'] == 2 for x in enemy_events))]
     for e in events:
         e.pop('adjust', None)
+    events.append(dict(t=0, type=5, d1=(banks + [0] * 4)[0], d2=(banks + [0] * 4)[1], d3=(banks + [0] * 4)[2],
+                       d5=0, d6=0, d4=(banks + [0] * 4)[3]))
     events.append(dict(t=0, type=13, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
-    end = min(8100, 28 * (n_rows - 7) + 200)
-    events.append(dict(t=end, type=11, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    events += enemy_events
+    if not placements:
+        last = max([e['t'] for e in enemy_events] + [0])
+        end = min(8100, max(28 * (n_rows - 7) + 200, last + 600))
+        events.append(dict(t=end, type=11, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     level = dict(name=spec['name'], song=level_song(ep, pcname), shapes=letter, maps=maps, events=events,
-                 placements=[], banks=[], terrain=None, gbc=spec['gbc'], pc=[ep, pcname],
+                 placements=placements, banks=banks, terrain=None, gbc=spec['gbc'], pc=[ep, pcname],
                  gbc_rows=len(gbc_map), pc_rows=n_rows, arcade=spec.get('arcade', False))
     # preview: the GBC map at 1.5x beside the PC map's playfield columns (2..12)
     pcimg = preview.picture([layer1[ROWS - n_rows:]], letter)

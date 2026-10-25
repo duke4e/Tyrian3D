@@ -259,8 +259,28 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   through in the emulator) with its five Arcade-only levels after one of their look, go to
   `data/gbc/episode7` as episode 6's level JSON, with `preview/` pictures (the GBC map beside the
   PC one).
+* `enemies.py` flies each GBC level in the emulator (the ship kept alive and never firing, so every
+  enemy lives out its path) and logs its script as it runs; for every spawn it draws the new enemy's
+  sprites and gives each GBC enemy type the PC enemy whose sprite looks most like it (silhouette and
+  shading against the PC atlases in `upscale/in`, 4-part enemies as 48x56 blocks, at the 1.5x scale;
+  the enemies of the original level first), into `data/gbc/enemies` (`Lnn.json`, and
+  `Lnn_matches.png`: each type beside its candidates). `enemy_overrides.json` corrects a type by
+  eye (`"L23:29": [episode, enemy]`, or `null` to leave it out).
+* `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
+  system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
+  group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of
+  their PC enemies (ground when the originals make that enemy on the ground) with a link per GBC
+  group, the group speed (13) event 19, its zig-zag (14: every |c| frames the speed steps by 1,
+  turning at the third byte, as the PC's) events 20 and 27, its acceleration (16) event 20, turn
+  speeds (15) event 27, a group's new group (0b) event 39, the scroll (02) event 2, the difficulty
+  skip (00) event 66. A GBC frame is 0.375 PC ticks and a speed unit 2 PC px a tick (a GBC pixel is
+  1.5 PC pixels, its scroll of a pixel every 4 frames the PC's 1 px a tick); the GBC enemies move
+  with the map, so sky ones get the scroll as fixedmovey. The GBC boss (whose script runs from RAM)
+  is the original level's boss, placed as episode 6 places them; the GBC types without a good match
+  (its bosses and big ships, for now) are left out.
 * `tools/content/gbc/build.py` (standard library; run by the build when `data/gbc/episode7` is
-  there) writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
+  there) expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
+  item data (`enemydata.py`) and writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
   the originals' shops of episodes 1-4 spread over the episode, the planet map pointing at the
   original level's planet; the original level's song) and `cubetxt7.dat`.
 
@@ -268,8 +288,8 @@ The game finds those files in the content directory as it finds episode 6's (`sr
 "Episode 7: Tyrian GBC" in the episode menu when they are there. It is played on its own: a full
 game doesn't go on to it after episode 6 (`last_episode`), and its end goes back to the title screen
 without a high score (the save file's tables are episodes 1-6's). `TYR3D_START=7:<section>` starts
-one of its levels (the levels are the even sections, 2-48). Stage 1 of the plan: the maps, shops and
-songs; the levels have no enemies yet.
+one of its levels (the levels are the even sections, 2-48). Stages 1 and 2 of the plan: the maps,
+shops, songs and enemies; next: the GBC bosses and big ships, the story and shops by the GBC game.
 
 ## Custom episodes
 

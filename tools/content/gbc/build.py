@@ -19,8 +19,9 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, os.path.join(HERE, ".."))
 sys.path.insert(0, os.path.join(HERE, "..", "episode6"))
 import tyrformat as tf  # noqa: E402
+import compose  # noqa: E402
 import enemydata  # noqa: E402
-from build import level_entries  # noqa: E402  (episode 6's: a level's two entries)
+from build import ENEMY_D1, level_entries  # noqa: E402  (episode 6's: a level's two entries)
 
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 import levels as lv  # noqa: E402
@@ -123,7 +124,18 @@ def main():
     stages = json.load(open(index))
     levels = [json.load(open(os.path.join(SRC, "levels", st["slug"] + ".json"))) for st in stages]
     os.makedirs(OUT, exist_ok=True)
-    importer = enemydata.Importer(set())
+    for level in levels:
+        level["events"] = compose.expand(level)  # the placed bosses of the originals
+    # (as episode 6: episode 5's enemies used as they are keep their weapons)
+    probe = enemydata.Importer()
+    kept = set()
+    for level in levels:
+        for e in level["events"]:
+            if e["type"] in ENEMY_D1 and "ep" in e and e["d1"] > 0:
+                for k in range(4 if e["type"] == 12 else 1):
+                    if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k):
+                        kept.add(e["d1"] + k)
+    importer = enemydata.Importer(kept)
     entries = []
     for level in levels:
         entries += level_entries(level, importer)
