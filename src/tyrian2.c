@@ -17,6 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 #include "tyrian2.h"
+#include "opentyrian_version.h"
 
 #include "debugmode.h"
 #include "destruct.h"
@@ -4458,7 +4459,7 @@ static void title_publish(size_t selected, const char *const *texts, const int *
 			SDL_strlcpy(item->hint, hints[ids[i]], sizeof(item->hint));
 	}
 	menu->selected = (int)selected;
-	SDL_strlcpy(menu->footer, opentyrian_version, sizeof(menu->footer));
+	SDL_strlcpy(menu->footer, TYRIAN3D_VERSION, sizeof(menu->footer));
 	ui_menu_publish(menu, VGAScreen, VGAScreen2);
 }
 
@@ -4502,12 +4503,14 @@ bool titleScreen(void)
 			itemCount = 0;
 			for (int i = 0; i < (int)COUNTOF(menuText); ++i)
 			{
+				if (i == MENU_ITEM_INSTRUCTIONS)
+					continue;  // (the user: take the instructions away)
 				if (i == MENU_ITEM_DEMO && destruct_discovered())
 				{
 					itemText[itemCount] = "Destruct";
 					itemId[itemCount++] = MENU_ITEM_DESTRUCT;
 				}
-				itemText[itemCount] = menuText[i];
+				itemText[itemCount] = i == MENU_ITEM_SETUP ? "Settings" : menuText[i];
 				itemId[itemCount++] = i;
 			}
 			hMenuItem = itemCount > COUNTOF(menuText) ? 12 : 13;
@@ -4518,7 +4521,7 @@ bool titleScreen(void)
 
 			JE_loadPic(VGAScreen, 4, false);
 
-			draw_font_hv_shadow(VGAScreen, 2, 192, opentyrian_version, small_font, left_aligned, 15, 0, false, 1);
+			draw_font_hv_shadow(VGAScreen, 2, 192, TYRIAN3D_VERSION, small_font, left_aligned, 15, 0, false, 1);
 
 			if (moveTyrianLogoUp)
 			{

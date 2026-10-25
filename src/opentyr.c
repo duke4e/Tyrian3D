@@ -276,7 +276,7 @@ void setupMenu(void)
 
 	static const Menu menus[] = {
 		[MENU_SETUP] = {
-			.header = "Setup",
+			.header = "Settings",
 			.items = {
 				{ MENU_ITEM_GRAPHICS, "Graphics...", "Change the graphics settings." },
 				{ MENU_ITEM_3D, "3D...", "Change the 3D settings." },
@@ -518,7 +518,7 @@ void setupMenu(void)
 		{
 			UIMenu *ui = ui_menu_begin(UI_SCREEN_SETUP, menu->header);
 			if (currentMenu != MENU_SETUP)
-				SDL_strlcpy(ui->crumb, "SETUP", sizeof(ui->crumb));
+				SDL_strlcpy(ui->crumb, "SETTINGS", sizeof(ui->crumb));
 			for (size_t i = 0; i < menuItemsCount && i < COUNTOF(values); ++i)
 			{
 				const MenuItem *menuItem = &menuItems[i];
