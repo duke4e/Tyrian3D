@@ -1147,7 +1147,7 @@
           "TOP SECRET"
         ]
       },
-      "voice_id": "",
+      "voice_id": "UuCLIdMgi2dceZlb6WJJ",
       "usage": {
         "cubes": [
           "4:64"
@@ -1155,7 +1155,8 @@
         "segments": 1,
         "characters": 732,
         "portraits": []
-      }
+      },
+      "adopted_preview": "1-1"
     },
     "muldar": {
       "name": "Muldar",

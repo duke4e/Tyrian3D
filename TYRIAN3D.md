@@ -259,8 +259,8 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   through in the emulator) with its five Arcade-only levels after one of their look, go to
   `data/gbc/episode7` as episode 6's level JSON, with `preview/` pictures (the GBC map beside the
   PC one).
-* `enemies.py` flies each GBC level in the emulator (the ship kept alive and never firing, so every
-  enemy lives out its path) and logs its script as it runs; for every spawn it draws the new enemy's
+* `enemies.py` flies each GBC level in the emulator on Hard (so every enemy type shows; the ship kept
+  alive and never firing, so every enemy lives out its path) and logs its script as it runs; for every spawn it draws the new enemy's
   sprites and gives each GBC enemy type the PC enemy whose sprite looks most like it (silhouette and
   shading against the PC atlases in `upscale/in`, 4-part enemies as 48x56 blocks, at the 1.5x scale;
   the enemies of the original level first), into `data/gbc/enemies` (`Lnn.json`, and
@@ -275,15 +275,20 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   speeds (15) event 27, a group's new group (0b) event 39, the scroll (02) event 2, the difficulty
   skip (00) event 66. A GBC frame is 0.375 PC ticks and a speed unit 2 PC px a tick (a GBC pixel is
   1.5 PC pixels, its scroll of a pixel every 4 frames the PC's 1 px a tick); the GBC enemies move
-  with the map, so sky ones get the scroll as fixedmovey. The GBC boss (whose script runs from RAM)
-  is the original level's boss, placed as episode 6 places them; the GBC types without a good match
-  (its bosses and big ships, for now) are left out.
+  with the map, so sky ones get the scroll as fixedmovey. Backgrounds 2 and 3 (empty) scroll with
+  layer 1 (at the usual 2x and 3x they run out of map at clock 8274 and 5516, which these levels
+  pass). The GBC boss (whose script runs from RAM) is the original level's boss, or a related
+  level's where the original has none, placed as episode 6 places them, with all its sprite sheets;
+  an event 11 at clock 8100 ends the level if the boss is never destroyed (as the originals have:
+  past 8148 layer 1 runs out). Every GBC type is a PC enemy: the best candidate on the level's
+  sheets (4-part ones as event 12 blocks).
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
   into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text
   after each level (News, Javi, Reid, Vykromod, the captain...), the ending.
 * `tools/content/gbc/build.py` (standard library; run by the build when `data/gbc/episode7` is
-  there) makes the story the episode's data cubes (each shop holds what the GBC game tells after the
+  there; when the item data has no free gun slot left for a brought-in enemy, its gun is episode
+  5's of that number) makes the story the episode's data cubes (each shop holds what the GBC game tells after the
   level before it; the GBC capitals in sentence case, the names marked; the speaker's PC portrait:
   Transon, Reid, Vykromod, the captain, the news...) and the GBC ending its ending, expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
   item data (`enemydata.py`) and writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
@@ -707,9 +712,9 @@ into the request header):
    `generate.py build` rebuilds from the cache without the network.
 
 Rendered 2026-10-25 with `eleven_v4` (about 0.44 credits a character; about 69,000 credits with the voice
-design): 167 cubes and the 96 story texts and hints, 137 minutes, 98 MB of WAVs, with the render cache
-(about 400 MB) beside them in `data/voices`. Cubes 4:15, 4:64 and 4:65 wait for Mycroft's voice (the
-account's 30 voices were full). The voices chosen are in `cast.json` (`voice_id`, `adopted_preview`);
+design): all 170 cubes and the 96 story texts and hints, about 140 minutes, 100 MB of WAVs, with the
+render cache (about 400 MB) beside them in `data/voices`. The voices chosen are in `cast.json` (`voice_id`,
+`adopted_preview`); the account's 30 custom voices hold the 28 and the user's own;
 another take of a cube is `generate.py generate --retake E:N`, a speaker's tempo its `settings.speed`
 and `generate.py build --only ...` (from the cache, free).
 
