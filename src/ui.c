@@ -2275,12 +2275,72 @@ static void shop_cube_text(const UIMenu *m, Box area)
 		scroll_bar((Box){ area.x + area.w + U(14), area.y, U(10), area.h }, first_line, fits, count);
 }
 
+static void action_button(Box b, const char *label, bool on, int action);
+
+// The data cubes' player in the row under the left column: the previous, play or pause, the next, the
+// cube playing and how far it is.
+static void shop_cube_player(const UIShop *s, const ShopLayout *k)
+{
+	if (!s->cube_player)
+		return;
+	const Box p = { k->left.x, k->keys_y, k->left.w, key_hints_height() };
+	panel(p, U(10), PANEL_BAR);
+	const bool playing = s->cube_playing >= 0;
+	const float bh = p.h - 2 * U(7), bw = bh * 1.35f, gap = U(6);
+	Box b = { p.x + U(7), p.y + U(7), bw, bh };
+	const float a = bh * 0.2f;
+	action_button(b, "", false, UI_ACTION_PREV);
+	{
+		const float cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		triangle(cx + a * 0.2f, cy - a, cx + a * 0.2f, cy + a, cx - a * 1.3f, cy, C_SEL_RIM);
+		triangle(cx + a * 1.7f, cy - a, cx + a * 1.7f, cy + a, cx + a * 0.2f, cy, C_SEL_RIM);
+	}
+	b.x += bw + gap;
+	action_button(b, "", playing && !s->cube_paused, UI_ACTION_PLAY_PAUSE);
+	{
+		const float cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		const Colour c = playing && !s->cube_paused ? C_CREAM : C_SEL_RIM;
+		if (playing && !s->cube_paused)
+		{
+			rect((Box){ cx - a * 0.85f, cy - a, a * 0.6f, a * 2 }, c, c);
+			rect((Box){ cx + a * 0.25f, cy - a, a * 0.6f, a * 2 }, c, c);
+		}
+		else
+			triangle(cx - a * 0.7f, cy - a, cx + a * 1.0f, cy, cx - a * 0.7f, cy + a, c);
+	}
+	b.x += bw + gap;
+	action_button(b, "", false, UI_ACTION_NEXT);
+	{
+		const float cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+		triangle(cx - a * 0.2f, cy - a, cx + a * 1.3f, cy, cx - a * 0.2f, cy + a, C_SEL_RIM);
+		triangle(cx - a * 1.7f, cy - a, cx - a * 0.2f, cy, cx - a * 1.7f, cy + a, C_SEL_RIM);
+	}
+	// What plays: "CUBE 2 / 4" and its title; the voice's progress along the foot.
+	const float x = b.x + bw + U(20), right = p.x + p.w - U(20), key = CAP_KEY(), small = CAP_SMALL();
+	char label[32];
+	if (playing)
+		snprintf(label, sizeof(label), "%s %d / %d", s->cube_paused ? "PAUSED" : "CUBE", s->cube_playing + 1, s->cube_count);
+	else
+		snprintf(label, sizeof(label), "DATA CUBES %d", s->cube_count);
+	text(FONT_SEMIBOLD, label, x, p.y + (p.h - key) / 2, key, C_DIM, ALIGN_LEFT);
+	const float tx = x + text_w(FONT_SEMIBOLD, label, key) + U(16);
+	char fitted[48];
+	fit_text(FONT_SEMIBOLD, playing ? s->cube_title : "Listen to the cubes", small, right - tx, fitted, sizeof(fitted));
+	text(FONT_SEMIBOLD, fitted, tx, p.y + (p.h - small) / 2, small, playing ? C_CREAM : C_TAN, ALIGN_LEFT);
+	if (playing)
+	{
+		const float lh = SDL_max(U(3), L.px * 2);
+		rect((Box){ x, p.y + p.h - U(9) - lh, (right - x) * SDL_clamp(s->cube_progress, 0.0f, 1.0f), lh }, C_GOLD_TOP, C_GOLD_BOTTOM);
+	}
+}
+
 static void build_shop(const UIMenu *m)
 {
 	const UIShop *s = &m->shop;
 	const ShopLayout k = shop_layout(m);
 	const float in_t = eased_in(0.22f);
 	shop_left(m, &k);
+	shop_cube_player(s, &k);
 
 	// Ship specs: two panels round the ship.
 	if (s->page == UI_SHOP_SPECS)
@@ -2416,7 +2476,7 @@ static void build_shop(const UIMenu *m)
 		const bool power = s->page == UI_SHOP_ITEMS && s->power_on;
 		const bool turns = m->selected >= 0 && m->selected < m->item_count && m->items[m->selected].kind == UI_ITEM_BAR;
 		const bool cube = s->page == UI_SHOP_CUBE;
-		KeyHint keys[5];
+		KeyHint keys[6];
 		int n = 0;
 		if (cube)
 		{
@@ -2434,6 +2494,8 @@ static void build_shop(const UIMenu *m)
 			keys[n++] = (KeyHint){ KEY_TEXT, "Esc", "Back" };
 			keys[n++] = (KeyHint){ KEY_TEXT, "F1", "Help" };
 		}
+		if (s->cube_player)  // (the cubes' player: P, [ and ] in the store)
+			keys[n++] = (KeyHint){ KEY_TEXT, "P", "Listen" };
 		key_hints_fitted(keys, n, p.x + p.w / 2, k.keys_y, L.safe.x + L.safe.w - p.x - U(20), ALIGN_CENTRE);
 	}
 

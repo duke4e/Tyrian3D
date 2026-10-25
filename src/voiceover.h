@@ -38,4 +38,17 @@ void voiceover_update(void);
 // The voice volume or the on/off setting changed (settings3d): applied at once.
 void voiceover_settings_changed(void);
 
+/*
+ * The store's cube player: the data cubes the player has, read aloud while shopping (a cube read goes on
+ * playing once its reader closes, until the store closes: voiceover_stop). voiceover_player_cubes gives the
+ * store's cubes each frame; play/pause and previous/next act on them.
+ */
+#define VOICEOVER_PLAYER_CUBES 4
+void voiceover_player_cubes(int episode, int count, const int *cubes, const Uint32 *hashes, const char *const *titles);
+void voiceover_player_toggle(void);
+void voiceover_player_step(int step);
+// What it shows: the cube playing or paused (its index in the store's cubes, -1: none), its title, how far it
+// has played (0-1); false if there are no cubes or no voices.
+bool voiceover_player_state(int *index, int *count, bool *paused, float *progress, const char **title);
+
 #endif /* VOICEOVER_H */

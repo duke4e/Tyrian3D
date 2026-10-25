@@ -187,6 +187,13 @@ typedef struct
 	char super_title[32];  // "Super Arcade Mode"
 	char super[2][2][40];  // label and value: "Main Weapon:" "Laser", "Special Weapon:" "..."
 	int super_special;     // the special weapon (its icon), or 0
+	// The data cubes' player (the store's cubes read aloud: voiceover.h): shown, the cube playing (< 0:
+	// none) of how many, paused, how far (0-1), its title.
+	bool cube_player;
+	int cube_playing, cube_count;
+	bool cube_paused;
+	float cube_progress;
+	char cube_title[48];
 } UIShop;
 
 // A question over the screen (the store's quit and save): its text, a field being typed, two buttons.
@@ -445,6 +452,7 @@ enum
 	UI_ACTION_STOP, UI_ACTION_RESTART, UI_ACTION_FADE, UI_ACTION_FADE_LOOPED, UI_ACTION_SFX, UI_ACTION_PLAY_SFX,
 	UI_ACTION_HIDE,
 	UI_ACTION_LOOK,                   // the jukebox's visuals' next look
+	UI_ACTION_PLAY_PAUSE,             // play or pause (the store's data cube player)
 	UI_ACTION_PAGE = 32,              // + n: page (tab) n
 	UI_ACTION_ITEM = 64,              // + n: item (a song) n
 };

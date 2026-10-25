@@ -58,5 +58,8 @@ void multiSamplePlay(const Sint16 *samples, size_t sampleCount, Uint8 chan, Uint
 int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2]);
 int voice_channel_collect(Sint16 *done[2], bool *playing);
 void voice_channel_volume(Uint8 volume);
+// The voice playing held where it is (or going on), and how far it has played (0-1).
+void voice_channel_pause(bool paused);
+float voice_channel_progress(void);
 
 #endif /* LOUDNESS_H */

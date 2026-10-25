@@ -3607,6 +3607,8 @@ new_game:
 						}
 						if (cubeMax > temp)
 							cubeMax = temp;
+						if (SDL_getenv("TYR3D_CUBES") != NULL)  // Tyrian3D dev: the store holds every cube it lists
+							cubeMax = temp;
 						break;
 
 					case '!':

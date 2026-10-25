@@ -37,8 +37,15 @@ static struct
 	int episode, cube;
 	Uint32 hash;
 	bool playing;    // a voice was started and has not ended
+	bool paused;
 	char name[32];   // "cube 1:19", "story 1a2b3c4d" (the log's)
-} vo;
+
+	// The store's cubes (voiceover_player_cubes) and the one the player plays (-1: none).
+	int player_episode, player_count, player_index;
+	int player_cubes[VOICEOVER_PLAYER_CUBES];
+	Uint32 player_hashes[VOICEOVER_PLAYER_CUBES];
+	char player_titles[VOICEOVER_PLAYER_CUBES][48];
+} vo = { .player_index = -1 };
 
 Uint32 voiceover_hash(Uint32 hash, const char *line)
 {
@@ -176,6 +183,7 @@ static void start(const Voice *v)
 	if (samples != NULL)
 		voice_channel_volume((Uint8)SDL_clamp(settings3d.voice_volume, 0, 255));
 	vo.playing = samples != NULL;
+	vo.paused = false;
 }
 
 void voiceover_update(void)
@@ -200,6 +208,8 @@ void voiceover_stop(void)
 	vo.on = false;
 	vo.episode = vo.cube = 0;
 	vo.hash = 0;
+	vo.player_index = -1;
+	vo.paused = false;
 	if (vo.playing)
 		start(NULL);
 	// (what has faded out is freed by the next voice or update)
@@ -208,16 +218,34 @@ void voiceover_stop(void)
 	free_done(done, voice_channel_collect(done, &playing));
 }
 
+// The cube the store's reader asked for last (asked again each frame while it is open).
+static int reader_episode, reader_cube;
+static Uint32 reader_hash;
+
+static void cube_start(int episode, int cube, Uint32 text_hash);
+
 void voiceover_cube(int episode, int cube, Uint32 text_hash)
 {
-	if (cube <= 0)
+	if (cube <= 0)  // (no reader open: a cube read goes on playing, the player's)
 	{
-		if (vo.on)
-			voiceover_stop();
+		reader_cube = 0;
 		voiceover_update();
 		return;
 	}
-	if (vo.on && vo.cube == cube && vo.episode == episode && vo.hash == text_hash)
+	if (cube == reader_cube && episode == reader_episode && text_hash == reader_hash)
+	{
+		voiceover_update();  // (what the player has chosen since plays on)
+		return;
+	}
+	reader_episode = episode;
+	reader_cube = cube;
+	reader_hash = text_hash;
+	cube_start(episode, cube, text_hash);
+}
+
+static void cube_start(int episode, int cube, Uint32 text_hash)
+{
+	if (vo.on && vo.cube == cube && vo.episode == episode && vo.hash == text_hash && vo.playing)
 	{
 		voiceover_update();
 		return;
@@ -228,6 +256,9 @@ void voiceover_cube(int episode, int cube, Uint32 text_hash)
 	vo.episode = episode;
 	vo.cube = cube;
 	vo.hash = text_hash;
+	for (int i = 0; i < vo.player_count; ++i)
+		if (vo.player_cubes[i] == cube && vo.player_episode == episode)
+			vo.player_index = i;
 	snprintf(vo.name, sizeof(vo.name), "cube %d:%d", episode, cube);
 	if (!settings3d.voices || !voiceover_installed())
 		return;
@@ -282,4 +313,58 @@ void voiceover_settings_changed(void)
 		return;
 	}
 	voice_channel_volume((Uint8)SDL_clamp(settings3d.voice_volume, 0, 255));
+}
+
+void voiceover_player_cubes(int episode, int count, const int *cubes, const Uint32 *hashes, const char *const *titles)
+{
+	vo.player_episode = episode;
+	vo.player_count = SDL_clamp(count, 0, VOICEOVER_PLAYER_CUBES);
+	for (int i = 0; i < vo.player_count; ++i)
+	{
+		vo.player_cubes[i] = cubes[i];
+		vo.player_hashes[i] = hashes[i];
+		SDL_strlcpy(vo.player_titles[i], titles[i], sizeof(vo.player_titles[i]));
+	}
+	if (vo.player_index >= vo.player_count)
+		vo.player_index = -1;
+}
+
+// Plays the store's cube i (as its reader would).
+static void player_play(int i)
+{
+	if (i < 0 || i >= vo.player_count)
+		return;
+	cube_start(vo.player_episode, vo.player_cubes[i], vo.player_hashes[i]);
+	vo.player_index = i;
+}
+
+void voiceover_player_toggle(void)
+{
+	if (vo.playing && vo.player_index >= 0)
+	{
+		vo.paused = !vo.paused;
+		voice_channel_pause(vo.paused);
+		if (vo.debug)
+			printf("voices: %s %s\n", vo.paused ? "pause" : "resume", vo.name);
+		return;
+	}
+	player_play(vo.player_index >= 0 ? vo.player_index : 0);
+}
+
+void voiceover_player_step(int step)
+{
+	if (vo.player_count == 0)
+		return;
+	const int from = vo.player_index >= 0 ? vo.player_index : (step > 0 ? -1 : 0);
+	player_play(((from + step) % vo.player_count + vo.player_count) % vo.player_count);
+}
+
+bool voiceover_player_state(int *index, int *count, bool *paused, float *progress, const char **title)
+{
+	*count = vo.player_count;
+	*index = vo.playing ? vo.player_index : -1;
+	*paused = vo.paused;
+	*progress = vo.playing ? voice_channel_progress() : 0.0f;
+	*title = *index >= 0 ? vo.player_titles[*index] : "";
+	return vo.player_count > 0 && settings3d.voices && voiceover_installed();
 }

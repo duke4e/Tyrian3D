@@ -431,6 +431,12 @@ static void shop_publish(void)
 	s->credits = s->credits_after = -1;
 	s->generator = -1;
 	ui->nowhere = (SDL_Point){ 100, 196 };
+	{
+		// The data cubes' player (voiceover.h).
+		const char *cube_title;
+		s->cube_player = voiceover_player_state(&s->cube_playing, &s->cube_count, &s->cube_paused, &s->cube_progress, &cube_title);
+		SDL_strlcpy(s->cube_title, cube_title, sizeof(s->cube_title));
+	}
 	char help[67];
 	main_menu_help_text(help);
 	SDL_strlcpy(ui->hint, help, sizeof(ui->hint));
@@ -1509,8 +1515,21 @@ void JE_itemScreen(void)
 
 				NETWORK_KEEP_ALIVE();
 
-				// Tyrian3D: the data cube being read, read aloud (voiceover.h).
+				// Tyrian3D: the data cube being read, read aloud (voiceover.h); the cubes for the store's player.
 				voiceover_cube(episodeNum, curMenu == MENU_DATA_CUBE_SUB ? cubeList[currentCube] : 0, cube[currentCube].voice_hash);
+				{
+					int numbers[VOICEOVER_PLAYER_CUBES];
+					Uint32 hashes[VOICEOVER_PLAYER_CUBES];
+					const char *titles[VOICEOVER_PLAYER_CUBES];
+					const int n = SDL_min(cubeMax, VOICEOVER_PLAYER_CUBES);
+					for (int i = 0; i < n; ++i)
+					{
+						numbers[i] = cubeList[i];
+						hashes[i] = cube[i].voice_hash;
+						titles[i] = cube[i].title;
+					}
+					voiceover_player_cubes(episodeNum, n, numbers, hashes, titles);
+				}
 
 				mouseCursor = MOUSE_POINTER_NORMAL;
 
@@ -1684,6 +1703,19 @@ void JE_itemScreen(void)
 				service_SDL_events(false);
 				mouseButton = JE_mousePosition(&mouseX, &mouseY);
 				inputDetected = newkey || mouseButton > 0;
+				// Tyrian3D: the data cubes' player's buttons (the modern UI's own: ui.h).
+				switch (ui_modern() ? ui_take_press() : 0)
+				{
+				case UI_ACTION_PREV:
+					voiceover_player_step(-1);
+					break;
+				case UI_ACTION_PLAY_PAUSE:
+					voiceover_player_toggle();
+					break;
+				case UI_ACTION_NEXT:
+					voiceover_player_step(1);
+					break;
+				}
 
 				if (curMenu != MENU_LOAD_SAVE)
 				{
@@ -1961,6 +1993,16 @@ void JE_itemScreen(void)
 		{
 			switch (lastkey_scan)
 			{
+			case SDL_SCANCODE_P:  // Tyrian3D: the store's cube player (voiceover.h)
+				voiceover_player_toggle();
+				break;
+			case SDL_SCANCODE_LEFTBRACKET:
+				voiceover_player_step(-1);
+				break;
+			case SDL_SCANCODE_RIGHTBRACKET:
+				voiceover_player_step(1);
+				break;
+
 			case SDL_SCANCODE_SLASH:
 				// if in rear weapon upgrade screen
 				if (curMenu == MENU_UPGRADE_SUB && curSel[MENU_UPGRADES] == 4)

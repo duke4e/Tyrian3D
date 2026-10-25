@@ -85,6 +85,7 @@ typedef struct
 	int fade_left;  // the fading voice's samples to go
 } VoiceSlot;
 static VoiceSlot voiceCurrent, voiceFading;
+static bool voicePaused = false;  // the current voice held where it is (the store's cube player)
 static Uint8 voiceVolume = 255;
 static int voiceFadeSamples = 1323;
 #define VOICE_DUCK_ONE (1 << 16)  // Q16 gain on the music
@@ -245,7 +246,7 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	}
 
 	// Tyrian3D: the music ducked while a voice speaks.
-	const Sint32 duckTarget = voiceCurrent.pos < voiceCurrent.count ? voiceDuckLow : VOICE_DUCK_ONE;
+	const Sint32 duckTarget = voiceCurrent.pos < voiceCurrent.count && !voicePaused ? voiceDuckLow : VOICE_DUCK_ONE;
 	if (voiceDuck != VOICE_DUCK_ONE || duckTarget != VOICE_DUCK_ONE)
 	{
 		for (int i = 0; i < samplesCount; ++i)
@@ -312,13 +313,13 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	}
 
 	// Tyrian3D: the voice over it all (even with the music and the samples off).
-	if (voiceCurrent.pos < voiceCurrent.count || voiceFading.fade_left > 0)
+	if ((voiceCurrent.pos < voiceCurrent.count && !voicePaused) || voiceFading.fade_left > 0)
 	{
 		const Sint32 voiceFactor = volumeFactorTable[voiceVolume];
 		for (int i = 0; i < samplesCount; ++i)
 		{
 			Sint32 voice = 0;
-			if (voiceCurrent.pos < voiceCurrent.count)
+			if (voiceCurrent.pos < voiceCurrent.count && !voicePaused)
 				voice += voiceCurrent.samples[voiceCurrent.pos++] * voiceFactor;
 			if (voiceFading.fade_left > 0 && voiceFading.pos < voiceFading.count)
 			{
@@ -363,9 +364,29 @@ int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2])
 		}
 	}
 	voiceCurrent = (VoiceSlot){ .samples = samples, .count = samples != NULL ? count : 0 };
+	voicePaused = false;
 
 	SDL_UnlockAudioStream(audioStream);
 	return n;
+}
+
+void voice_channel_pause(bool paused)
+{
+	if (audioStream == NULL)
+		return;
+	SDL_LockAudioStream(audioStream);
+	voicePaused = paused;
+	SDL_UnlockAudioStream(audioStream);
+}
+
+float voice_channel_progress(void)
+{
+	if (audioStream == NULL)
+		return 0;
+	SDL_LockAudioStream(audioStream);
+	const float progress = voiceCurrent.count > 0 ? voiceCurrent.pos / (float)voiceCurrent.count : 0;
+	SDL_UnlockAudioStream(audioStream);
+	return progress;
 }
 
 int voice_channel_collect(Sint16 *done[2], bool *playing)

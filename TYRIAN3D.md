@@ -444,6 +444,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
+| `TYR3D_CUBES=1` | Every store holds all the data cubes its script lists, as if they were picked up (to test the reader and its voices) |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's; `WheelUp`, `WheelDown` turn the mouse wheel a notch; `Joy<key>` presses the key as the joystick's, as its menu input does, so the key hints show the joystick's; `Type<text>` types the text, as a name or a code at the title) when that frame shows, then each next one so many milliseconds after the one before; any length |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
@@ -774,7 +775,11 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 The data cubes and the story texts between levels are read aloud (`src/voiceover.c`): when the store's
 data cube reader opens a cube, or a story text, a warning or an episode's end with its secret hint shows
 (classic or modern menus), its voice plays over the music, which is ducked by about 6 dB (200 ms ramps,
-`loudness.c`), and stops when the text closes (a 30 ms fade); the text stays as the subtitles. Sound →
+`loudness.c`), and a story's stops when the text closes (a 30 ms fade); the text stays as the subtitles.
+A cube's voice plays on when its reader closes, until the store closes: the store's data cube player (the
+modern UI's bar under the ship: previous, play or pause, next, the cube playing and how far; P plays or
+pauses, `[` and `]` go to the previous or next cube, wrapping round) plays the store's cubes while you
+shop, and a cube opened in the reader plays from its start. Sound →
 **Voices** in Setup is its volume (Left/Right) and on/off (Enter), kept as `voices` and `voice_volume` in
 `[tyrian3d]`; "No voices installed" when there are none.
 
