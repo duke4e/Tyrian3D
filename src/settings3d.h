@@ -27,6 +27,7 @@ typedef struct
 	char soundfont[64];   // the SoundFont the music plays through, by name (music_midi_use; "" the default)
 	bool voices;          // the data cubes and story texts read aloud (voiceover.h)
 	int voice_volume;     // their volume, 0-255 (as the music's and the samples')
+	char jukebox_look[16];  // the jukebox's visuals' look, by name (jukebox3d.h; "" the first)
 } Settings3D;
 
 extern Settings3D settings3d;
@@ -47,7 +48,7 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

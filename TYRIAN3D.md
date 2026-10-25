@@ -107,7 +107,8 @@ their picture, revealed as the original writes them; a warning's panel and the w
 red; an episode's end shows its score and the hint), title cards (the next episode, the Super
 Arcade's ship and the code to type), load game (the players' pages as tabs), the instructions (the
 topics, the pages of help with their titles), the jukebox (the songs as a list, the one playing
-large with its controls, the sound effects), the credits rolling in a column, and the rogue run's
+large with its controls, the sound effects, over visuals that play with the music: V or the Look
+button switches between the Orrery and the Warp, Space hides the panel), the credits rolling in a column, and the rogue run's
 screens (its menu with the profile, the unlocks, the act's map with its nodes named and the next
 ringed, the cards and the merchants as large cards with their tiers, the messages as cards). The
 mouse works on the panels (hover, click, the wheel moves through the items, the pages and the cards
@@ -369,6 +370,9 @@ battles. Test runs reach it with `TYR3D_TEST_KEYS=60:Space,4000:TypeDESTRUCT,300
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
 | `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |
+| `TYR3D_JUKEBOX=<song>` | Open the jukebox at once (no intro, no title screen), playing that song (1-41) first; for its visuals' test runs |
+| `TYR3D_JUKEBOX_LOOK=<n>` | The jukebox's visuals' look for the run: 0 Orrery, 1 Warp (default: the setting, V in the jukebox) |
+| `TYR3D_LOG_MUSICVIZ=1` | Print what the jukebox's visuals measure of the music every half second: loudness, lows, mids, highs, onsets, beats, each chip channel's note (+ sounding, level, pitch, notes started, d a drum), the drums' hits, the spectrum |
 | `TYR3D_VOICES=0\|1` | The data cubes and story texts read aloud, off or on, for the run (default: the setting, Sound → Voices) |
 | `TYR3D_VOICES_DIR=<dir>` | Where the voices are: `manifest.txt`, `e<episode>/<cube>.wav`, `story/e<episode>_<n>.wav` (default `data/voices`; see Voices) |
 | `TYR3D_DEBUG_VOICES=1` | Print each voice event: the manifest read, a voice played (its file, length and load time), stopped or ended, a text without a voice or whose text differs from its voice's |
@@ -536,7 +540,7 @@ battles. Test runs reach it with `TYR3D_TEST_KEYS=60:Space,4000:TypeDESTRUCT,300
   over the picture as it was before the text, `story_begin`; the text is laid out again in paragraphs,
   each character keeping its place in the original's lines, so it shows as far as the original's),
   title cards (`UICard`, `card_publish`), load (`UIPaging` for the players' pages), the jukebox
-  (`UIJukebox`, published every frame over its stars), the instructions, the credits (`UICredits`:
+  (`UIJukebox`, published every frame over its visuals: below), the instructions, the credits (`UICredits`:
   the lines where the original draws them) and the rogue run (`UIRogue`). Where the original takes no
   mouse (the high scores' and load's tabs, the jukebox's buttons and songs, the name question's
   buttons), the widgets are the UI's own: the pointer on one maps to the screen's point of nothing,
@@ -545,6 +549,41 @@ battles. Test runs reach it with `TYR3D_TEST_KEYS=60:Space,4000:TypeDESTRUCT,300
   `ui_screen_done`, so the next screen can't match its picture. The key hints show the joystick's pad
   and buttons when the last key came from the joystick (`push_key` counts its keys:
   `joystick_last_input`).
+- **The jukebox's visuals** (`src/musicviz.c`, `src/jukebox3d.c`). With the modern menus the jukebox shows a
+  3D scene that plays with the music under its panel, instead of the original's starfield (Classic menus
+  keep the original). The music is measured where it is made (`musicviz.h`): the audio callback hands over
+  the mixed output (as heard: the music and the sound effects) into a ring, and after each of the player's
+  updates the chip's state (`adlib_registers`): each channel's key, pitch, instrument (its General MIDI
+  program, 128 and up a drum), the notes it has started (`lds_channel_notes`) and how loud it sounds (its
+  operators' levels, key scaling and envelope, `midi_chip_channel_db`, then its release) — both kinds of
+  music, the chip and MIDI through the SoundFont, play from the same chip writes. Nothing waits for a lock
+  in the audio thread (a ring with an atomic count, a spinlock for two numbers). Each frame the main thread
+  reads them where the output is heard now (about 2048 samples behind the newest, on by the clock since the
+  last buffer): 2048-sample Hann windows every 512 samples, FFT, 48 bands from 30 Hz to 16 kHz (+4.5 dB an
+  octave above 1 kHz), against a reference that follows the music's loudest of late (up in 0.35 s, down in
+  14 s; the bands 46 dB below it to it, to the power 1.45), quick to rise and slower to fall, with falling peaks; onsets as the spectrum's rise (the lows
+  twice); beats from the song's own kick and snare notes, else from the onsets. Silent test runs
+  (SDL's dummy audio driver) measure the same.
+  The scene (`jukebox3d_frame`) is boxes, bars, spheres, glows, rings and models that `render_gpu.c`
+  draws over the whole window (`present_jukebox_scene`), bloom and all, the panel's glass showing it
+  blurred (made again each frame); its middle higher while the panel shows (Space hides it). Between the
+  jukebox's ticks it is shown again at the display's rate (`video_wait_tick_ui`). Two looks, V or the
+  panel's Look button (kept as `jukebox_look` in `[tyrian3d]`):
+  - **Orrery**: a planet (a gas giant made at start) with a crown of 72 bars of lit metal on a ring round
+    it, the lows tall at the back, the highs in front, both sides the same, their tops glowing with the
+    bars' heat and their peaks floating above them; the chip's nine channels as moons orbiting it in their
+    colours, higher with higher notes, lit while their notes sound and flashing as each starts, leaving
+    trails and lighting the planet and the bars (point lights); the kick (or a beat) a ring of sparks
+    running out from the bars (at most every 0.3 s), the snare sparks from the bars' tops, the toms a ripple
+    round the ring, the cymbals a flare behind the planet, the hi-hats the stars; faint nebulae behind; the
+    camera sways slowly and comes nearer on the beats.
+  - **Warp**: one of the game's ships (a fighter for each song, the USP Talon first) flies towards
+    the camera, seen from above at a slant, drawing the spectrum behind it as rings of a tunnel (20 a
+    second and on every drum, the lows at the top; the quiet in the tunnel's colour, which goes round teal,
+    blue, violet, magenta and amber with the mids, the loud in the bars' heat) and the channels' notes as
+    lanes of light along it, round the tunnel by their pitch (an octave a third of the way round), as long
+    as each sounds (a piano roll); the drums flash and thicken the rings and shake the camera, the cymbals
+    light them all, the stars streak past faster with the music's loudness and its lows.
 - **Clean ground and stand-ins** (`tools/terrain/make_cleanground.py`, `src/tyrian2.c` `draw_standins`).
   The maps paint under many ground enemies what is left of them once destroyed (a crater, a burnt housing,
   a broken pyramid), or the object itself, or its base; in 2D the sprite covers it while the enemy lives, in

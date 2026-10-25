@@ -20,7 +20,9 @@
 
 #include "font.h"
 #include "joystick.h"
+#include "jukebox3d.h"
 #include "keyboard.h"
+#include "layer3d.h"
 #include "lds_play.h"
 #include "loudness.h"
 #include "mtrand.h"
@@ -58,6 +60,11 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 	int fade_volume = tyrMusicVolume;
 
 	ui_take_press();  // (Tyrian3D: no click from before)
+
+	// Tyrian3D: TYR3D_JUKEBOX=<song> (1-based) plays that song first.
+	const int first_song = SDL_getenv("TYR3D_JUKEBOX") != NULL ? SDL_atoi(SDL_getenv("TYR3D_JUKEBOX")) : 0;
+	if (first_song >= 1 && first_song <= MUSIC_NUM && !audio_disabled)
+		play_song(first_song - 1);
 	
 	for (; ; )
 	{
@@ -130,6 +137,8 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 			j->stopped = stopped;
 			j->fading = fading_song;
 			j->fade_looped = fade_looped_songs;
+			if (l3d_enabled)
+				SDL_strlcpy(j->look, jukebox3d_look_name(jukebox3d_look()), sizeof(j->look));
 			ui->palette = vga_palette;  // (it fades in and out to its own palette)
 			ui->selected = -1;
 			ui_menu_publish(ui, VGAScreen, VGAScreen);
@@ -137,7 +146,11 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 		
 		JE_showVGA();
 
-		wait_delay();
+		// (Tyrian3D: its visuals shown at the display's rate between the ticks.)
+		if (ui_modern())
+			video_wait_tick_ui();
+		else
+			wait_delay();
 
 		// quit on mouse click
 		Uint16 x, y;
@@ -191,6 +204,9 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 			case UI_ACTION_PLAY_SFX:
 				JE_playSampleNum(fx_num + 1);
 				break;
+			case UI_ACTION_LOOK:
+				jukebox3d_next_look();
+				break;
 			default:
 				break;
 			}
@@ -207,6 +223,10 @@ void jukebox(void)  // FKA Setup.jukeboxGo
 
 			case SDL_SCANCODE_SPACE:
 				hide_text = !hide_text;
+				break;
+			case SDL_SCANCODE_V:  // (Tyrian3D: the visuals' next look)
+				if (ui_modern())
+					jukebox3d_next_look();
 				break;
 
 			case SDL_SCANCODE_F:

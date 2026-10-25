@@ -106,6 +106,9 @@ void video_level_intro(bool on);
 // Tyrian3D: waits for the game's next tick (the delay set with setDelay*), showing the last 3D
 // frame again as often as the display refreshes, moved on in time (rgpu_present_3d_ahead).
 void video_wait_tick_3d(void);
+// Tyrian3D: the same for a screen of the modern UI that moves on its own (the jukebox's visuals):
+// shown again as often as the display refreshes while it is shown (rgpu_present_ui_again).
+void video_wait_tick_ui(void);
 // Tyrian3D: whole window points per screen pixel, for the pointer's size.
 int video_pointer_scale(void);
 

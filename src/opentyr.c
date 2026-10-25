@@ -1275,9 +1275,13 @@ int main(int argc, char *argv[])
 
 #ifdef NDEBUG
 	if (!isNetworkGame && SDL_getenv("TYR3D_START") == NULL && SDL_getenv("TYR3D_DEBUG") == NULL &&
-	    SDL_getenv("TYR3D_ROGUE") == NULL)
+	    SDL_getenv("TYR3D_ROGUE") == NULL && SDL_getenv("TYR3D_JUKEBOX") == NULL)
 		intro_logos();
 #endif
+
+	// Tyrian3D: TYR3D_JUKEBOX=<song>, the jukebox at once (for its visuals' test runs).
+	if (SDL_getenv("TYR3D_JUKEBOX") != NULL)
+		jukebox();
 
 	for (; ; )
 	{

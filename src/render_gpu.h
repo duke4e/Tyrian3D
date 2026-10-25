@@ -87,6 +87,9 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 // it (ui_build_screen); with a scene (the store's ship, its weapon simulator: scene->objects, and
 // for the simulator scene->backdrop its picture under them), that drawn where the layout puts it.
 void rgpu_present_ui(const RGPUShowcase *scene);
+// The same screen again between the game's ticks, without a scene of the store (the jukebox's visuals
+// move on); not counted as one of the game's frames (dumps, TYR3D_EXIT_AFTER).
+void rgpu_present_ui_again(void);
 
 float rgpu_playfield_scale(void);
 // A window point (points) as a position on the player's plane in the view shown last, in game

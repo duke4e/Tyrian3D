@@ -296,7 +296,7 @@ static void analyse(MusicViz *v, Uint32 end, float hop)
 	for (int k = 0; k < MUSICVIZ_BANDS; ++k)
 	{
 		const float x = SDL_clamp((db[k] - (state.band_ref.db - BAND_RANGE_DB)) / BAND_RANGE_DB, 0.0f, 1.0f);
-		const float value = x * x * (3 - 2 * x) * 0.35f + x * 0.65f;  // (a little contrast)
+		const float value = powf(x, 1.45f);  // (the loud standing out)
 		const float w = k < band_low_end ? 2.0f : 1.0f;
 		if (state.hop_valid)
 			flux += SDL_max(0.0f, value - state.raw[k]) * w;

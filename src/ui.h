@@ -304,6 +304,7 @@ typedef struct
 	char sfx_title[24];
 	bool hidden;           // the texts hidden (Space): only the stars
 	bool stopped, fading, fade_looped;
+	char look[24];         // the look of its visuals (jukebox3d.h), V changes it
 } UIJukebox;
 
 // The credits rolling: the lines on the screen, where (screen pixels, their middle x and their top y).
@@ -443,6 +444,7 @@ enum
 	UI_ACTION_PREV, UI_ACTION_NEXT,   // the previous, the next (song...)
 	UI_ACTION_STOP, UI_ACTION_RESTART, UI_ACTION_FADE, UI_ACTION_FADE_LOOPED, UI_ACTION_SFX, UI_ACTION_PLAY_SFX,
 	UI_ACTION_HIDE,
+	UI_ACTION_LOOK,                   // the jukebox's visuals' next look
 	UI_ACTION_PAGE = 32,              // + n: page (tab) n
 	UI_ACTION_ITEM = 64,              // + n: item (a song) n
 };
@@ -454,6 +456,8 @@ void ui_note_press(int button);
 void ui_screen_done(void);
 // The screen published last is of that kind.
 bool ui_published_is(UIScreenKind kind);
+// What it published (NULL: nothing).
+const UIMenu *ui_published(void);
 
 // A menu cleared for a screen: fill in its items, then publish it.
 UIMenu *ui_menu_begin(UIScreenKind kind, const char *title);

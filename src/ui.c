@@ -842,6 +842,11 @@ bool ui_published_is(UIScreenKind kind)
 	return have_published && published.kind == kind;
 }
 
+const UIMenu *ui_published(void)
+{
+	return have_published ? &published : NULL;
+}
+
 void ui_screen_done(void)
 {
 	have_published = false;
@@ -3324,10 +3329,17 @@ static void build_jukebox(const UIMenu *m)
 	char count[48];
 	snprintf(count, sizeof(count), "JUKEBOX    %d / %d", j->song + 1, j->song_count);
 	text(FONT_SEMIBOLD, count, rx, y, small, C_DIM, ALIGN_LEFT);
-	// Back (as Esc), at the top right.
+	// Back (as Esc), at the top right; the visuals' look (V) beside it.
 	{
 		const float bw = SDL_max(U(120), text_w(FONT_SEMIBOLD, "Back", small) + U(48)), bh = small * 2.3f;
 		action_button((Box){ rx + rw - bw, y + small / 2 - bh / 2, bw, bh }, "Back", false, UI_ACTION_BACK);
+		if (j->look[0] != '\0')
+		{
+			char look[40];
+			snprintf(look, sizeof(look), "Look: %s", j->look);
+			const float lw = text_w(FONT_SEMIBOLD, look, small) + U(48);
+			action_button((Box){ rx + rw - bw - U(12) - lw, y + small / 2 - bh / 2, lw, bh }, look, false, UI_ACTION_LOOK);
+		}
 	}
 	y += small + U(16);
 	const float cap_t = CAP_TITLE();
@@ -3390,11 +3402,18 @@ static void build_jukebox(const UIMenu *m)
 		else
 			text(FONT_MEDIUM, "/ switches to the sound effects", mode.x + mode.w + U(24), fx.y + (fx.h - small) / 2, small, C_DIM, ALIGN_LEFT);
 	}
-	const KeyHint keys[] = { { KEY_LEFT_RIGHT, "", "Song" }, { KEY_TEXT, "S", "Stop" }, { KEY_TEXT, "R", "Restart" }, { KEY_TEXT, "Space", "Hide" },
-	                         { KEY_TEXT, "Esc", "Back" } };
+	const KeyHint keys[] = { { KEY_LEFT_RIGHT, "", "Song" }, { KEY_TEXT, "S", "Stop" }, { KEY_TEXT, "R", "Restart" }, { KEY_TEXT, "V", "Look" },
+	                         { KEY_TEXT, "Space", "Hide" }, { KEY_TEXT, "Esc", "Back" } };
 	const KeyHint fx_keys[] = { { KEY_TEXT, ",", "" }, { KEY_TEXT, ".", "Sound" }, { KEY_TEXT, ";", "Play" }, { KEY_LEFT_RIGHT, "", "Song" },
-	                            { KEY_TEXT, "Esc", "Back" } };
-	key_hints_fitted(j->sfx ? fx_keys : keys, 5, p.x + p.w / 2, p.y + p.h + U(22), L.safe.w - U(40), ALIGN_CENTRE);
+	                            { KEY_TEXT, "V", "Look" }, { KEY_TEXT, "Esc", "Back" } };
+	const int look_keys = j->look[0] != '\0' ? 0 : 1;  // (no V without the visuals)
+	if (look_keys == 0)
+		key_hints_fitted(j->sfx ? fx_keys : keys, 6, p.x + p.w / 2, p.y + p.h + U(22), L.safe.w - U(40), ALIGN_CENTRE);
+	else
+	{
+		const KeyHint plain[] = { keys[0], keys[1], keys[2], keys[4], keys[5] }, plain_fx[] = { fx_keys[0], fx_keys[1], fx_keys[2], fx_keys[3], fx_keys[5] };
+		key_hints_fitted(j->sfx ? plain_fx : plain, 5, p.x + p.w / 2, p.y + p.h + U(22), L.safe.w - U(40), ALIGN_CENTRE);
+	}
 }
 
 // The instructions' page: the topic's help texts (their titles from the original's ~highlights~), the

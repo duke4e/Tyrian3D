@@ -101,6 +101,9 @@ void settings3d_load(const ConfigSection *section)
 		if (config_get_string_option(section, "soundfont", &soundfont))
 			SDL_strlcpy(chosen.soundfont, soundfont, sizeof(chosen.soundfont));
 		config_get_bool_option(section, "voices", &chosen.voices);
+		const char *jukebox_look;
+		if (config_get_string_option(section, "jukebox_look", &jukebox_look))
+			SDL_strlcpy(chosen.jukebox_look, jukebox_look, sizeof(chosen.jukebox_look));
 		const char *voice_volume;
 		if (config_get_string_option(section, "voice_volume", &voice_volume))
 			chosen.voice_volume = SDL_clamp(SDL_atoi(voice_volume), 0, 255);
@@ -209,6 +212,9 @@ void settings3d_changed(Settings3DField field)
 		overridden_voices = false;
 		voiceover_settings_changed();
 		break;
+	case S3D_JUKEBOX:
+		SDL_strlcpy(chosen.jukebox_look, settings3d.jukebox_look, sizeof(chosen.jukebox_look));
+		break;
 	}
 }
 
@@ -233,6 +239,7 @@ void settings3d_save(ConfigSection *section)
 	config_set_bool_option(section, "voices", overridden_voices ? chosen.voices : settings3d.voices, NO_YES);
 	snprintf(percent, sizeof(percent), "%d", settings3d.voice_volume);
 	config_set_string_option(section, "voice_volume", percent);
+	config_set_string_option(section, "jukebox_look", settings3d.jukebox_look);
 }
 
 void settings3d_apply(void)

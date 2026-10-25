@@ -922,6 +922,42 @@ void video_wait_tick_3d(void)
 	}
 }
 
+void video_wait_tick_ui(void)
+{
+	if (nortsong_skip_waits)
+		return;
+	static int smooth = -1;
+	if (smooth < 0)
+		smooth = SDL_getenv("TYR3D_SMOOTH") == NULL || SDL_atoi(SDL_getenv("TYR3D_SMOOTH")) != 0;
+	if (!smooth || !l3d_enabled || !ui_screen_holds(VGAScreen))
+	{
+		wait_delay();
+		return;
+	}
+	const Uint64 period = refresh_period_ns();
+	static Uint64 cost = 0;  // what showing a frame takes, about
+	Uint64 next = SDL_GetTicksNS() + period;
+	for (;;)
+	{
+		const Sint64 left = getDelayLeftNS();
+		if (left <= (Sint64)(cost + 500000))
+			break;
+		const Uint64 now = SDL_GetTicksNS();
+		if (now < next)
+		{
+			SDL_DelayPrecise(SDL_min(next - now, (Uint64)left - cost - 500000));
+			continue;
+		}
+		const Uint64 start = SDL_GetTicksNS();
+		service_SDL_events(false);  // (the pointer over the panel)
+		rgpu_present_ui_again();
+		const Uint64 end = SDL_GetTicksNS();
+		cost = (cost * 7 + SDL_min(end - start, cost * 2 + 500000)) / 8;
+		next = start + period;
+	}
+	wait_delay_precise();
+}
+
 void video_set_3d_enabled(bool enabled)
 {
 	if (l3d_enabled != enabled)
