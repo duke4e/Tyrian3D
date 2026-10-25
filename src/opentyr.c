@@ -1124,6 +1124,12 @@ int main(int argc, char *argv[])
 		JE_tyrianHalt(0);
 	}
 
+	if (SDL_getenv("TYR3D_EXPORT_PICTURES") != NULL)
+	{
+		dev_export_pictures(SDL_getenv("TYR3D_EXPORT_PICTURES"));
+		JE_tyrianHalt(0);
+	}
+
 	if (SDL_getenv("TYR3D_EXPORT_MUSIC") != NULL)
 	{
 		dev_export_music(SDL_getenv("TYR3D_EXPORT_MUSIC"));

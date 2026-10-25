@@ -19,6 +19,9 @@
 #include "extract.h"
 #include "picload.h"
 
+#include "animlib.h"
+#include "pcxload.h"
+
 #include "episodes.h"
 #include "file.h"
 #include "game_menu.h"
@@ -796,4 +799,107 @@ void dev_extract(const char *dir)
 
 	export_store(dir);  // with an episode's items loaded
 	printf("extract: wrote %s\n", dir);
+}
+
+/* --- The game's pictures (TYR3D_EXPORT_PICTURES) ------------------------------------------------ */
+
+// A part of an 8-bit surface as a PNG in a palette; colour 0 transparent if asked.
+static void write_picture(const char *path, const SDL_Surface *surface, int w, int h, const SDL_Color *palette,
+                          bool clear_zero)
+{
+	Uint8 *rgba = malloc((size_t)w * h * 4);
+	if (rgba == NULL)
+		return;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			const Uint8 index = ((const Uint8 *)surface->pixels)[y * surface->pitch + x];
+			Uint8 *out = &rgba[(y * w + x) * 4];
+			out[0] = palette[index].r;
+			out[1] = palette[index].g;
+			out[2] = palette[index].b;
+			out[3] = clear_zero && index == 0 ? 0 : 255;
+		}
+	if (btbh_gpu_write_png_rgba8(path, (uint32_t)w, (uint32_t)h, rgba) != BTBH_GPU_OK)
+		fprintf(stderr, "warning: failed to write %s\n", path);
+	else
+		printf("%s\n", path);
+	free(rgba);
+}
+
+typedef struct
+{
+	const char *dir;
+} AnimExport;
+
+static void write_anim_frame(int number, void *data)
+{
+	const AnimExport *e = data;
+	char path[1024];
+	snprintf(path, sizeof(path), "%s/tyrend/frame_%03d.png", e->dir, number + 1);
+	write_picture(path, VGAScreen, 320, 200, colors, false);
+}
+
+void dev_export_pictures(const char *dir)
+{
+	mkdir(dir, 0755);
+	char path[1024];
+	SDL_Surface *surface = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL)
+		return;
+
+	// tyrian.pic: the full-screen pictures, each in its palette.
+	for (int n = 1; n <= PCX_NUM; ++n)
+	{
+		JE_loadPic(surface, (JE_byte)n, false);
+		snprintf(path, sizeof(path), "%s/pic_%02d.png", dir, n);
+		write_picture(path, surface, 320, 200, palettes[pcxpal[n - 1]], false);
+	}
+
+	// tshp2.pcx (a story picture: ]P0), in its own palette.
+	JE_loadPCX("tshp2.pcx");
+	snprintf(path, sizeof(path), "%s/tshp2.png", dir);
+	write_picture(path, VGAScreen, 320, 200, colors, false);
+
+	// The data cubes' faces (FACE_SHAPES), each in its palette (facepal), the rest of the picture clear.
+	for (unsigned int i = 0; i < sprite_table[FACE_SHAPES].count; ++i)
+	{
+		if (!sprite_exists(FACE_SHAPES, i))
+			continue;
+		const Sprite *face = sprite(FACE_SHAPES, i);
+		SDL_FillSurfaceRect(surface, NULL, 0);
+		blit_sprite(surface, 0, 0, FACE_SHAPES, i);
+		snprintf(path, sizeof(path), "%s/face_%02u.png", dir, i + 1);
+		write_picture(path, surface, face->width, face->height, palettes[i < 12 ? facepal[i] : 0], true);
+	}
+
+	// The ending's animation (tyrend.anm), frame by frame.
+	AnimExport e = { dir };
+	snprintf(path, sizeof(path), "%s/tyrend", dir);
+	mkdir(path, 0755);
+	JE_eachAnimFrame("tyrend.anm", write_anim_frame, &e);
+
+	SDL_DestroySurface(surface);
+
+	snprintf(path, sizeof(path), "%s/README.txt", dir);
+	FILE *readme = fopen(path, "w");
+	if (readme == NULL)
+		return;
+	fputs("The game's pictures (TYR3D_EXPORT_PICTURES), 320 x 200 as the game shows them (on a 4:3 screen: its\n"
+	      "pixels are 1.2 times as tall as wide), each in its own palette.\n\n"
+	      "pic_01  the game menu and the store (the modern UI blurs it behind its panels), the Super Arcade's start\n"
+	      "pic_02  the menus behind the title: setup, options, load, high scores, the jukebox, network\n"
+	      "pic_03  the in-game HUD for one player: the right column (data/hd/hud_1p.png is its upscale)\n"
+	      "pic_04  the title screen\n"
+	      "pic_06  the in-game HUD for two players (data/hd/hud_2p.png)\n"
+	      "pic_10  the first logo as the game starts (intro_logos)\n"
+	      "pic_11  Destruct (the hidden artillery game)\n"
+	      "pic_12  the second logo as the game starts (intro_logos)\n"
+	      "pic_13  the high score's name entry in a timed battle\n"
+	      "others  story pictures between levels (the episode texts' ]P and ]U commands)\n"
+	      "tshp2   a story picture (]P0)\n"
+	      "face_NN the data cubes' faces in the store (who wrote the cube), clear round them\n"
+	      "tyrend/  the ending's animation (episode 1's end), frame by frame\n",
+	      readme);
+	fclose(readme);
 }

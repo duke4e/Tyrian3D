@@ -197,6 +197,24 @@ void JE_playAnim(const char *animfile, JE_byte startingframe, JE_byte speed)
 	JE_closeAnim();
 }
 
+int JE_eachAnimFrame(const char *animfile, void (*frame)(int number, void *data), void *data)
+{
+	if (JE_loadAnim(animfile) != 0)
+		return -1;
+	JE_clr256(VGAScreen);
+	int count = 0;
+	for (unsigned int i = 0; i + 1 < FileHeader.nRecords; i++)  // (the last is the first again, as in JE_playAnim)
+	{
+		const int page = JE_findPage(i);
+		if (page == -1 || JE_loadPage(page) != 0 || JE_renderFrame(i) != 0)
+			break;
+		frame((int)i, data);
+		++count;
+	}
+	JE_closeAnim();
+	return count;
+}
+
 /* loadAnim opens the file and loads data from it into the header structs.
  * It should take care to clean up after itself should an error occur.
  */

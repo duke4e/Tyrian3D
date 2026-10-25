@@ -22,5 +22,8 @@
 #include "opentyr.h"
 
 void JE_playAnim(const char *animfile, JE_byte startingframe, JE_byte speed);
+// Tyrian3D: an animation's frames as it plays them, each passed to `frame` once drawn on VGAScreen (in
+// `colors`); the number of frames, or -1 if the animation can't be read.
+int JE_eachAnimFrame(const char *animfile, void (*frame)(int number, void *data), void *data);
 
 #endif /* ANIMLIB_H */
