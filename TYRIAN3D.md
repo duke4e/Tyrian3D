@@ -80,7 +80,7 @@ game's other 320x200 screens fill the window's height, in whole steps and then s
 blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
 (75-150 %). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
 change the first two as well. In a level, Escape's options are Return to Game, **Graphics**, the two
-volumes, the music (SoundFont or AdLib), the game speed, the mouse and Quit Level; Graphics is a page
+volumes, the music (SoundFont or AdLib) and its SoundFont, the game speed, the mouse and Quit Level; Graphics is a page
 of the 3D page's settings with the menus, screens, UI scale and the original's detail level, each
 changed with Left/Right, Enter or a click and taking effect at once, with the modern menus at the
 playfield's left and the 3D view bright beside them, so what each change does shows behind it
@@ -248,7 +248,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music) |
-| `TYR3D_SOUNDFONT=<file>` | Another SoundFont for the music |
+| `TYR3D_SOUNDFONT=<file>` | Another SoundFont for the music (for the run; the menus' SoundFont choice, Sound → SoundFont or the in-game options, picks among the `.sf2` files in `data/soundfonts`, kept as `soundfont` in `[tyrian3d]`) |
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |
 | `TYR3D_ORIGINAL_SFX=1` | Ignore replacement sounds in the data's `sfx` directory |

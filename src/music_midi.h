@@ -64,10 +64,19 @@ void midi_opl_clear(void);
 
 // --- Live synth ---------------------------------------------------------------------------
 
-// Loads the SoundFont (soundfonts/GeneralUser-GS.sf2 beside the game's data or the program, or
-// TYR3D_SOUNDFONT=<file>) for output at the given rate. False if there is none.
+// Loads the SoundFont (the one settings3d.soundfont names, else GeneralUser-GS, from soundfonts/ beside
+// the game's data or the program; TYR3D_SOUNDFONT=<file> for a run) for output at the given rate. False
+// if there is none.
 bool music_midi_init(int sample_rate);
 bool music_midi_available(void);
+// The SoundFonts to choose from (the soundfonts folder's *.sf2, by name: the file's without ".sf2"),
+// and the one the music plays through ("" with none).
+int music_midi_soundfont_count(void);
+const char *music_midi_soundfont_name(int i);
+const char *music_midi_soundfont(void);
+// The music through that SoundFont from now on ("": the default one); false if it can't be loaded (the
+// one before stays). Loading a large one takes a moment.
+bool music_midi_use(const char *name);
 // The live synth plays the music (instead of the OPL emulator) while enabled and available.
 void music_midi_enable(bool enabled);
 bool music_midi_active(void);

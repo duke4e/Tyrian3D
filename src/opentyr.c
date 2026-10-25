@@ -134,6 +134,26 @@ static const char *getMusicPickerItem(size_t i, char *buffer, size_t bufferSize)
 	return i == 0 ? (music_midi_available() ? "SoundFont" : "SoundFont (none)") : "AdLib";
 }
 
+static size_t getSoundFontPickerItemsCount(void)
+{
+	return (size_t)SDL_max(music_midi_soundfont_count(), 1);
+}
+
+static const char *getSoundFontPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return music_midi_soundfont_count() > 0 ? music_midi_soundfont_name((int)i) : "None";
+}
+
+// The SoundFont the music plays through, as the picker's item.
+static size_t soundfont_index(void)
+{
+	for (int i = 0; i < music_midi_soundfont_count(); ++i)
+		if (SDL_strcasecmp(music_midi_soundfont_name(i), music_midi_soundfont()) == 0)
+			return (size_t)i;
+	return 0;
+}
+
 static const char *getMousePickerItem(size_t i, char *buffer, size_t bufferSize)
 {
 	(void)buffer, (void)bufferSize;
@@ -221,6 +241,7 @@ void setupMenu(void)
 		MENU_ITEM_MENUS,
 		MENU_ITEM_SCREENS,
 		MENU_ITEM_UI_SCALE,
+		MENU_ITEM_SOUNDFONT,
 	} MenuItemId;
 
 	typedef enum
@@ -295,6 +316,7 @@ void setupMenu(void)
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_MUSIC_SYNTH, "Music:", "The music as MIDI through a SoundFont, or on the AdLib chip.", getTwoItemsCount, getMusicPickerItem },
+				{ MENU_ITEM_SOUNDFONT, "SoundFont:", "The instruments the music plays on: the SoundFonts in data/soundfonts.", getSoundFontPickerItemsCount, getSoundFontPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -411,8 +433,10 @@ void setupMenu(void)
 			case MENU_ITEM_MENUS:
 			case MENU_ITEM_SCREENS:
 			case MENU_ITEM_UI_SCALE:
+			case MENU_ITEM_SOUNDFONT:
 			{
 				const size_t choice =
+					menuItem->id == MENU_ITEM_SOUNDFONT ? soundfont_index() :
 					menuItem->id == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 					menuItem->id == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 					menuItem->id == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
@@ -771,11 +795,13 @@ void setupMenu(void)
 				case MENU_ITEM_MENUS:
 				case MENU_ITEM_SCREENS:
 				case MENU_ITEM_UI_SCALE:
+				case MENU_ITEM_SOUNDFONT:
 				{
 					JE_playSampleNum(S_CLICK);
 
 					currentPicker = selectedMenuItemId;
 					pickerSelectedIndex =
+						selectedMenuItemId == MENU_ITEM_SOUNDFONT ? soundfont_index() :
 						selectedMenuItemId == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 						selectedMenuItemId == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 						selectedMenuItemId == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
@@ -1046,6 +1072,13 @@ void setupMenu(void)
 				case MENU_ITEM_UI_SCALE:
 					settings3d.ui_scale = settings3d_ui_scale_value((int)pickerSelectedIndex);
 					settings3d_changed(S3D_UI_SCALE);
+					break;
+				case MENU_ITEM_SOUNDFONT:
+					if (music_midi_soundfont_count() > 0 && music_midi_use(music_midi_soundfont_name((int)pickerSelectedIndex)))
+					{
+						SDL_strlcpy(settings3d.soundfont, music_midi_soundfont(), sizeof(settings3d.soundfont));
+						settings3d_changed(S3D_SOUNDFONT);
+					}
 					break;
 				default:
 					break;

@@ -32,6 +32,9 @@ extern bool audio_disabled, music_disabled, samples_disabled;
 
 bool init_audio(void);
 void deinit_audio(void);
+// Tyrian3D: holds the audio thread off (the music's synth changing under it), and lets it go on.
+void loudness_lock(void);
+void loudness_unlock(void);
 
 void load_music(void);
 

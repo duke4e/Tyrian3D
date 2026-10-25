@@ -128,6 +128,18 @@ bool init_audio(void)
 	return true;
 }
 
+void loudness_lock(void)
+{
+	if (audioStream != NULL)
+		SDL_LockAudioStream(audioStream);
+}
+
+void loudness_unlock(void)
+{
+	if (audioStream != NULL)
+		SDL_UnlockAudioStream(audioStream);
+}
+
 static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount)
 {
 	(void)total_amount;

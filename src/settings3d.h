@@ -24,6 +24,7 @@ typedef struct
 	bool menus_modern;    // the menus in the new style over the 3D view (ui.h), else the original screens
 	bool screens_fill;    // with them, the old 320x200 screens fill the window's height (else as Scaling Mode says)
 	int ui_scale;         // the size of the menus and the HUD, per cent (settings3d_ui_scale_*)
+	char soundfont[64];   // the SoundFont the music plays through, by name (music_midi_use; "" the default)
 } Settings3D;
 
 extern Settings3D settings3d;
@@ -44,7 +45,7 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

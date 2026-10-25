@@ -1893,7 +1893,7 @@ void JE_doInGameSetup(void)
 enum
 {
 	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_MENUS,
-	OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_DONE,
+	OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_SOUNDFONT, OPT_DONE,
 	OPT_COUNT
 };
 
@@ -1905,7 +1905,7 @@ static const int graphics_page[] = {
 
 static const char *const option_names[OPT_COUNT] = {
 	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus", "Screens", "UI Scale",
-	"Detail Level", "Done",
+	"Detail Level", "SoundFont", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
@@ -1922,6 +1922,7 @@ static const char *const option_help[OPT_COUNT] = {
 	"The game's other screens fill the window's height, or in whole steps.",
 	"The size of the new menus and the HUD.",
 	"The original's detail: its water, blur and light effects.",
+	"The instruments the music plays on: the SoundFonts in data/soundfonts.",
 	"Return to the options.",
 };
 
@@ -1958,6 +1959,8 @@ static const char *option_value(int option)
 		snprintf(percent, sizeof(percent), "%d%%", settings3d.ui_scale);
 		return percent;
 	}
+	case OPT_SOUNDFONT:
+		return music_midi_soundfont()[0] != '\0' ? music_midi_soundfont() : "None";
 	case OPT_DETAIL:
 	{
 		static char detail[16];
@@ -2030,6 +2033,22 @@ static void option_turn(int option, int step)
 		const int i = settings3d_ui_scale_index(settings3d.ui_scale);
 		settings3d.ui_scale = settings3d_ui_scale_value((i + step + count) % count);
 		settings3d_changed(S3D_UI_SCALE);
+		break;
+	}
+	case OPT_SOUNDFONT:
+	{
+		const int count = music_midi_soundfont_count();
+		int i = 0;
+		while (i < count && SDL_strcasecmp(music_midi_soundfont_name(i), music_midi_soundfont()) != 0)
+			++i;
+		if (count == 0)
+			break;
+		const char *name = music_midi_soundfont_name(((i < count ? i : 0) + step + count) % count);
+		if (music_midi_use(name))
+		{
+			SDL_strlcpy(settings3d.soundfont, name, sizeof(settings3d.soundfont));
+			settings3d_changed(S3D_SOUNDFONT);
+		}
 		break;
 	}
 	case OPT_DETAIL:  // (as the original's in-game options turned it)
@@ -2211,6 +2230,7 @@ JE_boolean JE_inGameSetup(void)
 		MENU_ITEM_MUSIC_VOLUME,
 		MENU_ITEM_EFFECTS_VOLUME,
 		MENU_ITEM_MUSIC,     // Tyrian3D: SoundFont or AdLib
+		MENU_ITEM_SOUNDFONT, // Tyrian3D: which SoundFont
 		MENU_ITEM_GAME_SPEED,
 		MENU_ITEM_MOUSE,     // Tyrian3D
 		MENU_ITEM_QUIT,
@@ -2219,9 +2239,9 @@ JE_boolean JE_inGameSetup(void)
 
 	// The original's texts (inGameText: music volume, effects volume, detail level, game speed, return to
 	// game, quit) and help lines (mainMenuHelp), where it has them.
-	static const int text_of[MENU_ITEM_COUNT] = { 4, -1, 0, 1, -1, 3, -1, 5 };
-	static const int help_of[MENU_ITEM_COUNT] = { 25, -1, 14, 14, -1, 28, -1, 26 };
-	static const int option_of[MENU_ITEM_COUNT] = { -1, -1, -1, -1, OPT_MUSIC, -1, OPT_MOUSE, -1 };
+	static const int text_of[MENU_ITEM_COUNT] = { 4, -1, 0, 1, -1, -1, 3, -1, 5 };
+	static const int help_of[MENU_ITEM_COUNT] = { 25, -1, 14, 14, -1, -1, 28, -1, 26 };
+	static const int option_of[MENU_ITEM_COUNT] = { -1, -1, -1, -1, OPT_MUSIC, OPT_SOUNDFONT, -1, OPT_MOUSE, -1 };
 	static const char *const graphics_help = "The 3D view: objects, shadows, effects, camera, HUD and menus, shown as they change.";
 
 	if (shopSpriteSheet.data == NULL)
@@ -2233,7 +2253,7 @@ JE_boolean JE_inGameSetup(void)
 	size_t selectedIndex = MENU_ITEM_RETURN_TO_GAME;
 
 	const int yMenuItems = 20;
-	const int dyMenuItems = 14;  // (Tyrian3D: 8 rows in the box)
+	const int dyMenuItems = 13;  // (Tyrian3D: 9 rows in the box)
 	const int xMenuItem = 10;
 	const int xMenuItemName = xMenuItem;
 	const int wMenuItemName = 110;
@@ -2294,6 +2314,7 @@ JE_boolean JE_inGameSetup(void)
 				break;
 			}
 			case MENU_ITEM_MUSIC:
+			case MENU_ITEM_SOUNDFONT:
 			case MENU_ITEM_MOUSE:
 			{
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, option_value(option_of[i]), normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
@@ -2433,6 +2454,7 @@ JE_boolean JE_inGameSetup(void)
 								}
 								case MENU_ITEM_GAME_SPEED:
 								case MENU_ITEM_MUSIC:
+								case MENU_ITEM_SOUNDFONT:
 								case MENU_ITEM_MOUSE:
 								{
 									rightAction = true;
@@ -2601,6 +2623,7 @@ JE_boolean JE_inGameSetup(void)
 				break;
 			}
 			case MENU_ITEM_MUSIC:
+			case MENU_ITEM_SOUNDFONT:
 			case MENU_ITEM_MOUSE:
 			{
 				JE_playSampleNum(S_CLICK);

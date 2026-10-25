@@ -96,6 +96,9 @@ void settings3d_load(const ConfigSection *section)
 		const char *ui_scale;
 		if (config_get_string_option(section, "ui_scale", &ui_scale))
 			chosen.ui_scale = settings3d_ui_scale_value(settings3d_ui_scale_index(SDL_atoi(ui_scale)));
+		const char *soundfont;
+		if (config_get_string_option(section, "soundfont", &soundfont))
+			SDL_strlcpy(chosen.soundfont, soundfont, sizeof(chosen.soundfont));
 		const char *camera;
 		if (config_get_string_option(section, "camera", &camera))
 			for (int i = 0; i < (int)COUNTOF(cameras); ++i)
@@ -189,6 +192,9 @@ void settings3d_changed(Settings3DField field)
 		chosen.ui_scale = settings3d.ui_scale;
 		overridden_ui_scale = false;
 		break;
+	case S3D_SOUNDFONT:
+		SDL_strlcpy(chosen.soundfont, settings3d.soundfont, sizeof(chosen.soundfont));
+		break;
 	}
 }
 
@@ -209,6 +215,7 @@ void settings3d_save(ConfigSection *section)
 	char percent[16];
 	snprintf(percent, sizeof(percent), "%d", overridden_ui_scale ? chosen.ui_scale : settings3d.ui_scale);
 	config_set_string_option(section, "ui_scale", percent);
+	config_set_string_option(section, "soundfont", settings3d.soundfont);
 }
 
 void settings3d_apply(void)
@@ -219,4 +226,6 @@ void settings3d_apply(void)
 	rgpu_camera.fov_degrees = cameras[settings3d.camera].fov;
 	rgpu_apply_camera_overrides();  // TYR3D_TILT and the like
 	music_midi_enable(settings3d.music_midi);
+	if (music_midi_available())
+		music_midi_use(settings3d.soundfont);
 }

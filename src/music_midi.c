@@ -7,6 +7,8 @@
 #include "lds_play.h"
 #include "opl.h"
 #include "paths3d.h"
+#include "loudness.h"
+#include "settings3d.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -267,37 +269,149 @@ static void prepare_channels(void)
 		tsf_channel_set_pitchrange(synth, ch, (float)BEND_RANGE);
 }
 
+#define DEFAULT_SOUNDFONT "GeneralUser-GS"
+
+static int output_rate = 0;
+static char soundfont_now[64] = "";  // the one the music plays through
+
+// The soundfonts folder: beside the game's data (with the default SoundFont in it), else with the
+// program's resources.
+static const char *soundfont_dir(void)
+{
+	static char dir[1024] = "";
+	if (dir[0] == '\0')
+	{
+		char path[1100];
+		snprintf(dir, sizeof(dir), "%s/../soundfonts", data_dir());
+		snprintf(path, sizeof(path), "%s/" DEFAULT_SOUNDFONT ".sf2", dir);
+		if (!SDL_GetPathInfo(path, NULL))
+		{
+			char resources[1024];
+			SDL_strlcpy(dir, tyr3d_resource_dir("TYR3D_SOUNDFONT_DIR", TYR3D_SOUNDFONT_DIR, "soundfonts", resources, sizeof(resources)),
+			            sizeof(dir));
+		}
+	}
+	return dir;
+}
+
+enum { MAX_SOUNDFONTS = 32 };
+static char soundfont_names[MAX_SOUNDFONTS][64];
+static int soundfont_count = -1;
+
+static int compare_names(const void *a, const void *b)
+{
+	return SDL_strcasecmp((const char *)a, (const char *)b);
+}
+
+static void find_soundfonts(void)
+{
+	soundfont_count = 0;
+	int count = 0;
+	char **files = SDL_GlobDirectory(soundfont_dir(), "*.sf2", SDL_GLOB_CASEINSENSITIVE, &count);
+	for (int i = 0; files != NULL && i < count && soundfont_count < MAX_SOUNDFONTS; ++i)
+	{
+		const char *name = SDL_strrchr(files[i], '/') != NULL ? SDL_strrchr(files[i], '/') + 1 : files[i];
+		const size_t n = strlen(name);
+		if (n <= 4 || n - 4 >= sizeof(soundfont_names[0]))
+			continue;
+		memcpy(soundfont_names[soundfont_count], name, n - 4);
+		soundfont_names[soundfont_count++][n - 4] = '\0';
+	}
+	SDL_free(files);
+	qsort(soundfont_names, (size_t)soundfont_count, sizeof(soundfont_names[0]), compare_names);
+}
+
+int music_midi_soundfont_count(void)
+{
+	if (soundfont_count < 0)
+		find_soundfonts();
+	return soundfont_count;
+}
+
+const char *music_midi_soundfont_name(int i)
+{
+	return i >= 0 && i < music_midi_soundfont_count() ? soundfont_names[i] : "";
+}
+
+const char *music_midi_soundfont(void)
+{
+	return soundfont_now;
+}
+
+// A SoundFont loaded for output, ready to play (NULL if it can't be read).
+static tsf *load_soundfont(const char *file)
+{
+	tsf *font = tsf_load_filename(file);
+	if (font == NULL)
+		return NULL;
+	tsf_set_output(font, TSF_MONO, output_rate, -8.0f);  // about as loud as the emulated chip
+	tsf_set_max_voices(font, 96);
+	return font;
+}
+
 bool music_midi_init(int sample_rate)
 {
 	if (synth != NULL)
 		return true;
+	output_rate = sample_rate;
 
 	char path[1024];
 	const char *file = SDL_getenv("TYR3D_SOUNDFONT");
-	if (file == NULL)
+	if (file != NULL)
+		synth = load_soundfont(file);
+	else
 	{
-		// Beside the game's data, else with the program's resources.
-		snprintf(path, sizeof(path), "%s/../soundfonts/GeneralUser-GS.sf2", data_dir());
-		if (!SDL_GetPathInfo(path, NULL))
+		// The one chosen, else the default, else any there is.
+		const char *names[3] = { settings3d.soundfont, DEFAULT_SOUNDFONT, music_midi_soundfont_name(0) };
+		for (int i = 0; i < 3 && synth == NULL; ++i)
 		{
-			char dir[1024];
-			snprintf(path, sizeof(path), "%s/GeneralUser-GS.sf2",
-			         tyr3d_resource_dir("TYR3D_SOUNDFONT_DIR", TYR3D_SOUNDFONT_DIR, "soundfonts", dir, sizeof(dir)));
+			if (names[i][0] == '\0')
+				continue;
+			snprintf(path, sizeof(path), "%s/%s.sf2", soundfont_dir(), names[i]);
+			if ((synth = load_soundfont(path)) != NULL)
+				SDL_strlcpy(soundfont_now, names[i], sizeof(soundfont_now));
 		}
 		file = path;
 	}
-	synth = tsf_load_filename(file);
 	if (synth == NULL)
 	{
 		printf("music: no SoundFont (%s); the music plays on the emulated OPL chip\n", file);
 		return false;
 	}
-	tsf_set_output(synth, TSF_MONO, sample_rate, -8.0f);  // about as loud as the emulated chip
-	tsf_set_max_voices(synth, 96);
 	prepare_channels();
 	midi_translator_reset(&live);
 	live.event = live_event;
 	printf("music: MIDI through %s\n", file);
+	return true;
+}
+
+bool music_midi_use(const char *name)
+{
+	const char *want = name != NULL && name[0] != '\0' ? name : DEFAULT_SOUNDFONT;
+	if (output_rate == 0 || SDL_getenv("TYR3D_SOUNDFONT") != NULL)
+		return false;  // (no sound yet, or a run's own)
+	if (synth != NULL && SDL_strcasecmp(want, soundfont_now) == 0)
+		return true;
+	char path[1100];
+	snprintf(path, sizeof(path), "%s/%s.sf2", soundfont_dir(), want);
+	tsf *next = load_soundfont(path);
+	if (next == NULL)
+	{
+		printf("music: can't load the SoundFont %s\n", path);
+		return false;
+	}
+	loudness_lock();
+	tsf *old = synth;
+	synth = next;
+	prepare_channels();
+	midi_translator_reset(&live);  // (the notes sounding now start again on it)
+	live.event = live_event;
+	opl_write_hook = midi_opl_write;
+	loudness_unlock();
+	if (old != NULL)
+		tsf_close(old);
+	SDL_strlcpy(soundfont_now, want, sizeof(soundfont_now));
+	printf("music: MIDI through %s\n", path);
 	return true;
 }
 
