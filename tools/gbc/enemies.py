@@ -33,8 +33,10 @@ def rom_word(rom, bank, a):
 
 
 def enemy_structs(g):
-    n = g.read(0xc47d)
-    return [[g.read(ENEMIES + i * STRUCT + k) for k in range(STRUCT)] for i in range(n)]
+    w = g.wram()  # ($c000-$cfff: WRAM bank 0)
+    n = int(w[0x47d])
+    base = ENEMIES - 0xc000
+    return [[int(v) for v in w[base + i * STRUCT:base + (i + 1) * STRUCT]] for i in range(n)]
 
 
 def cluster_at(g, x, y):
@@ -81,7 +83,7 @@ def fly(level, frames):
     rom = open(G.ROM, 'rb').read()
     g, bank, init, c = X.start_level(level)
     pos_list, rec_list = c['events_pos'], c['events']
-    executed, types = [], {}
+    executed, types, pending = [], {}, []
     ptr = g.read(0xc457) | (g.read(0xc458) << 8)
     idle = 0
     for f in range(frames):
@@ -93,8 +95,8 @@ def fly(level, frames):
             idle += 1
             if idle > 3000:
                 break
-            continue
-        idle = 0
+        else:
+            idle = 0
         pos = (g.read(0xc439) << 8) | g.read(0xc43a)
         recs = []
         p = ptr
@@ -108,18 +110,31 @@ def fly(level, frames):
         if spawned:
             after = enemy_structs(g)
             fresh = after[len(before):] if len(after) > len(before) else []
-            g.run(2, 0)  # drawn the next frames
-            for r, s in zip(spawned, fresh):
-                img = cluster_at(g, s[0], s[1])
+            for r, st in zip(spawned, fresh):
+                pending.append(dict(type=r[1], group=st[0x0d], x=st[0], y=st[1], left=60))
                 t = types.setdefault(r[1], dict(images=[], groups=set()))
                 t['groups'].add(r[4])
-                if img is not None and len(t['images']) < 12:
-                    t['images'].append(img)
+        # the new enemies' sprites, once they show (followed by group and nearest place)
+        if pending:
+            structs = enemy_structs(g)
+            for pd in pending:
+                same = [st for st in structs if st[0x0d] == pd['group']]
+                if same:
+                    st = min(same, key=lambda st: abs(st[0] - pd['x']) + abs(st[1] - pd['y']))
+                    pd['x'], pd['y'] = st[0], st[1]
+                    img = cluster_at(g, st[0], st[1])
+                    t = types[pd['type']]
+                    if img is not None:
+                        if len(t['images']) < 12:
+                            t['images'].append(img)
+                        pd['left'] = 0
+                pd['left'] -= 1
+            pending[:] = [pd for pd in pending if pd['left'] > 0]
     return dict(bank=bank, events_pos=pos_list, events=rec_list, executed=executed, types=types)
 
 
 def atlas():
-    """The PC enemies' first frames from the atlases (cells of 32x36 with the 24x28 sprite at 4,4):
+    """The PC enemies' frames from the atlases (cells of 32x36 with the 24x28 sprite at 4,4):
     (episode, enemy, sheet, sprite, RGBA, parts), and the 4-part enemies (event 12: enemies d1..d1+3
     as a 2x2 block, part 1 right of part 0, 2 above it, 3 above 1) of the original levels as 48x56
     composites, with parts 4."""
@@ -130,12 +145,13 @@ def atlas():
     sheets, out, cells = {}, [], {}
     for c in idx['cells']:
         # (episodes 1-5: the game's data; episode 6's enemies are its own)
-        if not c['sheet'].startswith('enemy') or c.get('frame') != 0 or c['episode'] > 5:
+        if not c['sheet'].startswith('enemy') or c['episode'] > 5:
             continue
         if c['atlas'] not in sheets:
             sheets[c['atlas']] = np.array(Image.open(os.path.join(ATLAS, c['atlas'])).convert('RGBA'))
         a = sheets[c['atlas']][c['row'] * ch:(c['row'] + 1) * ch, c['column'] * cw:(c['column'] + 1) * cw]
-        cells[(c['episode'], c['enemy'])] = a[4:32, 4:28]
+        if c.get('frame') == 0:
+            cells[(c['episode'], c['enemy'])] = a[4:32, 4:28]
         out.append((c['episode'], c['enemy'], c['sheet'], c['sprite'], a, 1))
     import levels as lv
     blocks = set()
@@ -201,27 +217,34 @@ class Matcher:
         self.ep = np.array([c[0] for c in self.cells])
         self.keys = [(c[0], c[1]) for c in self.cells]
 
-    def best(self, img, episode, n=3, prefer=()):
+    def best(self, imgs, episode, n=3, prefer=()):
+        """The best PC enemies for a GBC enemy seen in imgs (its frames): each enemy's best frame
+        against the best image."""
+        if not isinstance(imgs, list):
+            imgs = [imgs]
+        scores = np.max([self.score(im, episode, prefer) for im in imgs], axis=0)
+        order = np.argsort(-scores)
+        out, seen = [], set()
+        for i in order:
+            c = self.cells[i]
+            key = (c[0], c[1], c[5])  # one per enemy (its frames are rows of their own)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(dict(episode=int(c[0]), enemy=int(c[1]), sheet=c[2], sprite=int(c[3]), parts=int(c[5]),
+                            score=float(scores[i])))
+            if len(out) == n:
+                break
+        return out
+
+    def score(self, img, episode, prefer=()):
         m, l, size, colour = features(img)
         sim = self.m @ unit(m) * 0.6 + self.l @ unit(l) * 0.4
         pen = np.abs(np.log((self.size + 1) / (size * 1.5 + 1))).sum(1)
         # the GBC palettes are near the PC's: hue and chroma (a, b) count, lightness a little
         dc = np.sqrt(((self.colour[:, 1:] - colour[1:]) ** 2).sum(1)) + 0.3 * np.abs(self.colour[:, 0] - colour[0])
         inpool = np.array([k in prefer for k in self.keys])
-        score = sim - 0.3 * pen - 0.008 * dc + 0.05 * (self.ep == episode) + 0.12 * inpool
-        order = np.argsort(-score)
-        out, seen = [], set()
-        for i in order:
-            c = self.cells[i]
-            key = (c[2], c[3], c[5])  # one per sprite (the same sprite is an enemy of several episodes)
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(dict(episode=int(c[0]), enemy=int(c[1]), sheet=c[2], sprite=int(c[3]), parts=int(c[5]),
-                            score=float(score[i])))
-            if len(out) == n:
-                break
-        return out
+        return sim - 0.3 * pen - 0.015 * dc + 0.05 * (self.ep == episode) + 0.25 * inpool
 
 
 def main():
@@ -241,12 +264,13 @@ def main():
             run = dict(old, types={})
             for t, info in old['types'].items():
                 p = os.path.join(OUT, f'L{level:02d}_type{int(t):02x}.png')
-                imgs = [np.array(Image.open(p).convert('RGBA'))] if os.path.exists(p) else []
+                imgs = [np.array(Image.open(q).convert('RGBA')) for q in [p] + [p[:-4] + f'_{k}.png' for k in range(1, 6)]
+                        if os.path.exists(q)]
                 run['types'][int(t)] = dict(images=imgs, groups=set(info['groups']))
         else:
             run = fly(level, a.frames)
         ep = spec_of[level]['pc'][0]
-        prefer = pool([tuple(m) for m in spec_of[level].get('maps', [spec_of[level]['pc']])])
+        prefer = pool([tuple(m) for m in spec_of[level].get('pool', spec_of[level].get('maps', [spec_of[level]['pc']]))])
         types = {}
         sheet = []
         for t, d in sorted(run['types'].items()):
@@ -258,10 +282,13 @@ def main():
             for im in d['images']:
                 keys.setdefault(im.tobytes() + bytes(im.shape[:2]), [im, 0])[1] += 1
             img = max(keys.values(), key=lambda v: v[1])[0]
-            cands = matcher.best(img, ep, n=8, prefer=prefer)
+            frames = [v[0] for v in sorted(keys.values(), key=lambda v: -v[1])[:6]]
+            cands = matcher.best(frames, ep, n=30, prefer=prefer)
             types[str(t)] = dict(pc=cands[0], candidates=cands, size=list(img.shape[:2]), groups=sorted(d['groups']))
             sheet.append((t, img, cands))
             Image.fromarray(img).save(os.path.join(OUT, f'L{level:02d}_type{t:02x}.png'))
+            for k, fr in enumerate(frames[1:], 1):
+                Image.fromarray(fr).save(os.path.join(OUT, f'L{level:02d}_type{t:02x}_{k}.png'))
         json.dump(dict(level=level, bank=run['bank'], events_pos=run['events_pos'], events=run['events'],
                        executed=run['executed'], types=types), open(os.path.join(OUT, f'L{level:02d}.json'), 'w'))
         review(level, sheet, matcher)
@@ -270,7 +297,9 @@ def main():
 
 def review(level, sheet, matcher):
     """GBC type | its three PC candidates, for checking by eye."""
-    cell = {(c[2], c[3], c[5]): c[4] for c in matcher.cells}
+    cell = {}
+    for c in matcher.cells:
+        cell.setdefault((c[2], c[3], c[5]), c[4])
     rows = []
     for t, img, cands in sheet:
         row = Image.new('RGB', (64 + 3 * 80, 80), (24, 24, 24))

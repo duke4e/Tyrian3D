@@ -35,34 +35,42 @@ OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
 
+# The original levels whose enemies the GBC ones are first sought among (enemies.py: pool)
+SAVARAS = [(1, 'SAVARA'), (1, 'SAVARA V'), (4, 'SAVARA IV'), (3, 'SAVARA Y')]
+DESERTS = [(4, 'SURFACE'), (4, 'DESERTRUN'), (4, 'TIME WAR')]
+JUNGLES = [(2, 'TORM'), (2, 'GYGES'), (2, 'BOTANY A'), (2, 'BOTANY B')]
+ICES = [(3, 'CAMANIS'), (4, 'ICE EXIT'), (4, 'ICESECRET')]
+DELIS = [(1, 'DELIANI'), (3, 'New Deli'), (4, 'UNDERDELI'), (4, 'CORE')]
+LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
+
 # The episode in the GBC game's Full Game order (found by playing it through in the emulator), with the
 # levels only its Arcade mode has (arcade) after one of their look. gbc: the GBC level (data/gbc/levels/Lnn_*); pc: the original level it
 # is a version of (its tiles, look, song).
 LEVELS = [
-    dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')]),
-    dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1')),
-    dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True),
-    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV')),
-    dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V')),
-    dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True),
-    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True),
-    dict(gbc=4, name='JUNGLE', pc=(2, 'TORM')),
-    dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2),
-    dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2')),
-    dict(gbc=13, name='WARP', pc=(3, 'STARGATE')),
-    dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True),
-    dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS')),
-    dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True),
-    dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?')),
-    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True),
-    dict(gbc=21, name='FLEET', pc=(3, 'FLEET')),
-    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC')),
-    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP')),
-    dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True),
-    dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True),
-    dict(gbc=6, name='LAVA I', pc=(4, 'LAVA EXIT')),
-    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN')),
-    dict(gbc=24, name='FINALE', pc=(4, 'DREAD-NOT'), space=True),
+    dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')]),
+    dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')]),
+    dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')]),
+    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), pool=SAVARAS),
+    dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS),
+    dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS),
+    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS),
+    dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES),
+    dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES),
+    dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')]),
+    dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), pool=[(3, 'STARGATE'), (1, 'BUBBLES')]),
+    dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')]),
+    dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS'), pool=ICES),
+    dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES),
+    dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')]),
+    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')]),
+    dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), pool=[(3, 'FLEET')]),
+    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')]),
+    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')]),
+    dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS),
+    dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True, pool=DELIS),
+    dict(gbc=6, name='LAVA I', pc=(4, 'LAVA EXIT'), pool=LAVAS),
+    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN'), pool=LAVAS),
+    dict(gbc=24, name='FINALE', pc=(4, 'DREAD-NOT'), space=True, pool=[(4, 'DREAD-NOT'), (4, 'APPROACH')]),
 ]
 
 
@@ -283,6 +291,42 @@ def ground_enemies():
     return _ground
 
 
+_cells = None
+
+
+def review_enemies(level, types, use):
+    """data/gbc/episode7/preview/Lnn_enemies.png: each GBC type (as used, most used first) beside the PC
+    enemy it became."""
+    global _cells
+    import enemies as EN
+    from PIL import ImageDraw
+    if _cells is None:
+        _cells = {(c[0], c[1], c[5]): c[4] for c in EN.atlas()}
+    rows = []
+    for t, n in use.most_common():
+        p = os.path.join(GBC, 'enemies', f'L{level:02d}_type{t:02x}.png')
+        row = Image.new('RGB', (230, 64), (24, 24, 24))
+        d = ImageDraw.Draw(row)
+        if os.path.exists(p):
+            g = Image.open(p).convert('RGBA')
+            k = max(1, min(3, 56 // max(g.size)))
+            g = g.resize((g.size[0] * k, g.size[1] * k), Image.NEAREST)
+            row.paste(g, (0, 0), g)
+        pc = types.get(t)
+        if pc and (pc[0], pc[1], pc[2]) in _cells:
+            c = Image.fromarray(_cells[(pc[0], pc[1], pc[2])])
+            c = c.resize((int(c.width * 56 / c.height), 56), Image.NEAREST)
+            row.paste(c, (110, 0), c)
+        d.text((60, 4), f'{t:02x} x{n}', fill=(255, 255, 255))
+        d.text((60, 20), f'{pc[0]}:{pc[1]}' if pc else 'left out', fill=(255, 255, 0))
+        rows.append(row)
+    if rows:
+        out = Image.new('RGB', (230 * 2, 66 * ((len(rows) + 1) // 2)))
+        for i, r in enumerate(rows):
+            out.paste(r, ((i % 2) * 230, (i // 2) * 66))
+        out.save(os.path.join(OUT, 'preview', f'L{level:02d}_enemies.png'))
+
+
 def enemies(spec, look):
     """The GBC script (data/gbc/enemies, tools/gbc/enemies.py) as PC events (script.py), its enemies
     the PC ones found for its types; the boss the original level's (a placement); the sprite sheets
@@ -310,13 +354,13 @@ def enemies(spec, look):
         if e_ not in data:
             data[e_] = sources.tyrdata.load_items(e_)['enemies']
         return data[e_]
-    # types: their PC enemies (a poor match is left out: the GBC bosses and big ships, for now)
+    # types: their PC enemies (every GBC enemy is a PC one: the best candidate on the loaded sheets)
     from collections import Counter
     use = Counter(r[1] for r in records if r[0] in (3, 4, 0x21, 0x22, 0x23, 0x24) or r[0] >= 0x28)
     types, cands = {}, {}
     for t, info in d['types'].items():
-        if info.get('pc') and info['pc']['score'] >= 0.3 and info['pc'].get('parts', 1) == 1:
-            cands[int(t)] = [c for c in info['candidates'] if c.get('parts', 1) == 1 and c['score'] >= 0.3]
+        if info.get('pc'):
+            cands[int(t)] = info['candidates']
     boss = look.boss()
     boss_banks = Counter()
     if boss:
@@ -324,18 +368,21 @@ def enemies(spec, look):
             if e['type'] in waves.SPAWNS and e['d1'] > 0:
                 for k in range(4 if e['type'] == 12 else 1):
                     boss_banks.update(waves.sheets_of(look.enemies, e['d1'] + k))
-    sheet = lambda c: waves.sheets_of(enemies_of(c['episode']), c['enemy'])
+    def sheet(c):
+        """The sheets a candidate needs ({99}: none it can be drawn with, e.g. sheet 0)."""
+        b = set().union(*(waves.sheets_of(enemies_of(c['episode']), c['enemy'] + k) for k in range(c.get('parts', 1))))
+        return {99} if (0 in b or not b) else b
     need = Counter()
     for t, cs in cands.items():
         need.update({b: use[t] for b in sheet(cs[0])})
     banks = [b for b, _ in boss_banks.most_common()][:2]
     for b, _ in need.most_common():
-        if len(banks) < 4 and b not in banks:
+        if len(banks) < 4 and b not in banks and b != 99:
             banks.append(b)
     for t, cs in cands.items():
         ok = [c for c in cs if sheet(c) <= set(banks)]
         if ok:
-            types[t] = (ok[0]['episode'], ok[0]['enemy'])
+            types[t] = (ok[0]['episode'], ok[0]['enemy'], ok[0].get('parts', 1))
     # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], or null to
     # leave a type out); their sheets join the loaded ones while there is room
     over = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
@@ -350,13 +397,14 @@ def enemies(spec, look):
         need_b = waves.sheets_of(enemies_of(v[0]), v[1])
         if need_b <= set(banks) or len(set(banks) | need_b) <= 4:
             banks += sorted(need_b - set(banks))
-            types[t] = tuple(v)
+            types[t] = (v[0], v[1], v[2] if len(v) > 2 else 1)
     ground = ground_enemies()
-    events = script.translate(records, positions, types, enemies_of, lambda k: ground.get(k, False))
+    events = script.translate(records, positions, types, enemies_of, lambda k: ground.get(k[:2], False))
     placements = []
     if boss:
         start = round(1.5 * positions[-1]) if positions else 4000
         placements.append(dict(kind='boss', episode=look.episode, name=look.name, start=min(start, 7000)))
+    review_enemies(spec['gbc'], types, use)
     print(f"  {len(records)} GBC records -> {len(events)} events, {len(types)}/{len(d['types'])} types as PC enemies, "
           f"sheets {banks}, boss {look.name if boss else None}")
     return events, placements, banks

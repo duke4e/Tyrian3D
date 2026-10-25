@@ -67,7 +67,7 @@ class Links:
 
 def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
     """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
-    types: GBC type -> (episode, enemy) or None (left out); enemies_of(ep) -> that episode's enemy
+    types: GBC type -> (episode, enemy, parts: 1, or 4 for a 4-part enemy) or None (left out); enemies_of(ep) -> that episode's enemy
     data; ground_of((ep, n)) -> True if the PC enemy stands on the ground. Returns the events."""
     links = Links()
     speed = start_speed
@@ -78,7 +78,7 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
         pc = types.get(a)
         if pc is None:
             return []
-        ep, n = pc
+        ep, n, parts = pc
         if cmd >= 0x28:
             k = cmd - 0x28
             cols, rows = ((k >> 1) & 3) + 1, (k >> 3) + 1
@@ -92,7 +92,14 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
             for i in range(cols):
                 x = SCALE * (b + 16 * i) - 12
                 y = max(-128, min(127, round(SCALE * (s8(c) - 16 * j))))
-                if ground:
+                if parts == 4:
+                    # a 4-part enemy (event 12: the parts d1..d1+3, the layer in d6, part 0 the lower
+                    # left one) with its top left corner where the GBC one's is; in the sky it gets
+                    # the scroll by its link (event 12 leaves fixedmovey 0)
+                    evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), 0, min(127, y + 28), 0 if ground else 2, link, ep=ep))
+                    if not ground and link:
+                        evs.append(ev(t, 19, -99, -99, 0, 0, speed, link))
+                elif ground:
                     evs.append(ev(t, GROUND, n, round(x) + 27, 0, y, 0, link, ep=ep))
                 else:
                     evs.append(ev(t, SKY, n, round(x), 0, y, speed, link, ep=ep))
