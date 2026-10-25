@@ -1883,20 +1883,29 @@ void JE_doInGameSetup(void)
 }
 
 /*
- * Tyrian3D: the modern settings (settings3d.h, as the setup menu's "3D" and "Music") in a level,
- * from the in-game options ("3D Options"). Drawn in that menu's box (the 3D view behind it keeps
- * its darkened boxes), each value turned by Left/Right, Enter or a click; Escape, a right click or
- * "Done" go back. They take effect at once and are saved as from the setup menu.
+ * Tyrian3D: the modern settings (settings3d.h, as the setup menu's "3D" and "Music") in a level. The
+ * in-game options show the graphics on a page of their own ("Graphics", with the original's detail
+ * level), the mouse and the music beside the volumes. The graphics page is drawn in that menu's box;
+ * with the modern menus at the side of the playfield, the 3D view behind it bright, so what each
+ * change does shows at once. Each value turns by Left/Right, Enter or a click; Escape, a right click
+ * or "Done" go back. They take effect at once and are saved as from the setup menu.
  */
 enum
 {
 	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_MENUS,
-	OPT_SCREENS, OPT_UI_SCALE, OPT_DONE,
+	OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_DONE,
 	OPT_COUNT
 };
 
+// The graphics page's rows.
+static const int graphics_page[] = {
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_HUD, OPT_PLAYFIELD, OPT_MENUS, OPT_SCREENS, OPT_UI_SCALE,
+	OPT_DETAIL, OPT_DONE,
+};
+
 static const char *const option_names[OPT_COUNT] = {
-	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus", "Screens", "UI Scale", "Done",
+	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus", "Screens", "UI Scale",
+	"Detail Level", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
@@ -1912,8 +1921,21 @@ static const char *const option_help[OPT_COUNT] = {
 	"Menus in the new style over the 3D view, or the original screens.",
 	"The game's other screens fill the window's height, or in whole steps.",
 	"The size of the new menus and the HUD.",
+	"The original's detail: its water, blur and light effects.",
 	"Return to the options.",
 };
+
+// Tyrian3D: a text of the game without its highlight marks ('~') and trailing spaces and colon.
+static void plain_label(char *out, const char *in, size_t size)
+{
+	size_t n = 0;
+	for (; *in != '\0' && n + 1 < size; ++in)
+		if (*in != '~')
+			out[n++] = *in;
+	out[n] = '\0';
+	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == ':'))
+		out[--n] = '\0';
+}
 
 static const char *option_value(int option)
 {
@@ -1935,6 +1957,12 @@ static const char *option_value(int option)
 		static char percent[16];
 		snprintf(percent, sizeof(percent), "%d%%", settings3d.ui_scale);
 		return percent;
+	}
+	case OPT_DETAIL:
+	{
+		static char detail[16];
+		plain_label(detail, detailLevel[processorType - 1], sizeof(detail));
+		return detail;
 	}
 	default:          return NULL;
 	}
@@ -2004,21 +2032,17 @@ static void option_turn(int option, int step)
 		settings3d_changed(S3D_UI_SCALE);
 		break;
 	}
+	case OPT_DETAIL:  // (as the original's in-game options turned it)
+		if (step > 0)
+			processorType = processorType < 4 ? processorType + 1 : 1;
+		else
+			processorType = processorType > 1 ? processorType - 1 : 4;
+		JE_initProcessorType();
+		JE_setNewGameSpeed();
+		break;
 	default:
 		break;
 	}
-}
-
-// Tyrian3D: a text of the game without its highlight marks ('~') and trailing spaces and colon.
-static void plain_label(char *out, const char *in, size_t size)
-{
-	size_t n = 0;
-	for (; *in != '\0' && n + 1 < size; ++in)
-		if (*in != '~')
-			out[n++] = *in;
-	out[n] = '\0';
-	while (n > 0 && (out[n - 1] == ' ' || out[n - 1] == ':'))
-		out[--n] = '\0';
 }
 
 // The level's name as the modern UI's screens over it show it.
@@ -2032,40 +2056,43 @@ static void level_crumb(char *out, size_t size)
 // background: the in-game options' screen with their boxes (VGAScreen2), drawn on each time.
 static void ingame_options_3d(void)
 {
-	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 13 rows in the box)
+	enum { ROWS = (int)COUNTOF(graphics_page) };
+	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 12 rows in the box)
 	const int xName = 10, wName = 80, xValue = xName + wName, wValue = 120;
 	int selected = 0;
 
 	for (bool done = false; !done; )
 	{
 		memcpy(VGAScreen->pixels, VGAScreen2->pixels, (size_t)VGAScreen->pitch * VGAScreen->h);
-		for (int i = 0; i < OPT_COUNT; ++i)
+		for (int i = 0; i < ROWS; ++i)
 		{
 			const int y = yItems + dyItems * i;
 			const int brightness = -4 + (i == selected ? 2 : 0);
 			// (The shadow a pixel off, not two: the rows are close.)
-			draw_font_hv_shadow(VGAScreen, xName, y, option_names[i], normal_font, left_aligned, 15, brightness, false, 1);
-			const char *value = option_value(i);
+			draw_font_hv_shadow(VGAScreen, xName, y, option_names[graphics_page[i]], normal_font, left_aligned, 15, brightness, false, 1);
+			const char *value = option_value(graphics_page[i]);
 			if (value != NULL)
 				draw_font_hv_shadow(VGAScreen, xValue, y, value, normal_font, left_aligned, 15, brightness, false, 1);
 		}
-		JE_outTextAdjust(VGAScreen, 10, 147, option_help[selected], 14, 6, TINY_FONT, true);
+		JE_outTextAdjust(VGAScreen, 10, 147, option_help[graphics_page[selected]], 14, 6, TINY_FONT, true);
 
 		// Tyrian3D: the page for the modern UI (ui.h): each row where the original takes the mouse on it.
 		if (ui_modern())
 		{
-			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_MENU, "3D Options");
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_MENU, "Graphics");
 			SDL_strlcpy(ui->crumb, "OPTIONS", sizeof(ui->crumb));
 			ui->values_turn = true;
 			ui->enter_turns = true;
-			for (int i = 0; i < OPT_COUNT; ++i)
+			ui->preview = true;
+			for (int i = 0; i < ROWS; ++i)
 			{
-				const char *value = option_value(i);
-				UIItem *it = ui_menu_add(ui, value != NULL ? UI_ITEM_CHOICE : UI_ITEM_ACTION, option_names[i], xName,
+				const int option = graphics_page[i];
+				const char *value = option_value(option);
+				UIItem *it = ui_menu_add(ui, value != NULL ? UI_ITEM_CHOICE : UI_ITEM_ACTION, option_names[option], xName,
 				                         yItems + dyItems * i, wName + wValue, hItem);
 				if (value != NULL)
 					SDL_strlcpy(it->value, value, sizeof(it->value));
-				SDL_strlcpy(it->hint, option_help[i], sizeof(it->hint));
+				SDL_strlcpy(it->hint, option_help[option], sizeof(it->hint));
 			}
 			ui->selected = selected;
 			ui->nowhere = (SDL_Point){ 300, 190 };
@@ -2091,7 +2118,7 @@ static void ingame_options_3d(void)
 		int step = 0;  // turn the selected option by this, or act on "Done"
 		if ((mouseMoved || newmouse) && mouse_x >= xName && mouse_x < xValue + wValue)
 		{
-			for (int i = 0; i < OPT_COUNT; ++i)
+			for (int i = 0; i < ROWS; ++i)
 			{
 				const int y = yItems + dyItems * i;
 				if (mouse_y >= y && mouse_y < y + hItem)
@@ -2116,19 +2143,26 @@ static void ingame_options_3d(void)
 			{
 			case SDL_SCANCODE_UP:
 				JE_playSampleNum(S_CURSOR);
-				selected = (selected + OPT_COUNT - 1) % OPT_COUNT;
+				selected = (selected + ROWS - 1) % ROWS;
 				break;
 			case SDL_SCANCODE_DOWN:
 				JE_playSampleNum(S_CURSOR);
-				selected = (selected + 1) % OPT_COUNT;
+				selected = (selected + 1) % ROWS;
 				break;
 			case SDL_SCANCODE_LEFT:
-				if (selected != OPT_DONE)
+				if (graphics_page[selected] != OPT_DONE)
 					step = -1;
 				break;
 			case SDL_SCANCODE_RIGHT:
-				if (selected != OPT_DONE)
+				if (graphics_page[selected] != OPT_DONE)
 					step = 1;
+				break;
+			case SDL_SCANCODE_W:  // (the original's secret wild detail)
+				if (graphics_page[selected] == OPT_DETAIL)
+				{
+					processorType = 6;
+					JE_initProcessorType();
+				}
 				break;
 			case SDL_SCANCODE_SPACE:
 			case SDL_SCANCODE_RETURN:
@@ -2145,7 +2179,7 @@ static void ingame_options_3d(void)
 
 		if (step != 0)
 		{
-			if (selected == OPT_DONE)
+			if (graphics_page[selected] == OPT_DONE)
 			{
 				JE_playSampleNum(S_SELECT);
 				done = true;
@@ -2153,7 +2187,7 @@ static void ingame_options_3d(void)
 			else
 			{
 				JE_playSampleNum(S_CLICK);
-				option_turn(selected, step);
+				option_turn(graphics_page[selected], step);
 			}
 		}
 	}
@@ -2168,29 +2202,38 @@ JE_boolean JE_inGameSetup(void)
 	SDL_Surface *temp_surface = VGAScreen;
 	VGAScreen = VGAScreenSeg; /* side-effect of game_screen */
 
+	// Tyrian3D: the graphics on a page of their own (with the original's detail level), the mouse and the
+	// music beside the volumes, back to the game first.
 	enum MenuItemIndex
 	{
-		MENU_ITEM_MUSIC_VOLUME = 0,
+		MENU_ITEM_RETURN_TO_GAME = 0,
+		MENU_ITEM_GRAPHICS,  // Tyrian3D: the graphics page (ingame_options_3d)
+		MENU_ITEM_MUSIC_VOLUME,
 		MENU_ITEM_EFFECTS_VOLUME,
-		MENU_ITEM_DETAIL_LEVEL,
+		MENU_ITEM_MUSIC,     // Tyrian3D: SoundFont or AdLib
 		MENU_ITEM_GAME_SPEED,
-		MENU_ITEM_OPTIONS_3D,  // Tyrian3D: the modern settings (ingame_options_3d)
-		MENU_ITEM_RETURN_TO_GAME,
+		MENU_ITEM_MOUSE,     // Tyrian3D
 		MENU_ITEM_QUIT,
+		MENU_ITEM_COUNT
 	};
 
-	const size_t helpIndexes[] = { 14, 14, 27, 28, 0, 25, 26 };
+	// The original's texts (inGameText: music volume, effects volume, detail level, game speed, return to
+	// game, quit) and help lines (mainMenuHelp), where it has them.
+	static const int text_of[MENU_ITEM_COUNT] = { 4, -1, 0, 1, -1, 3, -1, 5 };
+	static const int help_of[MENU_ITEM_COUNT] = { 25, -1, 14, 14, -1, 28, -1, 26 };
+	static const int option_of[MENU_ITEM_COUNT] = { -1, -1, -1, -1, OPT_MUSIC, -1, OPT_MOUSE, -1 };
+	static const char *const graphics_help = "The 3D view: objects, shadows, effects, camera, HUD and menus, shown as they change.";
 
 	if (shopSpriteSheet.data == NULL)
 		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer sprites
 
 	bool restart = true;
 
-	const size_t menuItemsCount = COUNTOF(inGameText) + 1;
-	size_t selectedIndex = MENU_ITEM_MUSIC_VOLUME;
+	const size_t menuItemsCount = MENU_ITEM_COUNT;
+	size_t selectedIndex = MENU_ITEM_RETURN_TO_GAME;
 
 	const int yMenuItems = 20;
-	const int dyMenuItems = 17;
+	const int dyMenuItems = 14;  // (Tyrian3D: 8 rows in the box)
 	const int xMenuItem = 10;
 	const int xMenuItemName = xMenuItem;
 	const int wMenuItemName = 110;
@@ -2226,8 +2269,8 @@ JE_boolean JE_inGameSetup(void)
 		{
 			const int y = yMenuItems + dyMenuItems * i;
 
-			const char *const name = i == MENU_ITEM_OPTIONS_3D ? "3D Options" :
-			                         inGameText[i < MENU_ITEM_OPTIONS_3D ? i : i - 1];
+			const char *const name = text_of[i] >= 0 ? inGameText[text_of[i]] : i == MENU_ITEM_GRAPHICS ? "Graphics..."
+			                                                                                              : option_names[option_of[i]];
 
 			const bool selected = i == selectedIndex;
 
@@ -2245,23 +2288,25 @@ JE_boolean JE_inGameSetup(void)
 				JE_barDrawShadow(VGAScreen, xMenuItemValue, y, 1, samples_disabled ? 12 : 16, (fxVolume + 6) / 12, 3, 13);
 				break;
 			}
-			case MENU_ITEM_DETAIL_LEVEL:
-			{
-				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, detailLevel[processorType-1], normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
-				break;
-			}
 			case MENU_ITEM_GAME_SPEED:
 			{
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, gameSpeedText[gameSpeed-1], normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
+				break;
+			}
+			case MENU_ITEM_MUSIC:
+			case MENU_ITEM_MOUSE:
+			{
+				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, option_value(option_of[i]), normal_font, left_aligned, 15, -4 + (selected ? 2 : 0), false, 2);
 				break;
 			}
 			}
 		}
 
 		// Draw help text.
-		JE_outTextAdjust(VGAScreen, 10, 147, selectedIndex == MENU_ITEM_OPTIONS_3D
-		                 ? "The 3D view, objects, camera, HUD, mouse and music."
-		                 : mainMenuHelp[helpIndexes[selectedIndex]], 14, 6, TINY_FONT, true);
+		const char *const help = selectedIndex == MENU_ITEM_GRAPHICS ? graphics_help
+		                         : help_of[selectedIndex] >= 0       ? mainMenuHelp[help_of[selectedIndex]]
+		                                                             : option_help[option_of[selectedIndex]];
+		JE_outTextAdjust(VGAScreen, 10, 147, help, 14, 6, TINY_FONT, true);
 
 		// Tyrian3D: the menu for the modern UI (ui.h): each item where the original takes the mouse on its
 		// name and its value (the volumes' bars from their left end, as the click sets them).
@@ -2270,17 +2315,19 @@ JE_boolean JE_inGameSetup(void)
 			UIMenu *ui = ui_menu_begin(UI_SCREEN_LEVEL_MENU, "Options");
 			level_crumb(ui->crumb, sizeof(ui->crumb));
 			ui->values_turn = true;
+			ui->enter_turns = true;
 			for (size_t i = 0; i < menuItemsCount; ++i)
 			{
 				const int y = yMenuItems + dyMenuItems * (int)i;
 				char name[48];
-				plain_label(name, i == MENU_ITEM_OPTIONS_3D ? "3D Options" : inGameText[i < MENU_ITEM_OPTIONS_3D ? i : i - 1], sizeof(name));
+				plain_label(name, text_of[i] >= 0 ? inGameText[text_of[i]] : i == MENU_ITEM_GRAPHICS ? "Graphics" : option_names[option_of[i]],
+				            sizeof(name));
 				const bool volume = i == MENU_ITEM_MUSIC_VOLUME || i == MENU_ITEM_EFFECTS_VOLUME;
-				const bool value = i == MENU_ITEM_DETAIL_LEVEL || i == MENU_ITEM_GAME_SPEED;
+				const bool value = i == MENU_ITEM_GAME_SPEED || option_of[i] >= 0;
 				UIItem *it = ui_menu_add(ui, volume ? UI_ITEM_BAR : value ? UI_ITEM_CHOICE : UI_ITEM_ACTION, name, xMenuItemName, y,
 				                         wMenuItemName, hMenuItem);
-				SDL_strlcpy(it->hint, i == MENU_ITEM_OPTIONS_3D ? "The 3D view, objects, camera, HUD, mouse, music and the menus."
-				                                               : mainMenuHelp[helpIndexes[i]], sizeof(it->hint));
+				SDL_strlcpy(it->hint, i == MENU_ITEM_GRAPHICS ? graphics_help : help_of[i] >= 0 ? mainMenuHelp[help_of[i]] : option_help[option_of[i]],
+				            sizeof(it->hint));
 				if (volume)
 				{
 					const bool music = i == MENU_ITEM_MUSIC_VOLUME;
@@ -2290,7 +2337,7 @@ JE_boolean JE_inGameSetup(void)
 				}
 				else if (value)
 				{
-					plain_label(it->value, i == MENU_ITEM_DETAIL_LEVEL ? detailLevel[processorType - 1] : gameSpeedText[gameSpeed - 1],
+					plain_label(it->value, i == MENU_ITEM_GAME_SPEED ? gameSpeedText[gameSpeed - 1] : option_value(option_of[i]),
 					            sizeof(it->value));
 					it->hit_value = (SDL_Rect){ xMenuItemValue, y, wMenuItemValue, hMenuItem };
 				}
@@ -2384,8 +2431,9 @@ JE_boolean JE_inGameSetup(void)
 									JE_playSampleNum(S_CURSOR);
 									break;
 								}
-								case MENU_ITEM_DETAIL_LEVEL:
 								case MENU_ITEM_GAME_SPEED:
+								case MENU_ITEM_MUSIC:
+								case MENU_ITEM_MOUSE:
 								{
 									rightAction = true;
 									break;
@@ -2456,18 +2504,16 @@ JE_boolean JE_inGameSetup(void)
 				done = true;
 				break;
 			}
-			case SDL_SCANCODE_W:
-			{
-				if (selectedIndex == MENU_ITEM_DETAIL_LEVEL)
-				{
-					processorType = 6;
-					JE_initProcessorType();
-				}
-				break;
-			}
 			default:
 				break;
 			}
+		}
+
+		// (Enter turns the choices as Right does.)
+		if (action && (selectedIndex == MENU_ITEM_GAME_SPEED || option_of[selectedIndex] >= 0))
+		{
+			action = false;
+			rightAction = true;
 		}
 
 		if (action)
@@ -2488,10 +2534,9 @@ JE_boolean JE_inGameSetup(void)
 				JE_playSampleNum(S_SELECT);
 				break;
 			}
-			case MENU_ITEM_OPTIONS_3D:
+			case MENU_ITEM_GRAPHICS:
 			{
 				JE_playSampleNum(S_SELECT);
-
 				ingame_options_3d();
 				break;
 			}
@@ -2524,80 +2569,42 @@ JE_boolean JE_inGameSetup(void)
 				break;
 			}
 		}
-		else if (leftAction)
+		else if (leftAction || rightAction)
 		{
+			const int step = rightAction ? 1 : -1;
 			switch (selectedIndex)
 			{
 			case MENU_ITEM_MUSIC_VOLUME:
 			{
 				JE_playSampleNum(S_CURSOR);
 
-				JE_changeVolume(&tyrMusicVolume, -12, &fxVolume, 0);
+				JE_changeVolume(&tyrMusicVolume, 12 * step, &fxVolume, 0);
 				break;
 			}
 			case MENU_ITEM_EFFECTS_VOLUME:
 			{
-				JE_changeVolume(&tyrMusicVolume, 0, &fxVolume, -12);
+				JE_changeVolume(&tyrMusicVolume, 0, &fxVolume, 12 * step);
 
 				JE_playSampleNum(S_CURSOR);
-				break;
-			}
-			case MENU_ITEM_DETAIL_LEVEL:
-			{
-				JE_playSampleNum(S_CURSOR);
-
-				processorType = processorType > 1 ? processorType - 1 : 4;
-				JE_initProcessorType();
-				JE_setNewGameSpeed();
 				break;
 			}
 			case MENU_ITEM_GAME_SPEED:
 			{
 				JE_playSampleNum(S_CURSOR);
 
-				gameSpeed = gameSpeed > 1 ? gameSpeed - 1 : 5;
+				if (step > 0)
+					gameSpeed = gameSpeed < 5 ? gameSpeed + 1 : 1;
+				else
+					gameSpeed = gameSpeed > 1 ? gameSpeed - 1 : 5;
 				JE_initProcessorType();
 				JE_setNewGameSpeed();
 				break;
 			}
-			default:
-				break;
-			}
-		}
-		else if (rightAction)
-		{
-			switch (selectedIndex)
+			case MENU_ITEM_MUSIC:
+			case MENU_ITEM_MOUSE:
 			{
-			case MENU_ITEM_MUSIC_VOLUME:
-			{
-				JE_playSampleNum(S_CURSOR);
-
-				JE_changeVolume(&tyrMusicVolume, 12, &fxVolume, 0);
-				break;
-			}
-			case MENU_ITEM_EFFECTS_VOLUME:
-			{
-				JE_changeVolume(&tyrMusicVolume, 0, &fxVolume, 12);
-
-				JE_playSampleNum(S_CURSOR);
-				break;
-			}
-			case MENU_ITEM_DETAIL_LEVEL:
-			{
-				JE_playSampleNum(S_CURSOR);
-
-				processorType = processorType < 4 ? processorType + 1 : 1;
-				JE_initProcessorType();
-				JE_setNewGameSpeed();
-				break;
-			}
-			case MENU_ITEM_GAME_SPEED:
-			{
-				JE_playSampleNum(S_CURSOR);
-
-				gameSpeed = gameSpeed < 5 ? gameSpeed + 1 : 1;
-				JE_initProcessorType();
-				JE_setNewGameSpeed();
+				JE_playSampleNum(S_CLICK);
+				option_turn(option_of[selectedIndex], step);
 				break;
 			}
 			default:

@@ -2448,17 +2448,27 @@ static void level_dim(float top, float bottom)
 	rect(L.window, (Colour){ 0, 0, 0, top }, (Colour){ 0, 0, 0, bottom });
 }
 
-// The in-game options (and their 3D page): rows as setup's, centred over the playfield.
+// The in-game options (and their graphics page): rows as setup's, centred over the playfield; the graphics
+// at its left side, the 3D view behind them bright so that what each change does shows (preview).
 static void build_level_menu(const UIMenu *m)
 {
-	level_dim(0.32f, 0.42f);
+	if (m->preview)
+	{
+		// (A little darker under the panel only.)
+		const Box dark = { L.window.x, L.window.y, L.safe.x + L.safe.w * 0.55f, L.window.h };
+		rect(dark, (Colour){ 0, 0, 0, 0.12f }, (Colour){ 0, 0, 0, 0.2f });
+	}
+	else
+		level_dim(0.32f, 0.42f);
 	const float cap = CAP_ITEM();
 	const float row_h = SDL_max(U(52), cap * 2.1f);
-	const float w = SDL_min(SDL_max(U(860), cap * 28), L.safe.w - U(96));
+	const float w = m->preview ? SDL_min(SDL_max(U(700), cap * 23), L.safe.w * 0.46f)
+	                           : SDL_min(SDL_max(U(860), cap * 28), L.safe.w - U(96));
 	const float head_h = U(30) + (m->crumb[0] != '\0' ? CAP_SMALL() + U(14) : 0) + CAP_TITLE() + U(24) + U(18);
 	const float foot_h = CAP_SMALL() * 1.75f * 2 + U(44);
 	const float keys_h = key_hints_height() + U(28);
-	const float room = L.window.h - U(48) - keys_h;
+	// (The graphics page keeps clear of the HUD's score at the playfield's foot.)
+	const float room = L.window.h - U(48) - keys_h - (m->preview ? U(130) : 0);
 	float rh = row_h, h = head_h + m->item_count * rh + U(12) + foot_h;
 	if (h > room)
 	{
@@ -2466,7 +2476,8 @@ static void build_level_menu(const UIMenu *m)
 		h = head_h + m->item_count * rh + U(12) + foot_h;
 	}
 	// (No easing in: the menus over a level are shown again only on input.)
-	const Box p = { L.safe.x + (L.safe.w - w) / 2, SDL_max((L.window.h - h - keys_h) / 2, U(24)), w, SDL_min(h, room) };
+	const float px = m->preview ? L.safe.x + U(48) : L.safe.x + (L.safe.w - w) / 2;
+	const Box p = { px, m->preview ? U(24) : SDL_max((L.window.h - h - keys_h) / 2, U(24)), w, SDL_min(h, room) };
 	panel(p, U(22), PANEL_GLASS);
 	const float top = p.y + header(p, m->crumb, m->title);
 	const int fits = SDL_max((int)((p.y + p.h - foot_h - U(12) - top) / rh + 0.01f), 1);

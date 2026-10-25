@@ -79,9 +79,12 @@ Modern (the new UI over the 3D view, below) or Classic (the original screens), S
 game's other 320x200 screens fill the window's height, in whole steps and then smoothly, over a
 blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
 (75-150 %). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
-change the first two as well. In a level, Escape's options have **3D Options** with the 3D page's
-settings, the music (SoundFont or AdLib) and the menus, screens and UI scale, each changed with
-Left/Right, Enter or a click and taking effect at once (`ingame_options_3d` in `mainint.c`).
+change the first two as well. In a level, Escape's options are Return to Game, **Graphics**, the two
+volumes, the music (SoundFont or AdLib), the game speed, the mouse and Quit Level; Graphics is a page
+of the 3D page's settings with the menus, screens, UI scale and the original's detail level, each
+changed with Left/Right, Enter or a click and taking effect at once, with the modern menus at the
+playfield's left and the 3D view bright beside them, so what each change does shows behind it
+(`ingame_options_3d` in `mainint.c`; turning the view to 2D and back there shows the 3D view again).
 
 **The modern UI** (Menus: Modern, the 3D view): the title screen, setup and its pages and pickers,
 the new game's choices (players, episode, difficulty, timed battle), the store between levels and the
@@ -96,7 +99,7 @@ level's map, the data cubes and their texts, and the store's questions (quit, sa
 Lists scroll. Two players: both ships side by side, what each has under them (the ship, the score,
 the gun and its power, lives, the input device). The Super Arcade and Super Tyrian: the mode, the
 ship's name, its main and special weapons (the original's help boxes there). Over a level (the scene
-blurred under the glass): the in-game options and their 3D
+blurred under the glass): the in-game options and their graphics
 page, the help (F1), pause, the level's results, game over. And the other screens: the high scores
 (the boards as tabs, medals, the difficulty played; the name of a new high score typed in a
 question with its score), the story texts between levels (reflowed in Oxanium in a glass panel over

@@ -371,6 +371,7 @@ typedef struct
 	SDL_Point nowhere;
 	bool values_turn;  // the values turn with Left / Right (the in-game options), no pickers
 	bool enter_turns;  // and with Enter too (their 3D page)
+	bool preview;      // the menu at the playfield's side, the 3D view behind it bright (the in-game graphics)
 	char hint[112];    // a line at the foot (the store's help line), or ""
 	bool hold;         // shown whatever the screen shows until released (ui_menu_release): it animates
 	int wheel;         // what the mouse wheel does on it (UI_WHEEL_*)

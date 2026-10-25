@@ -382,6 +382,8 @@ static void calc_dst_render_rect(SDL_Rect *const dst_rect)
 
 static Uint8 backdrop[320 * 200];
 static bool backdrop_valid = false;
+static bool backdrop_menu = false;       // a menu over the level has shown over it
+static Uint32 backdrop_menu_frames = 0;  // l3d_frames_begun then
 static int backdrop_shades[BACKDROP_SHADES][4];
 static int backdrop_shade_count = 0;
 static Uint32 backdrop_palette[256];
@@ -393,6 +395,7 @@ static void take_backdrop(void)
 	memcpy(backdrop_palette, rgb_palette, sizeof(backdrop_palette));
 	backdrop_shade_count = 0;
 	backdrop_valid = true;
+	backdrop_menu = false;
 }
 
 static int shades_ignored = 0;  // see video_backdrop_ignore_shades
@@ -784,11 +787,16 @@ static void present_screen_timed(SDL_Surface *src_surface)
 		                     &l3d_frame, &dst_rect, &screen_rect, modern_level);
 		last_output_rect = screen_rect;
 		last_frame_was_3d = false;
+		backdrop_menu = true;
+		backdrop_menu_frames = l3d_frames_begun;
 		ui_screen_shown(modern_level);
 		mouse_frame_shown();
 		return;
 	}
-	backdrop_valid = false;
+	// (The view turned to 2D in a menu over the level (the in-game options) and back: the backdrop
+	// holds again while the game hasn't gone on since.)
+	if (l3d_enabled || !backdrop_menu || backdrop_menu_frames != l3d_frames_begun)
+		backdrop_valid = false;
 
 	const bool sim = sim_holds(src_surface);
 	if (!sim)

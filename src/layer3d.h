@@ -214,6 +214,8 @@ extern L3DFrame l3d_frame;
 
 // Frames captured so far: a clock for things that only show (models spinning), apart from the game's.
 extern Uint32 l3d_frame_number;
+// The game's frames begun (l3d_frame_begin), in 3D or not.
+extern Uint32 l3d_frames_begun;
 
 // Starts capturing a frame if the 3D view is enabled. The first phase is always a fully opaque layer.
 void l3d_frame_begin(L3DLayerType first_type);

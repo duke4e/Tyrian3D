@@ -27,6 +27,7 @@ static bool frame_ready = false;
 
 L3DFrame l3d_frame;
 Uint32 l3d_frame_number = 0;
+Uint32 l3d_frames_begun = 0;
 
 typedef enum
 {
@@ -240,6 +241,7 @@ void l3d_hud_sprites_draw(SDL_Surface *surface)
 void l3d_frame_begin(L3DLayerType first_type)
 {
 	frame_ready = false;
+	++l3d_frames_begun;
 	if (!l3d_enabled || debug_flight_replaying())
 		return;
 
