@@ -258,7 +258,7 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_ROGUE_UNLOCKS=all` | Every unlock for that run |
 | `TYR3D_LEVEL_TICKS=<n>`, `TYR3D_LEVEL_DIE=<n>` | End every level as cleared after n ticks, or destroy the ship after n ticks (for testing what follows) |
 | `TYR3D_DUMP_KEYS=1` | With `TYR3D_DUMP_DIR`: dump the first frame shown after the game has taken each test key (its key, button, wheel or pointer event) instead of every n-th (menus) |
-| `TYR3D_UPSCALE_DIR=<dir>` | Where the HD resources are: `tiles/*.hdt`, `sheets/*.hd`, `hud_1p.png`, `hud_2p.png` (default `data/hd`) |
+| `TYR3D_UPSCALE_DIR=<dir>` | Where the HD resources are: `tiles/*.hdt`, `sheets/*.hd`, `hud_1p.png`, `hud_2p.png`, `pictures/pic_NN.png` (default `data/hd`) |
 | `TYR3D_MODE=<mode>` | With `TYR3D_START`: `arcade`, `two` (two players), `galaga` (the secret level's mode), `timed:<1-2>` (timed battle; start at section 1) or `super:<1-9>` (Super Arcade) instead of a full game |
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
@@ -486,7 +486,12 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 The 3D view's HD pictures are made from the game's data, so, like the data, they are not in the repository; the
 game loads them from `data/hd` (beside `data/tyrian2000`; `TYR3D_UPSCALE_DIR` overrides it): `tiles/<tileset>.hdt`
 (the background tiles at 4x), `sheets/<sheet>.hd` (the sprite sheets at 4x, for the HD volumes) and `hud_1p.png`,
-`hud_2p.png` (the HUD panel). Without them the game draws the original pixels. `upscale/` is only the work folder
+`hud_2p.png` (the HUD panel). Without them the game draws the original pixels. `pictures/pic_NN.png` are the
+game's full-screen pictures drawn anew (by hand or an image generator, from `TYR3D_EXPORT_PICTURES`' `pic_NN.png`,
+in the same frame, 16:10, any size): where the modern UI shows one of them much as the game loaded it (60 % of
+its pixels or more: the title, the menus' backgrounds, a story's picture), the new picture shows under the
+screen, which keeps only what the game drew over its picture (the title's logo, texts), and fades with the
+palette (`render_gpu.c` `match_hd_picture`; `TYR3D_DEBUG_PICTURES=1` prints how much each matches). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

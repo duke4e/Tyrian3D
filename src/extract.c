@@ -886,7 +886,8 @@ void dev_export_pictures(const char *dir)
 	if (readme == NULL)
 		return;
 	fputs("The game's pictures (TYR3D_EXPORT_PICTURES), 320 x 200 as the game shows them (on a 4:3 screen: its\n"
-	      "pixels are 1.2 times as tall as wide), each in its own palette.\n\n"
+	      "pixels are 1.2 times as tall as wide), each in its own palette. Drawn anew in the same frame (16:10, any\n"
+	      "size), pic_NN.png goes to data/hd/pictures/pic_NN.png: the modern UI shows it instead of the original.\n\n"
 	      "pic_01  the game menu and the store (the modern UI blurs it behind its panels), the Super Arcade's start\n"
 	      "pic_02  the menus behind the title: setup, options, load, high scores, the jukebox, network\n"
 	      "pic_03  the in-game HUD for one player: the right column (data/hd/hud_1p.png is its upscale)\n"

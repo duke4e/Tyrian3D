@@ -1720,10 +1720,125 @@ void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, floa
 	icon_quad(slot, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
 }
 
+/*
+ * Pictures drawn anew (data/hd/pictures/pic_NN.png: tyrian.pic's pictures as TYR3D_EXPORT_PICTURES exports
+ * them, drawn again at any size in the same frame, 16:10): where the modern UI shows one of the game's
+ * pictures much as the game loaded it (the title, the menus' backgrounds, a story's picture), the new
+ * picture shows under the screen's, which keeps only what the game drew on its picture (the logo, texts),
+ * in the palette's colours; the new picture fades with the palette.
+ */
+#define HD_PICTURE_SAME 0.6f  // the share of the screen's picture as loaded for the new one to show
+
+static struct
+{
+	BTBHGPUTexture *texture;
+	Uint8 *original;  // the picture as the game loads it
+} hd_pictures[PCX_NUM + 1];
+static int hd_picture = 0;               // the picture shown anew this frame (0: none)
+static float hd_picture_brightness = 1;  // how bright the palette is against the picture's own
+
+static void find_hd_pictures(void)
+{
+	static bool found = false;
+	if (found || window == NULL)
+		return;
+	found = true;
+	char dir[1024], path[1200];
+	const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+	SDL_Surface *surface = NULL;
+	for (int n = 1; n <= PCX_NUM; ++n)
+	{
+		snprintf(path, sizeof(path), "%s/pictures/pic_%02d.png", base, n);
+		if (!SDL_GetPathInfo(path, NULL))
+			continue;
+		BTBHGPUTextureReport report;
+		BTBHGPUTexture *texture = btbh_gpu_window_texture_load_ex(window, path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+		                                                          BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR,
+		                                                          &report);
+		if (surface == NULL)
+			surface = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8);
+		Uint8 *original = malloc(SCREEN_W * SCREEN_H);
+		if (texture == NULL || surface == NULL || original == NULL)
+		{
+			free(original);
+			fprintf(stderr, "warning: picture %s: %s\n", path, texture == NULL ? report.message : "no memory");
+			continue;
+		}
+		JE_loadPic(surface, (JE_byte)n, false);
+		for (int y = 0; y < SCREEN_H; ++y)
+			memcpy(original + y * SCREEN_W, (const Uint8 *)surface->pixels + y * surface->pitch, SCREEN_W);
+		hd_pictures[n].texture = texture;
+		hd_pictures[n].original = original;
+		printf("picture %d drawn anew: %s\n", n, path);
+	}
+	if (surface != NULL)
+		SDL_DestroySurface(surface);
+}
+
+// The picture drawn anew that the screen's picture is (0: none) and, if one, the screen's pixels in rgba
+// only where the game drew over it (the rest clear).
+static int match_hd_picture(const Uint8 *picture, Uint32 *rgba)
+{
+	find_hd_pictures();
+	int best = 0, best_same = (int)(SCREEN_W * SCREEN_H * HD_PICTURE_SAME);
+	for (int n = 1; n <= PCX_NUM; ++n)
+	{
+		if (hd_pictures[n].original == NULL)
+			continue;
+		int same = 0;
+		for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
+			same += picture[i] == hd_pictures[n].original[i];
+		if (same > best_same)
+		{
+			best = n;
+			best_same = same;
+		}
+	}
+	if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
+		for (int n = 1; n <= PCX_NUM; ++n)
+			if (hd_pictures[n].original != NULL)
+			{
+				int same = 0;
+				for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
+					same += picture[i] == hd_pictures[n].original[i];
+				printf("debug picture %d: same %.3f\n", n, same / (float)(SCREEN_W * SCREEN_H));
+			}
+	if (best == 0)
+		return 0;
+	const Uint8 *original = hd_pictures[best].original;
+	for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
+		if (picture[i] == original[i])
+			rgba[i] = 0;
+	// (The palette's fade since the picture was loaded in its own.)
+	const SDL_Color *own = palettes[pcxpal[best - 1]];
+	float was = 0, now = 0;
+	for (int i = 0; i < 256; ++i)
+	{
+		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
+		was += own[i].r + own[i].g + own[i].b;
+		now += c[0] + c[1] + c[2];
+	}
+	hd_picture_brightness = was > 0 ? SDL_clamp(now / was, 0.0f, 1.0f) : 1.0f;
+	return best;
+}
+
+// A part of the picture drawn anew (screen pixels sx, sy, sw, sh) at x, y, w, h.
+static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
+{
+	HudQuad *q = hud_quad_add();
+	if (q == NULL)
+		return;
+	const float b = hd_picture_brightness;
+	*q = (HudQuad){ x, y, w, h, sx / SCREEN_W, sy / SCREEN_H, (sx + sw) / SCREEN_W, (sy + sh) / SCREEN_H, { b, b, b, alpha },
+	                { b, b, b, alpha }, .texture = hd_pictures[hd_picture].texture };
+}
+
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
 {
 	if (sw <= 0 || sh <= 0)
 		return;
+	if (hd_picture != 0)
+		add_hd_picture(sx, sy, sw, sh, x, y, w, h, alpha);
 	HudQuad *q = hud_quad_add();
 	if (q == NULL)
 		return;
@@ -10330,18 +10445,27 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	hud_quad_count = 0;
 	canvas_fade[3] = 0;
 	convert_pixels(ui_screen_picture(), screen_rgba);
-	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
 	SDL_Rect dst;
 	ui_fill_rect(frame.logical_width, frame.logical_height, &dst);
 	make_blur(screen_rgba, w, h);
+	// (A picture drawn anew: the screen then only what the game drew over it, after the blur.)
+	hd_picture = match_hd_picture(ui_screen_picture(), screen_rgba);
+	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
 	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
 	const bool whole = ui_screen_whole_picture();
 	float pane[4], box[4];
 	const bool with_scene = scene != NULL && ui_scene_pane(&view, pane, box);
 	if (whole)
+	{
 		add_surround(&dst, w, h);
+		if (hd_picture != 0)
+		{
+			add_hd_picture(0, 0, SCREEN_W, SCREEN_H, (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h, 1);
+			hud_under = hud_quad_count;  // (under the screen's quad)
+		}
+	}
 	else
 		add_backdrop(w, h, with_scene ? pane : NULL);
 	bool drawn = false;
@@ -10386,4 +10510,5 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	quad.sharp = true;
 	present_canvas(whole ? &quad : NULL, whole ? 1 : 0, false, !drawn, &frame);
 	blur_ready = false;
+	hd_picture = 0;
 }
