@@ -4807,6 +4807,7 @@ redo:
 					button[1] = button[1] || keysactive[keySettings[KEY_SETTING_LEFT_SIDEKICK]];
 					button[2] = button[2] || keysactive[keySettings[KEY_SETTING_RIGHT_SIDEKICK]];
 
+					bool autopilot_fire = true;
 					if (dev_autopilot())
 					{
 						int dx = 0, dy = 0;
@@ -4815,15 +4816,22 @@ redo:
 						this_player->x += dx;
 						this_player->y += dy;
 						button[0] = button[0] || fire;
+						autopilot_fire = fire;
 					}
 
 					if (constantPlay)
 					{
-						for (unsigned int i = 0; i < 4; i++)
-							button[i] = true;
+						// Tyrian3D: the autopilot steers by itself (constant play's drift held it at the left
+						// edge) and holds fire with TYR3D_AUTOPILOT=nofire
+						if (autopilot_fire)
+							for (unsigned int i = 0; i < 4; i++)
+								button[i] = true;
 
-						++this_player->y;
-						this_player->x += constantLastX;
+						if (!dev_autopilot())
+						{
+							++this_player->y;
+							this_player->x += constantLastX;
+						}
 					}
 
 					// TODO: check if demo recording still works
