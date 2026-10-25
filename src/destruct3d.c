@@ -670,18 +670,34 @@ static void make_glow(void)
 		{ 70, 6, 2 }, { 100, 10, 2 }, { 130, 16, 4 }, { 160, 24, 4 }, { 190, 34, 6 }, { 214, 48, 8 }, { 236, 66, 10 }, { 255, 88, 12 },
 		{ 255, 112, 18 }, { 255, 140, 28 }, { 255, 168, 44 }, { 255, 196, 70 }, { 255, 220, 110 }, { 255, 236, 160 }, { 255, 248, 210 },
 	};
+	// (Each burning pixel spread a little over its neighbours: embers, not squares.)
+	static float heat_rgb[D3_W * D3_H * 3];
 	bool any = false;
+	memset(heat_rgb, 0, sizeof(heat_rgb));
+	for (int y = D3_TOP; y < D3_H; ++y)
+		for (int x = 0; x < D3_W; ++x)
+		{
+			const Uint8 p = field[y * D3_W + x];
+			if (p < 241)
+				continue;
+			any = true;
+			const Uint8 *c = heat[p - 241];
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx)
+				{
+					const int xx = x + dx, yy = y + dy;
+					if (xx < 0 || xx >= D3_W || yy < D3_TOP || yy >= D3_H)
+						continue;
+					const float w = dx == 0 && dy == 0 ? 0.55f : (dx == 0 || dy == 0) ? 0.16f : 0.06f;
+					float *h = heat_rgb + (yy * D3_W + xx) * 3;
+					for (int k = 0; k < 3; ++k)
+						h[k] += c[k] * w;
+				}
+		}
 	for (int i = 0; i < D3_W * D3_H; ++i)
 	{
-		const Uint8 p = field[i];
-		if (p >= 241 && i >= D3_TOP * D3_W)
-		{
-			const Uint8 *c = heat[p - 241];
-			glow[i] = rgba(c[0], c[1], c[2], 255);
-			any = true;
-		}
-		else
-			glow[i] = 0;
+		const float *h = heat_rgb + i * 3;
+		glow[i] = h[0] + h[1] + h[2] > 0 ? rgba(h[0] * 1.6f, h[1] * 1.6f, h[2] * 1.6f, 255) : 0;
 	}
 	if (any || glow_any)
 		++glow_generation;
@@ -922,6 +938,29 @@ static void effects(const D3Tick *was, const D3Tick *now)
 		if (!known)
 			muzzle(s);
 		trail(s);
+	}
+	// A magnet pushing sends rings from its poles (its frame 2: the tick after it fired); a unit badly
+	// damaged smokes.
+	for (int i = 0; i < now->unit_count; ++i)
+	{
+		const D3Unit *u = &now->units[i];
+		const float dir = u->side == 0 ? 1.0f : -1.0f;
+		D3Particle *p;
+		if (u->type == 4 && u->frame == 2 && (p = spawn(D3P_RING, u->x + 6 + dir * 6.5f, 199.5f - u->y + 12.5f, -D3_PLANE + 1, 14)) != NULL)
+		{
+			p->size = 4;
+			p->grow = 1.6f;
+			p->vx = dir * 1.2f;
+			paint(p, 0.6f, 1.2f, 3.0f, 1, 0, 0.1f, 0.4f, 0);
+		}
+		if (u->health < 0.4f && (ticks + (unsigned int)i * 7) % 6 == 0 &&
+		    (p = spawn(D3P_SMOKE, u->x + 6 + frange(-2, 2), 199.5f - u->y + 8, -D3_PLANE + frange(-1, 1), frange(50, 80))) != NULL)
+		{
+			p->vy = frange(0.15f, 0.28f);
+			p->size = frange(2.0f, 3.2f);
+			p->grow = 0.1f;
+			paint(p, 0.05f, 0.045f, 0.04f, 0.45f * (1 - u->health), 0.08f, 0.075f, 0.07f, 0);
+		}
 	}
 	// A unit destroyed smokes where it stood a while.
 	for (int j = 0; j < was->unit_count; ++j)
