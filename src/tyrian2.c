@@ -285,7 +285,8 @@ static Uint8 enemy_open_sides(unsigned int i)
 // and the first sprite of its animation name its look (the renderer's "groundmodel:" lines say what its
 // model covers), the screen position where it is on the screen (game pixels: the 3D view's ground under
 // it depends on it), the 3D frame when, and group and link which object it is a piece of
-// (enemy_group, L3DObject.group).
+// (enemy_group, L3DObject.group). The top enemies (drawn after background 3, carried by it) as "riding:"
+// lines with the same fields, on background 3's map only (tools/terrain/make_cleanground.py's upper maps).
 static struct
 {
 	float x, y;
@@ -295,6 +296,7 @@ static struct
 	unsigned int sprite;
 	Uint32 group;
 	Uint8 link;
+	bool riding;
 } ground_logged[COUNTOF(enemy) * 2];
 static int ground_logged_count = 0;
 
@@ -302,12 +304,13 @@ static void log_ground_enemy(unsigned int i, char sheet, unsigned int first_spri
 {
 	// (on the ground as shown: a model put on another layer than the game's, models.cfg layer=, is there)
 	const L3DLayerType layer = look_layer > 0 ? (L3DLayerType)(look_layer - 1) : l3d_current_layer();
-	if (layer != L3D_GROUND_ENEMY || enemy[i].ey <= -26 || enemy[i].ey >= 190 ||
+	const bool riding = l3d_current_layer() == L3D_TOP_ENEMY;
+	if ((layer != L3D_GROUND_ENEMY && !riding) || enemy[i].ey <= -26 || enemy[i].ey >= 190 ||
 	    ground_logged_count == (int)COUNTOF(ground_logged))
 		return;
 	ground_logged[ground_logged_count++] = (typeof(ground_logged[0])){
 		enemy[i].ex + tempMapXOfs + 6, enemy[i].ey + 7, enemy[i].size == 1 ? 24 : 12, i, sheet, first_sprite,
-		enemy_group[i], enemy_group_link[i] };
+		enemy_group[i], enemy_group_link[i], riding };
 }
 
 // At the frame's end, when all its backgrounds are drawn: where the frame's ground enemies were on
@@ -331,13 +334,15 @@ static void flush_ground_log(void)
 			const int set = background->set;
 			const unsigned int i = ground_logged[e].slot;
 			int map_x, map_y;
-			if (set < 1 || set > B3D_SETS || !b3d_map_point(background, ground_logged[e].x, ground_logged[e].y, &map_x, &map_y))
+			if (set < 1 || set > B3D_SETS || (ground_logged[e].riding && set != 3) ||
+			    !b3d_map_point(background, ground_logged[e].x, ground_logged[e].y, &map_x, &map_y))
 				continue;
 			if (abs(map_x - last_x[set - 1][i]) < 4 && abs(map_y - last_y[set - 1][i]) < 4)
 				continue;
 			last_x[set - 1][i] = map_x;
 			last_y[set - 1][i] = map_y;
-			printf("ground: %016llx %d %d %d %u %u %u %d %d %u %u %u\n", (unsigned long long)hashes[set - 1], map_x, map_y,
+			printf("%s: %016llx %d %d %d %u %u %u %d %d %u %u %u\n", ground_logged[e].riding ? "riding" : "ground",
+			       (unsigned long long)hashes[set - 1], map_x, map_y,
 			       ground_logged[e].size, i, (unsigned int)(Uint8)ground_logged[e].sheet, ground_logged[e].sprite,
 			       (int)ground_logged[e].x, (int)ground_logged[e].y, l3d_frame_number, (unsigned int)ground_logged[e].group,
 			       (unsigned int)ground_logged[e].link);
@@ -1024,12 +1029,12 @@ static void draw_coming_enemies(int enemy_offset)
 #define STANDIN_FAR (-420)     // game pixels: the furthest row worth showing above the screen
 #define STANDIN_BELOW 330
 
-static bool standin_covered(const B3DStandin *s, float x, float y)
+static bool standin_covered(const B3DStandin *s, float x, float y, L3DLayerType layer)
 {
 	for (int o = 0; o < l3d_frame.object_count; ++o)
 	{
 		const L3DObject *object = &l3d_frame.objects[o];
-		if (object->layer != L3D_GROUND_ENEMY || object->enemy_sheet == 0 || object->standin != 0 ||
+		if (object->layer != layer || object->enemy_sheet == 0 || object->standin != 0 ||
 		    fabsf(object->x - x) > STANDIN_COVERED || fabsf(object->y - y) > STANDIN_COVERED)
 			continue;
 		for (int k = 0; k < s->cover_count; ++k)
@@ -1039,16 +1044,19 @@ static bool standin_covered(const B3DStandin *s, float x, float y)
 	return false;
 }
 
-static void draw_standins(void)
+// set: the background whose map's stand-ins these are (1 the ground's, among the ground enemies; 3 background
+// 3's, among the top enemies riding it).
+static void draw_standins(int set)
 {
 	if (!l3d_capturing || !m3d_enabled || endLevel)
 		return;
-	const B3DStandins *standins = b3d_standins();
+	const B3DStandins *standins = b3d_standins(set);
 	if (standins == NULL)
 		return;
+	const L3DLayerType layer = set == 3 ? L3D_TOP_ENEMY : L3D_GROUND_ENEMY;
 	const L3DBackground *ground = NULL;
 	for (int b = 0; b < l3d_frame.background_count; ++b)
-		if (l3d_frame.backgrounds[b].set == 1)
+		if (l3d_frame.backgrounds[b].set == set)
 			ground = &l3d_frame.backgrounds[b];
 	float ox, oy;  // where the map's corner is on the screen (the map moves as a whole)
 	if (ground == NULL || !b3d_screen_point(ground, 0.0f, 0.0f, &ox, &oy))
@@ -1064,7 +1072,7 @@ static void draw_standins(void)
 		const float x = ox + s->x, y = oy + s->y;
 		if (y < STANDIN_FAR || y > STANDIN_BELOW)
 			continue;
-		if (standin_covered(s, x, y))
+		if (standin_covered(s, x, y, layer))
 		{
 			covered += y >= 0;
 			continue;
@@ -2370,7 +2378,7 @@ level_loop:
 	JE_drawEnemy(100);
 	draw_coming_enemies(25);
 	draw_coming_enemies(75);
-	draw_standins();
+	draw_standins(1);
 
 	if (enemyOnScreen == 0 || enemyOnScreen == lastEnemyOnScreen)
 	{
@@ -2473,6 +2481,7 @@ level_loop:
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : mapXOfs;
 		tempBackMove = backMove3;
 		JE_drawEnemy(75);
+		draw_standins(3);  // Tyrian3D: what stands in for background 3's painted objects
 		draw_coming_enemies(50);
 	}
 
@@ -2938,6 +2947,7 @@ draw_player_shot_loop_end:
 		tempMapXOfs = (background3x1 == 0) ? oldMapX3Ofs : oldMapXOfs;
 		tempBackMove = backMove3;
 		JE_drawEnemy(75);
+		draw_standins(3);
 		draw_coming_enemies(50);
 	}
 

@@ -276,8 +276,9 @@ typedef struct
 	const B3DStandin *standins;
 } B3DStandins;
 
-// The current ground map's stand-ins, or NULL (none, or TYR3D_ERASE=0).
-const B3DStandins *b3d_standins(void);
+// The stand-ins of a background's current map (1 the ground's; 3 background 3's, for the top enemies
+// riding it), or NULL (none, or TYR3D_ERASE=0).
+const B3DStandins *b3d_standins(int set);
 
 // The atlas cell of a map's tile at a row and column (sides and mirroring as the tiles are
 // collected), or -1 for an empty entry.

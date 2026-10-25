@@ -305,7 +305,7 @@ def standing_pieces(name):
     info, idx, rgb, opaque, shapes = load(name)
     side = info["side_columns"]
     out, seen = [], {}
-    for t in mt.ground_tracks(name):
+    for t in mt.ground_tracks(name, riding=info["background"] == 3):
         if not t.standing or t.look is None:
             continue
         x, y = float(np.median(t.x)), float(np.median(t.y))
@@ -1099,7 +1099,8 @@ def build(name, overrides, object_tiles, report):
     jobs = []
     for g in objs:
         jobs.append((g, sorted({rc for p in g for rc in p.cells}), None))
-    jobs += decor_jobs(cl, object_tiles, occupied)
+    if info["background"] == 1:  # (an upper map: only where its riders stand; its tiles' copies elsewhere are landscape)
+        jobs += decor_jobs(cl, object_tiles, occupied)
     plans = []
     for g, cells, touch in jobs:
         if not cells:
@@ -1331,6 +1332,7 @@ def main():
     overrides = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
     every = sorted(os.path.basename(f)[4:-5] for f in glob.glob(os.path.join(mt.MAPS, "map_*.json"))
                    if json.load(open(f))["background"] == 1)
+    every += sorted(overrides.get("upper_maps", {}))  # background 3's maps, for the top enemies riding them
     names = every if sys.argv[1:] == ["all"] else sys.argv[1:]
     skipped = [n for n in names if n in overrides.get("skip_maps", {})]
     for n in skipped:

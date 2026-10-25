@@ -182,8 +182,8 @@ def read_ground_log(names=None):
     what the models of each sheet and first sprite cover ("groundmodel:", the renderer's; their union)."""
     global _log
     if _log is None:
-        _log = {"lines": {}, "models": {}, "read": set(), "all": False, "tracks": {}}
-    lines, models = _log["lines"], {}
+        _log = {"lines": {}, "riding": {}, "models": {}, "read": set(), "all": False, "tracks": {}}
+    lines, riding, models = _log["lines"], _log["riding"], {}
     wanted = set(names) - _log["read"] if names is not None else None
     if wanted is not None and not wanted:
         return
@@ -196,6 +196,10 @@ def read_ground_log(names=None):
                     key = line[8:24]
                     if wanted is None or key in wanted:
                         lines.setdefault(key, []).append(line)
+                elif line.startswith("riding: "):  # (the top enemies on background 3's map: make_cleanground.py)
+                    key = line[8:24]
+                    if wanted is None or key in wanted:
+                        riding.setdefault(key, []).append(line)
                 elif line.startswith("groundmodel: "):
                     parts = line.split()
                     if len(parts) not in (9, 11):
@@ -244,16 +248,16 @@ class Track:
         del self.points
 
 
-def ground_tracks(name):
+def ground_tracks(name, riding=False):
     """The map's ground enemies as tracks (Track): each enemy slot's points in order, a new track where
     the slot's position jumps or its look changes (another enemy in it) or its frames start again
-    (another run)."""
+    (another run). riding: the top enemies riding the map (background 3's) instead."""
     if _log is None or not (_log["all"] or name in _log["read"]):
         read_ground_log([name])
-    if name in _log["tracks"]:
-        return _log["tracks"][name]
+    if (name, riding) in _log["tracks"]:
+        return _log["tracks"][(name, riding)]
     tracks, last = [], {}
-    for line in _log["lines"].get(name, []):
+    for line in _log["riding" if riding else "lines"].get(name, []):
         parts = line.split()
         if len(parts) not in (6, 8, 10, 13):
             continue  # mixed up with another message
@@ -274,7 +278,7 @@ def ground_tracks(name):
         t.points.append((x, y) + extra)
     for t in tracks:
         t.finish(_log["models"])
-    _log["tracks"][name] = tracks
+    _log["tracks"][(name, riding)] = tracks
     return tracks
 
 

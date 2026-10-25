@@ -1667,26 +1667,27 @@ static struct
 	bool present;
 	B3DStandins standins;
 	B3DStandin *list;
-} standin_state;
+} standin_states[B3D_SETS];
 
-const B3DStandins *b3d_standins(void)
+const B3DStandins *b3d_standins(int set)
 {
 	static int enabled = -1;
 	if (enabled < 0)
 		enabled = SDL_getenv("TYR3D_ERASE") == NULL || SDL_atoi(SDL_getenv("TYR3D_ERASE")) != 0;
-	if (!enabled)
+	if (!enabled || set < 1 || set > B3D_SETS)
 		return NULL;
-	if (standin_state.made_for == b3d_map_generation + 1)
-		return standin_state.present ? &standin_state.standins : NULL;
-	standin_state.made_for = b3d_map_generation + 1;
-	standin_state.present = false;
-	free(standin_state.list);
-	standin_state.list = NULL;
+	typeof(standin_states[0]) *state = &standin_states[set - 1];
+	if (state->made_for == b3d_map_generation + 1)
+		return state->present ? &state->standins : NULL;
+	state->made_for = b3d_map_generation + 1;
+	state->present = false;
+	free(state->list);
+	state->list = NULL;
 
 	char dir[1024], path[1200];
 	snprintf(path, sizeof(path), "%s/%016llx.std",
 	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
-	         (unsigned long long)b3d_map_hash(1));
+	         (unsigned long long)b3d_map_hash(set));
 	FILE *f = fopen(path, "r");
 	if (f == NULL)
 		return NULL;
@@ -1718,20 +1719,20 @@ const B3DStandins *b3d_standins(void)
 		if (count == capacity)
 		{
 			capacity = capacity ? capacity * 2 : 64;
-			B3DStandin *grown = realloc(standin_state.list, sizeof(B3DStandin) * (size_t)capacity);
+			B3DStandin *grown = realloc(state->list, sizeof(B3DStandin) * (size_t)capacity);
 			if (grown == NULL)
 				break;
-			standin_state.list = grown;
+			state->list = grown;
 		}
-		standin_state.list[count++] = s;
+		state->list[count++] = s;
 	}
 	fclose(f);
-	standin_state.standins.count = count;
-	standin_state.standins.standins = standin_state.list;
-	standin_state.present = count > 0;
+	state->standins.count = count;
+	state->standins.standins = state->list;
+	state->present = count > 0;
 	if (count > 0)
 		printf("standins: %s (%d)\n", path, count);
-	return standin_state.present ? &standin_state.standins : NULL;
+	return state->present ? &state->standins : NULL;
 }
 
 const B3DVegetation *b3d_vegetation(void)
