@@ -350,7 +350,32 @@ The keys: the left side X/Shift fire, C/V angle, A/Z power, Space/Ctrl weapon, A
 right side Enter/Insert, Left/Right, Up/Down, PgUp/PgDn, \ or Num 5; F10 and F11 hand the left and
 the right side to the computer or back, Backspace makes a new field, P pauses, Esc goes back to the
 battles. Test runs reach it with `TYR3D_TEST_KEYS=60:Space,4000:TypeDESTRUCT,3000:Space,2500:Return`
-(the intro's logos skipped, the code typed, the intro passed, the first battle).
+(the intro's logos skipped, the code typed, the intro passed, the first battle); F11 then hands the
+right side to the computer, so the battle plays itself.
+
+In the 3D view (with the modern UI) the battle is a diorama (`src/destruct3d.c`, drawn by
+`present_destruct` in `render_gpu.c` while Destruct's screen is published): the field is the cut face
+of a ridge seen a little from above, the game's plane (where the units stand and the shots fly) 4
+pixels behind the face. The game's 320x200 picture of dirt stays the truth: the ridge is a density
+field over its columns, rows and 14 slices 2 pixels apart, made into meshes by surface nets in chunks
+of 16 columns, each made again when the dirt under it changes. Where the game digs dirt away the face
+is dug back into the ridge in a bowl as deep as the hole is wide (each dug pixel's distance to the
+dirt left, smoothed), so the explosions' holes are craters; the field's pixels on fire (the
+explosions' 241-255) glow in the game's plane, and each explosion lights what is round it. The faces
+show the earth in layers, darker down and back in the bowls, what faces up dry topsoil. Behind the
+ridge the land falls away (the faster, the higher the ridge stands there) to rolling hills fading into
+the dark; beside the field it goes on from its edges; a starry sky with faint nebulae and a red planet
+lit by the sun. The units and the walls are the game's sprites with volume standing in the game's
+plane (a quarter larger, about their feet); the shots glow with short trails; the crosshairs are gold
+rings. The modern HUD: each side's panel at the top (who plays it, its points, the unit chosen and how
+many stand, the weapon with its icon, the barrel's angle on a dial, the power and the armor), the
+battle and the score between them, the round's winner, the keys at the bottom. The camera fits the
+field to the window's width and height (on wide windows the land beside it shows). `TYR3D_PROFILE=1`
+prints the frames a second and what a frame and the ridge's meshes take.
+
+A wall placed at the field's right edge (x 309 or more) made the original read and write past its
+320 columns of heights, into the screen pointer after them, and the next field's terrain was drawn
+from there: a crash. Placement now stops at the field's last column (`JE_placementPosition`).
 
 ## Environment variables
 

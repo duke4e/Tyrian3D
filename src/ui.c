@@ -3792,6 +3792,122 @@ static void build_destruct_help(const UIMenu *m)
 	key_hints(keys, 1, p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
 }
 
+// A thick line from a to b.
+static void destruct_line(float ax, float ay, float bx, float by, float width, Colour c)
+{
+	const float dx = bx - ax, dy = by - ay, length = sqrtf(dx * dx + dy * dy);
+	if (length <= 0)
+		return;
+	const float nx = -dy / length * width / 2, ny = dx / length * width / 2;
+	const float x[4] = { ax + nx, bx + nx, bx - nx, ax - nx };
+	const float y[4] = { ay + ny, by + ny, by - ny, ay - ny };
+	const Colour cs[4] = { c, c, c, c };
+	quad(x, y, cs);
+}
+
+// The barrel's angle: a quarter dial from flat to straight up, opening towards the other side.
+static void destruct_dial(float cx, float cy, float r, float degrees, bool mirror, bool live)
+{
+	const float sign = mirror ? -1.0f : 1.0f, w = SDL_max(U(3), L.px * 1.5f);
+	for (int k = 0; k < 18; ++k)
+	{
+		const float a0 = k * 5.0f * (float)M_PI / 180.0f, a1 = (k + 1) * 5.0f * (float)M_PI / 180.0f;
+		destruct_line(cx + sign * cosf(a0) * r, cy - sinf(a0) * r, cx + sign * cosf(a1) * r, cy - sinf(a1) * r, w, C_WELL_RIM);
+	}
+	for (int k = 0; k <= 90; k += 15)
+	{
+		const float a = k * (float)M_PI / 180.0f, inner = r - U(k % 45 == 0 ? 12 : 7);
+		destruct_line(cx + sign * cosf(a) * inner, cy - sinf(a) * inner, cx + sign * cosf(a) * r, cy - sinf(a) * r, w * 0.7f, C_TAN);
+	}
+	if (live)
+	{
+		const float a = SDL_clamp(degrees, 0.0f, 90.0f) * (float)M_PI / 180.0f;
+		destruct_line(cx, cy, cx + sign * cosf(a) * (r - U(4)), cy - sinf(a) * (r - U(4)), w * 1.2f, C_CREAM);
+	}
+	disc(cx, cy, U(5), C_RIM_TOP);
+}
+
+// A side's panel at the top: who plays it and its score, the unit chosen and how many stand, its
+// weapon, the barrel's angle, the power and the armor.
+static void destruct_side(const UIDestruct *d, int s)
+{
+	const UIDestructSide *side = &d->side[s];
+	const bool right = s == 1;
+	const float cap = CAP_ITEM(), small = CAP_SMALL(), key = CAP_KEY();
+	const float pw = SDL_min(U(540), L.safe.w * 0.31f), ph = U(136);
+	const Box p = { snap(right ? L.safe.x + L.safe.w - U(20) - pw : L.safe.x + U(20)), U(14), snap(pw), ph };
+	panel(p, U(16), PANEL_GLASS);
+	const Colour team = right ? (Colour){ 0.45f, 0.86f, 0.45f, 1 } : (Colour){ 0.9f, 0.7f, 0.38f, 1 };
+	rect((Box){ right ? p.x + p.w - U(12) : p.x + U(8), p.y + U(24), U(4), p.h - U(48) }, team, with_alpha(team, 0.6f));
+	const float x = p.x + U(30);
+	char who[32];
+	snprintf(who, sizeof(who), "%s  -  %s", right ? "RIGHT" : "LEFT", side->cpu ? "COMPUTER" : "PLAYER");
+	text(FONT_SEMIBOLD, who, x, p.y + U(14), key, C_DIM, ALIGN_LEFT);
+	char score[16];
+	snprintf(score, sizeof(score), "%d", side->score);
+	const float sx = p.x + p.w - U(30);
+	text_graded(FONT_BOLD, score, sx, p.y + U(8), cap * 1.5f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+	text(FONT_SEMIBOLD, "PTS", sx - text_w(FONT_BOLD, score, cap * 1.5f) - U(12), p.y + U(18), key, C_DIM, ALIGN_RIGHT);
+	// The unit, and the units standing as pips.
+	text_graded(FONT_BOLD, side->unit[0] != '\0' ? side->unit : "None left", x, p.y + U(36), cap * 1.15f, C_GOLD_TOP, C_GOLD_BOTTOM,
+	            ALIGN_LEFT, true);
+	const float pip = SDL_max(U(12), L.px * 4);
+	pips(x, p.y + U(70), SDL_min(side->units, 10), SDL_min(side->units_left, 10), pip, pip * 0.6f, team);
+	// The weapon: its icon and name.
+	const Box wb = { x, p.y + p.h - U(46), SDL_min(U(240), p.w * 0.46f), U(34) };
+	panel(wb, U(8), PANEL_WELL);
+	if (d->sheet != NULL && side->weapon_sprite > 0)
+		rgpu_ui_sprite(d->sheet, (unsigned int)side->weapon_sprite, false, snap(wb.x + U(8)), snap(wb.y + (wb.h - U(29)) / 2), U(25), U(29),
+		               L.alpha);
+	text_mid(FONT_SEMIBOLD, side->weapon, (Box){ wb.x + U(42), wb.y, wb.w - U(48), wb.h }, 0, small, C_CREAM, ALIGN_LEFT);
+	// The angle, the power, the armor.
+	const float gx = wb.x + wb.w + U(22);
+	const float r = U(46);
+	destruct_dial(right ? gx + r + U(6) : gx + U(6), p.y + p.h - U(14), r, side->angle, right, side->aims);
+	char angle[16] = "-";
+	if (side->aims)
+		snprintf(angle, sizeof(angle), "%d", (int)lroundf(side->angle));
+	text(FONT_BOLD, angle, gx + r / 2 + U(6), p.y + U(66), small * 1.15f, side->aims ? C_CREAM : C_FAINT, ALIGN_CENTRE);
+	const float bx = gx + r + U(28);
+	const float bar_w = SDL_max(p.x + p.w - U(30) - bx, U(60));
+	text(FONT_SEMIBOLD, "POWER", bx, p.y + U(62), key, C_DIM, ALIGN_LEFT);
+	bar((Box){ bx, p.y + U(62) + key + U(6), bar_w, U(15) }, side->powered ? side->power : 0, (Colour){ 0.92f, 0.7f, 0.34f, 1 }, true);
+	text(FONT_SEMIBOLD, "ARMOR", bx, p.y + U(97), key, C_DIM, ALIGN_LEFT);
+	bar((Box){ bx, p.y + U(97) + key + U(6), bar_w, U(11) }, side->armor,
+	    side->armor > 0.35f ? C_GREEN : (Colour){ 0.92f, 0.45f, 0.3f, 1 }, true);
+}
+
+// The battle's HUD: both sides' panels, the battle and the score between them, who won a round, keys.
+static void build_destruct_hud(const UIMenu *m)
+{
+	const UIDestruct *d = &m->destruct;
+	destruct_side(d, 0);
+	destruct_side(d, 1);
+	const float cap = CAP_ITEM(), key = CAP_KEY();
+	const float cw = U(280), ch = U(84);
+	const Box c = { snap(L.safe.x + (L.safe.w - cw) / 2), U(14), snap(cw), ch };
+	panel(c, U(14), PANEL_GLASS);
+	char mode[32];
+	SDL_strlcpy(mode, d->mode, sizeof(mode));
+	for (char *k = mode; *k != '\0'; ++k)
+		*k = (char)SDL_toupper(*k);
+	text(FONT_SEMIBOLD, mode, c.x + c.w / 2, c.y + U(12), key, C_DIM, ALIGN_CENTRE);
+	char score[24];
+	snprintf(score, sizeof(score), "%d  :  %d", d->side[0].score, d->side[1].score);
+	text_graded(FONT_BOLD, score, c.x + c.w / 2, c.y + U(32), cap * 1.5f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+	if (d->winner >= 0)
+	{
+		const char *won = d->winner == 0 ? "The left side wins the round" : "The right side wins the round";
+		const float bw = text_w(FONT_BOLD, won, CAP_TITLE()) + U(120), bh = CAP_TITLE() + U(56);
+		const Box b = { snap(L.safe.x + (L.safe.w - bw) / 2), snap(L.window.h * 0.36f), snap(bw), snap(bh) };
+		panel(b, U(18), PANEL_GLASS);
+		text_graded(FONT_BOLD, won, b.x + b.w / 2, b.y + U(28), CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+	}
+	const KeyHint keys[] = { { KEY_TEXT, "F1", "Help" }, { KEY_TEXT, "P", "Pause" }, { KEY_TEXT, "Bksp", "New field" },
+	                         { KEY_TEXT, "Esc", "Battles" } };
+	key_hints(keys, (int)COUNTOF(keys), L.safe.x + L.safe.w / 2, L.window.h - U(18) - key_hints_height(), ALIGN_CENTRE);
+}
+
 static void build_destruct(const UIMenu *m)
 {
 	switch (m->destruct.page)
@@ -3807,6 +3923,7 @@ static void build_destruct(const UIMenu *m)
 		build_destruct_help(m);
 		break;
 	case UI_DESTRUCT_PLAY:
+		build_destruct_hud(m);
 		break;
 	}
 }
@@ -3825,7 +3942,7 @@ void ui_build_screen(const UIView *view)
 	if (published.kind == UI_SCREEN_STORY || (published.kind == UI_SCREEN_ROGUE && published.rogue.page == UI_ROGUE_MAP))
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.08f }, (Colour){ 0, 0, 0, 0.3f });
 	else if (published.kind != UI_SCREEN_TITLE && published.kind != UI_SCREEN_JUKEBOX && published.kind != UI_SCREEN_CREDITS &&
-	         published.kind < UI_SCREEN_SHOP)
+	         published.kind < UI_SCREEN_SHOP && !(published.kind == UI_SCREEN_DESTRUCT && published.destruct.page == UI_DESTRUCT_PLAY))
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.25f }, (Colour){ 0, 0, 0, 0.4f });
 	static int gallery = -1;
 	if (gallery < 0)

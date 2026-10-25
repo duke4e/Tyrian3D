@@ -48,6 +48,7 @@
 #include "destruct.h"
 
 #include "config.h"
+#include "destruct3d.h"
 #include "config_file.h"
 #include "fonthand.h"
 #include "helptext.h"
@@ -389,6 +390,10 @@ static bool JE_stabilityCheck(unsigned int, unsigned int);
 
 //sound
 static void DE_RunTickPlaySounds(void);
+
+//Tyrian3D: the 3D view and the modern HUD
+static void destruct_new_field(void);
+static void destruct_publish_play(void);
 static void JE_eSound(unsigned int);
 
 /*** Weapon configurations ***/
@@ -704,7 +709,9 @@ void JE_destructGame(void)
 
 	fade_black(1);
 
+	destruct3d_enter();
 	JE_destructMain();
+	destruct3d_leave();
 
 	free_sprite2s(&destructSpriteSheet);
 
@@ -743,6 +750,7 @@ static void JE_destructMain(void)
 
 			DE_ResetUnits();
 			DE_ResetLevel();
+			destruct_new_field();
 			do
 			{
 				curState = DE_RunTick();
@@ -885,6 +893,123 @@ static void destruct_publish_help(void)
 	ui_menu_publish(ui, VGAScreen, VGAScreen2);
 }
 
+static const char *const unit_titles[MAX_UNITS] =
+{
+	"Tank", "Nuke Launcher", "Dirt Launcher", "Satellite", "Magnet", "Laser", "Jumper", "Helicopter",
+};
+
+static unsigned int units_at_start[MAX_PLAYERS];
+
+// The sprite the game draws for a unit (DE_GravityDrawUnit's).
+static unsigned int unit_sprite(enum de_player_t team, const struct destruct_unit_s *unit)
+{
+	unsigned int index = GraphicBase[team][unit->unitType] + unit->ani_frame;
+	if (unit->unitType == UNIT_HELI)
+	{
+		if (unit->lastMove < -2)
+			index += 5;
+		else if (unit->lastMove > 2)
+			index += 10;
+	}
+	else
+	{
+		index += floorf(unit->angle * 9.99f / M_PI);
+	}
+	return index;
+}
+
+// A side's crosshair where DE_RunTickDrawCrosshairs draws it.
+static void crosshair(enum de_player_t i, float *x, float *y)
+{
+	const int direction = (i == PLAYER_LEFT) ? -1 : 1;
+	const struct destruct_unit_s *curUnit = &(destruct_player[i].unit[destruct_player[i].unitSelected]);
+	if (curUnit->unitType == UNIT_HELI)
+	{
+		*x = curUnit->unitX + roundf(0.1f * curUnit->lastMove * curUnit->lastMove * curUnit->lastMove) + 5;
+		*y = roundf(curUnit->unitY) + 1;
+	}
+	else
+	{
+		*x = roundf(curUnit->unitX + 6 - cosf(curUnit->angle) * (curUnit->power * 8 + 7) * direction);
+		*y = roundf(curUnit->unitY - 7 - sinf(curUnit->angle) * (curUnit->power * 8 + 7));
+	}
+}
+
+static void destruct_new_field(void)
+{
+	destruct3d_new_field(destructTempScreen->pixels, destructTempScreen->pitch);
+	for (int p = 0; p < MAX_PLAYERS; ++p)
+		units_at_start[p] = destruct_player[p].unitsRemaining;
+}
+
+// What the tick shows, for the 3D view (destruct3d.h) and the modern HUD.
+static void destruct_publish_play(void)
+{
+	static D3Tick tick;
+	tick.field = destructTempScreen->pixels;
+	tick.pitch = destructTempScreen->pitch;
+	tick.unit_count = tick.shot_count = tick.wall_count = tick.blast_count = 0;
+	for (int p = 0; p < MAX_PLAYERS; ++p)
+	{
+		for (unsigned int u = 0; u < config.max_installations && tick.unit_count < D3_MAX_UNITS; ++u)
+		{
+			const struct destruct_unit_s *unit = &destruct_player[p].unit[u];
+			if (!DE_isValidUnit((struct destruct_unit_s *)unit))
+				continue;
+			tick.units[tick.unit_count++] = (D3Unit){ unit->unitType, p, unit->unitX, unit->unitY, unit->angle, (int)unit_sprite(p, unit),
+			                                          u == destruct_player[p].unitSelected };
+		}
+		tick.aim[p] = destruct_player[p].unitsRemaining > 0;
+		if (tick.aim[p])
+			crosshair(p, &tick.aim_x[p], &tick.aim_y[p]);
+	}
+	for (unsigned int i = 0; i < config.max_shots && tick.shot_count < D3_MAX_SHOTS; ++i)
+		if (!shotRec[i].isAvailable)
+			tick.shots[tick.shot_count++] = (D3Shot){ shotRec[i].x, shotRec[i].y, shotRec[i].xmov, shotRec[i].ymov, shotRec[i].shottype };
+	for (unsigned int i = 0; i < config.max_walls && tick.wall_count < D3_MAX_WALLS; ++i)
+		if (world.mapWalls[i].wallExist)
+			tick.walls[tick.wall_count++] = (D3Wall){ world.mapWalls[i].wallX, world.mapWalls[i].wallY };
+	for (unsigned int i = 0; i < config.max_explosions && tick.blast_count < D3_MAX_BLASTS; ++i)
+		if (!exploRec[i].isAvailable)
+			tick.blasts[tick.blast_count++] = (D3Blast){ exploRec[i].x, exploRec[i].y, exploRec[i].explowidth, exploRec[i].explomax,
+			                                             exploRec[i].exploType };
+	destruct3d_tick(&tick);
+
+	UIMenu *ui = destruct_ui_begin(UI_DESTRUCT_PLAY, "Destruct");
+	UIDestruct *d = &ui->destruct;
+	SDL_strlcpy(d->mode, world.destructMode < DESTRUCT_MODES ? destructModeName[world.destructMode] : "Custom", sizeof(d->mode));
+	if (destruct_player[PLAYER_LEFT].unitsRemaining == 0)
+		d->winner = PLAYER_RIGHT;
+	else if (destruct_player[PLAYER_RIGHT].unitsRemaining == 0)
+		d->winner = PLAYER_LEFT;
+	for (int p = 0; p < MAX_PLAYERS; ++p)
+	{
+		const struct destruct_player_s *player = &destruct_player[p];
+		UIDestructSide *side = &d->side[p];
+		side->cpu = player->is_cpu;
+		side->score = (int)player->score;
+		side->units = (int)units_at_start[p];
+		side->units_left = (int)player->unitsRemaining;
+		const struct destruct_unit_s *unit = &player->unit[player->unitSelected];
+		if (player->unitsRemaining == 0 || !DE_isValidUnit((struct destruct_unit_s *)unit))
+			continue;
+		SDL_strlcpy(side->unit, unit_titles[unit->unitType], sizeof(side->unit));
+		side->unit_sprite = GraphicBase[p][unit->unitType];
+		if (unit->shotType != SHOT_INVALID)
+		{
+			side->weapon_sprite = 191 + unit->shotType;
+			SDL_strlcpy(side->weapon, weaponNames[unit->shotType], sizeof(side->weapon));
+		}
+		side->aims = systemAngle[unit->unitType];
+		side->angle = unit->angle * 180.0f / (float)M_PI;
+		side->powered = unit->unitType != UNIT_HELI;
+		side->power = SDL_clamp((unit->power - 1) / 4.0f, 0.0f, 1.0f);
+		side->armor = SDL_clamp(unit->health / (float)baseDamage[unit->unitType], 0.0f, 1.0f);
+	}
+	ui->wheel = UI_WHEEL_NONE;
+	ui_menu_publish(ui, VGAScreen, VGAScreen);
+}
+
 static void JE_introScreen(void)
 {
 	memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->h * VGAScreen2->pitch);
@@ -934,6 +1059,7 @@ static enum de_mode_t JE_modeSelect(void)
 
 	// Draw the menu and fade us in
 	DrawModeSelectMenu(mode);
+	destruct_publish_modes(mode);
 
 	JE_showVGA();
 	fade_palette(colors, 15, 0, 255);
@@ -1344,13 +1470,16 @@ static unsigned int JE_placementPosition(unsigned int passed_x, unsigned int wid
 	 * I wondered if it might be better to not carve out land at all.
 	 * On testing I determined that was distracting and added nothing. */
 	new_y = 0;
-	for (i = passed_x; i <= passed_x + width - 1; i++)
+	// (Tyrian3D: only the field's columns. A wall at x 309 or more read and wrote past the map's 320
+	// columns, into the screen pointer after it, and the next field drew its terrain from there: a crash.)
+	const unsigned int last = MIN(passed_x + width - 1, 318u);
+	for (i = passed_x; i <= last; i++)
 	{
 		if (new_y < world[i])
 			new_y = world[i];
 	}
 
-	for (i = passed_x; i <= passed_x + width - 1; i++)
+	for (i = passed_x; i <= last; i++)
 	{
 		world[i] = new_y;
 	}
@@ -1711,6 +1840,7 @@ static enum de_state_t DE_RunTick(void)
 	DE_RunTickAI();
 	DE_RunTickDrawCrosshairs();
 	DE_RunTickDrawHUD();
+	destruct_publish_play();
 	JE_showVGA();
 
 	if (destructFirstTime)

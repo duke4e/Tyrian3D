@@ -10773,6 +10773,7 @@ static bool present_destruct(void)
 	BTBHGPUWindowReport frame;
 	if (!begin_frame(&frame))
 		return true;  // (nothing to show this time)
+	const Uint64 started = SDL_GetPerformanceCounter();
 	hud_quad_count = 0;
 	canvas_fade[3] = 0;
 	shown_view.valid = false;
@@ -10819,6 +10820,7 @@ static bool present_destruct(void)
 	}
 	const Uint32 *glow_rgba;
 	bool glowing;
+	const Uint64 meshes_made = SDL_GetPerformanceCounter();
 	const unsigned int glow_made = destruct3d_glow(&glow_rgba, &glowing);
 	if (glow_made != destruct_glow_made)
 	{
@@ -10881,7 +10883,9 @@ static bool present_destruct(void)
 			const float top = wall ? tick->walls[i - tick->unit_count].y : tick->units[i].y - 13;
 			const int sprite = wall ? 42 : tick->units[i].sprite;
 			BTBHGPUCustomMesh *mesh = get_volume_mesh(entry, (unsigned int)sprite, false, V3D_STYLE_RAISED, 0);
-			const Mat4 chain[] = { mat4_translation(x + 6, 200 - (top + 7), -D3_PLANE), mat4_rotation(0, 90.0f) };
+			// (A little larger than the game's sprite, about its foot.)
+			const float k = wall ? 1.0f : 1.25f;
+			const Mat4 chain[] = { mat4_translation(x + 6, 200 - (top + 14) + 7 * k, -D3_PLANE), mat4_scaling(k), mat4_rotation(0, 90.0f) };
 			const Mat4 m = mat4_chain((int)COUNTOF(chain), chain);
 			BTBHGPUSceneGeometryBatch *b = destruct_batch(mesh, &m, 1.0f, &instance_count, &batch_count);
 			if (b != NULL)
@@ -11023,6 +11027,28 @@ static bool present_destruct(void)
 	ui_build_screen(&view);
 	present_canvas(NULL, 0, false, !drawn, &frame);
 	blur_ready = false;
+	// (TYR3D_PROFILE: frames a second, what a frame takes, of it the ridge's meshes.)
+	static int profile = -1;
+	if (profile < 0)
+		profile = SDL_getenv("TYR3D_PROFILE") != NULL;
+	if (profile)
+	{
+		static int frames = 0;
+		static double spent = 0, meshing = 0;
+		static Uint64 since = 0;
+		const double k = 1000.0 / SDL_GetPerformanceFrequency();
+		const Uint64 now = SDL_GetPerformanceCounter();
+		spent += (now - started) * k;
+		meshing += (meshes_made - started) * k;
+		if (++frames == 120)
+		{
+			printf("destruct: %.1f frames a second, %.2f ms a frame, meshes %.2f ms\n", since != 0 ? 120 * 1000.0 / ((now - since) * k) : 0.0,
+			       spent / frames, meshing / frames);
+			frames = 0;
+			spent = meshing = 0;
+			since = now;
+		}
+	}
 	return true;
 }
 
