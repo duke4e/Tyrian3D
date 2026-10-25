@@ -3,8 +3,10 @@
 
 Reads data/voices/script.json (made by tools/voices/export_cubes.py), tools/voices/cast.json and
 tools/voices/pronunciation.json. The API key is read only from the ELEVENLABS_API_KEY environment
-variable or the file ~/.config/tyrian3d/elevenlabs_key, and only ever goes into the request's
-xi-api-key header: it is never printed, logged or written anywhere.
+variable, the project's .env.local (gitignored; `npx @elevenlabs/cli@latest onboard connect
+--env-path .env.local` writes it there) or the file ~/.config/tyrian3d/elevenlabs_key, and only ever
+goes into the request's xi-api-key header: it is never printed, logged or written anywhere.
+Voice design and adopting voices need a paid plan (the API refuses them on the free one).
 
   estimate                    characters per speaker and in total, minutes of speech, disk sizes
                               and the plan that covers it (no network)
@@ -42,6 +44,7 @@ import os
 import random
 import re
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -59,6 +62,7 @@ CAST_PATH = os.path.join(HERE, "cast.json")
 PRON_PATH = os.path.join(HERE, "pronunciation.json")
 VOICES = os.path.join(ROOT, "data", "voices")
 KEY_FILE = os.path.expanduser("~/.config/tyrian3d/elevenlabs_key")
+ENV_FILE = os.path.join(ROOT, ".env.local")  # npx @elevenlabs/cli onboard connect writes ELEVENLABS_API_KEY there (gitignored)
 # ELEVENLABS_API_BASE: one of the regional servers the API reference lists (api.us.elevenlabs.io,
 # api.eu.residency.elevenlabs.io, ...), for accounts with data residency.
 API = os.environ.get("ELEVENLABS_API_BASE", "https://api.elevenlabs.io").rstrip("/")
@@ -134,10 +138,33 @@ def write_bytes(path, data):
 _key = None
 
 
+_ssl = None
+
+
+def ssl_context():
+    """Certificates checked as always; a python.org Python on macOS ships without its own CA
+    bundle (until "Install Certificates.command" runs), so the system's is used then."""
+    global _ssl
+    if _ssl is None:
+        _ssl = ssl.create_default_context()
+        if not _ssl.get_ca_certs():
+            for bundle in (os.environ.get("SSL_CERT_FILE"), "/etc/ssl/cert.pem", "/opt/homebrew/etc/ca-certificates/cert.pem"):
+                if bundle and os.path.exists(bundle):
+                    _ssl.load_verify_locations(cafile=bundle)
+                    break
+    return _ssl
+
+
 def api_key():
     global _key
     if _key is None:
         k = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+        if not k and os.path.exists(ENV_FILE):
+            with open(ENV_FILE, encoding="utf-8") as f:
+                for line in f:
+                    m = re.match(r"\s*(?:export\s+)?ELEVENLABS_API_KEY\s*=\s*(.*?)\s*$", line)
+                    if m:
+                        k = m.group(1).strip().strip("'\"")
         if not k and os.path.exists(KEY_FILE):
             mode = os.stat(KEY_FILE).st_mode
             if mode & (stat.S_IRGRP | stat.S_IROTH):
@@ -145,7 +172,8 @@ def api_key():
             with open(KEY_FILE, encoding="utf-8") as f:
                 k = f.read().strip()
         if not k:
-            raise Fatal("no API key: set ELEVENLABS_API_KEY or put the key in ~/.config/tyrian3d/elevenlabs_key")
+            raise Fatal("no API key: set ELEVENLABS_API_KEY, or run npx @elevenlabs/cli@latest onboard connect --env-path .env.local, "
+                        "or put the key in ~/.config/tyrian3d/elevenlabs_key")
         _key = k
     return _key
 
@@ -176,7 +204,7 @@ def call(method, path, body=None, query=None, accept="application/json", timeout
             req.add_header("Content-Type", "application/json")
         wait = None
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:
                 return {k.lower(): v for k, v in r.headers.items()}, r.read()
         except urllib.error.HTTPError as e:
             status, code, message = error_of(e)
@@ -1065,7 +1093,48 @@ def cmd_design(ctx):
         print(f"  {len(entry['previews'])} previews in {os.path.relpath(folder, ROOT)}/{rnd}-*.mp3; "
               f"keep one with: tools/voices/generate.py adopt {key} {rnd}-<n>")
     print(f"voice design: {total:,} characters of preview text charged")
+    page = write_previews_page()
+    if page:
+        print(f"listen: open {os.path.relpath(page, ROOT)}")
     return 0
+
+
+def write_previews_page():
+    """data/voices/previews/index.html: every speaker's previews to listen to side by side, the
+    prompt and text they read, which one is adopted, and the command that adopts each."""
+    import html
+    root = os.path.join(VOICES, "previews")
+    if not os.path.isdir(root):
+        return None
+    cast = load_json(CAST_PATH)
+    parts = ["<!doctype html><meta charset=utf-8><title>Tyrian3D voice previews</title><style>"
+             "body{font:15px system-ui;background:#1b1712;color:#e8dcc6;max-width:980px;margin:24px auto;padding:0 16px}"
+             "h2{color:#e2b866;margin:28px 0 4px}.role,.prompt,.text{color:#b5a68c;font-size:13px;margin:4px 0}"
+             ".text{font-style:italic}.row{display:flex;gap:12px;align-items:center;margin:6px 0}"
+             "code{background:#2c251c;padding:2px 6px;border-radius:4px;user-select:all}.on{color:#9fdc8f}"
+             "audio{height:32px}</style><h1>Tyrian3D voice previews</h1>"
+             "<p>Listen, then keep one per voice: <code>python3 tools/voices/generate.py adopt &lt;speaker&gt; &lt;round&gt;-&lt;n&gt;</code></p>"]
+    for key in sorted(os.listdir(root)):
+        log_path = os.path.join(root, key, "previews.json")
+        if not os.path.exists(log_path):
+            continue
+        log = load_json(log_path)
+        spk = cast["speakers"].get(key, {})
+        adopted = spk.get("adopted_preview")
+        parts.append(f"<h2>{html.escape(spk.get('name', key))} <small>({html.escape(key)})</small></h2>"
+                     f"<div class=role>{html.escape(spk.get('description', ''))}</div>")
+        for r in log["rounds"]:
+            parts.append(f"<div class=prompt>Round {r['round']}: {html.escape(r['prompt'])}</div>"
+                         f"<div class=text>“{html.escape(r.get('text') or '')}”</div>")
+            for pv in r["previews"]:
+                tag = f"{r['round']}-{pv['n']}"
+                mark = " <b class=on>adopted</b>" if adopted == tag else ""
+                parts.append(f"<div class=row><b>{tag}</b><audio controls preload=none src='{key}/{pv['file']}'></audio>"
+                             f"<code>python3 tools/voices/generate.py adopt {key} {tag}</code>{mark}</div>")
+    path = os.path.join(root, "index.html")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(parts) + "\n")
+    return path
 
 
 def cmd_adopt(ctx):
@@ -1093,7 +1162,10 @@ def cmd_adopt(ctx):
         voice_id = json.loads(raw)["voice_id"]
     cast = load_json(CAST_PATH)
     cast["speakers"][key]["voice_id"] = voice_id
+    if not args.voice_id:
+        cast["speakers"][key]["adopted_preview"] = f"{int(rnd)}-{int(n)}"
     save_json(CAST_PATH, cast)
+    write_previews_page()
     print(f"{key}: voice_id {voice_id} written into tools/voices/cast.json")
     return 0
 
