@@ -934,6 +934,7 @@ void dev_export_pictures(const char *dir)
 	      "tshp2   a story picture (]P0)\n"
 	      "face_NN the data cubes' faces in the store (who wrote the cube), clear round them\n"
 	      "logo_tyrian, logo_2000, logo_tyrian2000  the title's logo alone, its 2000(tm), and both as the title shows them\n"
+	      "  (redrawn logo_tyrian.png and logo_2000.png go to data/hd/pictures too; a clear logo_2000.png hides the 2000)\n"
 	      "tyrend/  the ending's animation (episode 1's end), frame by frame\n",
 	      readme);
 	fclose(readme);

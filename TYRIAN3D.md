@@ -701,7 +701,11 @@ the modern UI or the old screens, the new picture shows under the screen, which 
 its picture (the title's logo, texts), and fades with the palette, to black or white (the median over the picture's
 colours, so that colours the screen animates don't count) (`render_gpu.c` `match_hd_picture`;
 `TYR3D_DEBUG_PICTURES=1` prints the matches and fades). The user's reconstructions are in `data/hd/pictures`
-(not the HUD panels and the old screens' pictures, which the modern UI draws itself, nor the ending's animation). `upscale/` is only the work folder
+(not the HUD panels and the old screens' pictures, which the modern UI draws itself, nor the ending's animation).
+`pictures/logo_tyrian.png` and `pictures/logo_2000.png` are the title's logo and its 2000(tm) drawn anew (from the
+export's `logo_tyrian.png` and `logo_2000.png`, in the same frame at any size, with alpha): over the title's picture,
+where the screen shows the logo's sprite (also while it flies in), the new logo shows in its box and the sprite's
+pixels are taken off (`render_gpu.c` `find_hd_logos`); a fully clear `logo_2000.png` takes the 2000(tm) away. `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

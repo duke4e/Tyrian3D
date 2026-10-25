@@ -37,6 +37,7 @@
 
 #include <zlib.h>
 
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -821,6 +822,8 @@ static const Uint8 *screen_without_texts(const SDL_Surface *screen);
 static int hd_picture;
 static int match_hd_picture(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
+static void find_hd_logos(const Uint8 *picture, Uint32 *rgba);
+static void add_hd_logos(const SDL_Rect *dst);
 static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h);
 static bool fonts_enabled(void);
 static const TextRecord *frame_texts[32];
@@ -1519,7 +1522,9 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	hd_picture = pixels != NULL ? match_hd_picture(pixels, screen_rgba) : 0;
 	if (hd_picture != 0)
 	{
+		find_hd_logos(pixels, screen_rgba);
 		add_hd_picture(0, 0, SCREEN_W, SCREEN_H, (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 1);
+		add_hd_logos(dst);
 		hud_under = hud_quad_count;
 	}
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
@@ -1961,6 +1966,143 @@ static void add_hd_picture(float sx, float sy, float sw, float sh, float x, floa
 	                { b, b, b, alpha }, .texture = hd_pictures[hd_picture].texture };
 	if (hd_picture_white > 0 && (q = hud_quad_add()) != NULL)  // (a fade to white over it)
 		*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1, { 1, 1, 1, alpha * hd_picture_white }, { 1, 1, 1, alpha * hd_picture_white } };
+}
+
+/*
+ * The title's logo drawn anew (data/hd/pictures/logo_tyrian.png and logo_2000.png, from the export's logo_*.png,
+ * redrawn in the same frame at any size): over the title's picture (4), where the screen shows the logo's sprite
+ * (PLANET_SHAPES 146 at x 11, its 2000(tm) 151 at x 155, at any height: they fly in), the new logo shows in its
+ * box, the screen's pixels of the sprite taken off.
+ */
+#define HD_LOGO_PICTURE 4
+#define HD_LOGO_SAME 0.85f  // the share of the sprite's pixels the screen shows for the new logo to show
+
+static struct
+{
+	const char *file;
+	unsigned int sprite;
+	int x;
+	BTBHGPUTexture *texture;
+	Uint8 *pixels, *mask;  // the sprite as drawn (made when first needed: the shapes load late)
+	int w, h;
+	bool made;
+	int shown_y;  // where it shows this frame, or INT_MIN
+} hd_logos[] = { { "logo_tyrian.png", 146, 11 }, { "logo_2000.png", 151, 155 } };
+
+static void load_hd_logos(void)
+{
+	static bool loaded = false;
+	if (loaded || window == NULL)
+		return;
+	loaded = true;
+	char dir[1024], path[1200];
+	const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+	for (size_t l = 0; l < COUNTOF(hd_logos); ++l)
+	{
+		snprintf(path, sizeof(path), "%s/pictures/%s", base, hd_logos[l].file);
+		if (!SDL_GetPathInfo(path, NULL))
+			continue;
+		BTBHGPUTextureReport report;
+		hd_logos[l].texture = btbh_gpu_window_texture_load_ex(window, path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR, BTBH_GPU_TEXTURE_WRAP_CLAMP,
+		                                                      BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		if (hd_logos[l].texture != NULL)
+			printf("logo drawn anew: %s\n", path);
+	}
+}
+
+// The sprite's pixels as blit_sprite draws them.
+static bool make_logo_sprite(size_t l)
+{
+	if (hd_logos[l].made)
+		return hd_logos[l].pixels != NULL;
+	if (!sprite_exists(PLANET_SHAPES, hd_logos[l].sprite))
+		return false;  // (not loaded yet: tried again)
+	hd_logos[l].made = true;
+	const Sprite *sp = sprite(PLANET_SHAPES, hd_logos[l].sprite);
+	SDL_Surface *surface = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL || sp->width > SCREEN_W || sp->height > SCREEN_H)
+	{
+		SDL_DestroySurface(surface);
+		return false;
+	}
+	SDL_FillSurfaceRect(surface, NULL, 0);
+	blit_sprite(surface, 0, 0, PLANET_SHAPES, hd_logos[l].sprite);
+	const int w = sp->width, h = sp->height;
+	hd_logos[l].pixels = malloc((size_t)w * h);
+	hd_logos[l].mask = malloc((size_t)w * h);
+	if (hd_logos[l].pixels == NULL || hd_logos[l].mask == NULL)
+	{
+		SDL_DestroySurface(surface);
+		return false;
+	}
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+		{
+			const Uint8 v = ((const Uint8 *)surface->pixels)[y * surface->pitch + x];
+			hd_logos[l].pixels[y * w + x] = v;
+			hd_logos[l].mask[y * w + x] = v != 0;
+		}
+	hd_logos[l].w = w;
+	hd_logos[l].h = h;
+	SDL_DestroySurface(surface);
+	return true;
+}
+
+// Where the screen (picture: its pixels) shows the logos, their pixels taken off rgba.
+static void find_hd_logos(const Uint8 *picture, Uint32 *rgba)
+{
+	load_hd_logos();
+	for (size_t l = 0; l < COUNTOF(hd_logos); ++l)
+	{
+		hd_logos[l].shown_y = INT_MIN;
+		if (hd_picture != HD_LOGO_PICTURE || hd_logos[l].texture == NULL || !make_logo_sprite(l))
+			continue;
+		const int w = hd_logos[l].w, h = hd_logos[l].h, x0 = hd_logos[l].x;
+		if (x0 < 0 || x0 + w > SCREEN_W)
+			continue;
+		int best_y = INT_MIN;
+		float best = HD_LOGO_SAME;
+		for (int y0 = 0; y0 + h <= SCREEN_H; ++y0)
+		{
+			int same = 0, all = 0;
+			for (int y = 0; y < h; y += 3)  // (every third row: enough to find it)
+				for (int x = 0; x < w; ++x)
+					if (hd_logos[l].mask[y * w + x])
+					{
+						++all;
+						same += picture[(y0 + y) * SCREEN_W + x0 + x] == hd_logos[l].pixels[y * w + x];
+					}
+			if (all > 0 && same / (float)all > best)
+			{
+				best = same / (float)all;
+				best_y = y0;
+			}
+		}
+		if (best_y == INT_MIN)
+			continue;
+		hd_logos[l].shown_y = best_y;
+		for (int y = 0; y < h; ++y)
+			for (int x = 0; x < w; ++x)
+				if (hd_logos[l].mask[y * w + x] && picture[(best_y + y) * SCREEN_W + x0 + x] == hd_logos[l].pixels[y * w + x])
+					rgba[(best_y + y) * SCREEN_W + x0 + x] = 0;
+	}
+}
+
+// The logos found, drawn anew in their boxes on the screen shown at dst.
+static void add_hd_logos(const SDL_Rect *dst)
+{
+	const float kx = dst->w / (float)SCREEN_W, ky = dst->h / (float)SCREEN_H;
+	for (size_t l = 0; l < COUNTOF(hd_logos); ++l)
+	{
+		if (hd_logos[l].shown_y == INT_MIN)
+			continue;
+		HudQuad *q = hud_quad_add();
+		if (q == NULL)
+			return;
+		const float b = hd_picture_brightness;
+		*q = (HudQuad){ dst->x + hd_logos[l].x * kx, dst->y + hd_logos[l].shown_y * ky, hd_logos[l].w * kx, hd_logos[l].h * ky, 0, 0, 1, 1,
+		                { b, b, b, 1 }, { b, b, b, 1 }, .texture = hd_logos[l].texture };
+	}
 }
 
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
@@ -11373,6 +11515,8 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 		make_blur(screen_rgba, w, h);
 	// (A picture drawn anew: the screen then only what the game drew over it, after the blur.)
 	hd_picture = jukebox ? 0 : match_hd_picture(ui_screen_picture(), screen_rgba);
+	if (hd_picture != 0)
+		find_hd_logos(ui_screen_picture(), screen_rgba);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
 	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
@@ -11385,6 +11529,7 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 		if (hd_picture != 0)
 		{
 			add_hd_picture(0, 0, SCREEN_W, SCREEN_H, (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h, 1);
+			add_hd_logos(&dst);
 			hud_under = hud_quad_count;  // (under the screen's quad)
 		}
 	}
