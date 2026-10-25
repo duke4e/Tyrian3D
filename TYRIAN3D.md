@@ -362,7 +362,11 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   by the plane of the ground under its footprint, where that ground is one; the pieces of one enemy, made
   together by the level's events, on one plane, leaning as best fits the ground under them, at their lifts'
   mean but none deeper in the ground than half its height. What the game draws under a solid background 2
-  or 3 and lies mostly inside it fades out (`hide_in_solids`). The enemies of a layer the game draws after
+  or 3 and lies mostly inside it fades out (`hide_in_solids`). Solids scroll at their own speed over the ground's
+  terrain (TYRIAN's stone platforms three times as fast), so its raised ground and plants would stand up through
+  their tops: the tops alone are drawn first and mark their pixels in the stencil, the ground and its plants aren't
+  drawn there (as the game draws the solids over the ground), then the solids whole, their walls going down into the
+  ground as drawn; plants under a solid's top aren't drawn at all (`not_on_solids`, `under_solid`). The enemies of a layer the game draws after
   a background stand above that background's plane (`layer_base`; background 3 drawn under the sky enemies
   is the layer `bg3-low`, below them). The camera is fitted so the playfield's bottom edge, at the player's height, fills the original
   playfield width; the projection is shifted onto the playfield's rectangle in the window, and

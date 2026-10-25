@@ -469,6 +469,8 @@ void ui_build_screen(const UIView *view);
 void ui_build_hud(const UIView *view);
 // The game shows its "game over" (the HUD shows it its own way): its text.
 void ui_note_game_over(const char *text);
+// The game shows its "insert coin" over a demo (the HUD shows it its own way): its text.
+void ui_note_insert_coin(const char *text);
 // The pointer drawn into the frame (TYR3D_SOFTWARE_POINTER with the modern UI): at window point x, y.
 void ui_build_pointer(const UIView *view, float x, float y, int shape);
 

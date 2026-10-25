@@ -5394,6 +5394,7 @@ static struct
 	unsigned int generation;  // b3d_map_generation + 1, or 0 for a free slot
 	Uint32 used;
 	BTBHGPUCustomMesh *mesh;
+	BTBHGPUCustomMesh *lid;  // a solid's: its top alone (solid_lids)
 } terrain_rows[TERRAIN_ROWS_CACHED];
 static Uint32 terrain_clock = 0;
 static bool terrain_batch[MAX_BATCHES];  // batches of terrain (they cast shadows)
@@ -6579,7 +6580,9 @@ static float terrain_height(const B3DTerrain *t, int sx, int sy, float hole_dept
 	return t->holes && h == B3D_TERRAIN_HOLE ? -hole_depth : (float)h;
 }
 
-static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int map_row, float hole_depth)
+// A terrain row's mesh; for a solid (lid not NULL) also its top alone, without its walls, in *lid.
+static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int map_row, float hole_depth,
+                                            BTBHGPUCustomMesh **lid)
 {
 	const int ring_rows = terrain_ring_rows();
 	const int per_x = B3D_TILE_W / t->sample, per_y = B3D_TILE_H / t->sample;  // samples a tile
@@ -6587,15 +6590,17 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 	const int vertices_per_tile = (per_x + 1) * (per_y + 1);
 	const int max_vertices = columns * vertices_per_tile;
 	static V3DVertex *vertices = NULL;
-	static Uint32 *indices = NULL;
+	static Uint32 *indices = NULL, *lid_indices = NULL;
 	static int capacity = 0;
 	if (capacity < max_vertices)
 	{
 		free(vertices);
 		free(indices);
+		free(lid_indices);
 		vertices = malloc(sizeof(V3DVertex) * (size_t)max_vertices);
 		indices = malloc(sizeof(Uint32) * (size_t)columns * per_x * per_y * 6);
-		capacity = vertices != NULL && indices != NULL ? max_vertices : 0;
+		lid_indices = malloc(sizeof(Uint32) * (size_t)columns * per_x * per_y * 6);
+		capacity = vertices != NULL && indices != NULL && lid_indices != NULL ? max_vertices : 0;
 		if (capacity == 0)
 			return NULL;
 	}
@@ -6604,7 +6609,7 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 	                           sun_direction[2] * sun_direction[2]);
 	const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
 	const float up = SDL_max(light[1], 0.0f);
-	int vc = 0, ic = 0;
+	int vc = 0, ic = 0, lc = 0;
 	for (int c = 0; c < columns; ++c)
 	{
 		bool flipped;
@@ -6700,6 +6705,18 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 					indices[ic++] = e;
 					indices[ic++] = d;
 				}
+				if (!ha && !hb && !he)  // (the top: no corner in a hole)
+				{
+					lid_indices[lc++] = a;
+					lid_indices[lc++] = b;
+					lid_indices[lc++] = e;
+				}
+				if (!ha && !he && !hd)
+				{
+					lid_indices[lc++] = a;
+					lid_indices[lc++] = e;
+					lid_indices[lc++] = d;
+				}
 			}
 	}
 	if (ic == 0)
@@ -6709,10 +6726,16 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 	                                                             (uint32_t)vc, indices, (uint32_t)ic, &report);
 	if (mesh == NULL)
 		fprintf(stderr, "warning: terrain row mesh: %s\n", report.message);
+	if (lid != NULL)
+		*lid = mesh != NULL && lc > 0 ? btbh_gpu_window_custom_mesh_create(window, vertices, (uint32_t)(vc * sizeof(V3DVertex)),
+		                                                                    (uint32_t)vc, lid_indices, (uint32_t)lc, &report)
+		                              : NULL;
 	return mesh;
 }
 
-static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map_row, float hole_depth)
+// A terrain row's mesh (and a solid's (backgrounds 2 and 3) top alone in *lid, if asked: NULL without one).
+static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map_row, float hole_depth,
+                                           BTBHGPUCustomMesh **lid)
 {
 	++terrain_clock;
 	int slot = 0;
@@ -6722,6 +6745,8 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map
 		    terrain_rows[i].map_row == map_row && terrain_rows[i].hole_depth == hole_depth)
 		{
 			terrain_rows[i].used = terrain_clock;
+			if (lid != NULL)
+				*lid = terrain_rows[i].lid;
 			return terrain_rows[i].mesh;
 		}
 		const bool stale = terrain_rows[i].generation != b3d_map_generation + 1;
@@ -6731,13 +6756,76 @@ static BTBHGPUCustomMesh *terrain_row_mesh(const B3DTerrain *t, int set, int map
 	}
 	if (terrain_rows[slot].mesh != NULL)
 		btbh_gpu_custom_mesh_destroy(terrain_rows[slot].mesh);
-	terrain_rows[slot].mesh = build_terrain_row(t, set, map_row, hole_depth);
+	if (terrain_rows[slot].lid != NULL)
+		btbh_gpu_custom_mesh_destroy(terrain_rows[slot].lid);
+	terrain_rows[slot].lid = NULL;
+	terrain_rows[slot].mesh = build_terrain_row(t, set, map_row, hole_depth, set > 1 ? &terrain_rows[slot].lid : NULL);
 	terrain_rows[slot].set = set;
 	terrain_rows[slot].map_row = map_row;
 	terrain_rows[slot].hole_depth = hole_depth;
 	terrain_rows[slot].generation = b3d_map_generation + 1;
 	terrain_rows[slot].used = terrain_clock;
+	if (lid != NULL)
+		*lid = terrain_rows[slot].lid;
 	return terrain_rows[slot].mesh;
+}
+
+/* --- Solids over the ground (add_background_batches) ---------------------------------------- */
+
+// The stencil value of the solids' tops.
+#define SOLID_STENCIL 1
+
+// A batch not drawn where a solid's top has been (the ground and its plants).
+static void not_on_solids(BTBHGPUSceneGeometryBatch *b)
+{
+	b->stencil_reference = SOLID_STENCIL;
+	b->stencil_compare = BTBH_GPU_SCENE_DEPTH_NOT_EQUAL;
+	b->stencil_pass = BTBH_GPU_SCENE_STENCIL_KEEP;
+}
+
+// A solid's row where it is drawn, for finding what of the ground it covers.
+typedef struct
+{
+	const B3DTerrain *t;
+	float x, z;      // the row as drawn on its plane
+	float inv_k;     // 1 / how much larger its plane is drawn (align_scale)
+	float z0, z1;    // the world's z it covers
+	int map_row, per_y;
+} SolidPlace;
+
+static SolidPlace solid_places[192];
+static int solid_place_count = 0;
+
+static void note_solid_place(SolidPlace *p, const B3DTerrain *t, float x, float z, float height, int map_row)
+{
+	const float k = align_scale(height);
+	p->t = t;
+	p->x = x;
+	p->z = z;
+	p->inv_k = 1.0f / k;
+	p->z0 = align.cz + (z - align.cz) * k;
+	p->z1 = align.cz + (z + B3D_TILE_H - align.cz) * k;
+	p->map_row = map_row;
+	p->per_y = B3D_TILE_H / t->sample;
+}
+
+// Whether a world point lies under a solid's top now.
+static bool under_solid(float wx, float wz)
+{
+	for (int i = 0; i < solid_place_count; ++i)
+	{
+		const SolidPlace *p = &solid_places[i];
+		if (wz < p->z0 || wz > p->z1)
+			continue;
+		const float gx = align.cx + (wx - align.cx) * p->inv_k - p->x, gz = align.cz + (wz - align.cz) * p->inv_k - p->z;
+		const int sx = (int)lroundf(gx / p->t->sample), j = (int)lroundf(gz / p->t->sample);
+		const int sy = p->map_row * p->per_y + j;
+		if (sx < 0 || sx >= p->t->width || j < 0 || j > p->per_y || sy < 0 || sy >= p->t->height)
+			continue;
+		if (!(p->t->holes && p->t->heights[sy * p->t->width + sx] == B3D_TERRAIN_HOLE))
+			return true;
+	}
+	return false;
 }
 
 /* --- Background maps ----------------------------------------------------------------------- */
@@ -7643,7 +7731,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		float x, z, height, hole_depth;
 		int page;
 		float brightness;
-		bool hd;  // with the HD tiles (terrain_row_hd)
+		bool hd;     // with the HD tiles (terrain_row_hd)
+		bool solid;  // a solid's (background 2 or 3)
 	} TerrainRowDraw;
 	TerrainRowDraw terrain_row_draws[MAX_TERRAIN_ROW_DRAWS];
 	int terrain_row_count = 0;
@@ -7796,7 +7885,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				terrain_ring_row(ring, terrain, background->set, tiles[t].map_row + 1, page_colors);
 				terrain_row_draws[terrain_row_count++] = (TerrainRowDraw){
 					background->set, tiles[t].map_row, tiles[t].x - column * B3D_TILE_W, tiles[t].z + shift, height, hole_depth,
-					page, brightness, terrain_row_hd(ring, tiles[t].map_row) };
+					page, brightness, terrain_row_hd(ring, tiles[t].map_row), solid };
 			}
 			tile_count = kept;
 		}
@@ -7905,10 +7994,49 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			}
 		}
 	}
+	// Solids over the ground (backgrounds 2 and 3 drawn as solids, over the ground's enemies) scroll at their
+	// own speed, faster than the ground (TYRIAN's stone platforms three times as fast as its ground), so the
+	// ground's raised terrain under them would stand up through their tops, and its plants with it. Their
+	// tops alone (lids) are drawn first, marking their pixels (stencil 1); the ground and its plants aren't
+	// drawn there (the game draws the solids over the ground); then the solids whole, walls and all, over
+	// the ground as drawn (their walls go down into it). Plants under solids aren't drawn at all.
+	solid_place_count = 0;
+	bool lids = false;
+	for (int pass = 0; pass < 2; ++pass)
+		for (int r = 0; r < terrain_row_count && *instance_count < MAX_INSTANCES && *batch_count < MAX_BATCHES; ++r)
+		{
+			const TerrainRowDraw *row = &terrain_row_draws[r];
+			if (!row->solid || frame_terrains[1] == NULL)
+				continue;
+			BTBHGPUCustomMesh *lid = NULL;
+			if (terrain_row_mesh(frame_terrains[row->set], row->set, row->map_row, row->hole_depth, &lid) == NULL || lid == NULL)
+				continue;
+			if (pass == 1)  // (where they are, for the plants)
+			{
+				if (solid_place_count < (int)COUNTOF(solid_places))
+					note_solid_place(&solid_places[solid_place_count++], frame_terrains[row->set], row->x, row->z, row->height,
+					                 row->map_row);
+				continue;
+			}
+			const Mat4 transform = mat4_translation(row->x, row->height, row->z);
+			write_instance(instances + *instance_count * 24, &transform, row->brightness);
+			BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+			init_batch(b);
+			b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+			b->custom_mesh = lid;
+			b->first_instance = (*instance_count)++;
+			b->instance_count = 1;
+			b->albedo_texture = row->hd ? terrain_rings[row->set].hd : terrain_rings[row->set].texture;
+			dim_by_fade(b);
+			b->unlit_enabled = 1;
+			b->alpha_cutoff = 0.5f;
+			b->stencil_reference = SOLID_STENCIL;
+			lids = true;
+		}
 	for (int r = 0; r < terrain_row_count && *instance_count < MAX_INSTANCES && *batch_count < MAX_BATCHES; ++r)
 	{
 		const TerrainRowDraw *row = &terrain_row_draws[r];
-		BTBHGPUCustomMesh *mesh = terrain_row_mesh(frame_terrains[row->set], row->set, row->map_row, row->hole_depth);
+		BTBHGPUCustomMesh *mesh = terrain_row_mesh(frame_terrains[row->set], row->set, row->map_row, row->hole_depth, NULL);
 		if (mesh == NULL)
 			continue;
 		const Mat4 transform = mat4_translation(row->x, row->height, row->z);
@@ -7918,6 +8046,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		init_batch(b);
 		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
 		b->custom_mesh = mesh;
+		if (row->set == 1 && lids)
+			not_on_solids(b);
 		b->first_instance = (*instance_count)++;
 		b->instance_count = 1;
 		b->albedo_texture = row->hd ? terrain_rings[row->set].hd : terrain_rings[row->set].texture;
@@ -8011,6 +8141,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 				world.m[13] = base.m[0] * local.m[13] + base.m[13];
 				world.m[14] = base.m[0] * local.m[14] + base.m[14];
 				world.m[15] = 1;
+				if (solid_place_count > 0 && under_solid(world.m[12], world.m[14]))
+					continue;  // (it would stand up through the solid)
 				float *instance = instances + *instance_count * 24;
 				write_instance_world(instance, &world, row->brightness * p->shade / 128.0f);
 				++*instance_count;
@@ -8028,6 +8160,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->albedo_texture = white_texture;
 		dim_by_fade(b);  // (the plants' colours are the full palette's)
 		b->unlit_enabled = 1;
+		if (solid_place_count > 0)
+			not_on_solids(b);
 	}
 }
 

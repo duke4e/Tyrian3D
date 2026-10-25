@@ -3901,6 +3901,22 @@ void ui_note_game_over(const char *text)
 	}
 }
 
+static Uint32 insert_coin_frame = 0;
+static bool insert_coin_seen = false;
+static char insert_coin_text[32] = "Insert Coin";
+
+void ui_note_insert_coin(const char *text)
+{
+	insert_coin_frame = l3d_frame_number;
+	insert_coin_seen = true;
+	if (text != NULL && text[0] != '\0')
+	{
+		SDL_strlcpy(insert_coin_text, text, sizeof(insert_coin_text));
+		for (int i = (int)strlen(insert_coin_text) - 1; i >= 0 && insert_coin_text[i] == ' '; --i)
+			insert_coin_text[i] = '\0';
+	}
+}
+
 // A number with its thousands apart ("10 000").
 static void grouped(unsigned long value, char *out, size_t size)
 {
@@ -4356,6 +4372,17 @@ void ui_build_hud(const UIView *view)
 		rule(b.x + U(60), b.y + U(44) + cap + U(16), b.w - U(120), with_alpha(C_RIM_TOP, 0.7f));
 		const float pulse = 0.75f + 0.25f * sinf(SDL_GetTicks() / 420.0f);
 		text(FONT_MEDIUM, "Press any key", b.x + b.w / 2, b.y + U(44) + cap + U(32), small, with_alpha(C_TAN, pulse), ALIGN_CENTRE);
+		L.alpha = 1;
+	}
+
+	// Insert coin: at the top while a demo plays (ui_note_insert_coin), blinking as an arcade's does.
+	if (insert_coin_seen && l3d_frame_number - insert_coin_frame <= 2 && !view->menu_over)
+	{
+		const float cap = cap_of(40, 16);
+		const float pulse = 0.7f + 0.3f * sinf(SDL_GetTicks() / 300.0f);
+		L.alpha = pulse;
+		text_graded(FONT_BOLD, insert_coin_text, safe.x + safe.w / 2, safe.y + safe.h * 0.05f, cap, C_GOLD_TOP, C_GOLD_BOTTOM,
+		            ALIGN_CENTRE, true);
 		L.alpha = 1;
 	}
 

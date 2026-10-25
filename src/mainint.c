@@ -5052,7 +5052,14 @@ redo:
 		debug_flight_input(playerNum_, this_player, &accelXC, &accelYC);
 
 	if (play_demo)
+	{
+		// (Tyrian3D: the modern HUD shows it its own way.)
+		const L3DLayerType layer = l3d_current_layer();
+		l3d_phase(L3D_HUD);
 		JE_dString(VGAScreen, 115, 10, miscText[7], SMALL_FONT_SHAPES); // insert coin
+		l3d_phase(layer);
+		ui_note_insert_coin(miscText[7]);
+	}
 
 	if (this_player->is_alive && !endLevel)
 	{
