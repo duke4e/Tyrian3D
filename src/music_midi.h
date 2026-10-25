@@ -63,6 +63,9 @@ void midi_translator_end(MidiTranslator *t, Uint32 update);
 void midi_opl_write(unsigned int reg, unsigned int value);
 // Clears the watched chip state (a new song).
 void midi_opl_clear(void);
+// How far below full level a chip channel sounds (dB), seconds after its key went on, by the chip's
+// registers (its operators' levels, key scaling and envelopes; the jukebox's visuals read it too).
+double midi_chip_channel_db(const Uint8 *reg, int ch, double seconds);
 
 // --- Live synth ---------------------------------------------------------------------------
 

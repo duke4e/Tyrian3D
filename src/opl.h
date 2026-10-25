@@ -47,6 +47,8 @@ void adlib_write_index(Bitu port, Bit8u val);
 // Tyrian3D: called with every register write before it is made (the music exporter listens to
 // them), or NULL.
 extern void (*opl_write_hook)(unsigned int reg, unsigned int value);
+// Tyrian3D: the registers as last written (256 of them; read-only).
+const Bit8u *adlib_registers(void);
 
 #define opl_init() adlib_init(audioSampleRate)
 #define opl_write(reg, val) adlib_write(reg, val)

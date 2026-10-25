@@ -21,6 +21,7 @@
 #include "file.h"
 #include "lds_play.h"
 #include "music_midi.h"
+#include "musicviz.h"
 #include "opl.h"
 #include "nortsong.h"
 #include "opentyr.h"
@@ -209,6 +210,7 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 				lds_update();
 				if (music_midi_active())
 					music_midi_update();
+				musicviz_chip(samplesCount - remainingCount);  // Tyrian3D: the jukebox's visuals
 
 				// The number of samples that should be produced per Loudness
 				// update is not an integer, but we can only produce an integer
@@ -328,6 +330,9 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 			samples[i] = MIN(MAX(INT16_MIN, sample), INT16_MAX);
 		}
 	}
+
+	// Tyrian3D: the output as heard, for the jukebox's visuals.
+	musicviz_feed(samples, samplesCount);
 }
 
 int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2])

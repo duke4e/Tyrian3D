@@ -85,6 +85,7 @@ static Uint16 numpatch, numposi, mainvolume;
 
 bool playing, songlooped;
 int lds_channel_sound[9];  // Tyrian3D: the instrument each channel last started a note with
+unsigned int lds_channel_notes[9];  // Tyrian3D: and the notes it has started (musicviz.h)
 
 bool lds_load(FILE *f, unsigned int music_offset, unsigned int music_size)
 {
@@ -687,6 +688,7 @@ void lds_playsound(int inst_number, int channel_number, int tunehigh)
 	}
 
 	lds_channel_sound[channel_number] = inst_number;
+	++lds_channel_notes[channel_number];
 	
 	/* set modulator registers */
 	lds_setregs(0x20 + regnum, i->mod_misc);

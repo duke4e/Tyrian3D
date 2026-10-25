@@ -753,6 +753,11 @@ void adlib_init(Bit32u samplerate) {
 
 void (*opl_write_hook)(unsigned int reg, unsigned int value) = NULL;
 
+// Tyrian3D: the registers as last written (the jukebox's visuals read the channels' state).
+const Bit8u *adlib_registers(void) {
+	return adlibreg;
+}
+
 void adlib_write(Bitu idx, Bit8u val) {
 	if (opl_write_hook != NULL)
 		opl_write_hook((unsigned int)idx, val);

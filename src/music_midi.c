@@ -88,7 +88,7 @@ static int channel_level(int ch)
  */
 #define SILENT_DB 54.0  // a note this far down has faded out
 
-static double operator_db(int op, int ch, double seconds)
+static double operator_db(const Uint8 *reg, int op, int ch, double seconds)
 {
 	static const double ksl_octave7[16] = { 0, 9, 12, 13.875, 15, 16.125, 16.875, 17.625, 18, 18.75, 19.125, 19.5, 19.875, 20.25,
 		                                    20.625, 21 };
@@ -116,10 +116,15 @@ static double operator_db(int op, int ch, double seconds)
 	return db + SDL_min(sustain_db + (seconds - sustain_db / decay) * release, 96.0);
 }
 
+double midi_chip_channel_db(const Uint8 *reg, int ch, double seconds)
+{
+	const double car = operator_db(reg, op_offset[ch] + 3, ch, seconds);
+	return (reg[0xc0 + ch] & 1) ? SDL_min(car, operator_db(reg, op_offset[ch], ch, seconds)) : car;  // additive: both sound
+}
+
 static double channel_db(int ch, double seconds)
 {
-	const double car = operator_db(op_offset[ch] + 3, ch, seconds);
-	return (reg[0xc0 + ch] & 1) ? SDL_min(car, operator_db(op_offset[ch], ch, seconds)) : car;  // additive: both sound
+	return midi_chip_channel_db(reg, ch, seconds);
 }
 
 static int instrument_program(int inst)
