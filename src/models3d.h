@@ -93,6 +93,9 @@ int m3d_mount_model(int weapon_sprite);
 // The model to show while an enemy whose appearance is `model` shows animation frame `sprite`
 // (models.cfg "frame" lines: a model for a frame that changes shape); `model` if there is none.
 int m3d_frame_model(char sheet, unsigned int sprite, int model);
+// What is left of an enemy type where the ground map paints it once destroyed (models.cfg "wreck"
+// lines: the clean ground's stand-ins), or -1.
+int m3d_wreck_model(char sheet, unsigned int sprite);
 // A shot's model (models.cfg "shot" lines), for sprite `sprite` of the shots sheet (shots2: the
 // second one); false if it has none (it shows as a volume).
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);

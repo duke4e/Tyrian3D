@@ -1069,7 +1069,15 @@ static void draw_standins(void)
 			covered += y >= 0;
 			continue;
 		}
-		const M3DAppearance look = m3d_enemy_appearance(s->sheet, s->sprite, s->large, L3D_GROUND_ENEMY);
+		M3DAppearance look = m3d_enemy_appearance(s->sheet, s->sprite, s->large, L3D_GROUND_ENEMY);
+		// A placeholder gives way to the look's wreck model where there is one (models.cfg "wreck").
+		Uint8 mode = s->mode;
+		const int wreck = mode == L3D_STANDIN_PLACEHOLDER ? m3d_wreck_model(s->sheet, s->sprite) : -1;
+		if (wreck >= 0)
+		{
+			look.model = wreck;
+			mode = L3D_STANDIN_OWN;
+		}
 		if (look.model < 0 || !l3d_add_object(look.model, x, y, look.height, look.yaw, 0.0f, 0))
 			continue;
 		if (log_now && y >= 0 && y < 200)
@@ -1088,7 +1096,7 @@ static void draw_standins(void)
 				}
 			}
 			printf("standin: frame %u look %c%d %s at %.0f,%.0f", l3d_frame_number, s->sheet, s->sprite,
-			       s->mode == L3D_STANDIN_PLACEHOLDER ? "placeholder" : "own", x, y);
+			       mode == L3D_STANDIN_PLACEHOLDER ? "placeholder" : wreck >= 0 ? "wreck" : "own", x, y);
 			if (near != NULL)
 				printf(" nearest %c%u (layer %d) at %+.1f,%+.1f", near->enemy_sheet, near->enemy_sprite, (int)near->layer,
 				       near->x - x, near->y - y);
@@ -1098,7 +1106,7 @@ static void draw_standins(void)
 		l3d_enemy_last_object(s->sheet, s->sprite);
 		l3d_group_last_object(STANDIN_GROUP + s->group, 0);
 		l3d_key_last_object(STANDIN_KEY + (Uint32)i, NULL, NULL);
-		l3d_standin_last_object(s->mode);
+		l3d_standin_last_object(mode);
 		if (look.layer > 0)
 			l3d_layer_last_object((L3DLayerType)(look.layer - 1));
 	}

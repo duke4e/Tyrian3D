@@ -423,8 +423,9 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
   (waterfalls), the rock arches and paintings without a model stay. Where the original shows the painting
   (before the enemy comes, once it is destroyed, where none ever stands), the 3D view shows its model, a
   stand-in (`assets/terrain/<map>.std`): the look the game leaves when the enemy is destroyed, the object's
-  own model where the map paints the object as it is, or until a wreck model is made the enemy's model
-  slumped and darkened (`render_gpu.c` `STANDIN_SLUMP`, `STANDIN_SHADE`). A stand-in is drawn while no ground
+  own model where the map paints the object as it is, its wreck model (models.cfg `wreck <sheet> <sprite>
+  <model>`: the painting as a model, drawn with the enemy type's options), or until it has one the enemy's
+  model slumped and darkened (`render_gpu.c` `STANDIN_SLUMP`, `STANDIN_SHADE`). A stand-in is drawn while no ground
   enemy of its looks (the enemy itself, its damaged and dead looks, what it turns into) stands on its place;
   it is only drawn, the game knows nothing of it. The terrain and the vegetation are made on the clean
   ground, so grass grows round the turrets and the palms stand on bare sand; the plants are kept off the

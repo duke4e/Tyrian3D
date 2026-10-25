@@ -61,6 +61,16 @@ static struct
 } frame_models[2048];
 static int frame_model_count = 0;
 
+// "wreck" lines: what is left of an enemy type where the ground map paints it (the clean ground's
+// stand-ins, tyrian2.c draw_standins).
+static struct
+{
+	char sheet;
+	unsigned int sprite;
+	int model;
+} wreck_models[512];
+static int wreck_model_count = 0;
+
 // shot <shots|shots2> <sprite> <appearance> [options]: the player's and enemies' shots.
 static struct
 {
@@ -406,6 +416,23 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
+	if (strcmp(tokens[0], "wreck") == 0 && count >= 4)
+	{
+		int model;
+		if (wreck_model_count == (int)COUNTOF(wreck_models))
+			WARN("too many wreck models");
+		else if (!parse_kind(tokens[3], &model) || model < 0)
+			WARN("unknown model '%s'", tokens[3]);
+		else
+		{
+			wreck_models[wreck_model_count].sheet = parse_sheet(tokens[1]);
+			wreck_models[wreck_model_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
+			wreck_models[wreck_model_count].model = model;
+			++wreck_model_count;
+		}
+		return;
+	}
+
 	if (strcmp(tokens[0], "sprite") == 0 && count >= 4)
 	{
 		if (override_count == (int)COUNTOF(overrides))
@@ -450,6 +477,7 @@ static void load(void)
 	rule_count = 0;
 	override_count = 0;
 	frame_model_count = 0;
+	wreck_model_count = 0;
 	shot_rule_count = 0;
 	ship_rule_count = 0;
 	sidekick_rule_count = 0;
@@ -583,6 +611,15 @@ int m3d_frame_model(char sheet, unsigned int sprite, int model)
 		if (frame_models[i].sheet == sheet && frame_models[i].sprite == sprite)
 			return frame_models[i].model;
 	return model;
+}
+
+int m3d_wreck_model(char sheet, unsigned int sprite)
+{
+	sheet = (char)SDL_tolower((unsigned char)sheet);
+	for (int i = 0; i < wreck_model_count; ++i)
+		if (wreck_models[i].sheet == sheet && wreck_models[i].sprite == sprite)
+			return wreck_models[i].model;
+	return -1;
 }
 
 int m3d_find_model(const char *name)
