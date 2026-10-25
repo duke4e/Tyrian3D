@@ -56,6 +56,20 @@ HINTS = [
 ]
 
 
+class Importer(enemydata.Importer):
+    """Episode 6's importer, but when the item data has no free weapon slot left, a brought-in
+    enemy's gun is episode 5's of that number (the episodes' guns of a number are mostly alike)."""
+
+    full = 0
+
+    def weapon(self, episode, number, chain=False):
+        try:
+            return super().weapon(episode, number, chain)
+        except AssertionError:
+            Importer.full += 1
+            return number
+
+
 def sentences(text, width=None, marks=True):
     """A GBC text ('/' a new line, '|' a new page, all capitals) as lines of the cubes: in sentences'
     capitals, names marked, wrapped to WIDTH, pages apart."""
@@ -122,7 +136,7 @@ def planets():
 
 
 def shops():
-    """The original shops' item lists (]I[ blocks), episodes 1-4 in order."""
+    """The original shops' item lists (]I[ blocks with an item of every kind), episodes 1-4 in order."""
     out = []
     for ep in range(1, 5):
         strings = lv.read_strings(os.path.join(DATA, f"levels{ep}.dat"))
@@ -134,7 +148,8 @@ def shops():
                 while i < len(strings) and strings[i].startswith(" "):
                     block.append(strings[i])
                     i += 1
-                if len(block) >= 8:
+                # (only full lists: every kind with an item; a few originals' sections hold empty ones)
+                if len(block) >= 8 and all(len(line.split()) > 1 for line in block):
                     out.append(block)
                 continue
             i += 1
@@ -182,7 +197,7 @@ def main():
     for level in levels:
         level["events"] = compose.expand(level)  # the placed bosses of the originals
     # (as episode 6: episode 5's enemies used as they are keep their weapons)
-    probe = enemydata.Importer()
+    probe = Importer()
     kept = set()
     for level in levels:
         for e in level["events"]:
@@ -190,7 +205,7 @@ def main():
                 for k in range(4 if e["type"] == 12 else 1):
                     if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k):
                         kept.add(e["d1"] + k)
-    importer = enemydata.Importer(kept)
+    importer = Importer(kept)
     entries = []
     for level in levels:
         entries += level_entries(level, importer)
@@ -210,7 +225,8 @@ def main():
         ending += sentences(c["text"], 58, marks=False) + [""]  # (a text window: 60 characters, no marks)
     tf.write_strings(os.path.join(OUT, "levels7.dat"), script(stages, levels, planets(), numbers, ending[:-1]))
     tf.write_strings(os.path.join(OUT, "cubetxt7.dat"), cubes + ["*"])
-    print(f"{OUT}: {len(levels)} levels")
+    print(f"{OUT}: {len(levels)} levels, {len(importer.enemy_map)} enemies and {len(importer.weapon_map)} guns brought in"
+          + (f", {Importer.full} guns as episode 5's (no slot left)" if Importer.full else ""))
     return 0
 
 

@@ -102,7 +102,7 @@ static void blit_background_row_wide(SDL_Surface *surface, int x, int y, Uint8 *
 		Uint8 *line = (Uint8 *)surface->pixels + screen_y * surface->pitch;
 		for (int tile = first; tile <= last; tile++)
 		{
-			if ((tile < 0 || tile >= 12) && !map_entry(map + tile))
+			if (!map_entry(map + tile))  // (beside the original's 12, or a layer run past its map's top)
 				continue;
 			const Uint8 *data = map[tile];
 			if (data == NULL)
@@ -123,6 +123,11 @@ static void blit_background_row_wide(SDL_Surface *surface, int x, int y, Uint8 *
 void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
 	assert(SDL_BITSPERPIXEL(surface->format) == 8);
+	
+	// Tyrian3D: a layer whose pointer has run past its map (a level longer than the layer lasts at its
+	// speed: the background is empty there) draws nothing, rather than tiles from outside the map.
+	if (!map_entry(map) || !map_entry(map + 11))
+		return;
 	
 	if (l3d_field_wide)
 	{
@@ -175,6 +180,11 @@ void blit_background_row(SDL_Surface *surface, int x, int y, Uint8 **map)
 void blit_background_row_blend(SDL_Surface *surface, int x, int y, Uint8 **map)
 {
 	assert(SDL_BITSPERPIXEL(surface->format) == 8);
+	
+	// Tyrian3D: a layer whose pointer has run past its map (a level longer than the layer lasts at its
+	// speed: the background is empty there) draws nothing, rather than tiles from outside the map.
+	if (!map_entry(map) || !map_entry(map + 11))
+		return;
 	
 	if (l3d_field_wide)
 	{

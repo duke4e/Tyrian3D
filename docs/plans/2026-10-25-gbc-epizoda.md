@@ -30,12 +30,26 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 
 ## Faze (svaka igriva, dokumentirana, commitana)
 
-1. **Kostur i mape.** Epizoda 7 u igri (izbornik, sadržaj iz `assets/content/episode7` kao epizoda 6),
-   svih 24 GBC mapa složenih od PC tileova, PC glazba, trgovina; leveli bez neprijatelja.
-2. **Neprijatelji.** Dekoder GBC skripti, PC neprijatelji po spriteu, brzine i grupe, dropovi.
-3. **Bossovi i krajevi levela.**
-4. **Priča i trgovina** po GBC napredovanju, data cubeovi.
-5. **3D:** teren, clean ground i modeli za nove mape (alati epizode 6 i custom epizoda).
+1. **Kostur i mape.** ✅ Epizoda 7 u igri (izbornik, sadržaj iz `assets/content/episode7` kao epizoda 6),
+   svih 24 GBC mapa složenih od PC tileova (autotile po materijalima četvrtina tilea), PC glazba,
+   trgovina (PC trgovine epizoda 1-4 raspoređene po epizodi).
+2. **Neprijatelji.** ✅ GBC skripta je port PC event sustava (13 = 19 brzina grupe, 14 = 20 cik-cak, 16 =
+   20 ubrzanje, 0b = 39, 02 = 2, 00 = 66, 21-24 težina, 28+ blokovi); svaki GBC tip dobiva PC
+   neprijatelja po spriteu (silueta, sjenčanje, boja, svi frameovi; najprije neprijatelji PC levela
+   koje GBC level sažima). Ručne ispravke: `tools/gbc/enemy_overrides.json`.
+3. **Bossovi i krajevi levela.** ✅ (prvi prolaz) Boss originalnog PC levela (ili srodnog, gdje original
+   nema bossa) umjesto GBC bossa. Ostaje: GBC-ovi vlastiti bossovi i veliki brodovi ručno.
+4. **Priča.** ✅ GBC tekstovi redom (`tools/gbc/story.py`) kao data cubeovi s PC portretima govornika,
+   GBC kraj kao kraj epizode. Trgovina po GBC napredovanju: nije rađena (PC trgovine).
+5. **3D:** teren, clean ground i vegetacija za nove mape: otvoreno (vidi dolje).
+
+## Otvoreno
+
+- Teren/clean ground/vegetacija iz offline alata (`tools/terrain`): njihove datoteke idu u
+  `assets/terrain` (git), a izvedene su iz GBC rasporeda; treba odluka smije li to u git ili ide u
+  lokalni direktorij uz `assets/content/episode7`. Bez njih 3D prikaz koristi reljef HD tileova.
+- Pregled podudaranja neprijatelja po levelima (`data/gbc/episode7/preview/Lnn_enemies.png`).
+- Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima).
 
 ## Podaci i git
 

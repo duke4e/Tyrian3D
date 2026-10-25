@@ -49,27 +49,27 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 LEVELS = [
     dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')]),
     dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')]),
-    dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')]),
+    dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(2, 'GEM WAR')),
     dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), pool=SAVARAS),
     dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS),
     dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS),
-    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS),
+    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE')),
     dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES),
     dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES),
     dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')]),
-    dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), pool=[(3, 'STARGATE'), (1, 'BUBBLES')]),
-    dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')]),
+    dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), pool=[(3, 'STARGATE'), (1, 'BUBBLES')], boss=(1, 'ASSASSIN')),
+    dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')], boss=(2, 'GEM WAR')),
     dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS'), pool=ICES),
     dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES),
-    dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')]),
-    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')]),
+    dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], boss=(1, 'ASTEROID2')),
+    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH')),
     dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), pool=[(3, 'FLEET')]),
     dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')]),
-    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')]),
+    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE')),
     dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS),
     dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True, pool=DELIS),
     dict(gbc=6, name='LAVA I', pc=(4, 'LAVA EXIT'), pool=LAVAS),
-    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN'), pool=LAVAS),
+    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN'), pool=LAVAS, boss=(4, 'CORE')),
     dict(gbc=24, name='FINALE', pc=(4, 'DREAD-NOT'), space=True, pool=[(4, 'DREAD-NOT'), (4, 'APPROACH')]),
 ]
 
@@ -249,14 +249,16 @@ def autotile(spec, img, grids, letter):
             miss = (sigs != want).sum(1)
             best = miss.min()
             off += best > 0
-            cand = np.nonzero(miss <= best)[0]
+            # the tiles nearest the plan, and one quarter further where that pairs with the tile below
+            # and the one to the left as the originals have them (an edge that joins up)
+            cand = np.nonzero(miss <= best + 1)[0]
             below = layer1[r + 1][c] if r + 1 < ROWS else None
             left = layer1[r][c - 1] if c > 0 else None
             w = []
             for i in cand:
                 t = ids[i]
-                w.append(weight[i] * (8.0 if below is not None and above.get(below, {}).get(t) else 1.0)
-                         * (8.0 if left is not None and right.get(left, {}).get(t) else 1.0))
+                fits = (below is None or bool(above.get(below, {}).get(t))) + (left is None or bool(right.get(left, {}).get(t)))
+                w.append(weight[i] * (30.0 ** fits) * (1.0 if miss[i] == best else 0.02))
             layer1[r][c] = ids[cand[rnd.choices(range(len(cand)), w)[0]]]
     print(spec['name'], letter, f'{n_rows} rows from GBC, {len(set(map(tuple, sigs)))} signatures, {off} cells off theirs')
     return layer1, n_rows
@@ -348,6 +350,11 @@ def enemies(spec, look):
         last, prev_at, prev_pos = e['at'], e['at'], e['pos']
     records = [list(rom[ro(d['events'] + 5 * i):ro(d['events'] + 5 * i) + 5]) for i in range(last + 1)]
     positions = [rom[ro(d['events_pos'] + 2 * i)] | (rom[ro(d['events_pos'] + 2 * i + 1)] << 8) for i in range(last + 1)]
+    # ... and no further than the positions run forwards (past its end the lists hold other data)
+    for i in range(1, len(positions)):
+        if positions[i] < positions[i - 1] or positions[i] > 6000:
+            records, positions = records[:i], positions[:i]
+            break
     data = {}
 
     def enemies_of(e_):
@@ -361,13 +368,15 @@ def enemies(spec, look):
     for t, info in d['types'].items():
         if info.get('pc'):
             cands[int(t)] = info['candidates']
-    boss = look.boss()
+    # the boss: the original level's, or (spec 'boss') another's where it has none
+    boss_source = waves.Source(*spec['boss']) if spec.get('boss') else look
+    boss = boss_source.boss()
     boss_banks = Counter()
     if boss:
         for e in boss['events']:
             if e['type'] in waves.SPAWNS and e['d1'] > 0:
                 for k in range(4 if e['type'] == 12 else 1):
-                    boss_banks.update(waves.sheets_of(look.enemies, e['d1'] + k))
+                    boss_banks.update(waves.sheets_of(boss_source.enemies, e['d1'] + k))
     def sheet(c):
         """The sheets a candidate needs ({99}: none it can be drawn with, e.g. sheet 0)."""
         b = set().union(*(waves.sheets_of(enemies_of(c['episode']), c['enemy'] + k) for k in range(c.get('parts', 1))))
@@ -375,7 +384,7 @@ def enemies(spec, look):
     need = Counter()
     for t, cs in cands.items():
         need.update({b: use[t] for b in sheet(cs[0])})
-    banks = [b for b, _ in boss_banks.most_common()][:2]
+    banks = [b for b, _ in boss_banks.most_common()][:4]  # (the boss's all: its parts and launches show)
     for b, _ in need.most_common():
         if len(banks) < 4 and b not in banks and b != 99:
             banks.append(b)
@@ -399,14 +408,26 @@ def enemies(spec, look):
             banks += sorted(need_b - set(banks))
             types[t] = (v[0], v[1], v[2] if len(v) > 2 else 1)
     ground = ground_enemies()
-    events = script.translate(records, positions, types, enemies_of, lambda k: ground.get(k[:2], False))
+    # the clock: 1.5 x the GBC position along its map; what the GBC script does past the map's top
+    # (while its boss's arena loops) is pressed into the time before the boss (at most clock 7000:
+    # layer 1 runs out at 8148)
+    p_map = d.get('map_px') or 16 * json.load(open(os.path.join(GBC, 'levels', [x for x in os.listdir(os.path.join(GBC, 'levels'))
+                                                                          if x.startswith(f"L{spec['gbc']:02d}_")][0], 'map.json')))['rows']
+    p_last = positions[-1] if positions else 0
+    room = 7000 - 1.5 * p_map
+    k = 1.5 if p_last <= p_map else max(0.0, min(1.5, room / max(1, p_last - p_map)))
+
+    def clock(p):
+        return round(1.5 * p) if p <= p_map else round(1.5 * p_map + (p - p_map) * k)
+    events = script.translate(records, positions, types, enemies_of, lambda k_: ground.get(k_[:2], False), clock=clock)
     placements = []
     if boss:
-        start = round(1.5 * positions[-1]) if positions else 4000
-        placements.append(dict(kind='boss', episode=look.episode, name=look.name, start=min(start, 7000)))
+        start = min(clock(p_last) if positions else 4000, 7000)
+        placements.append(dict(kind='boss', episode=boss_source.episode, name=boss_source.name, start=start,
+                               end=start + max([e['t'] for e in boss['events']] + [0])))
     review_enemies(spec['gbc'], types, use)
     print(f"  {len(records)} GBC records -> {len(events)} events, {len(types)}/{len(d['types'])} types as PC enemies, "
-          f"sheets {banks}, boss {look.name if boss else None}")
+          f"sheets {banks}, boss {boss_source.name if boss else None}")
     return events, placements, banks
 
 
@@ -429,18 +450,24 @@ def make_level(spec):
     # original's boss in place of the GBC one), the end
     look = waves.Source(ep, pcname)
     enemy_events, placements, banks = enemies(spec, look)
-    events = [dict(e) for e in look.events if e['t'] == 0 and e['type'] in LOOK_EVENTS
-              and not (e['type'] in (2, 3) and any(x['t'] == 0 and x['type'] == 2 for x in enemy_events))]
+    # (its scroll speeds the GBC script's: event 2 at the start, backgrounds 2 and 3 with layer 1)
+    events = [dict(e) for e in look.events if e['t'] == 0 and e['type'] in LOOK_EVENTS and e['type'] not in (2, 3)]
+    if not any(x['t'] == 0 and x['type'] == 2 for x in enemy_events):
+        events.insert(0, dict(t=0, type=2, d1=1, d2=1, d3=1, d5=0, d6=0, d4=0))
     for e in events:
         e.pop('adjust', None)
     events.append(dict(t=0, type=5, d1=(banks + [0] * 4)[0], d2=(banks + [0] * 4)[1], d3=(banks + [0] * 4)[2],
                        d5=0, d6=0, d4=(banks + [0] * 4)[3]))
     events.append(dict(t=0, type=13, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     events += enemy_events
+    last = max([e['t'] for e in enemy_events] + [0])
     if not placements:
-        last = max([e['t'] for e in enemy_events] + [0])
         end = min(8100, max(28 * (n_rows - 7) + 200, last + 600))
-        events.append(dict(t=end, type=11, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    else:
+        # (with a boss, the end when it is gone is its block's; this one, as the originals have one
+        # near 8100, ends the level if it never is, after the block's last event)
+        end = max(8100, placements[0]['end'] + 600)
+    events.append(dict(t=min(end, 65000), type=11, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     level = dict(name=spec['name'], song=level_song(ep, pcname), shapes=letter, maps=maps, events=events,
                  placements=placements, banks=banks, terrain=None, gbc=spec['gbc'], pc=[ep, pcname],
                  gbc_rows=len(gbc_map), pc_rows=n_rows, arcade=spec.get('arcade', False))

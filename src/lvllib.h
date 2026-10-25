@@ -21,7 +21,7 @@
 
 #include "opentyr.h"
 
-typedef JE_longint JE_LvlPosType[43]; /* [1..42 + 1] */
+typedef JE_longint JE_LvlPosType[101]; /* [1..42 + 1]; Tyrian3D: 100, episode 7 has 24 levels (49 entries) */
 
 extern JE_LvlPosType lvlPos;
 extern char levelFile[13]; /* string [12] */

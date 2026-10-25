@@ -31,6 +31,11 @@ void JE_analyzeLevel(void)
 	FILE *f = dir_fopen_die(data_dir(), levelFile, "rb");
 	
 	fread_u16_die(&lvlNum, 1, f);
+	if (lvlNum >= COUNTOF(lvlPos))  // Tyrian3D: (a file with more entries than the table holds)
+	{
+		fprintf(stderr, "error: %s has %u entries, at most %u are read\n", levelFile, (unsigned)lvlNum, (unsigned)COUNTOF(lvlPos) - 1);
+		lvlNum = COUNTOF(lvlPos) - 1;
+	}
 
 	fread_s32_die(lvlPos, lvlNum, f);
 	

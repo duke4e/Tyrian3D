@@ -65,10 +65,12 @@ class Links:
         return self.of.get(group)
 
 
-def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
+def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None):
     """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
     types: GBC type -> (episode, enemy, parts: 1, or 4 for a 4-part enemy) or None (left out); enemies_of(ep) -> that episode's enemy
-    data; ground_of((ep, n)) -> True if the PC enemy stands on the ground. Returns the events."""
+    data; ground_of((ep, n)) -> True if the PC enemy stands on the ground; clock(position) -> the PC
+    clock (default 1.5 x the position). Returns the events."""
+    clock = clock or (lambda p: round(SCALE * p))
     links = Links()
     speed = start_speed
     out = []
@@ -116,7 +118,7 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
     def one(i):
         nonlocal speed
         rec = records[i]
-        t = round(SCALE * positions[i])
+        t = clock(positions[i])
         cmd, a, b, c, g = rec
         if cmd in (3, 4) or cmd >= 0x28:
             return spawn_events(t, rec)
@@ -150,7 +152,9 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
         if cmd == 0x02:
             s = 0 if b == 0xff else max(1, round(4 / (b + 1)))
             speed = s
-            return [ev(t, 2, s, 2 * s, 3 * s)]
+            # (backgrounds 2 and 3 are empty: at layer 1's speed they last its length; at the usual
+            # 2x and 3x they run out of map at clock 8274 and 5516, which the GBC levels pass)
+            return [ev(t, 2, s, s, s)]
         return []
 
     i = 0
@@ -158,7 +162,7 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1):
         rec = records[i]
         if rec[0] == 0x00:
             n = rec[2]
-            t = round(SCALE * positions[i])
+            t = clock(positions[i])
             sub = []
             for k in range(i + 1, min(len(records), i + 1 + n)):
                 sub += one(k)

@@ -1,7 +1,7 @@
 """The GBC levels' enemies: their scripts and each enemy type's PC enemy (tools/gbc, episode 7).
 
-Each level is flown in the emulator (the ship kept alive, never firing, so every enemy lives out its
-path) while its script runs; for every spawn the new enemy's sprites (the OAM cluster at its place)
+Each level is flown in the emulator on Hard (every type shows; the ship kept alive, never firing, so
+every enemy lives out its path) while its script runs; for every spawn the new enemy's sprites (the OAM cluster at its place)
 are drawn, and each GBC enemy type gets the PC enemy whose sprite looks most like it (the PC sprites,
 made small, are what the GBC game shows: silhouette and shading against the PC atlases in
 upscale/in, at the 1.5x scale; the original level's episode first). Writes data/gbc/enemies/Lnn.json
@@ -82,6 +82,7 @@ def fly(level, frames):
     GBC enemy type, the images of the enemies spawned with it."""
     rom = open(G.ROM, 'rb').read()
     g, bank, init, c = X.start_level(level)
+    g.write(0xd92a, 2)  # on Hard: its spawns are Normal's and the Hard-only ones (records 21/22, skips 00)
     pos_list, rec_list = c['events_pos'], c['events']
     executed, types, pending = [], {}, []
     ptr = g.read(0xc457) | (g.read(0xc458) << 8)

@@ -280,8 +280,9 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   layer 1 (at the usual 2x and 3x they run out of map at clock 8274 and 5516, which these levels
   pass). The GBC boss (whose script runs from RAM) is the original level's boss, or a related
   level's where the original has none, placed as episode 6 places them, with all its sprite sheets;
-  an event 11 at clock 8100 ends the level if the boss is never destroyed (as the originals have:
-  past 8148 layer 1 runs out). Every GBC type is a PC enemy: the best candidate on the level's
+  an event 11 ends the level if the boss is never destroyed (as the originals have one near 8100;
+  after the boss block's last event where that runs longer). What the GBC script does past its map's
+  top (while its boss arena loops) is pressed into the time before the boss (at most clock 7000). Every GBC type is a PC enemy: the best candidate on the level's
   sheets (4-part ones as event 12 blocks).
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
@@ -299,7 +300,10 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
 The game finds those files in the content directory as it finds episode 6's (`src/file.c`) and lists
 "Episode 7: Tyrian GBC" in the episode menu when they are there. It is played on its own: a full
 game doesn't go on to it after episode 6 (`last_episode`), and its end goes back to the title screen
-without a high score (the save file's tables are episodes 1-6's). `TYR3D_START=7:<section>` starts
+without a high score (the save file's tables are episodes 1-6's). Its level file has 49 entries (24
+levels and the item data): the table of a level file's entries holds 100 now (`lvllib.h`; it held
+42, and a longer file overran it). A background whose pointer runs past its map's top (a long level
+at the layer's speed) draws nothing there (`backgrnd.c`) rather than reading outside the map. `TYR3D_START=7:<section>` starts
 one of its levels (the levels are the even sections, 2-48). Stages 1, 2 and 4 of the plan: the maps,
 shops, songs, enemies and story; next: the GBC bosses and big ships, the 3D terrain of its maps.
 
