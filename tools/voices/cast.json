@@ -301,12 +301,12 @@
       "name": "Nanol, the ninja",
       "role": "A masked figure from beyond the Stargate (the outworlders' messenger) with a stealth ship; Trent's 'old friend' by episode 4. The writers' portrait note: 'Ninja - mysterious person'.",
       "description": "Never shows a face. First a cold, alien warning ('Your life is forfeit, human'), then a solemn ally who sends Trent to Camanis, then gentle and melancholic, signing 'Your pal, Nanol', resigned to doom yet chatting about hot dogs. Calm, measured, deadpan. Dougan calls him 'that weird ninja guy': male, ageless.",
-      "voice_prompt": "A calm, quiet male voice of indeterminate age, low and breathy with a soft, otherworldly smoothness. A masked, mysterious warrior from beyond the stars: measured, solemn and deadpan, menacing when cold and gently melancholic when friendly. Slow, even pacing with deliberate pauses. Perfect audio quality.",
+      "voice_prompt": "A calm, quiet male voice of indeterminate age, low and breathy with a soft, otherworldly smoothness. A masked, mysterious warrior from beyond the stars: measured, solemn and deadpan, menacing when cold and gently melancholic when friendly. Even, measured pacing with short, deliberate pauses. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.85,
         "style": 0.2,
-        "speed": 0.94
+        "speed": 0.98
       },
       "match": {
         "senders": [
@@ -436,7 +436,7 @@
         "stability": 1.0,
         "similarity_boost": 0.85,
         "style": 0.1,
-        "speed": 0.96
+        "speed": 1.0
       },
       "match": {
         "senders": [
@@ -460,12 +460,12 @@
       "name": "the Collector",
       "role": "A Hazudra who sends Trent on with a bomb strapped to his ship in episode 5; in episode 6 one of those who 'open' worlds.",
       "description": "Courteous, cultivated and cold: apologizes for the bomb, praises Trent's flying, speaks for a collective 'we'. In episode 6 the politeness thins into quiet, absolute menace. Alien, ageless; reads as male.",
-      "voice_prompt": "A smooth, cultivated male voice with an ageless, faintly alien calm and a mid-low pitch. A courteous but cold emissary of an alien collective: polite, unhurried and formal, with quiet, absolute menace beneath the courtesy. Soft, precise delivery with gentle pauses. Perfect audio quality.",
+      "voice_prompt": "A smooth, cultivated male voice with an ageless, faintly alien calm and a mid-low pitch. A courteous but cold emissary of an alien collective: polite, composed and formal, with quiet, absolute menace beneath the courtesy. Soft, precise delivery at a natural pace. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.85,
         "style": 0.25,
-        "speed": 0.93
+        "speed": 0.98
       },
       "match": {
         "senders": [
@@ -542,7 +542,7 @@
         "stability": 0.5,
         "similarity_boost": 0.8,
         "style": 0.25,
-        "speed": 0.97
+        "speed": 1.0
       },
       "match": {
         "titles": [
@@ -570,12 +570,12 @@
       "name": "Mom (Mrs. Hawkins)",
       "role": "Trent's mother in Midway, Savara (1:5); also plays the Alambusol testimonial.",
       "description": "Warm, doting and chatty: proud of her son and of Papa's new job with Microsol, hoping he comes home, innocently cheerful about the 'welcoming party' that will get them killed. Female, 60s.",
-      "voice_prompt": "A warm American woman in her sixties with a soft, motherly voice. A doting, chatty mother writing to her son: affectionate, proud, a little fussy and innocently cheerful. Gentle, unhurried delivery with a smile in her voice. Perfect audio quality.",
+      "voice_prompt": "A warm American woman in her sixties with a soft, motherly voice. A doting, chatty mother writing to her son: affectionate, proud, a little fussy and innocently cheerful. Gentle, chatty delivery at a natural pace with a smile in her voice. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.8,
         "style": 0.35,
-        "speed": 0.98
+        "speed": 1.0
       },
       "match": {
         "senders": [
@@ -653,12 +653,12 @@
       "name": "Narrator (the story texts between levels)",
       "role": "Reads the texts the game shows between levels (the episode script's ]W commands): Trent's story told to him in the second person ('Now that you've saved the crisis on Savara...'), the episodes' ends and the cliffhangers between them.",
       "description": "A storyteller, not a character: warm, wry and unhurried, telling the player their own story ('you'), with a straight face for the game's jokes (the Mega Soundchair, the insta-cocoa) and real weight for its losses (Trent's parents and friend). Male, about 50.",
-      "voice_prompt": "A man around fifty with a warm, rich, slightly husky baritone. A science-fiction audiobook narrator telling the listener their own story in the second person: unhurried, wry and intimate, with a straight face for the jokes and quiet gravity for the losses. Clear diction, natural pace, close and warm. Perfect audio quality.",
+      "voice_prompt": "A man around fifty with a warm, rich, slightly husky baritone. A storyteller telling the listener their own science-fiction adventure in the second person, like a friend recounting what happened: conversational, wry and lively, with a straight face for the jokes and a moment of real weight for the losses. Not grand, solemn or theatrical: nothing like a documentary or an epic fantasy narrator. Natural, brisk pace, close and warm. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.8,
         "style": 0.2,
-        "speed": 0.98
+        "speed": 1.03
       },
       "match": {},
       "voice_id": "",
@@ -968,12 +968,12 @@
       "name": "Fluxnet 21 trailer voice",
       "role": "The FLUXNET 21 PRESENTS spots and the Tyrian holo-movie ad; also reads the keepers' words in episode 6.",
       "description": "The epic movie-trailer voice, deep and portentous, selling a parasitic dog, a family of cheese mold and a sloth as blockbusters; deadpan grandeur.",
-      "voice_prompt": "A man in his fifties with a very deep, rich, gravelly bass voice. An epic movie-trailer narrator: grand, portentous and dramatic, lending absurd television shows an air of blockbuster importance. Slow, weighty delivery with sweeping intonation. Perfect audio quality.",
+      "voice_prompt": "A man in his fifties with a very deep, rich, gravelly bass voice. An epic movie-trailer narrator: grand, portentous and dramatic, lending absurd television shows an air of blockbuster importance. Weighty delivery with sweeping intonation, not dragging. Perfect audio quality.",
       "settings": {
         "stability": 0.5,
         "similarity_boost": 0.85,
         "style": 0.45,
-        "speed": 0.92
+        "speed": 0.97
       },
       "match": {
         "titles": [
@@ -1026,8 +1026,8 @@
     "system": {
       "name": "Comm system",
       "role": "The ship's comm computer: tightbeam headers, end-of-transmission notes, computer logs, the feline translation note, the Station 23 beacon. Also plays MagVend's bot.",
-      "description": "A neutral, efficient synthetic voice with flat affect. Its lines are short notices, so it uses eleven_multilingual_v2, steadier than eleven_v3 on very short texts and with nothing to act; MagVend, which borrows the voice, follows (set its own model_id to eleven_v3 for a livelier bot).",
-      "voice_prompt": "A neutral female computer voice with a clean, slightly synthetic, robotic tone. A starship communications system announcing headers and status notices: calm, flat, efficient and precise. Even, mechanical delivery with crisp consonants and no emotion. Perfect audio quality.",
+      "description": "A neutral, efficient synthetic male voice (the Archive is the female AI) with flat affect. Its lines are short notices, so it uses eleven_multilingual_v2, steadier than eleven_v3 on very short texts and with nothing to act; MagVend, which borrows the voice, follows (set its own model_id to eleven_v3 for a livelier bot).",
+      "voice_prompt": "A neutral male computer voice with a clean, slightly synthetic, robotic tone and a mid-low pitch. A starship communications system announcing headers and status notices: calm, flat, efficient and precise. Even, mechanical delivery with crisp consonants and no emotion. Perfect audio quality.",
       "settings": {
         "stability": 1.0,
         "similarity_boost": 0.85,
@@ -1084,12 +1084,12 @@
       "name": "Grand Moolah Yimbo (Order of Zinglon)",
       "role": "The Order of Zinglon's decree and scripture (1:31, 1:32); also plays the space-fruit pamphlet and the episode 5 cult leader.",
       "description": "A pompous, sanctimonious high priest who reads holy decrees about fruit and crackers with absolute solemnity; ridiculous self-importance that can turn to zealous fury. Male, 60s.",
-      "voice_prompt": "An older man in his sixties with a booming, sonorous, sanctimonious voice. A pompous high priest of a strange cult: solemn, grandiose and self-important, intoning absurd decrees as sacred law, capable of zealous fury. Slow, ceremonial delivery with rolling emphasis. Perfect audio quality.",
+      "voice_prompt": "An older man in his sixties with a booming, sonorous, sanctimonious voice. A pompous high priest of a strange cult: solemn, grandiose and self-important, intoning absurd decrees as sacred law, capable of zealous fury. Ceremonial delivery with rolling emphasis at a natural pace. Perfect audio quality.",
       "settings": {
         "stability": 0.0,
         "similarity_boost": 0.8,
         "style": 0.55,
-        "speed": 0.93
+        "speed": 0.98
       },
       "match": {
         "senders": [

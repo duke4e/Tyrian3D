@@ -1114,14 +1114,18 @@ def write_previews_page():
              "code{background:#2c251c;padding:2px 6px;border-radius:4px;user-select:all}.on{color:#9fdc8f}"
              "audio{height:32px}</style><h1>Tyrian3D voice previews</h1>"
              "<p>Listen, then keep one per voice: <code>python3 tools/voices/generate.py adopt &lt;speaker&gt; &lt;round&gt;-&lt;n&gt;</code></p>"]
-    for key in sorted(os.listdir(root)):
+    # The voices still to choose first, the adopted ones after them.
+    for key in sorted(os.listdir(root), key=lambda k: (bool(cast["speakers"].get(k, {}).get("voice_id")), k)):
         log_path = os.path.join(root, key, "previews.json")
         if not os.path.exists(log_path):
             continue
         log = load_json(log_path)
         spk = cast["speakers"].get(key, {})
         adopted = spk.get("adopted_preview")
-        parts.append(f"<h2>{html.escape(spk.get('name', key))} <small>({html.escape(key)})</small></h2>"
+        usage = spk.get("usage", {})
+        state = "adopted " + adopted if adopted else ("voice set" if spk.get("voice_id") else "to choose")
+        parts.append(f"<h2>{html.escape(spk.get('name', key))} <small>({html.escape(key)}; {state}; "
+                     f"{len(usage.get('cubes', []))} texts, {usage.get('characters', 0):,} characters)</small></h2>"
                      f"<div class=role>{html.escape(spk.get('description', ''))}</div>")
         for r in log["rounds"]:
             parts.append(f"<div class=prompt>Round {r['round']}: {html.escape(r['prompt'])}</div>"
