@@ -365,9 +365,19 @@ explosions' 241-255) glow in the game's plane, and each explosion lights what is
 show the earth in layers, darker down and back in the bowls, what faces up dry topsoil. Behind the
 ridge the land falls away (the faster, the higher the ridge stands there) to rolling hills fading into
 the dark; beside the field it goes on from its edges; a starry sky with faint nebulae and a red planet
-lit by the sun. The units and the walls are the game's sprites with volume standing in the game's
-plane (a quarter larger, about their feet); the shots glow with short trails; the crosshairs are gold
-rings. The modern HUD: each side's panel at the top (who plays it, its points, the unit chosen and how
+lit by the sun. The units and the walls are models (`tools/blender/models/destruct/destruct.py`,
+`assets/models/destruct`, models.cfg's `destruct_*` lines): for each side in its colours (the left
+brass, the right green) a tank, a nuke launcher, a dirt launcher, a magnet, a laser, a jumper, a
+helicopter and a satellite, a quarter larger than the game's sprites about their feet, the right side's
+mirrored to face the left; their barrel, rail, tube or emitter (a model of its own) turned by the
+unit's angle, a helicopter's rotor turning and the helicopter facing the way it flies, its nose dipping
+as it speeds up; the walls blocks of blue stone. (A unit without a model shows as the game's sprite
+with volume.) The crosshairs are gold rings. The effects (`destruct3d.c`, its own random numbers, never
+the game's): an explosion flashes, burns in billowing fire, throws sparks, smoke that rises and, in the
+dirt, clods that fall and stay where they land; a large one sends a shock wave and shakes the camera; a
+dirt shot's burst throws clods and dust; each shot leaves a trail (sparks, a lasers' blue streak, the
+big shells' smoke, dust) and a flash and a puff at the muzzle as it leaves; a unit destroyed smokes
+where it stood for five seconds. The modern HUD: each side's panel at the top (who plays it, its points, the unit chosen and how
 many stand, the weapon with its icon, the barrel's angle on a dial, the power and the armor), the
 battle and the score between them, the round's winner, the keys at the bottom. The camera fits the
 field to the window's width and height (on wide windows the land beside it shows). `TYR3D_PROFILE=1`

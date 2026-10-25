@@ -688,6 +688,310 @@ static void make_glow(void)
 	glow_any = any;
 }
 
+/* --- The effects --------------------------------------------------------------------------- */
+
+static D3Particle particles[D3_MAX_PARTICLES];
+static int particle_count = 0;
+static float shake = 0;            // the camera's shake (game pixels), dying away
+static unsigned int ticks = 0;
+static Uint32 fx_seed = 0x2545f491;  // (the effects' own random numbers: never the game's)
+
+typedef struct
+{
+	float x, y;
+	int left;  // ticks
+} Wreck;
+
+#define MAX_WRECKS 16
+static Wreck wrecks[MAX_WRECKS];
+static int wreck_count = 0;
+
+static float frand(void)
+{
+	fx_seed = fx_seed * 1664525u + 1013904223u;
+	return (fx_seed >> 8) / 16777216.0f;
+}
+
+static float frange(float a, float b)
+{
+	return a + (b - a) * frand();
+}
+
+static D3Particle *spawn(D3ParticleKind kind, float x, float y, float z, float life)
+{
+	if (particle_count >= D3_MAX_PARTICLES)
+		return NULL;
+	D3Particle *p = &particles[particle_count++];
+	memset(p, 0, sizeof(*p));
+	p->kind = (Uint8)kind;
+	p->x = x;
+	p->y = y;
+	p->z = z;
+	p->drag = 1;
+	p->life = life;
+	return p;
+}
+
+static void paint(D3Particle *p, float r, float g, float b, float a, float r1, float g1, float b1, float a1)
+{
+	const float c[8] = { r, g, b, a, r1, g1, b1, a1 };
+	memcpy(p->colour, c, sizeof(p->colour));
+	memcpy(p->end_colour, c + 4, sizeof(p->end_colour));
+}
+
+// A random direction's speed, a little upwards.
+static void fling(D3Particle *p, float speed, float up)
+{
+	const float a = frange(0, 2 * (float)M_PI);
+	p->vx = cosf(a) * speed;
+	p->vy = sinf(a) * speed + up;
+	p->vz = frange(-0.25f, 0.25f) * speed;
+}
+
+static bool dirt_near(int x, int y, int r)
+{
+	for (int dy = -r; dy <= r; ++dy)
+		for (int dx = -r; dx <= r; ++dx)
+		{
+			const int xx = x + dx, yy = y + dy;
+			if (xx >= 0 && xx < D3_W && yy >= D3_TOP && yy < D3_H && field[yy * D3_W + xx] == PIXEL_DIRT)
+				return true;
+		}
+	return false;
+}
+
+// An explosion as the game makes it: fire, sparks, smoke, dirt thrown if it is in the dirt, a shock
+// wave if it is large; the camera shakes.
+static void blast_effects(const D3Blast *e)
+{
+	const float x = e->x + 0.5f, y = 199.5f - e->y, z = -D3_PLANE + 2;
+	const float s = (float)SDL_max(e->max, 4);
+	const float k = s / 30.0f + 0.5f;
+	D3Particle *p;
+	if (e->type == 2)  // (dirt thrown up: a dirt shot)
+	{
+		for (int i = 0; i < (int)s; ++i)
+			if ((p = spawn(D3P_DEBRIS, x + frange(-2, 2), y + frange(-2, 2), z + frange(-2, 2), frange(30, 55))) != NULL)
+			{
+				fling(p, frange(0.5f, 2.2f) * k, 0.8f);
+				p->gravity = 0.08f;
+				p->drag = 0.98f;
+				p->size = frange(1.2f, 2.4f);
+				paint(p, 0.3f, 0.19f, 0.09f, 1, 0.22f, 0.14f, 0.07f, 0.0f);
+			}
+		for (int i = 0; i < 2 + (int)s / 5; ++i)
+			if ((p = spawn(D3P_SMOKE, x + frange(-3, 3), y + frange(-2, 2), z, frange(50, 90))) != NULL)
+			{
+				p->vy = frange(0.05f, 0.2f);
+				p->size = s * 0.5f;
+				p->grow = 0.2f;
+				p->drag = 0.98f;
+				paint(p, 0.16f, 0.11f, 0.07f, 0.45f, 0.12f, 0.09f, 0.06f, 0.0f);
+			}
+		return;
+	}
+	if (e->type != 3)
+		return;
+	if ((p = spawn(D3P_GLOW, x, y, z + 1, 6)) != NULL)
+	{
+		p->size = s * 2.2f;
+		paint(p, 6, 3.8f, 1.6f, 1, 0, 0, 0, 0);
+	}
+	for (int i = 0; i < 4 + (int)s / 3; ++i)
+		if ((p = spawn(D3P_FIRE, x + frange(-0.15f, 0.15f) * s, y + frange(-0.15f, 0.15f) * s, z + frange(-1, 2), frange(16, 32))) != NULL)
+		{
+			fling(p, frange(0.1f, 0.5f) * s / 18.0f, 0.15f);
+			p->drag = 0.9f;
+			p->size = frange(0.45f, 0.9f) * s;
+			p->grow = s * 0.02f;
+			paint(p, 3.2f, 1.7f, 0.55f, 1, 0.7f, 0.14f, 0.02f, 0);
+		}
+	for (int i = 0; i < (int)s; ++i)
+		if ((p = spawn(D3P_GLOW, x, y, z, frange(14, 34))) != NULL)
+		{
+			fling(p, frange(1.0f, 3.4f) * k, 0.6f);
+			p->gravity = 0.07f;
+			p->drag = 0.965f;
+			p->size = frange(1.0f, 2.2f);
+			paint(p, 4.5f, 2.6f, 0.9f, 1, 1.4f, 0.3f, 0.05f, 0);
+		}
+	for (int i = 0; i < 2 + (int)s / 6; ++i)
+		if ((p = spawn(D3P_SMOKE, x + frange(-0.2f, 0.2f) * s, y + frange(0, 0.2f) * s, z + frange(-2, 1), frange(70, 120))) != NULL)
+		{
+			p->vy = frange(0.12f, 0.35f);
+			p->vx = frange(-0.08f, 0.08f);
+			p->size = s * frange(0.5f, 0.8f);
+			p->grow = 0.22f;
+			p->drag = 0.985f;
+			paint(p, 0.05f, 0.045f, 0.042f, 0.6f, 0.08f, 0.075f, 0.07f, 0.0f);
+		}
+	if (dirt_near(e->x, e->y, 3))
+		for (int i = 0; i < (int)s / 2; ++i)
+			if ((p = spawn(D3P_DEBRIS, x + frange(-2, 2), y + frange(-2, 2), z + frange(-2, 2), frange(30, 60))) != NULL)
+			{
+				fling(p, frange(0.8f, 2.6f) * k, 1.0f);
+				p->gravity = 0.09f;
+				p->drag = 0.985f;
+				p->size = frange(1.0f, 2.2f);
+				paint(p, 0.26f, 0.17f, 0.085f, 1, 0.2f, 0.13f, 0.07f, 0.0f);
+			}
+	if (s >= 20 && (p = spawn(D3P_RING, x, y, z + 2, 12)) != NULL)
+	{
+		p->size = s * 0.6f;
+		p->grow = s * 0.14f;
+		paint(p, 2.2f, 1.3f, 0.5f, 1, 0, 0, 0, 0);
+	}
+	shake = SDL_min(shake + s / 26.0f, 3.5f);
+}
+
+// A shot's trail, by its kind: lasers a blue streak, the big shells smoke, dirt dust, the rest sparks.
+static void trail(const D3Shot *s)
+{
+	const float x = s->x, y = 199.5f - s->y, z = -D3_PLANE + frange(-0.5f, 0.5f);
+	D3Particle *p;
+	if (s->type >= 11 && s->type <= 13)
+	{
+		if ((p = spawn(D3P_GLOW, x, y, z, 7)) != NULL)
+		{
+			p->size = 2.6f;
+			paint(p, 0.5f, 1.3f, 3.4f, 1, 0, 0, 0.2f, 0);
+		}
+		return;
+	}
+	if (s->type == 8 || s->type == 9)
+	{
+		if ((p = spawn(D3P_SMOKE, x, y, z, 22)) != NULL)
+		{
+			p->size = 2.4f;
+			p->grow = 0.15f;
+			paint(p, 0.2f, 0.14f, 0.08f, 0.5f, 0.16f, 0.11f, 0.07f, 0);
+		}
+		return;
+	}
+	const bool big = s->type == 2 || s->type == 4 || s->type == 5 || s->type == 6 || s->type == 7 || s->type == 14;
+	if (big && (p = spawn(D3P_SMOKE, x, y, z, frange(28, 40))) != NULL)
+	{
+		p->size = s->type == 7 ? 4.0f : 2.8f;
+		p->grow = 0.14f;
+		p->vy = 0.04f;
+		paint(p, 0.09f, 0.085f, 0.08f, 0.45f, 0.12f, 0.115f, 0.11f, 0);
+	}
+	if ((p = spawn(D3P_GLOW, x, y, z, big ? 6 : 8)) != NULL)
+	{
+		p->size = big ? 3.2f : 1.8f;
+		paint(p, 3.2f, 1.6f, 0.5f, 1, 0.8f, 0.15f, 0.02f, 0);
+	}
+}
+
+// A shot just fired: a flash at the muzzle, a puff.
+static void muzzle(const D3Shot *s)
+{
+	const float x = s->x, y = 199.5f - s->y, z = -D3_PLANE + 1;
+	D3Particle *p;
+	if ((p = spawn(D3P_GLOW, x, y, z, 4)) != NULL)
+	{
+		p->size = 7;
+		paint(p, 4, 2.6f, 1.2f, 1, 0, 0, 0, 0);
+	}
+	if (s->type < 11 || s->type > 13)
+		if ((p = spawn(D3P_SMOKE, x, y, z, 26)) != NULL)
+		{
+			p->size = 4;
+			p->grow = 0.18f;
+			p->vx = s->xmov * 0.08f;
+			p->vy = 0.06f;
+			paint(p, 0.12f, 0.11f, 0.1f, 0.5f, 0.14f, 0.13f, 0.12f, 0);
+		}
+}
+
+// What changed since the tick before: new explosions, new shots, units gone; the particles on.
+static void effects(const D3Tick *was, const D3Tick *now)
+{
+	for (int i = 0; i < now->blast_count; ++i)
+		if (now->blasts[i].width <= 3)
+			blast_effects(&now->blasts[i]);
+	for (int i = 0; i < now->shot_count; ++i)
+	{
+		const D3Shot *s = &now->shots[i];
+		bool known = false;
+		for (int j = 0; j < was->shot_count && !known; ++j)
+		{
+			const D3Shot *o = &was->shots[j];
+			known = SDL_fabsf(o->x + o->xmov - s->x) < 4.0f && SDL_fabsf(o->y + o->ymov - s->y) < 4.0f;
+		}
+		if (!known)
+			muzzle(s);
+		trail(s);
+	}
+	// A unit destroyed smokes where it stood a while.
+	for (int j = 0; j < was->unit_count; ++j)
+	{
+		const D3Unit *o = &was->units[j];
+		bool there = false;
+		for (int i = 0; i < now->unit_count && !there; ++i)
+			there = now->units[i].side == o->side && now->units[i].type == o->type && SDL_fabsf(now->units[i].x - o->x) < 8.0f;
+		if (!there && wreck_count < MAX_WRECKS)
+			wrecks[wreck_count++] = (Wreck){ o->x + 6, 199.5f - o->y + 3, 260 };
+	}
+	for (int w = 0; w < wreck_count; ++w)
+	{
+		Wreck *k = &wrecks[w];
+		D3Particle *p;
+		if (k->left % 3 == 0 && (p = spawn(D3P_SMOKE, k->x + frange(-2, 2), k->y, -D3_PLANE + frange(-2, 1), frange(70, 110))) != NULL)
+		{
+			p->vy = frange(0.18f, 0.32f);
+			p->vx = frange(0.0f, 0.06f);
+			p->size = frange(3, 5) * (0.4f + 0.6f * k->left / 260.0f);
+			p->grow = 0.12f;
+			p->drag = 0.995f;
+			paint(p, 0.04f, 0.037f, 0.035f, 0.55f * k->left / 260.0f + 0.1f, 0.07f, 0.065f, 0.06f, 0);
+		}
+		if (k->left % 5 == 0 && k->left > 80 && (p = spawn(D3P_GLOW, k->x + frange(-3, 3), k->y - 2, -D3_PLANE + 1, 10)) != NULL)
+		{
+			p->size = frange(1.5f, 3.0f);
+			p->vy = 0.2f;
+			paint(p, 3, 1.1f, 0.25f, 1, 0.6f, 0.1f, 0, 0);
+		}
+		if (--k->left <= 0)
+			wrecks[w--] = wrecks[--wreck_count];
+	}
+	// The particles move on; clods of dirt stop where they land.
+	for (int i = 0; i < particle_count; ++i)
+	{
+		D3Particle *p = &particles[i];
+		if (++p->age >= p->life)
+		{
+			particles[i--] = particles[--particle_count];
+			continue;
+		}
+		p->x += p->vx;
+		p->y += p->vy;
+		p->z += p->vz;
+		p->vy -= p->gravity;
+		p->vx *= p->drag;
+		p->vy *= p->drag;
+		p->vz *= p->drag;
+		p->size = SDL_max(p->size + p->grow, 0.0f);
+		if (p->kind == D3P_DEBRIS && p->gravity > 0)
+		{
+			const int px = (int)floorf(p->x), py = (int)floorf(199.5f - p->y);
+			if (px >= 0 && px < D3_W && py >= D3_TOP && py < D3_H && field[py * D3_W + px] == PIXEL_DIRT)
+			{
+				p->vx = p->vy = p->vz = p->gravity = 0;
+				p->y += 0.8f;
+			}
+		}
+	}
+	shake *= 0.86f;
+	++ticks;
+}
+
+int destruct3d_particles(const D3Particle **out)
+{
+	*out = particles;
+	return particle_count;
+}
+
 /* --- The state ---------------------------------------------------------------------------- */
 
 // The land beside the field: from the field's edge columns' tops, rolling.
@@ -763,12 +1067,15 @@ void destruct3d_new_field(const Uint8 *pixels, int pitch)
 	make_glow();
 	++field_generation;
 	mark_stale_all();
+	particle_count = wreck_count = 0;
+	shake = 0;
 	shown.unit_count = shown.shot_count = shown.wall_count = shown.blast_count = 0;
 	shown.aim[0] = shown.aim[1] = false;
 }
 
 void destruct3d_tick(const D3Tick *tick)
 {
+	effects(&shown, tick);
 	shown = *tick;
 	shown.field = field;
 	shown.pitch = D3_W;
@@ -863,7 +1170,8 @@ void destruct3d_camera(float aspect, D3Camera *camera)
 	const float want_w = D3_W + 12.0f, bottom = -22.0f, top = 200.0f - D3_TOP + 40.0f;
 	const float want_h = top - bottom;
 	const float distance = SDL_max(want_w / 2 / (t * aspect), want_h * c / 2 / t);
-	const float target[3] = { D3_W / 2.0f, (top + bottom) / 2, -D3_PLANE };
+	// (Shaken by the explosions.)
+	const float target[3] = { D3_W / 2.0f + shake * sinf(ticks * 2.31f), (top + bottom) / 2 + shake * 0.7f * cosf(ticks * 2.73f), -D3_PLANE };
 	for (int i = 0; i < 3; ++i)
 	{
 		camera->position[i] = target[i] - forward[i] * distance;

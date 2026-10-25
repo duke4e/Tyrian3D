@@ -10872,29 +10872,106 @@ static bool present_destruct(void)
 			}
 		}
 	}
-	// The units and the walls: the game's sprites with volume, standing up in the game's plane.
+	// The units and the walls: their models (tools/blender/models/destruct), facing the other side, the
+	// parts that aim turned by the unit's angle, a helicopter's rotor turning; the game's sprites with
+	// volume where a model is missing.
 	{
+		enum { UNIT_KINDS = 8, HELI = 7 };
+		static const char *const names[UNIT_KINDS] = { "tank", "nuke", "dirt", "satellite", "magnet", "laser", "jumper", "heli" };
+		// The part that aims (or a rotor that turns) and its pivot in the unit's model (game pixels).
+		static const struct { const char *name; float x, z; bool sided; } parts[UNIT_KINDS] = {
+			{ "tank_barrel", 0.6f, 7.0f, false }, { "nuke_rail", -0.4f, 5.4f, false }, { "dirt_tube", -0.6f, 5.6f, true },
+			{ NULL, 0, 0, false }, { NULL, 0, 0, false }, { "laser_head", 0.0f, 10.0f, false }, { NULL, 0, 0, false },
+			{ "heli_rotor", 0.4f, 9.9f, false },
+		};
+		static unsigned int found = ~0u;
+		static int unit_models[UNIT_KINDS][2], part_models[UNIT_KINDS][2], wall_model = -1;
+		if (found != m3d_generation)
+		{
+			char name[48];
+			for (int t = 0; t < UNIT_KINDS; ++t)
+				for (int side = 0; side < 2; ++side)
+				{
+					snprintf(name, sizeof(name), "destruct_%s_%c", names[t], side == 0 ? 'l' : 'r');
+					unit_models[t][side] = m3d_find_model(name);
+					part_models[t][side] = -1;
+					if (parts[t].name != NULL)
+					{
+						if (parts[t].sided)
+							snprintf(name, sizeof(name), "destruct_%s_%c", parts[t].name, side == 0 ? 'l' : 'r');
+						else
+							snprintf(name, sizeof(name), "destruct_%s", parts[t].name);
+						part_models[t][side] = m3d_find_model(name);
+					}
+				}
+			wall_model = m3d_find_model("destruct_wall");
+			found = m3d_generation;
+		}
+		sync_model_cache();
+		const float seconds = SDL_GetTicks() / 1000.0f;
 		const Uint32 colors_hash = hash_colors(rgb_palette);
-		VolumeSheet *entry = get_volume_sheet(&destructSpriteSheet, rgb_palette, colors_hash);
-		for (int i = 0; entry != NULL && i < tick->unit_count + tick->wall_count; ++i)
+		VolumeSheet *entry = NULL;
+		for (int i = 0; i < tick->unit_count + tick->wall_count; ++i)
 		{
 			const bool wall = i >= tick->unit_count;
-			const float x = wall ? tick->walls[i - tick->unit_count].x : tick->units[i].x;
-			const float top = wall ? tick->walls[i - tick->unit_count].y : tick->units[i].y - 13;
-			const int sprite = wall ? 42 : tick->units[i].sprite;
-			BTBHGPUCustomMesh *mesh = get_volume_mesh(entry, (unsigned int)sprite, false, V3D_STYLE_RAISED, 0);
-			// (A little larger than the game's sprite, about its foot.)
-			const float k = wall ? 1.0f : 1.25f;
-			const Mat4 chain[] = { mat4_translation(x + 6, 200 - (top + 14) + 7 * k, -D3_PLANE), mat4_scaling(k), mat4_rotation(0, 90.0f) };
-			const Mat4 m = mat4_chain((int)COUNTOF(chain), chain);
-			BTBHGPUSceneGeometryBatch *b = destruct_batch(mesh, &m, 1.0f, &instance_count, &batch_count);
-			if (b != NULL)
+			const D3Unit *u = wall ? NULL : &tick->units[i];
+			const int model = wall ? wall_model : (u->type >= 0 && u->type < UNIT_KINDS ? unit_models[u->type][u->side] : -1);
+			const int first_batch = batch_count;
+			if (model >= 0 && wall)
 			{
-				b->albedo_texture = filtered_volume_texture(entry, rgb_palette, colors_hash, 0);
-				b->unlit_enabled = 1;
-				b->alpha_cutoff = 0.5f;
-				casts_shadow[batch_count - 1] = shadows;
+				const D3Wall *w = &tick->walls[i - tick->unit_count];
+				const Mat4 m = mat4_translation(w->x + 6.0f, 200.0f - (w->y + 14), -D3_PLANE);
+				add_showcase_model(model, &m, 0, 1, rgb_palette, &instance_count, &batch_count);
 			}
+			else if (model >= 0)
+			{
+				// (A little larger than the game's sprite, about its foot. A helicopter faces the way it
+				// flies and dips its nose as it speeds up.)
+				bool facing_right = u->side == 0;
+				float tilt = 0;
+				if (u->type == HELI)
+				{
+					if (u->last_move > 2 || u->last_move < -2)
+						facing_right = u->last_move > 0;
+					tilt = -3.0f * SDL_abs(u->last_move);
+				}
+				Mat4 mirror = mat4_identity();
+				if (!facing_right)
+					mirror.m[0] = -1;
+				const Mat4 chain[] = { mat4_translation(u->x + 6.0f, 200.0f - u->y, -D3_PLANE), mirror, mat4_rotation(2, tilt), mat4_scaling(1.25f) };
+				const Mat4 placement = mat4_chain((int)COUNTOF(chain), chain);
+				add_showcase_model(model, &placement, 0, 1, rgb_palette, &instance_count, &batch_count);
+				const int part = part_models[u->type][u->side];
+				if (part >= 0)
+				{
+					const Mat4 turn = u->type == HELI ? mat4_rotation(1, seconds * 1440.0f)
+					                                  : mat4_rotation(2, u->angle * 180.0f / (float)M_PI);
+					const Mat4 part_chain[] = { placement, mat4_translation(parts[u->type].x, parts[u->type].z, 0), turn };
+					const Mat4 m = mat4_chain((int)COUNTOF(part_chain), part_chain);
+					add_showcase_model(part, &m, 0, 1, rgb_palette, &instance_count, &batch_count);
+				}
+			}
+			else
+			{
+				if (entry == NULL && (entry = get_volume_sheet(&destructSpriteSheet, rgb_palette, colors_hash)) == NULL)
+					continue;
+				const float x = wall ? tick->walls[i - tick->unit_count].x : u->x;
+				const float top = wall ? tick->walls[i - tick->unit_count].y : u->y - 13;
+				const int sprite = wall ? 42 : u->sprite;
+				BTBHGPUCustomMesh *mesh = get_volume_mesh(entry, (unsigned int)sprite, false, V3D_STYLE_RAISED, 0);
+				const float k = wall ? 1.0f : 1.25f;
+				const Mat4 chain[] = { mat4_translation(x + 6, 200 - (top + 14) + 7 * k, -D3_PLANE), mat4_scaling(k), mat4_rotation(0, 90.0f) };
+				const Mat4 m = mat4_chain((int)COUNTOF(chain), chain);
+				BTBHGPUSceneGeometryBatch *b = destruct_batch(mesh, &m, 1.0f, &instance_count, &batch_count);
+				if (b != NULL)
+				{
+					b->albedo_texture = filtered_volume_texture(entry, rgb_palette, colors_hash, 0);
+					b->unlit_enabled = 1;
+					b->alpha_cutoff = 0.5f;
+				}
+			}
+			for (int b = first_batch; b < batch_count; ++b)
+				casts_shadow[b] = shadows;
 		}
 	}
 	// The field's fire in the game's plane.
@@ -10936,6 +11013,52 @@ static bool present_destruct(void)
 				destruct_glow_at(tick->aim_x[s], 200 - tick->aim_y[s], -D3_PLANE + 2, 9.0f, gold, ring_texture, &instance_count);
 			}
 		destruct_glow_batch(first, instance_count - first, ring_texture, &batch_count);
+	}
+
+	// The effects (destruct3d's particles): smoke and clods blended, fire, sparks and shock waves added.
+	{
+		const D3Particle *particles;
+		const int count = destruct3d_particles(&particles);
+		for (int kind = 0; kind < D3P_KINDS && batch_count < MAX_BATCHES; ++kind)
+		{
+			const int first = instance_count;
+			for (int i = 0; i < count && instance_count < MAX_INSTANCES; ++i)
+			{
+				const D3Particle *p = &particles[i];
+				if (p->kind != kind)
+					continue;
+				const float t = SDL_clamp(p->age / SDL_max(p->life, 1.0f), 0.0f, 1.0f);
+				Mat4 m = mat4_identity();
+				// (Puffs each turned their own way, turning slowly.)
+				const float angle = kind == D3P_SMOKE || kind == D3P_FIRE ? p->life * 2.39996f + p->age * 0.03f : 0.0f;
+				m.m[0] = cosf(angle) * p->size;
+				m.m[1] = sinf(angle) * p->size;
+				m.m[4] = -sinf(angle) * p->size;
+				m.m[5] = cosf(angle) * p->size;
+				m.m[10] = p->size;
+				m.m[12] = p->x;
+				m.m[13] = p->y;
+				m.m[14] = p->z;
+				float *instance = instances + instance_count * 24;
+				write_instance_world(instance, &m, 1.0f);
+				for (int c = 0; c < 4; ++c)
+					instance[16 + c] = p->colour[c] + (p->end_colour[c] - p->colour[c]) * t;
+				++instance_count;
+			}
+			if (instance_count == first)
+				continue;
+			BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+			init_batch(b);
+			b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+			b->custom_mesh = billboard_mesh;
+			b->first_instance = (uint32_t)first;
+			b->instance_count = (uint32_t)(instance_count - first);
+			b->albedo_texture = kind == D3P_SMOKE || kind == D3P_FIRE ? fire_texture : kind == D3P_RING ? ring_texture : particle_texture;
+			b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+			b->unlit_enabled = 1;
+			b->transparency_enabled = 1;
+			b->blend_mode = kind == D3P_SMOKE || kind == D3P_DEBRIS ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		}
 	}
 
 	BTBHGPUSceneLighting lighting;

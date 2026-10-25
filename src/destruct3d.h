@@ -42,6 +42,9 @@ typedef struct
 	float angle;        // radians above the horizon, towards the other side
 	int sprite;         // the sprite the game draws for it (1-based, the destruct sheet)
 	bool selected;      // its side's unit chosen
+	int frame;          // its animation's frame (0-3: a helicopter's rotor, a magnet pulsing)
+	int last_move;      // a helicopter's way and speed (-5 left .. 5 right)
+	float health;       // its armor left, 0-1
 } D3Unit;
 
 typedef struct
@@ -119,5 +122,31 @@ void destruct3d_camera(float aspect, D3Camera *camera);
 void destruct3d_planet(const D3Camera *camera, D3Mesh *sphere, float centre[3], float *radius);
 // The tick shown last.
 const D3Tick *destruct3d_state(void);
+
+// The battle's effects: fire, sparks, smoke and dirt thrown by the explosions, the shots' trails and
+// their muzzles' flashes, smoke from what is destroyed. World coordinates (game pixels).
+typedef enum
+{
+	D3P_SMOKE,   // blended, billowing
+	D3P_DEBRIS,  // blended: clods of dirt, falling
+	D3P_FIRE,    // additive, billowing
+	D3P_GLOW,    // additive: flashes, sparks, the trails
+	D3P_RING,    // additive: a big explosion's shock wave
+	D3P_KINDS
+} D3ParticleKind;
+
+typedef struct
+{
+	float x, y, z, vx, vy, vz;  // per tick
+	float size, grow;           // across, and its change a tick
+	float age, life;            // ticks
+	float gravity, drag;        // y speed lost a tick; the speed kept a tick
+	float colour[4], end_colour[4];  // linear RGB (may be over 1 for light) and opacity
+	Uint8 kind;
+} D3Particle;
+
+#define D3_MAX_PARTICLES 3072
+
+int destruct3d_particles(const D3Particle **particles);
 
 #endif /* DESTRUCT3D_H */

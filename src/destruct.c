@@ -957,7 +957,8 @@ static void destruct_publish_play(void)
 			if (!DE_isValidUnit((struct destruct_unit_s *)unit))
 				continue;
 			tick.units[tick.unit_count++] = (D3Unit){ unit->unitType, p, unit->unitX, unit->unitY, unit->angle, (int)unit_sprite(p, unit),
-			                                          u == destruct_player[p].unitSelected };
+			                                          u == destruct_player[p].unitSelected, (int)unit->ani_frame, unit->lastMove,
+			                                          SDL_clamp(unit->health / (float)baseDamage[unit->unitType], 0.0f, 1.0f) };
 		}
 		tick.aim[p] = destruct_player[p].unitsRemaining > 0;
 		if (tick.aim[p])
