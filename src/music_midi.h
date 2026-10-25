@@ -33,7 +33,8 @@ typedef struct
 	double note_pitch;   // its pitch when it started (bends are relative to the note)
 	int bend;            // last pitch bend sent (0..16383)
 	int expression;      // last expression sent
-	int start_level;     // the chip's level when the note started (its velocity)
+	double start_level;  // how far below full level the chip sounded it as it started (dB; its velocity)
+	bool faded;          // the chip's note has faded out (its envelope) while its key is held: note off sent
 	int program;         // last program sent, or -1
 	int inst;            // LDS instrument of the sounding note
 	Uint32 started;      // update it started

@@ -247,7 +247,8 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`) |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
-| `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music) |
+| `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there) |
+| `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |
 | `TYR3D_SOUNDFONT=<file>` | Another SoundFont for the music (for the run; the menus' SoundFont choice, Sound → SoundFont or the in-game options, picks among the `.sf2` files in `data/soundfonts`, kept as `soundfont` in `[tyrian3d]`) |
 | `TYR3D_RECORD_AUDIO=<file>` | Write the game's sound output as raw 16-bit mono samples at 44.1 kHz |
 | `TYR3D_EXPORT_SFX=<dir>` | Write the sound effects and voices as WAV files (`<number>_<title>.wav`, 11025 Hz) |

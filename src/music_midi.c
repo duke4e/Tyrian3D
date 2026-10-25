@@ -63,11 +63,11 @@ static double channel_pitch(int ch)
 	return 69 + 12 * log2(hz / 440);
 }
 
-// A level of 0..63 (0.75 dB steps, 0 loudest) as a MIDI value, loudness rather than amplitude;
-// relative to a reference level (expression while a note sounds), or to full volume.
-static int level_to_midi(int level, int reference)
+// How far below full level something sounds (dB) as a MIDI value, loudness rather than amplitude;
+// relative to a reference (expression while a note sounds), or to full volume.
+static int db_to_midi(double db, double reference)
 {
-	const double amplitude = pow(10, -0.75 * (level - reference) / 20);
+	const double amplitude = pow(10, -(db - reference) / 20);
 	const int value = (int)lround(127 * sqrt(amplitude));
 	return SDL_clamp(value, 1, 127);
 }
@@ -77,6 +77,49 @@ static int channel_level(int ch)
 	const int car = reg[0x40 + op_offset[ch] + 3] & 0x3f;
 	const int mod = reg[0x40 + op_offset[ch]] & 0x3f;
 	return (reg[0xc0 + ch] & 1) ? SDL_min(car, mod) : car;  // additive: both operators sound
+}
+
+/*
+ * How far below full level an operator of a channel sounds (dB), seconds after its key went on: its total
+ * level, its key scale level (high notes quieter) and its envelope: the decay to the sustain level and, with
+ * a decaying envelope (EG-TYP 0, a struck or plucked patch), on towards silence at the release rate while
+ * the key is still held. (Patches the player keys on for long and that fade out on the chip sounded on
+ * and on as MIDI: the long high notes.) The attack is taken as instant.
+ */
+#define SILENT_DB 54.0  // a note this far down has faded out
+
+static double operator_db(int op, int ch, double seconds)
+{
+	static const double ksl_octave7[16] = { 0, 9, 12, 13.875, 15, 16.125, 16.875, 17.625, 18, 18.75, 19.125, 19.5, 19.875, 20.25,
+		                                    20.625, 21 };
+	const int fnum = reg[0xa0 + ch] | ((reg[0xb0 + ch] & 3) << 8), block = (reg[0xb0 + ch] >> 2) & 7;
+	double db = (reg[0x40 + op] & 0x3f) * 0.75;
+	const int ksl = reg[0x40 + op] >> 6;
+	if (ksl != 0)
+	{
+		const double k = SDL_max(ksl_octave7[fnum >> 6] - 6.0 * (7 - block), 0.0);
+		db += ksl == 3 ? k : ksl == 1 ? k / 2 : k / 4;  // 6, 3 and 1.5 dB an octave
+	}
+	const int kcode = (block << 1) | ((fnum >> 9) & 1);
+	const int rate_offset = (reg[0x20 + op] & 0x10) ? kcode : kcode >> 2;  // (key scale rate)
+	const int dr = reg[0x60 + op] & 15, sl = reg[0x80 + op] >> 4, rr = reg[0x80 + op] & 15;
+	if (dr == 0)
+		return db;
+	// 0 to 96 dB in 39.28 s at the effective rate 4, twice as fast every 4 (2.4 ms at 60).
+	const double decay = 96 / (39.28 * pow(2, -(SDL_min(dr * 4 + rate_offset, 60) - 4) / 4.0));
+	const double sustain_db = sl == 15 ? 93 : sl * 3.0;
+	if (seconds * decay <= sustain_db)
+		return db + seconds * decay;
+	if ((reg[0x20 + op] & 0x20) || rr == 0)
+		return db + sustain_db;
+	const double release = 96 / (39.28 * pow(2, -(SDL_min(rr * 4 + rate_offset, 60) - 4) / 4.0));
+	return db + SDL_min(sustain_db + (seconds - sustain_db / decay) * release, 96.0);
+}
+
+static double channel_db(int ch, double seconds)
+{
+	const double car = operator_db(op_offset[ch] + 3, ch, seconds);
+	return (reg[0xc0 + ch] & 1) ? SDL_min(car, operator_db(op_offset[ch], ch, seconds)) : car;  // additive: both sound
 }
 
 static int instrument_program(int inst)
@@ -127,15 +170,16 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 		const bool melodic = !(rhythm && ch >= 6);
 		const bool key = melodic && (reg[0xb0 + ch] & 0x20) != 0;
 		const double pitch = channel_pitch(ch);
-		const int level = channel_level(ch);
 
 		const bool restart = key && (!v->on || keyoff_written[ch] || fabs(pitch - v->note_pitch) > BEND_RANGE);
 		if (v->on && (!key || restart))
 		{
-			emit(t, update, 0x80 | ch, v->note, 0);
+			if (!v->faded)
+				emit(t, update, 0x80 | ch, v->note, 0);
 			MidiInstrumentUse *u = &t->use[v->inst & 0xff];
 			u->seconds += (update - v->started) / 69.5;
 			v->on = false;
+			v->faded = false;
 		}
 		if (restart && pitch > 0)
 		{
@@ -161,9 +205,19 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 			v->note_pitch = v->note - transpose;
 			v->inst = inst;
 			v->started = update;
-			v->start_level = level;
+			v->start_level = channel_db(ch, 0);
 			v->on = true;
-			emit(t, update, 0x90 | ch, v->note, SDL_max(1, level_to_midi(level, 0) * instrument_velocity(inst) / 127));
+			v->faded = v->start_level >= SILENT_DB;  // (keyed on silent: nothing to play)
+			if (SDL_getenv("TYR3D_DEBUG_MIDI") != NULL)
+			{
+				const int car = op_offset[ch] + 3, mod = op_offset[ch];
+				printf("debug midi: ch %d note %d inst %d db %.1f add %d car tl %d ksl %d eg %d ar %d dr %d sl %d rr %d mod tl %d eg %d dr %d sl %d rr %d\n", ch,
+				       v->note, inst, v->start_level, reg[0xc0 + ch] & 1, reg[0x40 + car] & 63, reg[0x40 + car] >> 6, (reg[0x20 + car] >> 5) & 1,
+				       reg[0x60 + car] >> 4, reg[0x60 + car] & 15, reg[0x80 + car] >> 4, reg[0x80 + car] & 15, reg[0x40 + mod] & 63,
+				       (reg[0x20 + mod] >> 5) & 1, reg[0x60 + mod] & 15, reg[0x80 + mod] >> 4, reg[0x80 + mod] & 15);
+			}
+			if (!v->faded)
+				emit(t, update, 0x90 | ch, v->note, SDL_max(1, db_to_midi(v->start_level, 0) * instrument_velocity(inst) / 127));
 
 			MidiInstrumentUse *u = &t->use[inst & 0xff];
 			if (u->notes == 0 || pitch < u->lowest)
@@ -172,16 +226,22 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 				u->highest = pitch;
 			++u->notes;
 		}
-		else if (v->on)
+		else if (v->on && !v->faded && channel_db(ch, (update - v->started) / 69.5) >= SILENT_DB)
 		{
-			// Vibrato and slides as pitch bends, the level's changes (fades, tremolo) as expression.
+			// Faded out on the chip (its envelope, its level) while the key is held.
+			emit(t, update, 0x80 | ch, v->note, 0);
+			v->faded = true;
+		}
+		else if (v->on && !v->faded)
+		{
+			// Vibrato and slides as pitch bends, the level's changes (fades, tremolo, the envelope) as expression.
 			const int bend = SDL_clamp((int)lround(8192 + (pitch - v->note_pitch) / BEND_RANGE * 8192), 0, 16383);
 			if (abs(bend - v->bend) > 16)
 			{
 				emit(t, update, 0xe0 | ch, bend & 0x7f, bend >> 7);
 				v->bend = bend;
 			}
-			const int expression = level_to_midi(level, v->start_level);
+			const int expression = db_to_midi(channel_db(ch, (update - v->started) / 69.5), v->start_level);
 			if (expression != v->expression)
 			{
 				emit(t, update, 0xb0 | ch, 11, expression);
@@ -203,7 +263,7 @@ void midi_translator_update(MidiTranslator *t, Uint32 update)
 		if (hit)
 		{
 			const int ch = d == 4 ? 6 : (d == 0 || d == 3) ? 7 : 8;  // the channels the drums use
-			emit(t, update, 0x90 | MIDI_DRUM_CHANNEL, drum_note[d], level_to_midi(channel_level(ch), 0));
+			emit(t, update, 0x90 | MIDI_DRUM_CHANNEL, drum_note[d], db_to_midi(channel_level(ch) * 0.75, 0));
 			t->drum_on[d] = true;
 		}
 	}
@@ -218,8 +278,10 @@ void midi_translator_end(MidiTranslator *t, Uint32 update)
 	for (int ch = 0; ch < 9; ++ch)
 		if (t->voices[ch].on)
 		{
-			emit(t, update, 0x80 | ch, t->voices[ch].note, 0);
+			if (!t->voices[ch].faded)
+				emit(t, update, 0x80 | ch, t->voices[ch].note, 0);
 			t->voices[ch].on = false;
+			t->voices[ch].faded = false;
 		}
 	for (int d = 0; d < 5; ++d)
 		if (t->drum_on[d])
