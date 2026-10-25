@@ -601,7 +601,7 @@
         "stability": 1.0,
         "similarity_boost": 0.8,
         "style": 0.15,
-        "speed": 1.0
+        "speed": 1.12
       },
       "match": {
         "senders": [
@@ -730,7 +730,7 @@
         "stability": 0.5,
         "similarity_boost": 0.8,
         "style": 0.35,
-        "speed": 1.03
+        "speed": 1.15
       },
       "match": {
         "senders": [
