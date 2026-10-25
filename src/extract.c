@@ -873,6 +873,39 @@ void dev_export_pictures(const char *dir)
 		write_picture(path, surface, face->width, face->height, palettes[i < 12 ? facepal[i] : 0], true);
 	}
 
+	// The title's logo (PLANET_SHAPES 146) and its "2000(tm)" (151), each alone and together as the title shows
+	// them once they have flown in, in the title picture's palette, clear round them.
+	{
+		static const struct { const char *name; int sprites[2]; int at[2][2]; } logos[] = {
+			{ "logo_tyrian", { 146, -1 }, { { 0, 0 } } },
+			{ "logo_2000", { 151, -1 }, { { 0, 0 } } },
+			{ "logo_tyrian2000", { 146, 151 }, { { 11, 4 }, { 155, 73 } } },  // (titleScreen's places)
+		};
+		const SDL_Color *palette = palettes[pcxpal[4 - 1]];
+		for (size_t l = 0; l < COUNTOF(logos); ++l)
+		{
+			int x0 = 1 << 30, y0 = 1 << 30, x1 = -1, y1 = -1;
+			for (int k = 0; k < 2 && logos[l].sprites[k] >= 0; ++k)
+			{
+				if (!sprite_exists(PLANET_SHAPES, (unsigned int)logos[l].sprites[k]))
+					continue;
+				const Sprite *sp = sprite(PLANET_SHAPES, (unsigned int)logos[l].sprites[k]);
+				x0 = SDL_min(x0, logos[l].at[k][0]);
+				y0 = SDL_min(y0, logos[l].at[k][1]);
+				x1 = SDL_max(x1, logos[l].at[k][0] + sp->width);
+				y1 = SDL_max(y1, logos[l].at[k][1] + sp->height);
+			}
+			if (x1 < 0 || x1 - x0 > 320 || y1 - y0 > 200)
+				continue;
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			for (int k = 0; k < 2 && logos[l].sprites[k] >= 0; ++k)
+				if (sprite_exists(PLANET_SHAPES, (unsigned int)logos[l].sprites[k]))
+					blit_sprite(surface, logos[l].at[k][0] - x0, logos[l].at[k][1] - y0, PLANET_SHAPES, (unsigned int)logos[l].sprites[k]);
+			snprintf(path, sizeof(path), "%s/%s.png", dir, logos[l].name);
+			write_picture(path, surface, x1 - x0, y1 - y0, palette, true);
+		}
+	}
+
 	// The ending's animation (tyrend.anm), frame by frame.
 	AnimExport e = { dir };
 	snprintf(path, sizeof(path), "%s/tyrend", dir);
@@ -900,6 +933,7 @@ void dev_export_pictures(const char *dir)
 	      "others  story pictures between levels (the episode texts' ]P and ]U commands)\n"
 	      "tshp2   a story picture (]P0)\n"
 	      "face_NN the data cubes' faces in the store (who wrote the cube), clear round them\n"
+	      "logo_tyrian, logo_2000, logo_tyrian2000  the title's logo alone, its 2000(tm), and both as the title shows them\n"
 	      "tyrend/  the ending's animation (episode 1's end), frame by frame\n",
 	      readme);
 	fclose(readme);
