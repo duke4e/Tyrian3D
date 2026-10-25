@@ -330,6 +330,16 @@ bool episodeSelect(void)
 	const size_t customCount = isNetworkGame ? 0 : (size_t)custom_episode_count;
 	const size_t menuItemsCount = episodeCount + customCount;
 	size_t selectedIndex = 0;
+	// (The extras, episode 7 and the custom episodes, the modern UI shows beside the others: Left and Right
+	// go between them.)
+	size_t firstExtra = episodeCount;
+	for (size_t i = 0; i < episodeCount; ++i)
+		if (episodeNumbers[i] >= 7)
+		{
+			firstExtra = i;
+			break;
+		}
+	size_t lastMain = 0;
 
 	char customNames[CUSTOM_EPISODE_MAX][48];
 	const char *itemNames[EPISODE_MAX + CUSTOM_EPISODE_MAX];
@@ -486,6 +496,25 @@ bool episodeSelect(void)
 				selectedIndex = selectedIndex == menuItemsCount - 1
 					? 0
 					: selectedIndex + 1;
+				break;
+			}
+			case SDL_SCANCODE_RIGHT:
+			{
+				if (selectedIndex < firstExtra && firstExtra < menuItemsCount)
+				{
+					JE_playSampleNum(S_CURSOR);
+					lastMain = selectedIndex;
+					selectedIndex = firstExtra;
+				}
+				break;
+			}
+			case SDL_SCANCODE_LEFT:
+			{
+				if (selectedIndex >= firstExtra && firstExtra > 0)
+				{
+					JE_playSampleNum(S_CURSOR);
+					selectedIndex = SDL_min(lastMain, firstExtra - 1);
+				}
 				break;
 			}
 			case SDL_SCANCODE_SPACE:

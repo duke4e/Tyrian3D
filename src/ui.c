@@ -1218,70 +1218,104 @@ static void build_setup(const UIMenu *m)
 
 // The new game's choices (players, episode, difficulty, timed battle): a centred glass panel with
 // a card for each choice, its description in it (the episodes: their number above their name).
+// An episode the episode screen shows beside the game's own: episode 7 and up (the GBC's) and custom ones.
+static bool extra_episode(const char *label)
+{
+	if (SDL_strncasecmp(label, "Custom", 6) == 0)
+		return true;
+	int number = 0;
+	return SDL_sscanf(label, "Episode %d", &number) == 1 && number >= 7;
+}
+
+static void choice_card(const UIMenu *m, int i, Box r, bool episodes)
+{
+	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	const UIItem *item = &m->items[i];
+	const bool selected = i == m->selected;
+	if (episodes)
+	{
+		// "Episode 1: Escape": the number small above the name.
+		char number[48] = "", name[48];
+		SDL_strlcpy(name, item->label, sizeof(name));
+		const char *colon = strchr(item->label, ':');
+		if (colon != NULL)
+		{
+			const size_t n = (size_t)(colon - item->label);
+			SDL_strlcpy(number, item->label, SDL_min(n + 1, sizeof(number)));
+			const char *rest = colon + 1;
+			while (*rest == ' ')
+				++rest;
+			SDL_strlcpy(name, rest, sizeof(name));
+		}
+		for (char *c = number; *c != '\0'; ++c)
+			*c = (char)SDL_toupper(*c);
+		panel(r, U(10), selected ? PANEL_CARD : PANEL_HOVER);
+		const float y = r.y + (r.h - (small + U(10) + cap)) / 2;
+		text(FONT_SEMIBOLD, number, r.x + U(28), y, small, item->disabled ? C_FAINT : selected ? C_SUB : C_DIM, ALIGN_LEFT);
+		text(FONT_BOLD, name, r.x + U(28), y + small + U(10), cap, item->disabled ? C_FAINT : selected ? C_CREAM : C_TAN, ALIGN_LEFT);
+		if (item->disabled)
+			text(FONT_MEDIUM, "Not installed", r.x + r.w - U(28), r.y + (r.h - small) / 2, small, C_FAINT, ALIGN_RIGHT);
+	}
+	else
+	{
+		item_card(r, item->label, item->hint, NULL, selected, item->disabled, 0);
+		if (item->pips > 0)
+		{
+			const float size = SDL_max(U(16), L.px * 6), pgap = SDL_max(U(6), L.px * 2);
+			const float pw = item->pips * size + (item->pips - 1) * pgap;
+			pips(r.x + r.w - U(28) - pw, r.y + (r.h - size) / 2, item->pips, item->pips_on, size, pgap,
+			     item->pips_on >= 5 ? (Colour){ 1.0f, 0.45f, 0.3f, 1 } : item->pips_on >= 3 ? (Colour){ 1.0f, 0.78f, 0.35f, 1 } : C_GREEN);
+		}
+	}
+	add_hit(r, item->hit);
+}
+
 static void build_choices(const UIMenu *m)
 {
 	const float cap = CAP_ITEM(), small = CAP_SMALL();
 	const bool episodes = m->kind == UI_SCREEN_EPISODES;
+	// (The episode screen: the game's own episodes in the panel, the GBC's and custom ones in a panel beside it.)
+	int main_count = m->item_count;
+	if (episodes)
+		for (int i = 0; i < m->item_count; ++i)
+			if (extra_episode(m->items[i].label))
+			{
+				main_count = i;
+				break;
+			}
+	const int extra_count = m->item_count - main_count;
 	float card_h = SDL_max(U(episodes ? 84 : 88), cap + small * 1.9f + U(30));
 	const float gap = U(10);
-	const float w = SDL_min(SDL_max(U(820), cap * 27), L.safe.w - U(96));
+	const float side_w = extra_count > 0 ? SDL_min(U(560), L.safe.w * 0.34f) : 0;
+	const float side_gap = extra_count > 0 ? U(30) : 0;
+	const float w = SDL_min(SDL_max(U(820), cap * 27), L.safe.w - U(96) - side_w - side_gap);
 	const float head_h = U(30) + CAP_TITLE() + U(24) + U(18);
 	const float keys_h = key_hints_height() + U(28);
-	float h = head_h + m->item_count * (card_h + gap) + U(24);
+	const int rows = SDL_max(main_count, extra_count);
+	float h = head_h + main_count * (card_h + gap) + U(24);
 	const float room = L.window.h - U(48) - keys_h;
-	if (h > room)
+	if (head_h + rows * (card_h + gap) + U(24) > room)
 	{
-		card_h = SDL_max((room - head_h - U(24)) / SDL_max(m->item_count, 1) - gap, cap * 1.8f);
-		h = head_h + m->item_count * (card_h + gap) + U(24);
+		card_h = SDL_max((room - head_h - U(24)) / SDL_max(rows, 1) - gap, cap * 1.8f);
+		h = head_h + main_count * (card_h + gap) + U(24);
 	}
-	const Box p = { L.safe.x + (L.safe.w - w) / 2, SDL_max((L.window.h - h - keys_h) / 2, U(24)), w, h };
+	const float x0 = L.safe.x + (L.safe.w - (w + side_gap + side_w)) / 2;
+	const Box p = { x0, SDL_max((L.window.h - h - keys_h) / 2, U(24)), w, h };
 	panel(p, U(22), PANEL_GLASS);
 	const float top = p.y + header(p, "", m->title);
-	for (int i = 0; i < m->item_count; ++i)
+	for (int i = 0; i < main_count; ++i)
+		choice_card(m, i, (Box){ p.x + U(24), top + i * (card_h + gap), p.w - U(48), card_h }, episodes);
+	if (extra_count > 0)
 	{
-		const UIItem *item = &m->items[i];
-		const Box r = { p.x + U(24), top + i * (card_h + gap), p.w - U(48), card_h };
-		const bool selected = i == m->selected;
-		if (episodes)
-		{
-			// "Episode 1: Escape": the number small above the name.
-			char number[48] = "", name[48];
-			SDL_strlcpy(name, item->label, sizeof(name));
-			const char *colon = strchr(item->label, ':');
-			if (colon != NULL)
-			{
-				const size_t n = (size_t)(colon - item->label);
-				SDL_strlcpy(number, item->label, SDL_min(n + 1, sizeof(number)));
-				const char *rest = colon + 1;
-				while (*rest == ' ')
-					++rest;
-				SDL_strlcpy(name, rest, sizeof(name));
-			}
-			for (char *c = number; *c != '\0'; ++c)
-				*c = (char)SDL_toupper(*c);
-			panel(r, U(10), selected ? PANEL_CARD : PANEL_HOVER);
-			const float y = r.y + (r.h - (small + U(10) + cap)) / 2;
-			text(FONT_SEMIBOLD, number, r.x + U(28), y, small, item->disabled ? C_FAINT : selected ? C_SUB : C_DIM, ALIGN_LEFT);
-			text(FONT_BOLD, name, r.x + U(28), y + small + U(10), cap, item->disabled ? C_FAINT : selected ? C_CREAM : C_TAN,
-			     ALIGN_LEFT);
-			if (item->disabled)
-				text(FONT_MEDIUM, "Not installed", r.x + r.w - U(28), r.y + (r.h - small) / 2, small, C_FAINT, ALIGN_RIGHT);
-		}
-		else
-		{
-			item_card(r, item->label, item->hint, NULL, selected, item->disabled, 0);
-			if (item->pips > 0)
-			{
-				const float size = SDL_max(U(16), L.px * 6), pgap = SDL_max(U(6), L.px * 2);
-				const float pw = item->pips * size + (item->pips - 1) * pgap;
-				pips(r.x + r.w - U(28) - pw, r.y + (r.h - size) / 2, item->pips, item->pips_on, size, pgap,
-				     item->pips_on >= 5 ? (Colour){ 1.0f, 0.45f, 0.3f, 1 } : item->pips_on >= 3 ? (Colour){ 1.0f, 0.78f, 0.35f, 1 } : C_GREEN);
-			}
-		}
-		add_hit(r, item->hit);
+		const float sh = head_h + extra_count * (card_h + gap) + U(24);
+		const Box sp = { p.x + p.w + side_gap, p.y, side_w, sh };
+		panel(sp, U(22), PANEL_GLASS);
+		const float stop = sp.y + header(sp, "", "Extras");
+		for (int i = 0; i < extra_count; ++i)
+			choice_card(m, main_count + i, (Box){ sp.x + U(24), stop + i * (card_h + gap), sp.w - U(48), card_h }, episodes);
 	}
 	const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_TEXT, "Enter", "Confirm" }, { KEY_TEXT, "Esc", "Back" } };
-	key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+	key_hints(keys, (int)COUNTOF(keys), x0 + (w + side_gap + side_w) / 2, p.y + p.h + U(22), ALIGN_CENTRE);
 }
 
 // TYR3D_UI_GALLERY=1 (dev): over the title, the widgets the next screens are made of (the shop's tabs and
