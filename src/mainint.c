@@ -1254,6 +1254,15 @@ void JE_nextEpisode(void)
 		return;
 	}
 
+	// Tyrian3D: episode 7 (the GBC levels) ends at the title screen too, without a high score (the save
+	// file's 22 tables are the timed battles' and episodes 1-6's)
+	if (episodeNum == EPISODE_GBC)
+	{
+		gameLoaded = true;
+		mainLevel = 0;
+		return;
+	}
+
 	if (episodeNum == initial_episode_num && !gameHasRepeated && !isNetworkGame && !constantPlay)
 	{
 		JE_highScoreCheck();

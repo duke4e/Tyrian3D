@@ -111,6 +111,26 @@ if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/tyrian2000/tyrian5.lvl")
     add_custom_target(tyrian3d_episode6 DEPENDS "${TYR3D_EPISODE6_DIR}/tyrian6.lvl")
 endif()
 
+# --- Episode 7 (the GBC levels) ---------------------------------------------------------------------
+# Made from the user's GBC ROM (data/gbc/episode7, tools/gbc/episode.py), so not in the repository:
+# written to assets/content/episode7 when those levels are there (tools/content/gbc/build.py).
+
+set(TYR3D_EPISODE7_DIR "${CMAKE_SOURCE_DIR}/assets/content/episode7")
+if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/gbc/episode7/episode.json")
+    file(GLOB TYR3D_EPISODE7_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tools/content/gbc/*.py"
+         "${CMAKE_SOURCE_DIR}/data/gbc/episode7/levels/*.json")
+    add_custom_command(
+        OUTPUT "${TYR3D_EPISODE7_DIR}/tyrian7.lvl" "${TYR3D_EPISODE7_DIR}/levels7.dat" "${TYR3D_EPISODE7_DIR}/cubetxt7.dat"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/content/gbc/build.py"
+        DEPENDS ${TYR3D_EPISODE7_SOURCES} "${CMAKE_SOURCE_DIR}/data/gbc/episode7/episode.json"
+                "${CMAKE_SOURCE_DIR}/tools/content/tyrformat.py" "${CMAKE_SOURCE_DIR}/tools/content/episode6/build.py"
+                "${CMAKE_SOURCE_DIR}/tools/content/episode6/enemydata.py"
+        COMMENT "episode 7"
+        VERBATIM
+    )
+    add_custom_target(tyrian3d_episode7 DEPENDS "${TYR3D_EPISODE7_DIR}/tyrian7.lvl")
+endif()
+
 # --- Game ---------------------------------------------------------------------------------------
 
 file(GLOB TYRIAN_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.c")
@@ -119,6 +139,9 @@ add_executable(tyrian3d ${TYRIAN_SOURCES})
 add_dependencies(tyrian3d tyrian3d_shaders)
 if(TARGET tyrian3d_episode6)
     add_dependencies(tyrian3d tyrian3d_episode6)
+endif()
+if(TARGET tyrian3d_episode7)
+    add_dependencies(tyrian3d tyrian3d_episode7)
 endif()
 target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 ZLIB::ZLIB m)
 # cgltf (compiled into btbh_gpu) reads the models' material names.

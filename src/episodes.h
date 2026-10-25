@@ -26,7 +26,8 @@
 /* Episodes and general data */
 
 #define FIRST_LEVEL 1
-#define EPISODE_MAX 6  // Tyrian3D: episode 6 (tools/content/episode6)
+#define EPISODE_MAX 7  // Tyrian3D: episode 6 (tools/content/episode6), episode 7 the GBC levels (tools/content/gbc)
+#define EPISODE_GBC 7  // played on its own: no full game goes on to it, and its end is the title screen
 #define EPISODE_AVAILABLE 5
 
 typedef struct

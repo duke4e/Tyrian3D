@@ -390,7 +390,8 @@ FILE *custom_episode_fopen(const char *file, const char *mode)
 
 unsigned int last_episode(void)
 {
-	return episodeAvail[EPISODE_MAX - 1] ? EPISODE_MAX : EPISODE_AVAILABLE;
+	// (episode 7, the GBC levels, is played on its own)
+	return episodeAvail[6 - 1] ? 6 : EPISODE_AVAILABLE;
 }
 
 unsigned int JE_findNextEpisode(void)

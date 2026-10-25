@@ -293,6 +293,7 @@ void JE_loadHelpText(void)
 	for (unsigned int i = 0; i < 6; ++i)  // the header and episodes 1-5
 		read_encrypted_pascal_string(episode_name[i], sizeof(episode_name[i]), f);
 	SDL_strlcpy(episode_name[6], "Episode 6: The Grey Books", sizeof(episode_name[6]));  // Tyrian3D
+	SDL_strlcpy(episode_name[7], "Episode 7: Tyrian GBC", sizeof(episode_name[7]));  // Tyrian3D: the GBC levels
 	skip_pascal_string(f);
 
 	// difficulty names

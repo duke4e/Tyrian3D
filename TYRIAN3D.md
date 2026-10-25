@@ -231,6 +231,46 @@ are in the repository; `build.py` expands them with the game's data at build tim
 enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Map pictures go to
 `export/episode6`.
 
+## Episode 7: Tyrian GBC
+
+The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never sold, freeware since
+2007) as an episode of the PC game, flown with its ships, weapons and enemies (plan:
+`docs/plans/2026-10-25-gbc-epizoda.md`). It is made from the user's copy of the GBC ROM, so neither
+the ROM nor anything taken from it is in the repository: the ROM goes to `data/gbc/Tyrian.gb`, and
+the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and PIL) read it:
+
+* `extract.py` runs the ROM in the tools' own GBC emulator (`gbemu.c`, a shared library driven from
+  Python by `gb.py`: CPU, MBC1, PPU, CGB banks and palettes, HDMA, logs of ROM reads, VRAM and sound
+  register writes) through the menus into each of its 24 levels (the level dispatcher, bank 7
+  `$4fea`, reads the level from `$d92f`), and writes each level's map (11 blocks of 16x16 a row,
+  read upwards from the pointer the level's init routine sets at `$c449`), tiles, palettes, sprites
+  and a gallery of what it shows to `data/gbc/levels`; `songs.py` and `apu.py` render its 25 songs
+  (played by the ROM's own driver, ticked alone, `$1a5f`) to `data/gbc/music`; `report.py` writes
+  the overview the user chose this episode from (`data/gbc/report/index.html`).
+* `episode.py` makes each GBC level a PC level of the original level it is a version of (TYRIAN,
+  ASTEROID1, SAVARA IV, TORM, STARGATE, CAMANIS, FLEET, BRAINIAC, LAVA EXIT...: the GBC artists drew
+  their own, smaller tiles of the same looks, so the tiles are matched by material, not by pixels;
+  its enemies are the PC sprites made small). The GBC map is scaled 1.5x (its 176 pixels are the 264
+  the PC playfield shows) and cut into the PC tiles' quarters; each quarter's material (the tile
+  set's main colours, the GBC lightness range moved to the tile set's, the GBC grain blurred) picks a
+  tile with those quarters among the originals' ground tiles (not the objects standing on it), the
+  common ones and pairs the originals have side by side more often. Space levels are the original's
+  blank tile with the stars. The levels, in the GBC game's Full Game order (found by flying it
+  through in the emulator) with its five Arcade-only levels after one of their look, go to
+  `data/gbc/episode7` as episode 6's level JSON, with `preview/` pictures (the GBC map beside the
+  PC one).
+* `tools/content/gbc/build.py` (standard library; run by the build when `data/gbc/episode7` is
+  there) writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
+  the originals' shops of episodes 1-4 spread over the episode, the planet map pointing at the
+  original level's planet; the original level's song) and `cubetxt7.dat`.
+
+The game finds those files in the content directory as it finds episode 6's (`src/file.c`) and lists
+"Episode 7: Tyrian GBC" in the episode menu when they are there. It is played on its own: a full
+game doesn't go on to it after episode 6 (`last_episode`), and its end goes back to the title screen
+without a high score (the save file's tables are episodes 1-6's). `TYR3D_START=7:<section>` starts
+one of its levels (the levels are the even sections, 2-48). Stage 1 of the plan: the maps, shops and
+songs; the levels have no enemies yet.
+
 ## Custom episodes
 
 Episodes the community made in the game's own formats play beside the game's, without replacing
@@ -575,6 +615,8 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
 | `tools/content/make_rogue.py` | Writes `assets/content/rogue.cfg`: the rogue mode's acts (levels, bosses found by their boss bars), the items its cards offer (the shops' lists, tiered by price) and its unlocks |
 | `tools/content/episode6/build.py`, `tools/content/tyrformat.py` | Episode 6 in the game's formats (the encrypted script and data cubes, the level file with the episode's item data); run at build time |
+| `tools/gbc/extract.py`, `songs.py`, `report.py`, `episode.py` | The GBC Tyrian ROM (`data/gbc/Tyrian.gb`, the user's) read in the tools' GBC emulator (`gbemu.c`, `gb.py`; `disasm.py` disassembles): its levels, music and an overview to `data/gbc`, and its levels as PC levels for episode 7 (see Episode 7) |
+| `tools/content/gbc/build.py` | Episode 7 in the game's formats from `data/gbc/episode7`; run at build time when those are there |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 

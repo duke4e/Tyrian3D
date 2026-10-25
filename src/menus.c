@@ -36,7 +36,7 @@
 #include "vga256d.h"
 #include "video.h"
 
-char episode_name[EPISODE_MAX + 1][31];  // Tyrian3D: + episode 6
+char episode_name[EPISODE_MAX + 1][31];  // Tyrian3D: + episodes 6 and 7
 char difficulty_name[7][21];
 char gameplay_name[GAMEPLAY_NAME_COUNT][26];
 char timed_battle_name[4][23];
@@ -312,9 +312,13 @@ bool episodeSelect(void)
 
 	bool restart = true;
 
-	// Tyrian3D: episode 6 too, when its files are there, then the custom episodes (episodes.h; not
-	// over the network: the other player's game may not have them).
-	const size_t episodeCount = EPISODE_AVAILABLE + (episodeAvail[EPISODE_MAX - 1] ? 1 : 0);
+	// Tyrian3D: episodes 6 and 7 too, when their files are there, then the custom episodes (episodes.h;
+	// not over the network: the other player's game may not have them).
+	int episodeNumbers[EPISODE_MAX];
+	size_t episodeCount = 0;
+	for (int e = 1; e <= EPISODE_MAX; ++e)
+		if (e <= EPISODE_AVAILABLE || episodeAvail[e - 1])
+			episodeNumbers[episodeCount++] = e;
 	const size_t customCount = isNetworkGame ? 0 : (size_t)custom_episode_count;
 	const size_t menuItemsCount = episodeCount + customCount;
 	size_t selectedIndex = 0;
@@ -326,8 +330,8 @@ bool episodeSelect(void)
 	{
 		if (i < episodeCount)
 		{
-			itemNames[i] = episode_name[i + 1];
-			itemDisabled[i] = !episodeAvail[i];
+			itemNames[i] = episode_name[episodeNumbers[i]];
+			itemDisabled[i] = !episodeAvail[episodeNumbers[i] - 1];
 		}
 		else
 		{
@@ -509,7 +513,7 @@ bool episodeSelect(void)
 				else
 				{
 					custom_episode = 0;
-					JE_initEpisode(selectedIndex + 1);
+					JE_initEpisode(episodeNumbers[selectedIndex]);
 				}
 				initial_episode_num = episodeNum;
 				return true;
