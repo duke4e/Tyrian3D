@@ -56,6 +56,7 @@ typedef enum
 	UI_SCREEN_HELP,        // the instructions: a page of help texts (UIHelp, UIPaging)
 	UI_SCREEN_CREDITS,     // the credits rolling (UICredits)
 	UI_SCREEN_ROGUE,       // the rogue mode's screens (UIRogue)
+	UI_SCREEN_DESTRUCT,    // Destruct, the secret artillery duel: its pages and its HUD (UIDestruct)
 	UI_SCREEN_SHOP,        // the store between levels (game_menu.c), its pages (UIShop.page)
 	// Over a level's 3D view (rgpu_present_3d_menu), the game halted under them:
 	UI_SCREEN_LEVEL_MENU,  // the in-game options and their 3D page: rows as setup's
@@ -348,6 +349,46 @@ typedef struct
 	float ship_x, ship_y;     // where the ship is (screen pixels)
 } UIRogue;
 
+// Destruct (destruct.c): its pages over its arena, and the HUD while a battle is on.
+typedef enum
+{
+	UI_DESTRUCT_PLAY,   // a battle: the HUD
+	UI_DESTRUCT_INTRO,  // its title and how to get help (any key)
+	UI_DESTRUCT_MODES,  // the battle to play: the items, each with its hint
+	UI_DESTRUCT_HELP,   // both sides' keys (any key)
+	UI_DESTRUCT_PAUSE,  // paused (any key)
+} UIDestructPage;
+
+#define UI_DESTRUCT_KEYS 5
+typedef struct
+{
+	bool cpu;                 // played by the computer
+	int score;
+	int units, units_left;    // its units (not the satellites), how many still stand
+	char unit[24];            // the unit chosen ("Tank"), or "" when none stands
+	int unit_sprite;          // the unit's sprite and its weapon's icon in the game's sheet (UIDestruct.sheet)
+	int weapon_sprite;
+	char weapon[16];
+	bool aims;                // its angle can be changed
+	float angle;              // degrees above the horizon, towards the other side
+	bool powered;             // its power can be changed
+	float power;              // 0-1
+	float armor;              // 0-1
+	char help_title[24], help_note[48];  // its keys (the help page)
+	char help_key[UI_DESTRUCT_KEYS][24], help_action[UI_DESTRUCT_KEYS][40];
+} UIDestructSide;
+
+typedef struct
+{
+	UIDestructPage page;
+	const void *sheet;        // the game's sprites for the icons (a Sprite2_array)
+	char mode[24];            // the battle being played
+	int winner;               // the round is over and this side won it (0 left, 1 right), or -1
+	UIDestructSide side[2];
+	char lines[2][64];        // the intro's lines
+	char help_footer[80];
+} UIDestruct;
+
 typedef struct
 {
 	UIScreenKind kind;
@@ -386,6 +427,7 @@ typedef struct
 	UIJukebox jukebox;
 	UICredits credits;
 	UIRogue rogue;
+	UIDestruct destruct;
 } UIMenu;
 
 // What the wheel does over a screen: moves through its items as Up and Down do (the default, with more

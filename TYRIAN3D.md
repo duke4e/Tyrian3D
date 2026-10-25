@@ -326,6 +326,26 @@ clean ground and stand-ins (all 11 looks have CAMANIS's wreck models), its side 
 enemy looks it shows, one has no model and shows with volume: the ground gun turret that opens the
 level (enemy 267, sheet `2` sprites 41, 131, 43, 93 turning; no original level has it).
 
+## Destruct
+
+Tyrian's secret minigame (`src/destruct.c`): an artillery duel of two armies (tanks, nuke and dirt
+launchers, magnets, lasers, jumpers, helicopters, satellites) on a field of dirt that every shot digs
+into, in five battles (5-Card War, Traditional, Heli Assault, Heli Defense, Outgunned; Custom from
+`[destruct custom]` in `opentyrian.cfg`). Its logic is the original's (there is no wind).
+
+It is reached as in the original: **DESTRUCT** typed at the title screen. Once it has been played
+(`discovered` in `opentyrian.cfg`'s `[destruct]`), the title's menu offers it too, between Setup and
+Demo (`destruct_discovered`, `titleScreen`).
+
+With the modern UI its screens are panels over its field (`UI_SCREEN_DESTRUCT`, `UIDestruct` in
+`ui.h`, published by `destruct.c` as it draws them): the intro as a card, the battles as a list with
+what each side has (the mouse picks one), the help (F1) as both sides' keys as configured, the pause.
+The keys: the left side X/Shift fire, C/V angle, A/Z power, Space/Ctrl weapon, Alt next unit; the
+right side Enter/Insert, Left/Right, Up/Down, PgUp/PgDn, \ or Num 5; F10 and F11 hand the left and
+the right side to the computer or back, Backspace makes a new field, P pauses, Esc goes back to the
+battles. Test runs reach it with `TYR3D_TEST_KEYS=60:Space,4000:TypeDESTRUCT,3000:Space,2500:Return`
+(the intro's logos skipped, the code typed, the intro passed, the first battle).
+
 ## Environment variables
 
 | Variable | Meaning |

@@ -3718,6 +3718,80 @@ static void build_rogue(const UIMenu *m)
 	}
 }
 
+/* --- Destruct (destruct.c) ----------------------------------------------------------------- */
+
+// A row of keys ("X|Left Shift": each a cap) and what they do after them; returns its width.
+static float destruct_key_row(float x, float y, const char *keys, const char *action, Colour c)
+{
+	char names[24];
+	SDL_strlcpy(names, keys, sizeof(names));
+	const float x0 = x;
+	char *next = names;
+	while (next != NULL && *next != '\0')
+	{
+		char *bar = strchr(next, '|');
+		if (bar != NULL)
+			*bar = '\0';
+		x += key_hint(x, y, KEY_TEXT, next, bar == NULL ? action : "", c);
+		next = bar != NULL ? bar + 1 : NULL;
+	}
+	return x - x0;
+}
+
+// Both sides' keys in two columns, what restarts under them.
+static void build_destruct_help(const UIMenu *m)
+{
+	const UIDestruct *d = &m->destruct;
+	const float cap = CAP_ITEM(), small = CAP_SMALL(), row_h = CAP_KEY() * 2.1f + U(14);
+	const float head_h = U(30) + small + U(14) + CAP_TITLE() + U(24) + U(18);
+	const float col_h = cap + U(10) + small + U(22) + UI_DESTRUCT_KEYS * row_h;
+	const float foot_h = small + U(46);
+	const Box p = centred_panel(SDL_max(U(1180), cap * 40), head_h + col_h + U(20) + foot_h);
+	panel(p, U(22), PANEL_GLASS);
+	const float top = p.y + header(p, "DESTRUCT", m->title);
+	const float col_w = (p.w - U(80) - U(40)) / 2;
+	for (int s = 0; s < 2; ++s)
+	{
+		const UIDestructSide *side = &d->side[s];
+		const float x = p.x + U(40) + s * (col_w + U(40));
+		float y = top + U(4);
+		text(FONT_BOLD, side->help_title, x, y, cap, C_CREAM, ALIGN_LEFT);
+		y += cap + U(10);
+		text(FONT_MEDIUM, side->help_note, x, y, small, C_DIM, ALIGN_LEFT);
+		y += small + U(22);
+		for (int k = 0; k < UI_DESTRUCT_KEYS; ++k)
+		{
+			if (side->help_key[k][0] != '\0')
+				destruct_key_row(x, y, side->help_key[k], side->help_action[k], C_TAN);
+			y += row_h;
+		}
+	}
+	const float fy = p.y + p.h - foot_h + U(12);
+	rule(p.x + U(24), fy, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+	text(FONT_SEMIBOLD, d->help_footer, p.x + p.w / 2, fy + U(18), small, C_DIM, ALIGN_CENTRE);
+	const KeyHint keys[] = { { KEY_TEXT, "Any key", "Back to the battle" } };
+	key_hints(keys, 1, p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+}
+
+static void build_destruct(const UIMenu *m)
+{
+	switch (m->destruct.page)
+	{
+	case UI_DESTRUCT_INTRO:
+	case UI_DESTRUCT_PAUSE:
+		build_card(m);
+		break;
+	case UI_DESTRUCT_MODES:
+		build_choices(m);
+		break;
+	case UI_DESTRUCT_HELP:
+		build_destruct_help(m);
+		break;
+	case UI_DESTRUCT_PLAY:
+		break;
+	}
+}
+
 void ui_build_screen(const UIView *view)
 {
 	hit_count = 0;
@@ -3779,6 +3853,9 @@ void ui_build_screen(const UIView *view)
 		break;
 	case UI_SCREEN_ROGUE:
 		build_rogue(&published);
+		break;
+	case UI_SCREEN_DESTRUCT:
+		build_destruct(&published);
 		break;
 	case UI_SCREEN_SHOP:
 		build_shop(&published);

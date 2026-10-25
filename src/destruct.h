@@ -23,4 +23,8 @@
 
 void JE_destructGame(void);
 
+// Tyrian3D: Destruct has been played (its code typed at the title once): the title's menu offers it
+// from then on (kept as "discovered" in opentyrian.cfg's [destruct]).
+bool destruct_discovered(void);
+
 #endif /* DESTRUCT_H */

@@ -19,6 +19,7 @@
 #include "tyrian2.h"
 
 #include "debugmode.h"
+#include "destruct.h"
 
 #include "animlib.h"
 #include "backgrnd.h"
@@ -4434,8 +4435,9 @@ void networkStartScreen(void)
 #endif /* WITH_NETWORK */
 
 // Tyrian3D: the title's menu as it shows, for the modern UI (ui.h): the items where the original takes
-// the mouse on them, what each does.
-static void title_publish(size_t selected, const int *widths, int x_centre, int y_items, int h_item)
+// the mouse on them, what each does (ids: titleScreen's MenuItemIndex).
+static void title_publish(size_t selected, const char *const *texts, const int *ids, size_t count, const int *widths, int x_centre,
+                          int y_items, int h_item)
 {
 	static const char *const hints[] = {
 		"A new game: the players, an episode and how hard.",
@@ -4445,14 +4447,15 @@ static void title_publish(size_t selected, const int *widths, int x_centre, int 
 		"Graphics, 3D, sound and the jukebox.",
 		"Watch a game play by itself.",
 		"Leave Tyrian.",
+		"The secret artillery duel: two armies, one battlefield.",
 	};
 	UIMenu *menu = ui_menu_begin(UI_SCREEN_TITLE, "");
-	for (size_t i = 0; i < COUNTOF(menuText); ++i)
+	for (size_t i = 0; i < count; ++i)
 	{
-		UIItem *item = ui_menu_add(menu, UI_ITEM_ACTION, menuText[i], x_centre - widths[i] / 2, y_items + h_item * (int)i, widths[i],
+		UIItem *item = ui_menu_add(menu, UI_ITEM_ACTION, texts[i], x_centre - widths[i] / 2, y_items + h_item * (int)i, widths[i],
 		                           h_item);
-		if (i < COUNTOF(hints))
-			SDL_strlcpy(item->hint, hints[i], sizeof(item->hint));
+		if (ids[i] >= 0 && ids[i] < (int)COUNTOF(hints))
+			SDL_strlcpy(item->hint, hints[ids[i]], sizeof(item->hint));
 	}
 	menu->selected = (int)selected;
 	SDL_strlcpy(menu->footer, opentyrian_version, sizeof(menu->footer));
@@ -4470,6 +4473,7 @@ bool titleScreen(void)
 		MENU_ITEM_SETUP,
 		MENU_ITEM_DEMO,
 		MENU_ITEM_QUIT,
+		MENU_ITEM_DESTRUCT,  // Tyrian3D: once it has been found (destruct.h)
 	};
 
 	if (shopSpriteSheet.data == NULL)
@@ -4480,15 +4484,36 @@ bool titleScreen(void)
 	size_t selectedIndex = MENU_ITEM_NEW_GAME;
 	size_t specialNameProgress[SA_ENGAGE] = { 0 };
 
+	// Tyrian3D: the items shown, the original's and, once Destruct has been found, it before Demo (the
+	// items a little closer to fit).
+	const char *itemText[COUNTOF(menuText) + 1];
+	int itemId[COUNTOF(menuText) + 1];
+	size_t itemCount = 0;
+
 	const int xCenter = VGAScreen->w / 2;
-	const int yMenuItems = 104;
-	const int hMenuItem = 13;
-	int wMenuItem[COUNTOF(menuText)] = { 0 };
+	int yMenuItems = 104;
+	int hMenuItem = 13;
+	int wMenuItem[COUNTOF(menuText) + 1] = { 0 };
 
 	for (; ; )
 	{
 		if (restart)
 		{
+			itemCount = 0;
+			for (int i = 0; i < (int)COUNTOF(menuText); ++i)
+			{
+				if (i == MENU_ITEM_DEMO && destruct_discovered())
+				{
+					itemText[itemCount] = "Destruct";
+					itemId[itemCount++] = MENU_ITEM_DESTRUCT;
+				}
+				itemText[itemCount] = menuText[i];
+				itemId[itemCount++] = i;
+			}
+			hMenuItem = itemCount > COUNTOF(menuText) ? 12 : 13;
+			yMenuItems = itemCount > COUNTOF(menuText) ? 98 : 104;
+			selectedIndex = SDL_min(selectedIndex, itemCount - 1);
+
 			play_song(SONG_TITLE);
 
 			JE_loadPic(VGAScreen, 4, false);
@@ -4524,24 +4549,24 @@ bool titleScreen(void)
 			}
 
 			// Draw menu items.
-			for (size_t i = 0; i < COUNTOF(menuText); ++i)
+			for (size_t i = 0; i < itemCount; ++i)
 			{
-				const char *const text = menuText[i];
+				const char *const text = itemText[i];
 
 				wMenuItem[i] = JE_textWidth(text, normal_font);
 				const int y = yMenuItems + hMenuItem * i;
 
 				// Tyrian3D: drawn centred (as they were at xCenter - wMenuItem[i] / 2), so the 3D view's texts are.
 				const int x = xCenter;
-				draw_font_hv(VGAScreen, x - 1, y - 1, menuText[i], normal_font, centered, 15, -10);
-				draw_font_hv(VGAScreen, x + 1, y + 1, menuText[i], normal_font, centered, 15, -10);
-				draw_font_hv(VGAScreen, x + 1, y - 1, menuText[i], normal_font, centered, 15, -10);
-				draw_font_hv(VGAScreen, x - 1, y + 1, menuText[i], normal_font, centered, 15, -10);
-				draw_font_hv(VGAScreen, x,     y,     menuText[i], normal_font, centered, 15, -3);
+				draw_font_hv(VGAScreen, x - 1, y - 1, itemText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x + 1, y + 1, itemText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x + 1, y - 1, itemText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x - 1, y + 1, itemText[i], normal_font, centered, 15, -10);
+				draw_font_hv(VGAScreen, x,     y,     itemText[i], normal_font, centered, 15, -3);
 			}
 
 			memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->pitch * VGAScreen2->h);
-			title_publish(selectedIndex, wMenuItem, xCenter, yMenuItems, hMenuItem);
+			title_publish(selectedIndex, itemText, itemId, itemCount, wMenuItem, xCenter, yMenuItems, hMenuItem);
 
 			mouseCursor = MOUSE_POINTER_NORMAL;
 
@@ -4554,8 +4579,8 @@ bool titleScreen(void)
 		memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->pitch * VGAScreen->h);
 
 		// Highlight selected menu item.
-		draw_font_hv(VGAScreen, VGAScreen->w / 2, yMenuItems + hMenuItem * selectedIndex, menuText[selectedIndex], normal_font, centered, 15, -1);
-		title_publish(selectedIndex, wMenuItem, xCenter, yMenuItems, hMenuItem);
+		draw_font_hv(VGAScreen, VGAScreen->w / 2, yMenuItems + hMenuItem * selectedIndex, itemText[selectedIndex], normal_font, centered, 15, -1);
+		title_publish(selectedIndex, itemText, itemId, itemCount, wMenuItem, xCenter, yMenuItems, hMenuItem);
 
 		service_SDL_events(true);
 
@@ -4596,7 +4621,7 @@ bool titleScreen(void)
 		if (mouseMoved || newmouse)
 		{
 			// Find menu item that was hovered or clicked.
-			for (size_t i = 0; i < COUNTOF(menuText); ++i)
+			for (size_t i = 0; i < itemCount; ++i)
 			{
 				const int xMenuItem = xCenter - wMenuItem[i] / 2;
 				if (mouse_x >= xMenuItem && mouse_x < xMenuItem + wMenuItem[i])
@@ -4642,7 +4667,7 @@ bool titleScreen(void)
 				JE_playSampleNum(S_CURSOR);
 
 				selectedIndex = selectedIndex == 0
-					? COUNTOF(menuText) - 1
+					? itemCount - 1
 					: selectedIndex - 1;
 				break;
 			}
@@ -4650,7 +4675,7 @@ bool titleScreen(void)
 			{
 				JE_playSampleNum(S_CURSOR);
 
-				selectedIndex = selectedIndex == COUNTOF(menuText) - 1
+				selectedIndex = selectedIndex == itemCount - 1
 					? 0
 					: selectedIndex + 1;
 				break;
@@ -4728,7 +4753,7 @@ bool titleScreen(void)
 		{
 			JE_playSampleNum(S_SELECT);
 
-			switch (selectedIndex)
+			switch (itemId[selectedIndex])
 			{
 			case MENU_ITEM_NEW_GAME:
 			{
@@ -4791,6 +4816,14 @@ bool titleScreen(void)
 				fade_black(15);
 
 				return false;
+			}
+			case MENU_ITEM_DESTRUCT:
+			{
+				// (As when its code is typed.)
+				fade_black(10);
+
+				loadDestruct = true;
+				return true;
 			}
 			default:
 				break;

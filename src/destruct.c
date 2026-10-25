@@ -59,6 +59,7 @@
 #include "palette.h"
 #include "picload.h"
 #include "sprite.h"
+#include "ui.h"
 #include "varz.h"
 #include "vga256d.h"
 #include "video.h"
@@ -655,6 +656,22 @@ static void load_destruct_config(Config *config_)
 	}
 }
 
+/*** Tyrian3D: found ***/
+
+bool destruct_discovered(void)
+{
+	const ConfigSection *section = config_find_section(&opentyrian_config, "destruct", NULL);
+	bool discovered = false;
+	return section != NULL && config_get_bool_option(section, "discovered", &discovered) && discovered;
+}
+
+static void destruct_discover(void)
+{
+	ConfigSection *section = config_find_or_add_section(&opentyrian_config, "destruct", NULL);
+	if (section != NULL)
+		config_set_bool_option(section, "discovered", true, NO_YES);
+}
+
 /*** Startup ***/
 
 void JE_destructGame(void)
@@ -667,6 +684,7 @@ void JE_destructGame(void)
 	JE_showVGA();
 
 	load_destruct_config(&opentyrian_config);
+	destruct_discover();
 
 	//malloc things that have customizable sizes
 	shotRec  = malloc(sizeof(struct destruct_shot_s)  * config.max_shots);
@@ -735,12 +753,145 @@ static void JE_destructMain(void)
 	}
 }
 
+/*** Tyrian3D: the modern UI's screens (ui.h), published as Destruct draws them ***/
+
+static const char *const mode_hints[MAX_MODES] =
+{
+	"Five units a side, drawn at random: tanks, launchers, a magnet, a laser, a jumper, a helicopter.",
+	"One tank each.",
+	"Left: eight ground units defend. Right: four helicopters attack.",
+	"Left: eight helicopters attack. Right: four ground units defend.",
+	"Left: eight units, heavily armed. Right: four.",
+	"The armies set in opentyrian.cfg's [destruct custom].",
+};
+
+static UIMenu *destruct_ui_begin(UIDestructPage page, const char *title)
+{
+	UIMenu *ui = ui_menu_begin(UI_SCREEN_DESTRUCT, title);
+	ui->destruct.page = page;
+	ui->destruct.sheet = &destructSpriteSheet;
+	ui->destruct.winner = -1;
+	ui->text_color = 16;  // (the dirt's browns: the screen fades as they do)
+	ui->selected = -1;
+	ui->wheel = UI_WHEEL_NONE;
+	return ui;
+}
+
+// A card over the screen (the intro, the pause): its title, lines, waiting for a key.
+static void destruct_publish_card(UIDestructPage page, const char *crumb, const char *title, const char *line0, const char *line1)
+{
+	UIMenu *ui = destruct_ui_begin(page, title);
+	SDL_strlcpy(ui->crumb, crumb, sizeof(ui->crumb));
+	if (line0 != NULL)
+		SDL_strlcpy(ui->card.lines[ui->card.line_count++], line0, sizeof(ui->card.lines[0]));
+	if (line1 != NULL)
+		SDL_strlcpy(ui->card.lines[ui->card.line_count++], line1, sizeof(ui->card.lines[0]));
+	ui->card.prompt = true;
+	ui->card.large = page == UI_DESTRUCT_INTRO;
+	ui_menu_publish(ui, VGAScreen, VGAScreen2);
+}
+
+static void destruct_publish_modes(enum de_mode_t selected)
+{
+	UIMenu *ui = destruct_ui_begin(UI_DESTRUCT_MODES, "Destruct");
+	const int count = config.allow_custom ? MAX_MODES : DESTRUCT_MODES;
+	for (int i = 0; i < count; ++i)
+	{
+		const char *name = i < DESTRUCT_MODES ? destructModeName[i] : "Custom";
+		UIItem *item = ui_menu_add(ui, UI_ITEM_ACTION, name, JE_fontCenter(name, TINY_FONT), 82 + i * 12, JE_textWidth(name, TINY_FONT), 12);
+		SDL_strlcpy(item->hint, mode_hints[i], sizeof(item->hint));
+	}
+	ui->selected = selected;
+	ui->wheel = UI_WHEEL_UP_DOWN;
+	ui_menu_publish(ui, VGAScreen, VGAScreen2);
+}
+
+// The battle the screen point is on in the mode select (where the original draws it), or MODE_NONE.
+static enum de_mode_t mode_at(Sint32 x, Sint32 y)
+{
+	const int count = config.allow_custom ? MAX_MODES : DESTRUCT_MODES;
+	for (int i = 0; i < count; ++i)
+	{
+		const char *name = i < DESTRUCT_MODES ? destructModeName[i] : "Custom";
+		const int x0 = JE_fontCenter(name, TINY_FONT), y0 = 82 + i * 12;
+		if (x >= x0 - 8 && x < x0 + JE_textWidth(name, TINY_FONT) + 8 && y >= y0 - 2 && y < y0 + 10)
+			return (enum de_mode_t)i;
+	}
+	return MODE_NONE;
+}
+
+// A key's name, short ("Left Shift": "Shift").
+static void short_key_name(SDL_Scancode key, char *out, size_t size)
+{
+	static const struct { SDL_Scancode key; const char *name; } shorter[] =
+	{
+		{ SDL_SCANCODE_LSHIFT, "Shift" }, { SDL_SCANCODE_RSHIFT, "Shift" }, { SDL_SCANCODE_LCTRL, "Ctrl" }, { SDL_SCANCODE_RCTRL, "Ctrl" },
+		{ SDL_SCANCODE_LALT, "Alt" }, { SDL_SCANCODE_RALT, "Alt" }, { SDL_SCANCODE_RETURN, "Enter" }, { SDL_SCANCODE_PAGEUP, "PgUp" },
+		{ SDL_SCANCODE_PAGEDOWN, "PgDn" }, { SDL_SCANCODE_BACKSLASH, "\\" }, { SDL_SCANCODE_KP_ENTER, "Num Enter" },
+	};
+	for (size_t i = 0; i < COUNTOF(shorter); ++i)
+		if (shorter[i].key == key)
+		{
+			SDL_strlcpy(out, shorter[i].name, size);
+			return;
+		}
+	const char *name = SDL_GetScancodeName(key);
+	if (strncmp(name, "Keypad ", 7) == 0)
+		snprintf(out, size, "Num %s", name + 7);
+	else
+		SDL_strlcpy(out, name, size);
+}
+
+// The keys of a side's action ("X|Shift"): the first `per` of each of up to two key slots.
+static void key_row(const struct destruct_keys_s *keys, int a, int b, int per, char *out, size_t size)
+{
+	out[0] = '\0';
+	const int slots[2] = { a, b };
+	for (int s = 0; s < 2; ++s)
+	{
+		if (slots[s] < 0)
+			continue;
+		for (int i = 0; i < per && keys->Config[slots[s]][i] != SDL_SCANCODE_UNKNOWN; ++i)
+		{
+			char name[16];
+			short_key_name(keys->Config[slots[s]][i], name, sizeof(name));
+			if (out[0] != '\0')
+				SDL_strlcat(out, "|", size);
+			SDL_strlcat(out, name, size);
+		}
+	}
+}
+
+static void destruct_publish_help(void)
+{
+	UIMenu *ui = destruct_ui_begin(UI_DESTRUCT_HELP, "Controls");
+	for (int p = 0; p < MAX_PLAYERS; ++p)
+	{
+		UIDestructSide *side = &ui->destruct.side[p];
+		const struct destruct_keys_s *keys = &destruct_player[p].keys;
+		SDL_strlcpy(side->help_title, p == PLAYER_LEFT ? "Left side" : "Right side", sizeof(side->help_title));
+		snprintf(side->help_note, sizeof(side->help_note), "%s  -  F%d: computer or player", destruct_player[p].is_cpu ? "Computer" : "Player",
+		         p == PLAYER_LEFT ? 10 : 11);
+		key_row(keys, KEY_FIRE, -1, 2, side->help_key[0], sizeof(side->help_key[0]));
+		key_row(keys, KEY_LEFT, KEY_RIGHT, 1, side->help_key[1], sizeof(side->help_key[1]));
+		key_row(keys, KEY_UP, KEY_DOWN, 1, side->help_key[2], sizeof(side->help_key[2]));
+		key_row(keys, KEY_CYDN, KEY_CYUP, 1, side->help_key[3], sizeof(side->help_key[3]));
+		key_row(keys, KEY_CHANGE, -1, 2, side->help_key[4], sizeof(side->help_key[4]));
+		static const char *const actions[UI_DESTRUCT_KEYS] = { "Fire", "Angle", "Power (a helicopter: up, down)", "Weapon", "Next unit" };
+		for (int k = 0; k < UI_DESTRUCT_KEYS; ++k)
+			SDL_strlcpy(side->help_action[k], actions[k], sizeof(side->help_action[k]));
+	}
+	SDL_strlcpy(ui->destruct.help_footer, "Backspace: a new field     P: pause     Esc: the battles", sizeof(ui->destruct.help_footer));
+	ui_menu_publish(ui, VGAScreen, VGAScreen2);
+}
+
 static void JE_introScreen(void)
 {
 	memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->h * VGAScreen2->pitch);
 	JE_outText(VGAScreen, JE_fontCenter(specialName[SA_DESTRUCT - 1], TINY_FONT), 90, specialName[SA_DESTRUCT - 1], 12, 5);
 	JE_outText(VGAScreen, JE_fontCenter(miscText[64], TINY_FONT), 180, miscText[64], 15, 2);
 	JE_outText(VGAScreen, JE_fontCenter(miscText[65], TINY_FONT), 190, miscText[65], 15, 2);
+	destruct_publish_card(UI_DESTRUCT_INTRO, "A SECRET OF TYRIAN", specialName[SA_DESTRUCT - 1], miscText[64], miscText[65]);
 	JE_showVGA();
 	fade_palette(colors, 15, 0, 255);
 
@@ -752,6 +903,7 @@ static void JE_introScreen(void)
 	}
 
 	fade_black(15);
+	ui_screen_done();
 	memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->h * VGAScreen->pitch);
 	JE_showVGA();
 }
@@ -791,15 +943,36 @@ static enum de_mode_t JE_modeSelect(void)
 	{
 		/* Re-draw the menu every iteration */
 		DrawModeSelectMenu(mode);
+		destruct_publish_modes(mode);
 		JE_showVGA();
 
-		/* Grab keys */
+		/* Grab keys (Tyrian3D: and the mouse) */
 		newkey = false;
+		newmouse = false;
+		bool moved = false;
 		do
 		{
+			const Sint32 was_x = mouse_x, was_y = mouse_y;
 			service_SDL_events(false);
 			SDL_Delay(16);
-		} while (!newkey);
+			moved = mouse_x != was_x || mouse_y != was_y;
+		} while (!newkey && !newmouse && !moved);
+
+		// Tyrian3D: the pointer on a battle selects it, a click starts it; the right button leaves.
+		if (newmouse && lastmouse_but == SDL_BUTTON_RIGHT)
+		{
+			mode = MODE_NONE;
+			break;
+		}
+		if (newmouse && lastmouse_but == SDL_BUTTON_LEFT && mode_at(lastmouse_x, lastmouse_y) != MODE_NONE)
+		{
+			mode = mode_at(lastmouse_x, lastmouse_y);
+			break;
+		}
+		if ((moved || newmouse) && mode_at(mouse_x, mouse_y) != MODE_NONE)
+			mode = mode_at(mouse_x, mouse_y);
+		if (!newkey)
+			continue;
 
 		/* See what was pressed */
 		if (keysactive[SDL_SCANCODE_ESCAPE])
@@ -842,6 +1015,7 @@ static enum de_mode_t JE_modeSelect(void)
 	}
 
 	fade_black(15);
+	ui_screen_done();
 	memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->h * VGAScreen->pitch);
 	JE_showVGA();
 	return mode;
@@ -1376,6 +1550,7 @@ static void JE_helpScreen(void)
 			JE_outText(VGAScreen, ((j - 1) % 2) * 160 + 10, 15 + ((j - 1) / 2) * 12 + i * 90, destructHelp[i * 12 + j-1], 1, 3);
 	}
 	JE_outText(VGAScreen, 30, 190, destructHelp[24], 3, 4);
+	destruct_publish_help();
 	JE_showVGA();
 	fade_palette(colors, 15, 0, 255);
 
@@ -1386,6 +1561,7 @@ static void JE_helpScreen(void)
 	} while (!newkey);
 
 	fade_black(15);
+	ui_screen_done();
 	memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->h * VGAScreen->pitch);
 	JE_showVGA();
 	fade_palette(colors, 15, 0, 255);
@@ -1398,6 +1574,7 @@ static void JE_pauseScreen(void)
 	/* Save our current screen/game world.  We don't want to screw it up while paused. */
 	memcpy(VGAScreen2->pixels, VGAScreen->pixels, VGAScreen2->h * VGAScreen2->pitch);
 	JE_outText(VGAScreen, JE_fontCenter(miscText[22], TINY_FONT), 90, miscText[22], 12, 5);
+	destruct_publish_card(UI_DESTRUCT_PAUSE, "DESTRUCT", "Paused", NULL, NULL);
 	JE_showVGA();
 
 	do  /* wait until user hits a key */
@@ -1405,6 +1582,7 @@ static void JE_pauseScreen(void)
 		service_SDL_events(true);
 		SDL_Delay(16);
 	} while (!newkey);
+	ui_screen_done();
 
 	/* Restore current screen & volume*/
 	memcpy(VGAScreen->pixels, VGAScreen2->pixels, VGAScreen->h * VGAScreen->pitch);
