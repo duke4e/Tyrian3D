@@ -15,6 +15,8 @@ version 2 (`COPYING`). The parts it is built from, and the tools its assets were
 | uthash | Troy D. Hanson | BSD | `external/btbh-renderer/external/uthash/LICENSE` |
 | TinySoundFont, TinyMidiLoader | Bernhard Schelling | MIT | `external/tinysoundfont/LICENSE` |
 | GeneralUser GS SoundFont | S. Christian Collins | free to use, see its license | `data/soundfonts/GeneralUser-GS-LICENSE.txt` (downloaded by `tools/fetch_soundfont.sh`) |
+| FluidR3 GM SoundFont | Frank Wen | MIT | `data/soundfonts/FluidR3_GM-LICENSE.txt` (downloaded by `tools/fetch_soundfont.sh`, from Debian's package) |
+| Arachno SoundFont (not in the app) | Maxime Abbey | freeware for private, non-commercial use | `data/soundfonts/Arachno-Documentation.html` (downloaded by `tools/fetch_soundfont.sh`; left out of `tools/package_macos.sh`) |
 | Kenney Space Kit (placeholder models) | Kenney | CC0 | `assets/models/kenney-space-kit/License.txt` |
 | Oxanium (the HUD's and menus' font) | The Oxanium Project Authors (Severin Meyer) | SIL Open Font License 1.1 | `assets/fonts/Oxanium-OFL.txt` |
 

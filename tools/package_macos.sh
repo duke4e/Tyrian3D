@@ -30,10 +30,14 @@ cp -R "$ROOT/assets/sides" "$APP/Contents/Resources/sides"
 cp -R "$ROOT/assets/terrain" "$APP/Contents/Resources/terrain"
 cp -R "$ROOT/assets/fonts" "$APP/Contents/Resources/fonts"
 cp -R "$ROOT/assets/content" "$APP/Contents/Resources/content"
-# The SoundFont for the music as MIDI (tools/fetch_soundfont.sh), if there is one.
-if [ -f "$ROOT/data/soundfonts/GeneralUser-GS.sf2" ]; then
-	cp -R "$ROOT/data/soundfonts" "$APP/Contents/Resources/soundfonts"
-fi
+# The SoundFonts for the music as MIDI (tools/fetch_soundfont.sh) that may be passed on, those there are:
+# GeneralUser GS and FluidR3 GM (Arachno is for private use only).
+mkdir -p "$APP/Contents/Resources/soundfonts"
+for f in GeneralUser-GS.sf2 FluidR3_GM.sf2; do
+	if [ -f "$ROOT/data/soundfonts/$f" ]; then
+		cp "$ROOT/data/soundfonts/$f" "$APP/Contents/Resources/soundfonts/"
+	fi
+done
 
 # Licenses (LICENSES.md lists what they cover).
 LICENSES="$APP/Contents/Resources/licenses"
@@ -46,7 +50,8 @@ cp "$ROOT/assets/models/kenney-space-kit/License.txt" "$LICENSES/Kenney-Space-Ki
 cp "$ROOT/assets/fonts/Oxanium-OFL.txt" "$LICENSES/Oxanium-OFL.txt"
 for f in "$(brew --prefix sdl3 2>/dev/null)/LICENSE.txt:SDL3-LICENSE.txt" \
          "$(brew --prefix assimp 2>/dev/null)/LICENSE:assimp-LICENSE.txt" \
-         "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt"; do
+         "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt" \
+         "$ROOT/data/soundfonts/FluidR3_GM-LICENSE.txt:FluidR3_GM-LICENSE.txt"; do
 	if [ -f "${f%%:*}" ]; then
 		cp "${f%%:*}" "$LICENSES/${f##*:}"
 	fi

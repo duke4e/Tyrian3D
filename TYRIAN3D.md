@@ -515,7 +515,7 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
 | `tools/package_macos.sh` | Builds the macOS app bundle |
-| `tools/fetch_soundfont.sh` | Downloads the GeneralUser GS SoundFont the music plays through into `data/soundfonts` |
+| `tools/fetch_soundfont.sh` | Downloads the SoundFonts the music can play through into `data/soundfonts` (checked by SHA-256): GeneralUser GS (the default), FluidR3 GM (MIT, from Debian's package) and Arachno 1.0 (private, non-commercial use only: the app leaves it out); `fetch_soundfont.sh fluid` for one |
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
 | `tools/hd_sheets.py` | Puts the upscaled atlases back together as 4x sprite sheets (`data/hd/sheets/<sheet>.hd`) for the HD volumes, and copies the upscaled HUD panels to `data/hd` |
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
@@ -557,6 +557,7 @@ See `LICENSES.md` for the licenses (the macOS app has them in `Contents/Resource
 - OpenTyrian / OpenTyrian2000: the OpenTyrian team and Kaito Sinclaire (GPL-2.0).
 - Placeholder models: Kenney Space Kit, CC0 (`assets/models/kenney-space-kit/License.txt`).
 - Music synth: TinySoundFont by Bernhard Schelling, MIT (`external/tinysoundfont/LICENSE`).
-- SoundFont: GeneralUser GS by S. Christian Collins, free to use (downloaded by
-  `tools/fetch_soundfont.sh` with its license; not in git).
+- SoundFonts: GeneralUser GS by S. Christian Collins, free to use; FluidR3 GM by Frank Wen, MIT;
+  Arachno SoundFont by Maxime Abbey, freeware for private, non-commercial use (not in the app) (all
+  downloaded by `tools/fetch_soundfont.sh` with their licenses; not in git).
 - Sound effect upscaling: AudioSR by Haohe Liu et al. (run locally, results not in git).
