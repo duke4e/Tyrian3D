@@ -73,11 +73,11 @@ def main():
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     data_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.join(root, "data", "tyrian2000")
     customs = custom_episodes(root, data_dir)
-    episodes = [int(e) if e.isdigit() else e for e in sys.argv[2:]] or [1, 2, 3, 4, 5, 6] + list(customs)
+    episodes = [int(e) if e.isdigit() else e for e in sys.argv[2:]] or [1, 2, 3, 4, 5, 6, 7] + list(customs)
     for episode in episodes:
         path = os.path.join(data_dir, f"levels{episode}.dat")
-        if episode == 6:  # Tyrian3D's episode 6 is content (tools/content/episode6)
-            path = os.path.join(root, "assets", "content", "episode6", "levels6.dat")
+        if episode in (6, 7):  # Tyrian3D's episodes 6 and 7 are content (tools/content/episode6, tools/content/gbc)
+            path = os.path.join(root, "assets", "content", f"episode{episode}", f"levels{episode}.dat")
         if isinstance(episode, str):
             path = customs.get(episode, "")
         if not os.path.exists(path):

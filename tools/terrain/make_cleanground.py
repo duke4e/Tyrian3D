@@ -98,6 +98,12 @@ def custom_levels():
 
 DERIVED_LEVELS = E6_LEVELS | custom_levels()   # maps that aren't the game's own
 
+
+def derived(info):
+    """A map that isn't the game's own: episode 6's and the custom episodes' levels by name, episode 7's (the GBC
+    levels, several named as originals are) by the episode tools/content/gbc/terrain.py writes into its export."""
+    return info.get("episode") == 7 or info["level"].strip() in DERIVED_LEVELS
+
 PLAIN_MIN, PLAIN_UNDER = 20, 0.15   # a tile this common and seldom under an object is plain ground,
 PLAIN_COMMON = 60                   # or one this common not mostly under objects (a floor many stand on)
 BASE_EXACT = 0.5     # a tile drawn over a plain tile shares at least this many of its pixels,
@@ -265,9 +271,10 @@ def enemy_looks():
     import tyrdata
     out = defaultdict(list)
     sets = [(1, DATA), (4, DATA), (5, DATA)]
-    e6 = os.path.join(ROOT, "assets", "content", "episode6")
-    if os.path.exists(os.path.join(e6, "tyrian6.lvl")):
-        sets.append((6, e6))
+    for ep in (6, 7):  # (episode 7: the GBC levels, tools/content/gbc)
+        folder = os.path.join(ROOT, "assets", "content", f"episode{ep}")
+        if os.path.exists(os.path.join(folder, f"tyrian{ep}.lvl")):
+            sets.append((ep, folder))
     sets += [(number, folder) for number, folder in custom_episodes().values() if number >= 4]  # (1-3: tyrian.hdt's)
     for ep, d in sets:
         en = tyrdata.load_items(ep, data_dir=d)["enemies"]
@@ -375,7 +382,7 @@ def tileset_maps(tileset, originals=True):
     out = []
     for f in sorted(glob.glob(os.path.join(mt.MAPS, "map_*.json"))):
         d = json.load(open(f))
-        if d["tileset"] == tileset and d["background"] == 1 and not (originals and d["level"].strip() in DERIVED_LEVELS):
+        if d["tileset"] == tileset and d["background"] == 1 and not (originals and derived(d)):
             out.append(os.path.basename(f)[4:-5])
     return out
 
@@ -1345,7 +1352,7 @@ def main():
     object_tiles = {}
     report = {}
     for n in learn_from:
-        if load(n)[0]["level"].strip() in DERIVED_LEVELS:
+        if derived(load(n)[0]):
             continue
         cl, objs, occupied = analyse(n, overrides)
         here = for_map(overrides, n)

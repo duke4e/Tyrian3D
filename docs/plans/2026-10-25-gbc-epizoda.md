@@ -41,13 +41,12 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
    nema bossa) umjesto GBC bossa. Ostaje: GBC-ovi vlastiti bossovi i veliki brodovi ručno.
 4. **Priča.** ✅ GBC tekstovi redom (`tools/gbc/story.py`) kao data cubeovi s PC portretima govornika,
    GBC kraj kao kraj epizode. Trgovina po GBC napredovanju: nije rađena (PC trgovine).
-5. **3D:** teren, clean ground i vegetacija za nove mape: otvoreno (vidi dolje).
+5. **3D:** ✅ teren, clean ground i vegetacija za nove mape (`tools/content/gbc/terrain.py`; korisnik
+   odobrio 2026-10-25 da idu u `assets/terrain` i git kao za epizodu 6): postavke originalnog levela, visine
+   površina prenesene po boji.
 
 ## Otvoreno
 
-- Teren/clean ground/vegetacija iz offline alata (`tools/terrain`): njihove datoteke idu u
-  `assets/terrain` (git), a izvedene su iz GBC rasporeda; treba odluka smije li to u git ili ide u
-  lokalni direktorij uz `assets/content/episode7`. Bez njih 3D prikaz koristi reljef HD tileova.
 - Pregled podudaranja neprijatelja po levelima (`data/gbc/episode7/preview/Lnn_enemies.png`).
 - Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima).
 

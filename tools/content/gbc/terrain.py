@@ -1,0 +1,164 @@
+#!/usr/bin/env python3
+"""The 3D view's assets for episode 7's maps (the GBC levels), made as episode 6's are
+(tools/content/episode6/terrain.py): the game exports each level's maps (TYR3D_EXPORT_MAPS) and writes
+their side columns (TYR3D_SIDES_WRITE); the export is marked episode 7 (several GBC levels have an
+original's name, and their maps mustn't teach the tilesets as the originals' do: make_cleanground.py);
+each ground map gets its original's terrain settings, its surfaces' heights carried over by colour (the
+original map's classes, each one's mean colour with its height, as make_terrain.py's "materials"); then
+the ground enemies' places are logged (tools/terrain/ground_log.sh) and the clean ground, terrain and
+vegetation are built. Maps of earlier versions of these levels are taken out, with their assets.
+
+usage: <python with numpy, scipy and PIL> tools/content/gbc/terrain.py [level...]
+       (the game built with episode 7; levels by name, default all)
+       ... terrain.py --refresh   (the settings carried over again, terrain and vegetation rebuilt)
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+GAME = os.path.join(ROOT, "build", "game")
+SETTINGS = os.path.join(ROOT, "tools", "terrain", "levels.json")
+MAPS = os.path.join(ROOT, "export", "maps")
+EPISODE = os.path.join(ROOT, "data", "gbc", "episode7", "episode.json")
+sys.path.insert(0, os.path.join(ROOT, "tools", "terrain"))
+TAG = "gbc"  # settings entries of episode 7's maps carry "episode": 7
+
+
+def sections():
+    """The levels' sections in episode 7's script: name -> 7:<section>."""
+    out = {}
+    lines = subprocess.check_output([sys.executable, os.path.join(ROOT, "tools", "levels.py")], text=True)
+    for line in lines.splitlines():
+        section, name = line.split(" ", 1)
+        if section.startswith("7:"):
+            out[name.strip()] = section
+    return out
+
+
+def wait_for_game():
+    """One game at a time: wait while another session's test run is going."""
+    import time
+    while subprocess.run(["pgrep", "-x", "tyrian3d"], capture_output=True).returncode == 0:
+        time.sleep(5)
+
+
+def export_maps(section):
+    """The level's exported maps: background number -> map hash (side columns written too); each
+    export marked episode 7."""
+    env = dict(os.environ, SDL_AUDIO_DRIVER="dummy", TYR3D_WINDOWED="1", TYR3D_START=section, TYR3D_EXIT_AFTER="80",
+               TYR3D_EXPORT_MAPS=MAPS, TYR3D_SIDES_WRITE=os.path.join(ROOT, "assets", "sides"))
+    wait_for_game()
+    out = subprocess.run(["./tyrian3d"], cwd=GAME, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
+    maps = {int(b): h for b, h in re.findall(r"background (\d): map (?:written|already exported) to .*map_([0-9a-f]{16})\.json", out)}
+    for h in maps.values():
+        path = os.path.join(MAPS, f"map_{h}.json")
+        info = json.load(open(path))
+        if info.get("episode") != 7:
+            info["episode"] = 7
+            json.dump(info, open(path, "w"))
+    return maps
+
+
+def original_map(settings, name):
+    """The original level's ground map (its hash) in the terrain settings."""
+    for h, s in settings.items():
+        if s.get("level", "").strip() == name and "background" not in s and s.get("episode") != 7:
+            return h
+    return None
+
+
+def carried_settings(settings, original, fallback):
+    """The original's settings for a GBC map: its own keys but the ones tied to its map (tiles by shape,
+    a ceiling over its background 2), its surfaces' heights as colours ("materials")."""
+    import numpy as np
+    import make_terrain as mt
+    h = original or fallback
+    s = dict(settings[h])
+    out = {k: v for k, v in s.items() if k not in ("heights", "tiles", "ceiling", "level", "materials")}
+    out["heights"] = {}
+    if s.get("heights"):
+        info, rgb, opaque = mt.load_map(h)
+        _, labels, _ = mt.classify(rgb, s["classes"])
+        materials = {}
+        for c in range(s["classes"]):
+            height = s["heights"].get(str(c), 0)  # (the classes it doesn't list are ground, at 0)
+            mask = labels == c
+            if mask.any():
+                mean = rgb[mask].mean(0)
+                materials["#" + "".join(f"{int(round(v * 255)):02x}" for v in mean)] = height
+        out["materials"] = materials
+    return out
+
+
+def refresh():
+    """The settings carried over again from the originals, the terrain and vegetation built again (the maps,
+    their export, ground log and clean ground as they are)."""
+    episode = json.load(open(EPISODE))
+    settings = json.load(open(SETTINGS))
+    stages = {st["name"]: st for st in episode["stages"]}
+    built = []
+    for h, s in list(settings.items()):
+        if s.get("episode") != 7:
+            continue
+        name = s["level"][:-len(f" ({TAG})")]
+        pc = stages[name]["pc"][1]
+        fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
+        settings[h] = dict(carried_settings(settings, original_map(settings, pc), fallback), level=s["level"], episode=7)
+        built.append(h)
+    json.dump(settings, open(SETTINGS, "w"), indent=1)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + built, check=True)
+    return 0
+
+
+def main(names):
+    if names == ["--refresh"]:
+        return refresh()
+    episode = json.load(open(EPISODE))
+    found = sections()
+    settings = json.load(open(SETTINGS))
+    stages = {st["name"]: st for st in episode["stages"]}
+    names = names or list(stages)
+    keep, built = set(), []
+    for name, st in stages.items():
+        if name not in names:
+            keep.update(h for h, s in settings.items() if s.get("episode") == 7 and s.get("level") == f"{name} ({TAG})")
+            continue
+        maps = export_maps(found[name])
+        ground = maps.get(1)
+        print(f"{name}: maps {maps}")
+        if ground is None or (ground in settings and settings[ground].get("episode") != 7):
+            continue  # (a map an original has too, e.g. open space of one tile: the original's)
+        pc = st["pc"][1]
+        original = original_map(settings, pc)
+        fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
+        s = carried_settings(settings, original, fallback)
+        settings[ground] = dict(s, level=f"{name} ({TAG})", episode=7)
+        keep.add(ground)
+        built.append(ground)
+    # earlier versions' maps out (their settings and assets)
+    for h in [h for h, s in settings.items() if s.get("episode") == 7 and h not in keep]:
+        del settings[h]
+        for ext in ("ter", "veg", "era", "std"):
+            path = os.path.join(ROOT, "assets", "terrain", f"{h}.{ext}")
+            if os.path.exists(path):
+                os.remove(path)
+    json.dump(settings, open(SETTINGS, "w"), indent=1)
+    if not built:
+        return 0
+    secs = [found[n] for n in names if n in found]
+    wait_for_game()
+    subprocess.run([os.path.join(ROOT, "tools", "terrain", "ground_log.sh"), "60"] + secs, check=True,
+                   stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_cleanground.py")] + built, check=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + built, check=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

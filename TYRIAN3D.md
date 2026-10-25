@@ -297,6 +297,16 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   the originals' shops of episodes 1-4 spread over the episode, the planet map pointing at the
   original level's planet; the original level's song) and `cubetxt7.dat`.
 
+Its 3D view's assets are made as episode 6's (`tools/content/gbc/terrain.py`, with the game built):
+each level's maps are exported and their side columns written, the export marked episode 7 (several
+GBC levels have an original's name, and `make_cleanground.py` takes their maps, like episode 6's, as
+not teaching the tilesets), each ground map gets its original's terrain settings in
+`tools/terrain/levels.json` (marked `"episode": 7`) with its surfaces' heights carried over by colour
+(the original map's classes, each one's mean colour with its height, as make_terrain.py's
+`"materials"`), then the ground enemies are logged and the clean ground, terrain and vegetation are
+built into `assets/terrain`. Maps an original has too (open space of one tile) stay the original's.
+`tools/levels.py` lists episode 7's sections.
+
 The game finds those files in the content directory as it finds episode 6's (`src/file.c`) and lists
 "Episode 7: Tyrian GBC" in the episode menu when they are there. It is played on its own: a full
 game doesn't go on to it after episode 6 (`last_episode`), and its end goes back to the title screen
@@ -304,8 +314,9 @@ without a high score (the save file's tables are episodes 1-6's). Its level file
 levels and the item data): the table of a level file's entries holds 100 now (`lvllib.h`; it held
 42, and a longer file overran it). A background whose pointer runs past its map's top (a long level
 at the layer's speed) draws nothing there (`backgrnd.c`) rather than reading outside the map. `TYR3D_START=7:<section>` starts
-one of its levels (the levels are the even sections, 2-48). Stages 1, 2 and 4 of the plan: the maps,
-shops, songs, enemies and story; next: the GBC bosses and big ships, the 3D terrain of its maps.
+one of its levels (the levels are the even sections, 2-48). Stages 1-5 of the plan: the maps, shops,
+songs, enemies, bosses, story and the 3D terrain; next: the enemies checked by eye, the GBC's own
+bosses and big ships.
 
 ## Custom episodes
 
