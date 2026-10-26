@@ -3855,14 +3855,23 @@ static void build_rogue(const UIMenu *m)
 		text_graded(FONT_BOLD, m->title, top.x + U(30), top.y + (top.h - CAP_TITLE()) / 2, CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT,
 		            true);
 		rogue_chips(r, top.x + top.w - U(10), top.y + (top.h - (CAP_KEY() + U(10) + CAP_HEAD())) / 2, true);
-		// (The planets drawn anew over the map's, where data/hd/icons has them: render_gpu.c hd_icon.)
+		// (The planets drawn anew, the map leaving its own out: 3D spheres, render_gpu.c planet3d_quad, or data/hd/icons.)
 		for (int i = 0; i < r->node_count; ++i)
 			if (r->nodes[i].planet >= 0)
 			{
+				// (The ones out of reach dimmed, as the map dims them.)
 				const float pw = r->nodes[i].planet_w * k, ph = r->nodes[i].planet_h * k;
+				const bool lit = r->nodes[i].can_go || r->nodes[i].visited || r->nodes[i].kind == 3;
 				rgpu_ui_table_sprite(PLANET_SHAPES, (unsigned int)r->nodes[i].planet, pic.x + r->nodes[i].x * k - pw / 2,
-				                     pic.y + r->nodes[i].y * k - ph / 2, pw, ph, L.alpha);
+				                     pic.y + r->nodes[i].y * k - ph / 2, pw, ph, L.alpha * (lit ? 1.0f : 0.45f));
 			}
+		// The ship where it is, drawn anew (the game leaves it out of the picture).
+		if (r->ship_sheet != NULL)
+		{
+			const float sw = 24 * k * 1.25f, sh = 28 * k * 1.25f;
+			rgpu_ui_sprite(r->ship_sheet, (unsigned int)r->ship_sprite, true, pic.x + r->ship_x * k - sw / 2, pic.y + r->ship_y * k - sh / 2, sw, sh,
+			               L.alpha);
+		}
 		for (int i = 0; i < r->node_count; ++i)
 		{
 			const float nx = pic.x + r->nodes[i].x * k, ny = pic.y + r->nodes[i].y * k, nr = SDL_max(r->nodes[i].r * k, U(20));

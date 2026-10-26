@@ -1297,10 +1297,14 @@ static void draw_node(SDL_Surface *s, int row, int col, bool selected, bool can_
 		const unsigned int planet = n->planet;
 		const int scale = n->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, planet) > 30 ? 2 : 1;
 		const int pw = get_sprite_width(PLANET_SHAPES, planet) / scale, ph = get_sprite_height(PLANET_SHAPES, planet) / scale;
-		blit_planet(s, x - pw / 2, y - ph / 2, planet, scale);
-		if (!lit)
-			for (int i = 0; i < 2; ++i)
-				JE_barShade(s, x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2);
+		// (The modern UI draws the planets anew itself: the map's own left out, under them.)
+		if (!ui_modern())
+		{
+			blit_planet(s, x - pw / 2, y - ph / 2, planet, scale);
+			if (!lit)
+				for (int i = 0; i < 2; ++i)
+					JE_barShade(s, x - pw / 2, y - ph / 2, x + pw / 2, y + ph / 2);
+		}
 		// The kind: the name's colour (elite orange, boss red).
 		const Uint8 hue = n->kind == NODE_BOSS ? HUE_RED : n->kind == NODE_ELITE ? HUE_GOLD : HUE_TEXT;
 		const char *label = n->kind == NODE_ELITE ? "Elite" : n->kind == NODE_BOSS ? "Boss" : NULL;
@@ -1360,13 +1364,12 @@ static bool map_screen(void)
 						can_go = true, is_selected = i == selected;
 				draw_node(VGAScreen, r, c, is_selected, can_go);
 			}
-		// The ship where it is.
-		{
-			int x = START_X, y = START_Y;
-			if (run.row >= 0)
-				node_position(run.row, run.col, &x, &y);
-			JE_drawItem(1, player[0].items.ship, (JE_word)(x - 12), (JE_word)(y - 14));
-		}
+		// The ship where it is (the modern UI draws it anew: ui_rogue's ship).
+		int ship_x = START_X, ship_y = START_Y;
+		if (run.row >= 0)
+			node_position(run.row, run.col, &ship_x, &ship_y);
+		if (!ui_modern())
+			JE_drawItem(1, player[0].items.ship, (JE_word)(ship_x - 12), (JE_word)(ship_y - 14));
 		const Node *n = node_at(next_row, choices[selected]);
 		char info[96];
 		static const char *const what[] = { "a level", "an elite level: harder, better cards and a bounty",
@@ -1381,6 +1384,11 @@ static bool map_screen(void)
 			UIMenu *ui = ui_rogue(UI_ROGUE_MAP, acts[run.act].name);
 			UIRogue *r = &ui->rogue;
 			ui_run_stats(r);
+			const int graphic = ships[player[0].items.ship].shipgraphic;
+			r->ship_x = (float)ship_x;
+			r->ship_y = (float)ship_y;
+			r->ship_sheet = graphic > 500 ? (const void *)&spriteSheetT2000 : (const void *)&spriteSheet9;
+			r->ship_sprite = graphic > 500 ? graphic - 500 : graphic;
 			SDL_strlcpy(r->info, info, sizeof(r->info));
 			for (int row = 0; row < run.rows; ++row)
 				for (int c = 0; c < run.width[row] && r->node_count < UI_ROGUE_NODES; ++c)

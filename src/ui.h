@@ -380,6 +380,8 @@ typedef struct
 		float planet_w, planet_h;  // as the map draws it (screen pixels)
 	} nodes[UI_ROGUE_NODES];
 	float ship_x, ship_y;     // where the ship is (screen pixels)
+	const void *ship_sheet;   // and its picture (a 2x2 sprite of that sheet), drawn anew by the UI; NULL: none
+	int ship_sprite;
 } UIRogue;
 
 // Destruct (destruct.c): its pages over its arena, and the HUD while a battle is on.
