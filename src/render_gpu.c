@@ -2380,6 +2380,13 @@ static void find_hd_logos(const Uint8 *picture, Uint32 *rgba)
 static void add_hd_logos(const SDL_Rect *dst)
 {
 	const float kx = dst->w / (float)SCREEN_W, ky = dst->h / (float)SCREEN_H;
+	// (Where the picture is cut at the top to fill a wide window, the logo resting near its top comes down as much
+	// as it takes to show whole.)
+	float top = (float)INT_MAX;
+	for (size_t l = 0; l < COUNTOF(hd_logos); ++l)
+		if (hd_logos[l].shown_y != INT_MIN)
+			top = SDL_min(top, dst->y + hd_logos[l].shown_y * ky);
+	const float down = SDL_max(dst->h * 0.012f - top, 0.0f);
 	for (size_t l = 0; l < COUNTOF(hd_logos); ++l)
 	{
 		if (hd_logos[l].shown_y == INT_MIN)
@@ -2388,7 +2395,7 @@ static void add_hd_logos(const SDL_Rect *dst)
 		if (q == NULL)
 			return;
 		const float b = hd_picture_brightness;
-		*q = (HudQuad){ dst->x + hd_logos[l].x * kx, dst->y + hd_logos[l].shown_y * ky, hd_logos[l].w * kx, hd_logos[l].h * ky, 0, 0, 1, 1,
+		*q = (HudQuad){ dst->x + hd_logos[l].x * kx, dst->y + hd_logos[l].shown_y * ky + down, hd_logos[l].w * kx, hd_logos[l].h * ky, 0, 0, 1, 1,
 		                { b, b, b, 1 }, { b, b, b, 1 }, .texture = hd_logos[l].texture };
 	}
 }

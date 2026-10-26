@@ -53,13 +53,15 @@ void ui_fill_rect(int window_w, int window_h, SDL_Rect *out)
 {
 	// Filling the window, cut where the window's shape differs from 8:5 (its top and bottom in a wider window, its
 	// sides in a narrower one); on ultrawide only the window's 16:9 middle, the picture's blurred copy round it.
+	// (Cut more at the bottom than at the top: the pictures' titles and logos are near their tops.)
 	int w = SDL_min(window_w, window_h * 16 / 9), h = w * 5 / 8;
 	if (h < window_h)
 	{
 		h = window_h;
 		w = h * 8 / 5;
 	}
-	*out = (SDL_Rect){ (window_w - w) / 2, (window_h - h) / 2, w, h };
+	const int y = h > window_h ? (window_h - h) * 3 / 10 : (window_h - h) / 2;
+	*out = (SDL_Rect){ (window_w - w) / 2, y, w, h };
 }
 
 /* --- Colours: the original's brass, gold and warm browns ------------------------------------ */
