@@ -785,7 +785,13 @@ colours, so that colours the screen animates don't count) (`render_gpu.c` `match
 `pictures/logo_tyrian.png` and `pictures/logo_2000.png` are the title's logo and its 2000(tm) drawn anew (from the
 export's `logo_tyrian.png` and `logo_2000.png`, in the same frame at any size, with alpha): over the title's picture,
 where the screen shows the logo's sprite (also while it flies in), the new logo shows in its box and the sprite's
-pixels are taken off (`render_gpu.c` `find_hd_logos`); a fully clear `logo_2000.png` takes the 2000(tm) away. `upscale/` is only the work folder
+pixels are taken off (`render_gpu.c` `find_hd_logos`); a fully clear `logo_2000.png` takes the 2000(tm) away.
+`pictures/face_NN.png` are the data cubes' faces drawn anew (the user's, from the export's `face_NN.png`, any size,
+clear round the figure): `tools/hd_pictures.py` fits each into the store's portrait window (the export's
+`face_frame.png`: the frame, its window clear), as large as it takes to cover it, cut to its shape with a soft edge,
+over the whole portrait at 6x; where the store's screen shows a face as it draws it, its pixels give way to the
+window's colour and the new face shows over the portrait, fading with its palette (`render_gpu.c` `find_hd_face`; in
+the modern UI and the old store with the 3D view; only the face shown is loaded). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

@@ -824,6 +824,9 @@ static int match_hd_picture(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 static void find_hd_logos(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_logos(const SDL_Rect *dst);
+static int hd_face;  // (the data cube's face drawn anew this frame: find_hd_face)
+static void find_hd_face(const Uint8 *picture, Uint32 *rgba);
+static void add_hd_face(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h);
 static bool fonts_enabled(void);
 static const TextRecord *frame_texts[32];
@@ -1527,10 +1530,17 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 		add_hd_logos(dst);
 		hud_under = hud_quad_count;
 	}
+	// (A data cube's face drawn anew, over the screen.)
+	if (pixels != NULL)
+	{
+		find_hd_face(pixels, screen_rgba);
+		add_hd_face(0, 0, SCREEN_W, SCREEN_H, (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 1);
+	}
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	present_canvas(&quad, 1, false, true, &frame);
 	blur_ready = false;
 	hd_picture = 0;
+	hd_face = -1;
 }
 
 /* --- The UI's drawing (ui.c) ----------------------------------------------------------------- */
@@ -2105,6 +2115,145 @@ static void add_hd_logos(const SDL_Rect *dst)
 	}
 }
 
+/*
+ * The data cubes' faces drawn anew (data/hd/pictures/face_NN.png, tools/hd_pictures.py: each over the store's
+ * portrait, FACE_BOX, clear but for the portrait's window, cut to its shape): where the screen shows a face as the
+ * store draws it (FACE_SHAPES centred on FACE_CENTRE: game_menu.c), its pixels give way to the window's colour and
+ * the face is drawn over the portrait, as bright as the palette has faded its own colours.
+ */
+#define FACE_BOX_X 1
+#define FACE_BOX_Y 1
+#define FACE_BOX_W 145
+#define FACE_BOX_H 170
+#define FACE_CENTRE_X 77
+#define FACE_CENTRE_Y 92
+#define FACE_WINDOW_X 76  // a pixel of the window above every face (its colour, the window's)
+#define FACE_WINDOW_Y 47
+#define HD_FACES 32
+#define HD_FACE_SAME 0.9f  // the share of the face's pixels the screen shows for the new one to show
+static struct
+{
+	char path[1200];  // its picture ("": none)
+	bool looked;
+	BTBHGPUTexture *texture;  // (loaded as it first shows)
+	bool loaded;
+	bool made;
+	Uint8 *pixels;  // the face as blit_sprite draws it (0: clear)
+	int w, h;
+} hd_faces[HD_FACES];
+static int hd_face = -1;  // the face drawn anew this frame (-1: none)
+static float hd_face_brightness = 1;
+
+// The face's pixels as blit_sprite draws them (false: not there, or no face drawn anew for it).
+static bool make_hd_face(int i)
+{
+	if (!hd_faces[i].looked)
+	{
+		hd_faces[i].looked = true;
+		char dir[1024];
+		const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+		snprintf(hd_faces[i].path, sizeof(hd_faces[i].path), "%s/pictures/face_%02d.png", base, i + 1);
+		if (!SDL_GetPathInfo(hd_faces[i].path, NULL))
+			hd_faces[i].path[0] = '\0';
+	}
+	if (hd_faces[i].path[0] == '\0')
+		return false;
+	if (hd_faces[i].made)
+		return hd_faces[i].pixels != NULL;
+	if (!sprite_exists(FACE_SHAPES, (unsigned int)i))
+		return false;  // (not loaded yet: tried again)
+	hd_faces[i].made = true;
+	const Sprite *sp = sprite(FACE_SHAPES, (unsigned int)i);
+	SDL_Surface *surface = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8);
+	if (surface == NULL || sp->width > FACE_BOX_W || sp->height > FACE_BOX_H)
+	{
+		SDL_DestroySurface(surface);
+		return false;
+	}
+	SDL_FillSurfaceRect(surface, NULL, 0);
+	blit_sprite(surface, 0, 0, FACE_SHAPES, (unsigned int)i);
+	const int w = sp->width, h = sp->height;
+	hd_faces[i].pixels = malloc((size_t)w * h);
+	if (hd_faces[i].pixels != NULL)
+		for (int y = 0; y < h; ++y)
+			memcpy(&hd_faces[i].pixels[y * w], (const Uint8 *)surface->pixels + y * surface->pitch, (size_t)w);
+	hd_faces[i].w = w;
+	hd_faces[i].h = h;
+	SDL_DestroySurface(surface);
+	return hd_faces[i].pixels != NULL;
+}
+
+static void find_hd_face(const Uint8 *picture, Uint32 *rgba)
+{
+	hd_face = -1;
+	const int count = SDL_min((int)sprite_table[FACE_SHAPES].count, HD_FACES);
+	for (int i = 0; i < count && hd_face < 0; ++i)
+	{
+		if (!make_hd_face(i))
+			continue;
+		const int w = hd_faces[i].w, h = hd_faces[i].h, x0 = FACE_CENTRE_X - w / 2, y0 = FACE_CENTRE_Y - h / 2;
+		int same = 0, own = 0;
+		for (int y = 0; y < h; y += 2)
+			for (int x = 0; x < w; ++x)
+				if (hd_faces[i].pixels[y * w + x] != 0)
+				{
+					++own;
+					same += picture[(y0 + y) * SCREEN_W + x0 + x] == hd_faces[i].pixels[y * w + x];
+				}
+		if (own > 0 && same >= own * HD_FACE_SAME)
+			hd_face = i;
+	}
+	if (hd_face >= 0 && !hd_faces[hd_face].loaded && window != NULL)
+	{
+		hd_faces[hd_face].loaded = true;
+		BTBHGPUTextureReport report;
+		hd_faces[hd_face].texture = btbh_gpu_window_texture_load_ex(window, hd_faces[hd_face].path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+		                                                            BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		if (hd_faces[hd_face].texture != NULL)
+			printf("face drawn anew: %s\n", hd_faces[hd_face].path);
+	}
+	if (hd_face < 0 || hd_faces[hd_face].texture == NULL)
+	{
+		hd_face = -1;
+		return;
+	}
+	const int w = hd_faces[hd_face].w, h = hd_faces[hd_face].h, x0 = FACE_CENTRE_X - w / 2, y0 = FACE_CENTRE_Y - h / 2;
+	// (Its palette's fade, as a picture's: the median over its colours, weighed by their pixels.)
+	const SDL_Color *own = palettes[hd_face < (int)COUNTOF(facepal) ? facepal[hd_face] : 0];
+	int uses[256] = { 0 };
+	for (int i = 0; i < w * h; ++i)
+		++uses[hd_faces[hd_face].pixels[i]];
+	float dark[256];
+	int weight[256], n = 0;
+	for (int i = 1; i < 256; ++i)
+	{
+		const int sum = own[i].r + own[i].g + own[i].b;
+		if (uses[i] == 0 || sum < 60)
+			continue;
+		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
+		dark[n] = SDL_min((c[0] + c[1] + c[2]) / (float)sum, 1.0f);
+		weight[n++] = uses[i];
+	}
+	hd_face_brightness = weighted_median(dark, weight, n, 1.0f);
+	const Uint32 window_colour = rgba[FACE_WINDOW_Y * SCREEN_W + FACE_WINDOW_X];
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x)
+			rgba[(y0 + y) * SCREEN_W + x0 + x] = window_colour;
+}
+
+// The face found drawn anew over the portrait, in the part of the screen (sx, sy, sw, sh) drawn at x, y, w, h.
+static void add_hd_face(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
+{
+	if (hd_face < 0 || sw <= 0 || sh <= 0)
+		return;
+	HudQuad *q = hud_quad_add();
+	if (q == NULL)
+		return;
+	const float kx = w / sw, ky = h / sh, b = hd_face_brightness;
+	*q = (HudQuad){ x + (FACE_BOX_X - sx) * kx, y + (FACE_BOX_Y - sy) * ky, FACE_BOX_W * kx, FACE_BOX_H * ky, 0, 0, 1, 1, { b, b, b, alpha },
+	                { b, b, b, alpha }, .texture = hd_faces[hd_face].texture };
+}
+
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
 {
 	if (sw <= 0 || sh <= 0)
@@ -2117,6 +2266,9 @@ void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, f
 	*q = (HudQuad){ x, y, w, h, sx / SCREEN_W, sy / SCREEN_H, (sx + sw) / SCREEN_W, (sy + sh) / SCREEN_H, { 1, 1, 1, alpha }, { 1, 1, 1, alpha },
 	                .texture = screen_texture, .picture = true };
 	picture_magnification = SDL_max(picture_magnification, h * text_density / sh);
+	// (A face drawn anew over the store's portrait, when the part holds it.)
+	if (sx <= FACE_BOX_X && sy <= FACE_BOX_Y && sx + sw >= FACE_BOX_X + FACE_BOX_W && sy + sh >= FACE_BOX_Y + FACE_BOX_H)
+		add_hd_face(sx, sy, sw, sh, x, y, w, h, alpha);
 }
 
 /* --- 3D ------------------------------------------------------------------------------------ */
@@ -11557,6 +11709,8 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	hd_picture = jukebox ? 0 : match_hd_picture(ui_screen_picture(), screen_rgba);
 	if (hd_picture != 0)
 		find_hd_logos(ui_screen_picture(), screen_rgba);
+	if (!jukebox)
+		find_hd_face(ui_screen_picture(), screen_rgba);
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	const UIView view = { .w = w, .h = h, .pixel = 1.0f / text_density,
 	                      .picture = { (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h } };
@@ -11572,6 +11726,7 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 			add_hd_logos(&dst);
 			hud_under = hud_quad_count;  // (under the screen's quad)
 		}
+		add_hd_face(0, 0, SCREEN_W, SCREEN_H, (float)dst.x, (float)dst.y, (float)dst.w, (float)dst.h, 1);
 	}
 	else if (!jukebox)
 		add_backdrop(w, h, with_scene ? pane : NULL);
@@ -11617,4 +11772,5 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	present_canvas(whole ? &quad : NULL, whole ? 1 : 0, false, !drawn, &frame);
 	blur_ready = false;
 	hd_picture = 0;
+	hd_face = -1;
 }

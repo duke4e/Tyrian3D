@@ -872,6 +872,12 @@ void dev_export_pictures(const char *dir)
 		snprintf(path, sizeof(path), "%s/face_%02u.png", dir, i + 1);
 		write_picture(path, surface, face->width, face->height, palettes[i < 12 ? facepal[i] : 0], true);
 	}
+	// And the store's portrait frame round them (OPTION_SHAPES 20) where the store draws it, its window clear:
+	// tools/hd_pictures.py fits the faces drawn anew into the window.
+	SDL_FillSurfaceRect(surface, NULL, 0);
+	blit_sprite(surface, 1, 1, OPTION_SHAPES, 20);
+	snprintf(path, sizeof(path), "%s/face_frame.png", dir);
+	write_picture(path, surface, 147, 172, palettes[pcxpal[0]], true);
 
 	// The title's logo (PLANET_SHAPES 146) and its "2000(tm)" (151), each alone and together as the title shows
 	// them once they have flown in, in the title picture's palette, clear round them.
@@ -933,6 +939,7 @@ void dev_export_pictures(const char *dir)
 	      "others  story pictures between levels (the episode texts' ]P and ]U commands)\n"
 	      "tshp2   a story picture (]P0)\n"
 	      "face_NN the data cubes' faces in the store (who wrote the cube), clear round them\n"
+	      "face_frame the store's portrait frame round the faces (screen pixels from 0, 0), its window clear\n"
 	      "logo_tyrian, logo_2000, logo_tyrian2000  the title's logo alone, its 2000(tm), and both as the title shows them\n"
 	      "  (redrawn logo_tyrian.png and logo_2000.png go to data/hd/pictures too; a clear logo_2000.png hides the 2000)\n"
 	      "tyrend/  the ending's animation (episode 1's end), frame by frame\n",
