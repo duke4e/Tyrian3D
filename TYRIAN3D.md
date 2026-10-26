@@ -371,6 +371,9 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   or at its event 11, 2400 to 6000 ticks of fight later (an unkillable boss: as long as its block, the
   final one's phases); the block's map restarts (4, 83) are left out. All 24 bosses checked by eye.
 * WARP (STARGATE's look, black, its stars off) is open space with the stars on, as the GBC level is.
+* A boss that passes by in its original (its map going on once it is gone: ASTEROID2's tank) stops once
+  it is in and fights; one whose pieces are drawn damaged from the start (dani < 0) doesn't count as on
+  screen, so it gets no end when clear (its level ends at its 11).
 * In the 3D view (`tyrian2.c` `gbc_faces_its_way`) episode 7's sky enemies turn from their models'
   heading (down the screen, the way the originals fly them) to where they go when they move
   otherwise (the GBC paths go sideways and up); not the pieces of an object of several sprites
@@ -386,8 +389,31 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   level before it; the GBC capitals in sentence case, the names marked; the speaker's PC portrait:
   Transon, Reid, Vykromod, the captain, the news...) and the GBC ending its ending, expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
   item data (`enemydata.py`) and writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
-  the originals' shops of episodes 1-4 spread over the episode, the planet map pointing at the
-  original level's planet; the original level's song) and `cubetxt7.dat`.
+  the GBC shop's offer before that level, the planet map pointing at the original level's planet; the
+  original level's song) and `cubetxt7.dat`.
+* `shop.py` reads what the GBC shop offers before each level of the Full Game into `data/gbc/shop.json`:
+  its Items menu has six lists (Ship, Weapon, Engine, Shield, SideA, SideB), each showing the items
+  unlocked by name from the ROM's tables of 8-character names; the game is flown through as `story.py`
+  flies it and at every shop each list is opened (and scrolled) and the names it reads (the ROM's read
+  flags) are its offer. The offers change from shop to shop (before SAVARA: Talon and Storm; Pulse,
+  Multi and Scatter; the Std and Micro engines; the Low and Hard shields...). `build.py` (`gbc_shop`)
+  puts them in an original's shop block as the PC's items: ships by name (Micros the Stalker, Phoenx the
+  Phoenix), the one GBC weapon slot as the front gun (the nearest front gun by name and look: Scatter the
+  Mega Pulse, Sonic the Sonic Impulse, Rail the Widget Beam, L.Ball the RetroBall, Arrow the Missile
+  Launcher...), the engines as generators, the shields by strength, the sidekicks on both sides (the PC
+  has no shield, repair, magnet or cold sidekick: the nearest in use); the rear guns and armour stay the
+  originals' shops' (from episode 1's first to episode 4's, spread over the episode). The Arcade-only
+  levels and FINALE take the offer before them.
+* `bosses.py`: the GBC levels' own bosses are code (the script ends with command 06 and 01; the level
+  dispatcher with level + 100 runs the boss), so each level is flown from its script's end and the
+  boss's look taken (the largest cluster of sprites on screen, `data/gbc/bosses/Lnn_boss.png`, with the
+  screens) beside the PC bosses' bodies (every original level's). They are mostly the PC's made small,
+  often another level's: TYRIAN's is ASSASSIN's, ASTEROID's and OASIS's ASTEROID2's tank, SPACE's ICE
+  EXIT's claws, SAVARA's SAVARA V's airship, SAVARA II's SAVARA's red fortress, ASTEROID2's ASTEROID1's
+  dome, ICE EXIT's and DELI CORE's DREAD-NOT's skull, DELIANI's DELIANI's claw ship (`episode.py`
+  LEVELS boss=, picked by eye; JUNGLE's TORM, CAMANIS's, TUNNEL's IXMUCANE and DESERT's SURFACE are
+  their originals'). LAVA I, JUNGLE II and the Arcade-only DELICORE and BUBBLES have no boss in the GBC
+  game; FINALE's flight ends with its script. Their behaviour is the PC boss's own script.
 
 Its 3D view's assets are made as episode 6's (`tools/content/gbc/terrain.py`, with the game built):
 each level's maps are exported and their side columns written, the export marked episode 7 (several

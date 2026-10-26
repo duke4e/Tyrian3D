@@ -204,12 +204,54 @@ def shops():
     return out
 
 
+# The GBC shop's items as the PC's (tools/gbc/shop.py reads what the GBC shop offers before each level into
+# data/gbc/shop.json): its one weapon slot is the front's (the nearest front gun by name and look), its engines the
+# generators, its sidekicks both sides' (the PC has no shield, repair, magnet or cold sidekick: the nearest in use).
+# The rear guns and armour stay the originals' shops' (the GBC has none).
+GBC_SHIPS = {"Talon": 1, "Micros": 5, "Phoenx": 3, "Storm": 14, "Dragon": 15, "Carrot": 2, "UShip": 10}
+GBC_WEAPONS = {"Pulse": 1, "Multi": 2, "Scatter": 19, "Sonic": 41, "Vulcan": 7, "Mega": 3, "Proton": 13, "Thunder": 8,
+               "Fireball": 18, "Rail": 40, "Chip": 5, "Hotdog": 25, "L.Ball": 42, "Laser": 4, "Hyper": 27, "Arrow": 17,
+               "Plasma": 20}
+GBC_ENGINES = {"Std": 1, "Light": 2, "Heavy": 3, "MFusion": 4, "Micro": 5, "Graviton": 6}
+GBC_SHIELDS = {"Low": 3, "Hard": 4, "Diammd": 5, "LHX Sld": 6, "HTX Sld": 9, "Iron": 10, "Gold": 8}
+GBC_SIDES = {"None": 0, "Single": 1, "Dual": 2, "Charge": 3, "Bomb": 13, "Heat": 17, "Shield": 30, "Repair": 16,
+             "Magnet": 18, "Cold": 4}
+
+
+def gbc_offers():
+    """{GBC level: the GBC shop's offer before it} (data/gbc/shop.json), or {}."""
+    path = os.path.join(ROOT, "data", "gbc", "shop.json")
+    if not os.path.exists(path):
+        return {}
+    return {s["before"]: s["offer"] for s in json.load(open(path))["shops"]}
+
+
+def gbc_shop(offer, block):
+    """An original's shop block with the GBC shop's ships, front guns, generators, shields and sidekicks."""
+    def ids(table, names, first=()):
+        out = list(first)
+        for n in names:
+            if n in table and table[n] not in out:
+                out.append(table[n])
+        return " ".join(str(i) for i in out)
+    lines = {line.split()[0]: line for line in block}
+    lines["Ship"] = " Ship   " + ids(GBC_SHIPS, offer["ship"])
+    lines["WeapF"] = " WeapF  " + ids(GBC_WEAPONS, offer["weapon"])
+    lines["Power"] = " Power  " + ids(GBC_ENGINES, offer["engine"])
+    lines["Shield"] = " Shield " + ids(GBC_SHIELDS, offer["shield"])
+    lines["Opt1"] = " Opt1   " + ids(GBC_SIDES, offer["sideA"], (0,))
+    lines["Opt2"] = " Opt2   " + ids(GBC_SIDES, offer["sideB"], (0,))
+    return [lines[line.split()[0]] for line in block]
+
+
 def script(stages, levels, planet_of, cube_numbers, ending_text):
-    """levels7.dat: each stage a shop section (the planet map's one destination, the items: the
-    originals' shops, from episode 1's first to episode 4's, spread over the episode) and its level's
-    section; then the ending."""
+    """levels7.dat: each stage a shop section (the planet map's one destination, the items: the GBC shop's
+    offer before the level, in an original's shop block: the originals' shops, from episode 1's first to episode
+    4's, spread over the episode, for what the GBC shop has not) and its level's section; then the ending."""
     lines = []
     all_shops = shops()
+    offers = gbc_offers()
+    offer = None
     origin = 1
     n = len(stages)
     ending = 2 * n + 1
@@ -217,6 +259,10 @@ def script(stages, levels, planet_of, cube_numbers, ending_text):
         shop_section, level_section = 2 * i + 1, 2 * i + 2
         planet = planet_of.get(tuple(stage["pc"]), 1)
         shop = all_shops[min(len(all_shops) - 1, i * len(all_shops) // n)]
+        # the GBC shop's offer before this level (the Arcade-only levels and the last: the one before)
+        offer = offers.get(stage.get("gbc"), offer)
+        if offer:
+            shop = gbc_shop(offer, shop)
         cubes = cube_numbers[i]
         lines += [f"*{shop_section} SECTION - Tyrian GBC Stage {i + 1} - {level['name']}"]
         if cubes:
@@ -245,6 +291,7 @@ def script(stages, levels, planet_of, cube_numbers, ending_text):
 BOSS_TOP = 24            # the boss's highest piece's y when it stops (its top edge a few pixels into the screen)
 BOSS_TIME = 2400         # ticks of fight at least before the level's 11 ends it anyway (an unkillable boss)
 BOSS_MAX = 6000          # ... and at most (a boss block that runs on: the final one's phases)
+BOSS_IN = 300            # the added end-when-clear this long after the boss is made or stops
 BOSS_LEAD = 400          # the block's spawns from this long before its last boss bar
 LAYER_OF = {15: "sky", 18: None, 6: "ground", 10: "ground", 17: None, 56: None, 7: "top", 23: None, 32: None}
 
@@ -362,9 +409,20 @@ def boss_fight(level, events):
         if not any(e["type"] == 53 and e["d1"] != 99 and e["t"] <= halt for e in placed):
             added.append(dict(t=halt, type=53, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     added += [dict(t=arrive, type=19, d1=-99, d2=0, d3=0, d5=0, d6=-99, d4=link) for link in sorted(drifting)]
+    # (a boss that passes by in the original, its map going on once it is gone: ASTEROID2's tank, which drives
+    # down past the ship: here it stops once it is in, and fights)
+    if not any(e["type"] == 36 for e in placed) and any(e["type"] in (4, 83) for e in placed):
+        rovers = sorted({e["d4"] for e in spawns if e["d4"]})
+        added += [dict(t=arrive, type=20, d1=0, d2=0, d3=0, d5=0, d6=0, d4=link) for link in rovers]
+        added += [dict(t=arrive, type=19, d1=0, d2=0, d3=0, d5=0, d6=0, d4=link) for link in rovers]
     freeze = max(halt, arrive)
-    if not any(e["type"] == 36 and e["t"] >= freeze for e in placed):
-        added.append(dict(t=max(freeze, first) + 1, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    # (pieces drawn damaged from the start, dani < 0, don't count as on screen: ASTEROID2's tank; with only such
+    # a boss, an end when clear ends the level at once: it ends at its 11)
+    counted = any(data.setdefault(e["ep"], tyrdata.load_items(e["ep"])["enemies"]).get(e["d1"], {}).get("dani", 0) >= 0
+                  for e in spawns if "ep" in e)
+    if counted and not any(e["type"] == 36 and e["t"] >= freeze for e in placed):
+        # (a while after it is made: one that comes in on its own, ASTEROID2's tank, must be in first)
+        added.append(dict(t=max(freeze, first) + BOSS_IN, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     out = []
     for e in placed:
         if e["t"] > freeze and e["type"] == 53 and e["d1"] == 99:
