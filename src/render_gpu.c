@@ -10872,7 +10872,8 @@ static void shadow_view_projection(const Camera3D *camera, float out[16])
 // The sun and the sky: models are lit by them; layers and volumetric sprites are unlit. The sun is
 // strong against the sky, as in the sprites' own shading: lit from the upper left, with clear
 // highlights and shadows.
-static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camera, bool shadows)
+// level: a level's scene (its own sunlight, by its climate).
+static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camera, bool shadows, bool level)
 {
 	memset(lighting, 0, sizeof(*lighting));
 	lighting->spot_falloff = 1.0f;
@@ -10892,6 +10893,22 @@ static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camer
 	lighting->directional_red = 1.0f;
 	lighting->directional_green = 0.98f;
 	lighting->directional_blue = 0.94f;
+	// A level's own sunlight, by its climate (b3d_weather): cold over the ice, the lava's glow, desert sun.
+	if (level && settings3d.effects)
+	{
+		static const float climate[][3] = {
+			[B3D_WEATHER_SNOW] = { 0.86f, 0.95f, 1.08f },
+			[B3D_WEATHER_EMBERS] = { 1.1f, 0.86f, 0.7f },
+			[B3D_WEATHER_SAND] = { 1.06f, 0.97f, 0.84f },
+		};
+		const B3DWeather w = b3d_weather();
+		if (w == B3D_WEATHER_SNOW || w == B3D_WEATHER_EMBERS || w == B3D_WEATHER_SAND)
+		{
+			lighting->directional_red *= climate[w][0];
+			lighting->directional_green *= climate[w][1];
+			lighting->directional_blue *= climate[w][2];
+		}
+	}
 	set_environment(lighting);
 	const char *energies = SDL_getenv("TYR3D_LIGHTING");
 	float sky_fill = SKY_FILL;
@@ -11392,7 +11409,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 				batches[i].rc_receiver = 1;
 
 	BTBHGPUSceneLighting lighting;
-	scene_lighting(&lighting, &camera, shadows);
+	scene_lighting(&lighting, &camera, shadows, true);
 	// On spotlight levels the ship carries a lamp: a spot light up the screen through the cone the
 	// game leaves lit (the darkness itself is the overlay, build_spotlight), lighting the models in it.
 	if (starShowVGASpecialCode == 2 && processorType >= 2)
@@ -11673,7 +11690,7 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	}
 
 	BTBHGPUSceneLighting lighting;
-	scene_lighting(&lighting, &camera, shadows);
+	scene_lighting(&lighting, &camera, shadows, false);
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
@@ -12603,7 +12620,7 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 			batches[i].unlit_enabled = 2;
 	}
 	BTBHGPUSceneLighting lighting;
-	scene_lighting(&lighting, &camera, shadows);
+	scene_lighting(&lighting, &camera, shadows, false);
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, window_frame, &render_w, &render_h);
