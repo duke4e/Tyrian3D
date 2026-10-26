@@ -1109,6 +1109,8 @@ def build(name, overrides, object_tiles, report):
     if info["background"] == 1:  # (an upper map: only where its riders stand; its tiles' copies elsewhere are landscape)
         jobs += decor_jobs(cl, object_tiles, occupied)
     plans = []
+    # (Where the logged objects' stand-ins stand, and the extra ones given so far: one stand-in a tile.)
+    standing_cells = {(int(p.y) // TILE_H, int(p.x) // TILE_W - cl.side) for g in objs for p in g}
     for g, cells, touch in jobs:
         if not cells:
             continue
@@ -1144,6 +1146,28 @@ def build(name, overrides, object_tiles, report):
             lab, n = ndimage.label(mask, np.ones((3, 3), bool))
             hit = np.unique(lab[keep & mask])
             mask &= ~np.isin(lab, hit[hit > 0])  # (art joined to a kept piece stays whole)
+        if touch is None and specs:
+            # An object not set on the tiles' grid (a pod in GBC DELIANI's field of sockets) covers parts of
+            # the object tiles round its own, and their art goes too: each such tile erased for the most part
+            # gets the stand-in of what stands on it elsewhere, as a copy where none stands does (decor_jobs).
+            table = object_tiles.get(cl.tileset, {})
+            X0, Y0, W, H = box
+            own = {(int(p.y) // TILE_H, int(p.x) // TILE_W - cl.side) for p, _ in specs}
+            for r, c in cells:
+                if (r, c) in own or (r, c) in standing_cells or not (0 <= r < cl.shapes.shape[0] and 0 <= c < cl.shapes.shape[1]):
+                    continue
+                if int(cl.shapes[r, c]) not in table:
+                    continue
+                x, y = cl.cell_box(r, c)
+                part = mask[y - Y0:y - Y0 + TILE_H, x - X0:x - X0 + TILE_W]
+                if part.size == 0 or part.mean() < 0.3:
+                    continue
+                p = table_piece(cl, table, r, c)
+                spec = standin_spec(p.letter, p.sprite, False, overrides)
+                if spec is not None:
+                    specs.append((p, spec))
+                    own.add((r, c))
+                    standing_cells.add((r, c))
         if not mask.any() or not specs:
             continue
         plans.append((cells, touch, mask, box, specs, keep.any(), cl.ground))
@@ -1214,6 +1238,24 @@ def learn(object_tiles, cl, p, mask, box):
     entry[0][(p.letter, p.sprite, p.large, int(round(p.x - (c + cl.side) * TILE_W)), int(round(p.y - r * TILE_H)))] += 1
 
 
+def table_piece(cl, table, r, c):
+    """The piece that stands on an object tile (table: the tileset's object tiles) at its usual offset in cell r, c."""
+    (letter, sprite, large, cx, cy), _ = table[int(cl.shapes[r, c])].most_common(1)[0]
+    x, y = cl.cell_box(r, c)
+    p = Piece()
+    p.letter, p.sprite, p.large, p.x, p.y = letter, sprite, large, x + cx, y + cy
+    p.pic, p.mask = picture(letter, sprite, large)
+    h, w = p.pic.shape
+    p.x0, p.y0 = int(round(p.x)) - w // 2, int(round(p.y)) - h // 2
+    win = cl.idx[max(p.y0, 0):p.y0 + h, max(p.x0, 0):p.x0 + w]
+    p.eq = np.zeros_like(p.mask)
+    if win.shape == p.pic.shape:
+        p.eq = (win == p.pic) & p.mask
+    p.cells = [(r, c)]
+    p.group = p.link = 0
+    return p
+
+
 def decor_jobs(cl, object_tiles, occupied):
     """The copies: clusters of object tiles where no logged enemy stands, as objects of the pieces that stand on
     those tiles elsewhere (each at its usual offset)."""
@@ -1227,22 +1269,7 @@ def decor_jobs(cl, object_tiles, occupied):
     jobs = []
     for k, sl in enumerate(ndimage.find_objects(lab), 1):
         cells = [(r, c) for r in range(sl[0].start, sl[0].stop) for c in range(sl[1].start, sl[1].stop) if lab[r, c] == k]
-        pieces = []
-        for r, c in cells:
-            (letter, sprite, large, cx, cy), _ = table[int(cl.shapes[r, c])].most_common(1)[0]
-            x, y = cl.cell_box(r, c)
-            p = Piece()
-            p.letter, p.sprite, p.large, p.x, p.y = letter, sprite, large, x + cx, y + cy
-            p.pic, p.mask = picture(letter, sprite, large)
-            h, w = p.pic.shape
-            p.x0, p.y0 = int(round(p.x)) - w // 2, int(round(p.y)) - h // 2
-            win = cl.idx[max(p.y0, 0):p.y0 + h, max(p.x0, 0):p.x0 + w]
-            p.eq = np.zeros_like(p.mask)
-            if win.shape == p.pic.shape:
-                p.eq = (win == p.pic) & p.mask
-            p.cells = [(r, c)]
-            p.group = p.link = 0
-            pieces.append(p)
+        pieces = [table_piece(cl, table, r, c) for r, c in cells]
         r0, c0 = min(r for r, _ in cells), min(c for _, c in cells)
         r1, c1 = max(r for r, _ in cells) + 1, max(c for _, c in cells) + 1
         touch = np.zeros(((r1 - r0) * TILE_H, (c1 - c0) * TILE_W), bool)
