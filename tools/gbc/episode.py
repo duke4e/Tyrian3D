@@ -571,6 +571,48 @@ def enemies(spec, look):
     return events, placements, banks
 
 
+def with_drops(events, look, placements, pool=()):
+    """The pickups (the purple balls that power up the guns in Arcade, the guns of the arcade modes, coins): the
+    original level's drops (events 33 and 45: what the enemies of a link leave when shot down) in its order and
+    at its pace, each given to the GBC group spawned nearest the same share of the way to the boss (after its
+    spawn, by its link). (The GBC game has none of its own: its script has no such command.) Not the
+    originals' data cubes (the GBC story's are the episode's own) nor their warp orbs (secret levels). An original with none (DESERTRUN): the
+    first level of its pool with some."""
+    def drops_of(src):
+        # (and not the secret levels' warp orbs, value 10000 + the section they jump to: not this episode's)
+        en = src.enemies
+        return [e for e in src.events if e['type'] in (33, 45) and e['t'] < 60000 and e['d1'] not in (512, 513)
+                and not 10000 <= en.get(e['d1'], {}).get('value', 0) < 20000]
+    orig = drops_of(look)
+    for m in pool:
+        if orig:
+            break
+        look = waves.Source(*m)
+        orig = drops_of(look)
+    spawns = [i for i, e in enumerate(events) if e['type'] in (6, 7, 10, 12, 15) and e.get('d4') and 'ep' in e]
+    if not orig or not spawns:
+        return events
+    b = look.boss()
+    span_o = b['start'] if b else max(e['t'] for e in look.events if e['t'] < 60000)
+    span_g = placements[0]['start'] if placements else max(events[i]['t'] for i in spawns)
+    used, after = set(), {}
+    for e in orig:
+        want = min(1.0, e['t'] / max(1, span_o)) * span_g
+        free = [i for i in spawns if (events[i]['t'], events[i]['d4']) not in used]
+        if not free:
+            break
+        i = min(free, key=lambda i: (abs(events[i]['t'] - want), i))
+        used.add((events[i]['t'], events[i]['d4']))
+        # (533 and 534 are the game's own codes, a random special weapon: as they are, episode 5's numbers)
+        after.setdefault(i, []).append(dict(e, t=events[i]['t'], d4=events[i]['d4'],
+                                            ep=5 if e['d1'] in (533, 534) else look.episode))
+    out = []
+    for i, e in enumerate(events):
+        out.append(e)
+        out += after.get(i, [])
+    return out
+
+
 def make_level(spec):
     rows_gbc, img = gbc_level(spec['gbc'])
     gbc_map = rows_gbc['map']
@@ -602,6 +644,7 @@ def make_level(spec):
     events.append(dict(t=0, type=5, d1=(banks + [0] * 4)[0], d2=(banks + [0] * 4)[1], d3=(banks + [0] * 4)[2],
                        d5=0, d6=0, d4=(banks + [0] * 4)[3]))
     events.append(dict(t=0, type=13, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    enemy_events = with_drops(enemy_events, look, placements, spec.get('pool', []))
     events += enemy_events
     last = max([e['t'] for e in enemy_events] + [0])
     if not placements:

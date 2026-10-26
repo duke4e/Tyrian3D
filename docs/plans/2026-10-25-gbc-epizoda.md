@@ -57,6 +57,19 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 - Teren: autotile bira cijele redove (Viterbi) tako da parovi susjednih tileova budu kakve imaju
   originali; 3D teren ponovo izgrađen.
 
+## Šefovi, trgovina i načini igre (2026-10-26)
+
+- Šefovi: GBC šefovi su kod (skripta završava naredbom 06); `tools/gbc/bosses.py` snima kako izgledaju i
+  stavlja ih uz tijela PC šefova. Većinom su umanjeni PC šefovi drugih levela, pa leveli dobivaju te
+  (TYRIAN: ASSASSIN, ASTEROID i OASIS: ASTEROID2-ov tenk, SPACE: ICE EXIT-ova kliješta, SAVARA: zračni
+  brod SAVARA V, SAVARA II: crvena tvrđava SAVARA, ASTEROID2: kupola ASTEROID1, ICE EXIT i DELI CORE: lubanja
+  DREAD-NOT, DELIANI: brod s kliještima DELIANI). Ponašanje je skripta PC šefa (GBC-ov kod šefa nije
+  preveden u događaje: isti su šefovi, a PC skripte su potpune).
+- Trgovina: `tools/gbc/shop.py` čita ponudu GBC trgovine prije svakog levela (18 trgovina); `build.py` je
+  preslikava na PC predmete.
+- Načini igre: GBC nema vlastitih pickupova; leveli dobivaju ispuštanja svog originala (ljubičaste kugle,
+  oružja) raspoređena po GBC grupama.
+
 ## Otvoreno
 
 - GBC-ovi vlastiti bossovi. (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i

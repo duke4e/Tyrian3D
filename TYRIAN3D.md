@@ -371,6 +371,17 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   or at its event 11, 2400 to 6000 ticks of fight later (an unkillable boss: as long as its block, the
   final one's phases); the block's map restarts (4, 83) are left out. All 24 bosses checked by eye.
 * WARP (STARGATE's look, black, its stars off) is open space with the stars on, as the GBC level is.
+* The other game modes (Arcade, two players, timed battle, Super Arcade) find their pickups as the PC
+  levels give them, through drop events (33, and 45 for the arcade modes only: what the enemies of a
+  link leave when shot down: purple balls, value 30000, power up the guns in Arcade and are cash in the
+  full game; 30000 + N and 31000 + N the front and rear guns; 533/534 a random special): the GBC game
+  has none of its own (its script has no such command), so `episode.py` (`with_drops`) gives each level
+  its original's drops in their order and at their pace, each to the GBC group spawned nearest the same
+  share of the way to the boss (the first level of its pool with some where the original has none:
+  DESERTRUN), but not the originals' data cubes (the GBC story's are the episode's) nor their warp orbs
+  (value 10000 + a section: the originals' secret levels). Episode 7 is in those modes' episode menus as
+  in the full game's. Checked with `TYR3D_MODE=arcade`, `two`, `timed:1` and `super:1` on TYRIAN,
+  JUNGLE and DELI CORE.
 * A boss that passes by in its original (its map going on once it is gone: ASTEROID2's tank) stops once
   it is in and fights; one whose pieces are drawn damaged from the start (dani < 0) doesn't count as on
   screen, so it gets no end when clear (its level ends at its 11).
