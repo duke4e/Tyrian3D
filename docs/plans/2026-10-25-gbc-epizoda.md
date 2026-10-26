@@ -63,7 +63,16 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   crvena kliješta DELI levela su PC-ovi brodovi od 7 i 12 dijelova; rudarski toranj ASTEROID2 nema PC
   parnjaka, pa je prvi vlastiti neprijatelj epizode 7: model `gbc_derrick.py`, sprajtovi iz modela u
   listu W, `tools/content/gbc/new_enemies.json`.)
-- Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima).
+- Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima). Pokušano 2026-10-26: meko
+  podudaranje po udjelima materijala u 4x4 podćelija tilea (glatkije obale u LAVA i JUNGLE, ali gubi
+  strukturu: ASTEROID-ove rupe, DELICORE-ove zidove, SAVARA II otočiće) i hibrid s četvrtinama (sličan
+  sadašnjem, ICE EXIT dobiva redove čahura). Nijedno nije jasno bolje, pa je ostao sadašnji autotile
+  (Viterbi po parovima). Stepenice dolaze od malo dijagonalnih tileova u tilesetovima.
+- Svi šefovi provjereni na oko 2026-10-26: ostaju i bore se (vidi TYRIAN3D.md, boss fight).
+- GBC trgovina: ROM ima svoje nazive (oružja Pulse, Multi, Scatter, Sonic, Vulcan, Mega, Proton, Thunder,
+  Fireball, Rail, Chip, Hotdog, L.Ball, Ninja, Banana, Fruit, Pretzel, IcePick, Laser, PowerS, Poison, Hyper,
+  Arrow, Gumball, Plasma; brodovi Talon, Micros, Phoenx, Storm, Dragon, Carrot, UShip; generatori, štitovi,
+  sidekickovi, na 0xfc00). Napredovanje po levelima još nije iščitano; za odluku korisnika.
 
 ## Podaci i git
 
