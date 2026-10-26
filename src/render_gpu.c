@@ -260,6 +260,8 @@ static bool background_layer(L3DLayerType type)
 
 // The level's water colour (linear), for the procedural water.
 static float water_rgb[3] = { 0.02f, 0.06f, 0.12f };
+static float tile_fade;  // (the palette's fade the tiles are dimmed by: dim_by_fade)
+static float filter_dim = 1.0f;  // (and the game's darkening filter: the tiles' colours have it, the water's and clouds' not)
 
 static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
 {
@@ -271,9 +273,14 @@ static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
 	b->orm_texture = mask;
 	b->surface_time = glint_time;
 	b->surface_parameters0[0] = 1.0f;    // wave scale
-	b->surface_parameters0[1] = SDL_getenv("TYR3D_WATER_SUN") != NULL ? (float)SDL_atof(SDL_getenv("TYR3D_WATER_SUN")) : 1.0f;  // highlights
+	// (The water's colour and the sun's highlights fade with the palette and the game's darkening filter as the
+	// tiles do: a level starting comes up from dark by the filter, and its water showed at full brightness over
+	// dark tiles.)
+	const float fade = powf(SDL_clamp(tile_fade, 0.0f, 1.0f), 2.2f) * filter_dim;
+	b->surface_parameters0[1] = (SDL_getenv("TYR3D_WATER_SUN") != NULL ? (float)SDL_atof(SDL_getenv("TYR3D_WATER_SUN")) : 1.0f) * fade;  // highlights
 	b->surface_parameters0[2] = 900.0f;  // their sharpness
-	memcpy(b->surface_parameters1, water_rgb, sizeof(water_rgb));
+	for (int k = 0; k < 3; ++k)
+		b->surface_parameters1[k] = water_rgb[k] * fade;
 	b->surface_parameters1[3] = 0.3f;    // how much of the tiles' own waves show
 	if (SDL_getenv("TYR3D_DEBUG_WATER") != NULL)  // the water red, to see where it is
 	{
@@ -2935,7 +2942,7 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
  * step of the fade takes long with HD tiles. The game steps every colour by a share of its
  * distance, so the palette is (nearly) a uniform part of the full one.
  */
-static float tile_fade = 1.0f;
+static float tile_fade = 1.0f;  // (declared above, for set_glints)
 
 static bool uniform_fade(float *fade)
 {
@@ -2962,6 +2969,17 @@ static bool uniform_fade(float *fade)
 	}
 	*fade = SDL_min(f, 1.0f);
 	return true;
+}
+
+// The clouds by the game's darkening filter too (their colours are the full palette's).
+static void dim_by_filter(BTBHGPUSceneGeometryBatch *b)
+{
+	if (filter_dim >= 1.0f)
+		return;
+	const Uint8 k = (Uint8)lroundf(255.0f * SDL_clamp(filter_dim, 0.0f, 1.0f));
+	b->albedo_red = (Uint8)(b->albedo_red * k / 255);
+	b->albedo_green = (Uint8)(b->albedo_green * k / 255);
+	b->albedo_blue = (Uint8)(b->albedo_blue * k / 255);
 }
 
 static void dim_by_fade(BTBHGPUSceneGeometryBatch *b)
@@ -5677,6 +5695,7 @@ static void add_cloud_quad(int c, float height, float x_shift, float z_shift, fl
 	b->instance_count = 1;
 	b->albedo_texture = cloud_texture;
 	dim_by_fade(b);
+	dim_by_filter(b);
 	b->uv_scale_x = (float)cloud_canvases[c].w / CLOUD_TEXELS;
 	b->uv_scale_y = (float)cloud_canvases[c].h / (CLOUD_TEXELS * MAX_CLOUD_CANVASES);
 	b->uv_offset_y = (float)c / MAX_CLOUD_CANVASES;
@@ -5752,6 +5771,7 @@ static void add_cloud_puffs(const Camera3D *camera, int *instance_count, int *ba
 	b->instance_count = *instance_count - first;
 	b->albedo_texture = puff_texture;
 	dim_by_fade(b);
+	dim_by_filter(b);
 	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
 	b->unlit_enabled = 1;
 	b->transparency_enabled = 1;
@@ -10308,6 +10328,22 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// The colours the map's tiles are coloured with (and dimmed by tile_fade).
 	Uint32 tile_colors[256];
 	tile_fade = 1.0f;
+	// The game's darkening filter (a level comes up from dark by it): how much darker its colours are, in linear light.
+	filter_dim = 1.0f;
+	if (frame->filter_brightness != -99 && frame->filter_brightness < 0)
+	{
+		double now = 0, full = 0;
+		for (int i = 1; i < 256; ++i)
+		{
+			const Uint8 *a = (const Uint8 *)&colors[i], *b = (const Uint8 *)&rgb_palette[i];
+			for (int k = 0; k < 3; ++k)
+			{
+				now += srgb_to_linear(a[k]);
+				full += srgb_to_linear(b[k]);
+			}
+		}
+		filter_dim = full > 0 ? (float)SDL_min(now / full, 1.0) : 1.0f;
+	}
 	if (uniform_fade(&tile_fade))
 		frame_colors_of(frame, palette_fade_full, tile_colors);
 	else
