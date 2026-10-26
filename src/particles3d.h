@@ -3,7 +3,7 @@
  *
  * The game's explosions keep their sprites; in the 3D view each also throws out particles: a
  * flash, sparks, smoke and debris (chunks thrown up from the ground, shards of craft blown apart in the air)
- * that tumbles and falls back. The particles
+ * that tumbles and falls back, and on the ground a burnt mark that stays a few seconds. The particles
  * live in game screen coordinates with a height above the ground, drift with the explosions
  * (explodeMove) and are drawn as camera-facing quads by the renderer. They only show; they use
  * their own random numbers, so the game plays exactly the same.
@@ -15,7 +15,8 @@
 
 typedef enum
 {
-	P3D_SMOKE,  // drawn blended (first), billowing
+	P3D_SCORCH, // drawn blended (first), lying on the ground: the burnt mark a ground explosion leaves
+	P3D_SMOKE,  // drawn blended, billowing
 	P3D_GLOW,   // drawn additively: flashes, sparks, embers (soft dots)
 	P3D_FIRE,   // drawn additively: billowing fire (noisy puffs)
 	P3D_RING,   // drawn additively: shock waves

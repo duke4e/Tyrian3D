@@ -6419,6 +6419,28 @@ static float stand_relief(const MapAnchor *a, float x, float y)
 	return relief;
 }
 
+// Whether the ground (the frame's, stand) is water at the game point x, y as drawn: its tile's pixel there
+// is one of the level's water (b3d_water_pixel).
+static bool ground_water_at(float x, float y)
+{
+	MapAnchor a;
+	if (!stand.on || stand.background == NULL || !stand_anchor(stand.background, stand.shift, x, y, &a))
+		return false;
+	const float mx = a.column * B3D_TILE_W + (x - a.x), my = a.row * B3D_TILE_H + (y - stand.shift - a.z);
+	const int column = (int)floorf(mx / B3D_TILE_W), row = (int)floorf(my / B3D_TILE_H);
+	bool flipped;
+	const int cell = b3d_map_cell(stand.background->set, row, column, &flipped);
+	if (cell < 0 || cell >= B3D_CELLS)
+		return false;
+	const int set = cell / B3D_TILES_PER_SET + 1, tile = cell % B3D_TILES_PER_SET;
+	const Uint8 *pixels = b3d_tile_pixels(set, tile);
+	if (pixels == NULL)
+		return false;
+	const int px = SDL_clamp((int)floorf(mx - column * B3D_TILE_W), 0, B3D_TILE_W - 1);
+	const int py = SDL_clamp((int)floorf(my - row * B3D_TILE_H), 0, B3D_TILE_H - 1);
+	return b3d_water_pixel(set, tile, pixels[py * B3D_TILE_W + (flipped ? B3D_TILE_W - 1 - px : px)]);
+}
+
 // Whether a flat background has a pixel at the game point x, y of its plane as drawn (scrolled on by
 // shift since the tick), by a tile near it.
 static bool plane_has_pixel(const MapAnchor *a, float shift, float x, float y)
@@ -10144,7 +10166,8 @@ static void build_spotlight(const Layout3D *layout, float window_w, float window
 	btbh_gpu_texture_update_rgba8(spot_texture, (const uint8_t *)spot_rgba, 0, 0, SPOT_W, SPOT_H);
 }
 
-// Appends the particles (particles3d.h): glowing ones added to what is behind them, smoke blended.
+// Appends the particles (particles3d.h): glowing ones added to what is behind them, smoke and scorch marks
+// blended.
 static void add_particle_batches(int *instance_count, int *batch_count)
 {
 	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
@@ -10162,7 +10185,20 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 				t *= t;  // fire stays hot, then cools quickly
 			Mat4 transform = mat4_identity();
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
-			if (kind == P3D_RING)
+			if (kind == P3D_SCORCH)
+			{
+				// Lying on the ground, turned its own way (by its life); not on water.
+				if (ground_water_at(p->x, p->y + explodeMove * ahead))
+					continue;
+				// (The quad's x and up along the ground.)
+				const float angle = p->life * 2.39996f;
+				transform.m[0] = cosf(angle) * p->size;
+				transform.m[2] = sinf(angle) * p->size;
+				transform.m[4] = -sinf(angle) * p->size;
+				transform.m[5] = 0;
+				transform.m[6] = cosf(angle) * p->size;
+			}
+			else if (kind == P3D_RING)
 			{
 				// Lying on the ground: the quad's up along the screen's down.
 				transform.m[5] = 0;
@@ -10187,6 +10223,12 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			for (int c = 0; c < 3; ++c)
 				instance[16 + c] = srgb_to_linear((Uint8)(p->color[c] + (p->end_color[c] - p->color[c]) * t));
 			instance[19] = (p->color[3] + (p->end_color[3] - p->color[3]) * t) / 255.0f;
+			if (kind == P3D_SCORCH)
+			{
+				// Burnt in at once, holding, then fading in its last third; just above the ground.
+				instance[19] = p->color[3] / 255.0f * SDL_min(1.0f, (1 - t) / 0.35f);
+				instance[13] += 0.8f;
+			}
 			++*instance_count;
 		}
 		if (*instance_count == first)
@@ -10199,13 +10241,15 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 		b->first_instance = first;
 		b->instance_count = *instance_count - first;
 		b->albedo_texture = kind == P3D_RING ? ring_texture : kind == P3D_GLOW ? particle_texture : fire_texture;
-		b->billboard_mode = kind == P3D_RING ? BTBH_GPU_SCENE_BILLBOARD_DISABLED : BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		b->billboard_mode = kind == P3D_RING || kind == P3D_SCORCH ? BTBH_GPU_SCENE_BILLBOARD_DISABLED
+		                                                           : BTBH_GPU_SCENE_BILLBOARD_FRONT;
 		b->unlit_enabled = 1;
 		b->transparency_enabled = 1;
-		b->blend_mode = kind == P3D_SMOKE ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		const bool blended = kind == P3D_SMOKE || kind == P3D_SCORCH;
+		b->blend_mode = blended ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
 		// Fire and light aren't cut by the ground or the models they burst against (as the game
-		// draws explosions over everything); smoke is.
-		if (kind != P3D_SMOKE)
+		// draws explosions over everything); smoke and scorch marks are.
+		if (!blended)
 			b->depth_compare = BTBH_GPU_SCENE_DEPTH_ALWAYS;
 	}
 }

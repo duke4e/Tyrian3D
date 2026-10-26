@@ -122,6 +122,18 @@ static void debris(float x, float y, float height, int count)
 	}
 }
 
+// The burnt mark a ground explosion leaves, which stays a few seconds and fades.
+static void scorch(float x, float y, float size)
+{
+	P3DParticle *p = spawn(P3D_SCORCH, x + random_range(-2, 2), y + random_range(-2, 2), 0);
+	if (p == NULL)
+		return;
+	p->size = size * random_range(0.85f, 1.15f);
+	p->age = -4;  // (under the fireball, once it has burst)
+	p->life = random_range(220, 280);
+	set_colors(p, 14, 10, 7, 255, 14, 10, 7, 0);
+}
+
 // Shards of a craft blown apart in the air: bits of grey plating that tumble down to the ground.
 static void shards(float x, float y, float height, int count)
 {
@@ -341,6 +353,7 @@ bool p3d_explosion(int x, int y, int type)
 		sparks(cx, cy, 8, 6, 2.8f);
 		embers(cx, cy, 6, 5, 1.5f);
 		debris(cx, cy, 6, 5);
+		scorch(cx, cy, 28);
 		plume(cx, cy, 8, 3, 18, 40);
 		if (type == 5)  // once, at the middle of the four
 			shock_ring(cx - 6, cy - 7, 2, 90, 16);
