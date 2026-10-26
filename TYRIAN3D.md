@@ -632,6 +632,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   fluttering; in open space (the starfield on) faint dust streams by
   at every depth as the ship flies on. Five bands of heights, each spread over what the camera sees there;
   Effects only.
+- **Gulls** (`render_gpu.c` `add_bird_batch`; `assets/models/terrain.cfg` "birds <level>"): over the sea levels
+  (SAVARA, CORAL, DIG SITE, REEF) a few flocks of gulls fly in a loose V each, their own heading and height,
+  beating their wings and gliding by turns, their shadows on the water; Effects only.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each

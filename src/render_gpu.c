@@ -105,6 +105,7 @@ static BTBHGPUTexture *fire_texture = NULL;      // a billowing puff (fire and s
 static BTBHGPUTexture *ring_texture = NULL;      // a soft ring (shock waves)
 static BTBHGPUTexture *nebula_texture = NULL;    // a patch of nebula (add_nebula_batch)
 static BTBHGPUTexture *leaf_texture = NULL;      // a leaf (add_weather_batch's leaves)
+static BTBHGPUTexture *gull_texture = NULL;      // a gull seen from above (add_bird_batch)
 static BTBHGPUTexture *world_textures[J3D_TEXTURES];  // the distant planets' surfaces, wrapping round (add_planet_batch)
 static BTBHGPUCustomMesh *world_mesh = NULL;
 static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
@@ -727,6 +728,34 @@ static BTBHGPUTexture *create_leaf_texture(void)
 	return texture;
 }
 
+// A gull seen from above (white: the instances colour it), its wings spread along the texture's x, its head up
+// the texture (towards -y): swept-back wings narrowing to dark tips, its body, head and tail across them.
+static BTBHGPUTexture *create_gull_texture(void)
+{
+	enum { W = 64, H = 32 };
+	static Uint32 pixels[W * H];
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x)
+		{
+			const float u = (x + 0.5f) / W * 2 - 1, v = (y + 0.5f) / H * 2 - 1;  // u across, v down the texture
+			// Its wings: the leading edge swept back towards the tips, more so past the wrist; narrowing out.
+			const float au = fabsf(u);
+			const float edge = -0.35f + 0.25f * au + (au > 0.5f ? 0.5f * (au - 0.5f) : 0.0f);
+			const float chord = 0.7f * (1 - au * 0.7f);
+			const float wing = SDL_min(v - edge, edge + chord - v) / 0.5f;  // (v's units are half as many pixels)
+			// Its body, head and tail along v.
+			const float body = 1 - sqrtf((u / 0.09f) * (u / 0.09f) + (v / 0.85f) * (v / 0.85f));
+			const float inside = SDL_max(wing * 0.25f, body * 0.06f) * (au < 0.97f);
+			const float a = SDL_clamp(inside / 0.03f, 0.0f, 1.0f);
+			const Uint8 shade = (Uint8)(255 * (au > 0.8f ? 0.5f : 1.0f));  // (dark wingtips)
+			const Uint8 rgba[4] = { shade, shade, shade, (Uint8)(255 * a) };
+			memcpy(&pixels[y * W + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(W, H, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, W, H);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
@@ -817,6 +846,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	ring_texture = create_ring_texture();
 	nebula_texture = create_nebula_texture();
 	leaf_texture = create_leaf_texture();
+	gull_texture = create_gull_texture();
 	fade_meshes[0] = create_quad_mesh(B3D_BEYOND_FADE, 1);
 	fade_meshes[1] = create_quad_mesh(1, B3D_BEYOND_FADE);
 
@@ -850,6 +880,7 @@ void rgpu_shutdown(void)
 	ring_texture = NULL;
 	nebula_texture = NULL;
 	leaf_texture = NULL;
+	gull_texture = NULL;
 	memset(world_textures, 0, sizeof(world_textures));
 	world_mesh = NULL;
 	puff_texture = NULL;
@@ -4379,7 +4410,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + 2 + WEATHER_FLAKES + MAX_PLANTS + MAX_CLOUD_PUFFS)
+                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + 2 + WEATHER_FLAKES + 32 + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
@@ -10295,6 +10326,100 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
+/*
+ * Gulls over the sea levels (b3d_birds, Effects only): a few flocks, each in a loose V, flying their own heading over
+ * the water at a height of their own, wings beating and gliding by turns; they come round again across the view.
+ */
+#define BIRD_FLOCKS 3
+#define BIRDS_PER_FLOCK 5
+
+static void add_bird_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights, int *instance_count,
+                           int *batch_count)
+{
+	if (!b3d_birds() || !settings3d.effects || *batch_count >= MAX_BATCHES)
+		return;
+	float ground = heights[0];
+	for (int l = 0; l < frame->layer_count; ++l)
+		if (frame->layers[l].type == L3D_GROUND)
+			ground = heights[l];
+	const float t = (l3d_frame_number + ahead) / 35.0f;
+	const int first = *instance_count;
+	for (int f = 0; f < BIRD_FLOCKS; ++f)
+	{
+		const Uint32 seed = hash32((Uint32)f * 7919u + 1234u);
+		const float height = ground + (26.0f + 16.0f * hash_unit(seed)) * rgpu_camera.height_scale;
+		float rect[4];
+		plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+		if (rect[0] > rect[2] || rect[1] >= rect[3])
+			continue;
+		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+		// Its heading: across the screen, one way or the other, a little up or down it.
+		const float heading = (hash_unit(seed + 1) < 0.5f ? 0.0f : (float)M_PI) + (hash_unit(seed + 2) - 0.5f) * 1.2f;
+		const float dx = cosf(heading), dz = sinf(heading);
+		const float speed = 14.0f + 8.0f * hash_unit(seed + 3);
+		// Round again after crossing the view and as much again (the scroll carries them down the screen too).
+		const float span_x = w * 2, span_z = h * 2;
+		const float cx = rect[0] - w * 0.5f + fmodf(hash_unit(seed + 4) * span_x + dx * speed * t + span_x * 64, span_x);
+		const float cz = rect[1] - h * 0.5f + fmodf(hash_unit(seed + 5) * span_z + dz * speed * t + span_z * 64, span_z);
+		for (int b = 0; b < BIRDS_PER_FLOCK && *instance_count < MAX_INSTANCES; ++b)
+		{
+			const Uint32 bs = hash32(seed + (Uint32)b * 31u);
+			// A loose V behind the leader.
+			const int rank = (b + 1) / 2, side = b % 2 ? 1 : -1;
+			const float back = rank * 14.0f + hash_unit(bs) * 4.0f, out = side * rank * 12.0f + (hash_unit(bs + 1) - 0.5f) * 4.0f;
+			const float x = cx - dx * back - dz * out, z = cz - dz * back + dx * out;
+			// Beating its wings a while, then gliding (the span squeezes as the wings beat).
+			const float phase = t * 1.3f + hash_unit(bs + 2) * 6.2832f;
+			const float beating = sinf(phase * 0.35f) > -0.2f ? 1.0f : 0.0f;
+			const float flap = beating * sinf(phase * 6.0f);
+			const float span = 15.0f + 4.0f * hash_unit(bs + 3);
+			Mat4 transform = mat4_identity();
+			// (The texture's x along the wings, its -y the head: turned to the heading.)
+			const float fx = -dz, fz = dx;  // its right
+			transform.m[0] = fx * span * (0.75f + 0.25f * flap);
+			transform.m[2] = fz * span * (0.75f + 0.25f * flap);
+			transform.m[4] = dx * span * 0.5f;
+			transform.m[6] = dz * span * 0.5f;
+			transform.m[5] = 0;
+			transform.m[8] = 0, transform.m[9] = 1, transform.m[10] = 0;
+			transform.m[12] = x;
+			transform.m[13] = height + flap * 0.6f;
+			transform.m[14] = z;
+			float *instance = instances + *instance_count * 24;
+			write_instance_world(instance, &transform, 1.0f);
+			for (int c = 0; c < 3; ++c)
+				instance[16 + c] = 0.82f;
+			instance[19] = 1;
+			++*instance_count;
+			// Its shadow on the water, cast along the sun's light.
+			if (*instance_count < MAX_INSTANCES)
+			{
+				const float drop = (transform.m[13] - ground) / SDL_max(-sun_direction[1], 0.2f);
+				transform.m[12] += sun_direction[0] * drop;
+				transform.m[13] = ground + 0.5f;
+				transform.m[14] += sun_direction[2] * drop;
+				instance = instances + *instance_count * 24;
+				write_instance_world(instance, &transform, 1.0f);
+				instance[16] = instance[17] = instance[18] = 0;
+				instance[19] = 0.28f;
+				++*instance_count;
+			}
+		}
+	}
+	if (*instance_count == first)
+		return;
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = gull_texture;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
+}
+
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
 // A composed background 1 has the stars in it already.
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -11363,6 +11488,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int end_space_batch = batch_count;
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);
 	add_weather_batch(frame, &camera, heights, &instance_count, &batch_count);
+	add_bird_batch(frame, &camera, heights, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);

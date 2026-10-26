@@ -1354,6 +1354,8 @@ static struct
 	B3DWeather weather;
 } weathers[64];
 static int weather_count = 0;
+static char bird_levels[16][16];  // terrain.cfg "birds <level name or its beginning>"
+static int bird_level_count = 0;
 
 static void load_terrain_config(void)
 {
@@ -1377,6 +1379,8 @@ static void load_terrain_config(void)
 			water_sets[water_set_count].plain = plain;
 			++water_set_count;
 		}
+		if (sscanf(line, " birds %15[^\r\n]", name) == 1 && bird_level_count < (int)COUNTOF(bird_levels))
+			SDL_strlcpy(bird_levels[bird_level_count++], name, sizeof(bird_levels[0]));
 		char kind[16];
 		if (sscanf(line, " weather %15s %15[^\r\n]", kind, name) == 2 && weather_count < (int)COUNTOF(weathers))
 		{
@@ -1393,6 +1397,22 @@ static void load_terrain_config(void)
 		}
 	}
 	fclose(f);
+}
+
+bool b3d_birds(void)
+{
+	static unsigned int made_for = 0;  // b3d_map_generation + 1
+	static bool birds = false;
+	if (made_for != b3d_map_generation + 1)
+	{
+		made_for = b3d_map_generation + 1;
+		if (water_set_count < 0)
+			load_terrain_config();
+		birds = false;
+		for (int i = 0; i < bird_level_count && !birds; ++i)
+			birds = SDL_strncasecmp(levelName, bird_levels[i], SDL_strlen(bird_levels[i])) == 0;
+	}
+	return birds;
 }
 
 B3DWeather b3d_weather(void)

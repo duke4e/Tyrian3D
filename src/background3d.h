@@ -186,6 +186,8 @@ typedef enum
 } B3DWeather;
 
 B3DWeather b3d_weather(void);
+// Whether gulls fly over the level (terrain.cfg "birds <level>").
+bool b3d_birds(void);
 
 /*
  * Terrain (polish): heights for a whole map, computed offline from its surfaces
