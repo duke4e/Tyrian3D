@@ -117,7 +117,7 @@ mouse works on the panels (hover, click, the wheel moves through the items, the 
 and scrolls a data cube's text), the keys and the joystick as ever; when the joystick was used
 last, the key hints show its pad and buttons. The store's next-level map is the UI's own (`ui.c` `shop_map`, from what `game_menu.c` publishes of
 `JE_updateNavScreen`'s planets, routes and grid): deep space, a faint brass grid scrolling at half the planets' pace,
-the routes' dots (the selected route lit as far as it has come), the planets drawn anew, a pulsing brass ring round the
+the routes' dots (the selected route lit as far as it has come), the planets as 3D spheres turning (below), a pulsing brass ring round the
 selected destination and a faint one where the ship is. In the store one click chooses (the original's first
 click only selects; `shop_one_click`), but a part's choices, where the first click tries one on the
 ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games.
@@ -835,7 +835,12 @@ window's colour and the new face shows over the portrait, fading with its palett
 the modern UI and the old store with the 3D view; only the face shown is loaded). `pictures/portrait_frame.png` is the
 portrait's frame round them drawn anew (the export's `face_frame.png` through `tools/upscale_sprites.py` with
 4x-BigFArt-Detail, cut to the portrait by `tools/hd_pictures.py --frame-hd <the upscale>`): drawn over the frame, under
-the face, where the store's screen shows it (`find_hd_frame`). `pictures/face_none.png` is what the window shows for a
+the face, where the store's screen shows it (`find_hd_frame`). `planets/planet3d_<first sprite>.png` are the map's turning planets as 3D spheres (`tools/planets3d.py`: each
+planet's surface put together from its 15 frames of a turn, the meridian each frame faces a slice of it, its painted
+light evened out and its poles faded into the colour round them, rendered anew lit from the upper left with its
+night side, a rim and halo of air, in 48 frames); wherever the UI shows a turning planet's frame (the store's map,
+the rogue run's map) its sphere turns instead, one turn in 40 seconds, crossfaded frame to frame (`render_gpu.c`
+`planet3d_quad`; the asteroid fields and the unknown "?" stay sprites). `pictures/face_none.png` is what the window shows for a
 cube without a face (a message, a guide): a hologram of a data cube in amber (`tools/make_empty_face.py` writes it into
 `export/legacy`, `tools/hd_pictures.py` fits it as the faces), shown where the frame shows round an empty window. `icons/` holds the modern UI's icons drawn anew (`shop_`, `ship_`,
 `shipt_`, `ship_s_`, `special_`, `option_`, `planet_<sprite>.png`): the export's `icons/` (the store's items as its cards

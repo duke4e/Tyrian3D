@@ -1949,8 +1949,75 @@ void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x,
 		icon_quad(slot, x, y, w, h, alpha);
 }
 
+/*
+ * The map's turning planets as 3D spheres (data/hd/planets/planet3d_<first sprite>.png, tools/planets3d.py: the
+ * planet's surface put together from its 15 frames, rendered anew as a lit, turning sphere with its atmosphere, in
+ * PLANET3D_FRAMES frames): wherever the UI shows one of a turning planet's frames (the store's map, the rogue run's
+ * map), its sphere turns there instead, a turn every PLANET3D_TURN seconds, frame to frame crossfaded.
+ */
+#define PLANET3D_FRAMES 48
+#define PLANET3D_COLUMNS 8
+#define PLANET3D_ROWS 6
+#define PLANET3D_RADIUS 0.78f  // the disc's radius, of a frame's half
+#define PLANET3D_TURN 40.0f
+
+static const int planet3d_first[] = { 3, 19, 35, 51, 67, 83, 99, 115, 131 };
+static struct
+{
+	bool looked;
+	BTBHGPUTexture *texture;
+} planet3d[SDL_arraysize(planet3d_first)];
+
+static bool planet3d_quad(unsigned int sprite, float x, float y, float w, float h, float alpha)
+{
+	int g = -1;
+	for (int i = 0; i < (int)SDL_arraysize(planet3d_first) && g < 0; ++i)
+		if ((int)sprite >= planet3d_first[i] - (i > 0) && (int)sprite <= planet3d_first[i] + 14)  // (16 a planet but the first's)
+			g = i;
+	if (g < 0 || window == NULL)
+		return false;
+	if (!planet3d[g].looked)
+	{
+		planet3d[g].looked = true;
+		char dir[1024], path[1200];
+		const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+		snprintf(path, sizeof(path), "%s/planets/planet3d_%d.png", base, planet3d_first[g]);
+		if (SDL_GetPathInfo(path, NULL))
+		{
+			BTBHGPUTextureReport report;
+			planet3d[g].texture = btbh_gpu_window_texture_load_ex(window, path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+			                                                      BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		}
+	}
+	if (planet3d[g].texture == NULL)
+		return false;
+	// The disc as wide as the sprite's (its mean size), the frame round it room for the halo; each planet its own
+	// place in the turn.
+	const float d = (w + h) / 2 / PLANET3D_RADIUS;
+	const float qx = x + w / 2 - d / 2, qy = y + h / 2 - d / 2;
+	const float turn = fmodf(SDL_GetTicks() / 1000.0f / PLANET3D_TURN + g * 0.37f, 1.0f) * PLANET3D_FRAMES;
+	const int k0 = (int)turn % PLANET3D_FRAMES, k1 = (k0 + 1) % PLANET3D_FRAMES;
+	const float f = turn - floorf(turn);
+	for (int i = 0; i < 2; ++i)
+	{
+		const int k = i == 0 ? k0 : k1;
+		const float a = i == 0 ? alpha : alpha * f;
+		if (a <= 0.001f)
+			continue;
+		HudQuad *q = hud_quad_add();
+		if (q == NULL)
+			return true;
+		const float u0 = (float)(k % PLANET3D_COLUMNS) / PLANET3D_COLUMNS, v0 = (float)(k / PLANET3D_COLUMNS) / PLANET3D_ROWS;
+		*q = (HudQuad){ qx, qy, d, d, u0, v0, u0 + 1.0f / PLANET3D_COLUMNS, v0 + 1.0f / PLANET3D_ROWS, { 1, 1, 1, a }, { 1, 1, 1, a },
+		                .texture = planet3d[g].texture };
+	}
+	return true;
+}
+
 void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, float y, float w, float h, float alpha)
 {
+	if (table == PLANET_SHAPES && planet3d_quad(sprite, x, y, w, h, alpha))
+		return;
 	const int slot = icon_slot(NULL, table, sprite, false);
 	if (slot < 0)
 		return;
