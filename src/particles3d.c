@@ -335,11 +335,43 @@ static void plume(float x, float y, float height, int count, float size, Uint8 g
 	}
 }
 
-void p3d_trail(float x, float y, float dx, float dy, float height)
+void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind, float span)
 {
 	const float speed = sqrtf(dx * dx + dy * dy);
 	if (speed < 0.5f)
 		return;
+	if (kind == P3D_TRAIL_VAPOUR)
+	{
+		// From the wingtips, a little behind them, lingering and spreading; the engine glowing between. Puffs
+		// every pixel and a half along the way it came this frame, so the trails are lines, not beads.
+		const float ux = dx / speed, uy = dy / speed;
+		const int steps = SDL_min(8, (int)ceilf(speed / 1.5f));
+		for (int k = 0; k < steps; ++k)
+		{
+			const float back = 3.0f + speed * k / steps;
+			for (int side = -1; side <= 1; side += 2)
+			{
+				P3DParticle *p = spawn(P3D_SMOKE, x - ux * back - uy * span / 2 * side, y - uy * back + ux * span / 2 * side, height);
+				if (p == NULL)
+					return;
+				p->vx = random_range(-0.03f, 0.03f);
+				p->vy = random_range(-0.03f, 0.03f);
+				p->drag = 0.9f;
+				p->size = random_range(2.6f, 3.2f);
+				p->grow = 0.1f;
+				p->life = random_range(18, 24) - k * 0.5f;
+				set_colors(p, 235, 240, 245, 42, 235, 240, 245, 0);
+			}
+		}
+		P3DParticle *glow = spawn(P3D_GLOW, x - ux * 6.0f, y - uy * 6.0f, height);
+		if (glow != NULL)
+		{
+			glow->size = random_range(4.0f, 5.5f);
+			glow->life = 2;
+			set_colors(glow, 255, 170, 80, 200, 255, 110, 40, 0);
+		}
+		return;
+	}
 	// Behind its motor, a little off its line, drifting slowly as it thins out.
 	const float bx = x - dx / speed * 5.0f, by = y - dy / speed * 5.0f;
 	P3DParticle *p = spawn(P3D_SMOKE, bx + random_range(-0.6f, 0.6f), by + random_range(-0.6f, 0.6f), height);

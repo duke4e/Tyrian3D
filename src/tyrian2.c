@@ -475,6 +475,10 @@ static bool draw_enemy_model(unsigned int i)
 	if (added)
 		l3d_appear_last_object(shown);
 	look.glow_strength *= shown;
+	// Jets (models.cfg "trail") leave contrails as they fly in the sky (with Effects).
+	if (added && look.trail && settings3d.effects && shown >= 1 && l3d_current_layer() != L3D_GROUND_ENEMY)
+		p3d_trail(x, y, vx, vy, l3d_layer_height(l3d_current_layer()) - l3d_terrain_headroom, P3D_TRAIL_VAPOUR,
+		          large ? 20.0f : 10.0f);
 	if (look.glow_size != 0)
 	{
 		const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;

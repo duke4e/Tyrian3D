@@ -626,7 +626,7 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	l3d_last_glow_velocity(vx, vy);
 	// Missiles leave smoke (with Effects; at the shots' height, the particles adding the terrain's room).
 	if (look.trail && settings3d.effects && (vx != 0 || vy != 0))
-		p3d_trail(x + 6.0f, y + 7.0f, vx, vy, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
+		p3d_trail(x + 6.0f, y + 7.0f, vx, vy, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom, P3D_TRAIL_SMOKE, 0);
 	return true;
 }
 

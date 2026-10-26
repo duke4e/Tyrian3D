@@ -67,9 +67,15 @@ float p3d_light_energy(const P3DLight *light, float ahead);
 // (explosions, hits, smoke): the 3D view then leaves the sprite out.
 bool p3d_explosion(int x, int y, int type);
 
-// A missile's smoke trail: a puff behind it (x, y its centre, dx, dy how far it moved this frame) and a
-// spark of its motor, at that height above the ground. Called every frame it flies.
-void p3d_trail(float x, float y, float dx, float dy, float height);
+// A trail behind what flies (x, y its centre, dx, dy how far it moved this frame), at that height above the
+// ground; called every frame it flies. Smoke: a missile's puff and its motor's spark; vapour: a jet's two
+// thin white contrails from its wingtips (span: their distance apart) and its engine's glow.
+typedef enum
+{
+	P3D_TRAIL_SMOKE,
+	P3D_TRAIL_VAPOUR,
+} P3DTrail;
+void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind, float span);
 
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range
