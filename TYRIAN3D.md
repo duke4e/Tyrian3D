@@ -1018,7 +1018,8 @@ render cache (about 400 MB) beside them in `data/voices`. The voices chosen are 
 `adopted_preview`); the account's 30 custom voices hold the 28 and the user's own. The Game Boy Color
 episode's 20 cubes (episode 7, from `assets/content/episode7` when it has been built from the user's ROM;
 local corrections such as 7:11's "your're" in `data/voices/overrides.json`) were rendered 2026-10-26 with the
-same voices (3,180 credits); its 9 story texts are in the script but not rendered.
+same voices (3,180 credits), its story text and end hints on the same day (207 credits; the 8 hints are 3 texts
+repeated, and a voice is found by its text, so 3 were rendered).
 another take of a cube is `generate.py generate --retake E:N`, a speaker's tempo its `settings.speed`
 and `generate.py build --only ...` (from the cache, free).
 
