@@ -487,10 +487,12 @@ bool p3d_explosion(int x, int y, int type)
 		sparks(cx, cy, 8, 6, 2.8f);
 		embers(cx, cy, 6, 5, 1.5f);
 		debris(cx, cy, 6, 5);
-		scorch(cx, cy, 28);
 		plume(cx, cy, 8, 3, 18, 40);
 		if (type == 5)  // once, at the middle of the four
+		{
 			shock_ring(cx - 6, cy - 7, 2, 90, 16);
+			scorch(cx - 6, cy - 7, 36);
+		}
 		light(cx, cy, 12, 56, 5.5f, 12);
 		return true;
 	case 6:  // white smoke

@@ -104,6 +104,8 @@ static BTBHGPUTexture *particle_texture = NULL;  // a soft round dot
 static BTBHGPUTexture *fire_texture = NULL;      // a billowing puff (fire and smoke particles)
 static BTBHGPUTexture *ring_texture = NULL;      // a soft ring (shock waves)
 static BTBHGPUTexture *nebula_texture = NULL;    // a patch of nebula (add_nebula_batch)
+static BTBHGPUTexture *world_textures[J3D_TEXTURES];  // the distant planets' surfaces, wrapping round (add_planet_batch)
+static BTBHGPUCustomMesh *world_mesh = NULL;
 static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
 // Filtered backgrounds composed on the CPU (background3d.h): a square slot per background.
 #define COMPOSED_SIZE 1024
@@ -820,6 +822,8 @@ void rgpu_shutdown(void)
 	fire_texture = NULL;
 	ring_texture = NULL;
 	nebula_texture = NULL;
+	memset(world_textures, 0, sizeof(world_textures));
+	world_mesh = NULL;
 	puff_texture = NULL;
 	billboard_mesh = NULL;
 	composed_texture = NULL;
@@ -4347,12 +4351,12 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + WEATHER_FLAKES + MAX_PLANTS + MAX_CLOUD_PUFFS)
+                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + 2 + WEATHER_FLAKES + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
 #define MAX_TERRAIN_ROW_DRAWS 192
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + MAX_TERRAIN_ROW_DRAWS + 8)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + MAX_TERRAIN_ROW_DRAWS + 14)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -10038,6 +10042,191 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
+/*
+ * A distant planet under deep space, deeper than the nebula: a sphere with one of the jukebox's planet surfaces
+ * (by the level's background 1 map: which surface, its tint, size and place), its axis lying along the screen so its
+ * bands run across, turning slowly (its texture wraps round), drifting by far slower than the stars and coming round
+ * again after a long while. Lit as the models are lit, from the sun, its shading baked into the mesh's colours (it is
+ * unlit, so no shadow of the level falls so deep); a halo of its atmosphere round it. Effects only.
+ */
+#define WORLD_DEPTH 1700.0f  // game pixels below the game's stars
+#define WORLD_TILT 0.35f     // its axis leans this much towards the camera
+
+static void world_axes(float x[3], float y[3], float z[3])
+{
+	// Local y (the poles) up the screen and a little towards the camera, local x along the screen's x.
+	const float len = sqrtf(1 + WORLD_TILT * WORLD_TILT);
+	x[0] = 1, x[1] = 0, x[2] = 0;
+	y[0] = 0, y[1] = WORLD_TILT / len, y[2] = -1 / len;
+	z[0] = x[1] * y[2] - x[2] * y[1];
+	z[1] = x[2] * y[0] - x[0] * y[2];
+	z[2] = x[0] * y[1] - x[1] * y[0];
+}
+
+static BTBHGPUCustomMesh *create_world_mesh(void)
+{
+	enum { SLICES = 64, STACKS = 32, VERTICES = (SLICES + 1) * (STACKS + 1) };
+	static float vertices[VERTICES * 24];
+	static uint32_t indices[SLICES * STACKS * 6];
+	float ax[3], ay[3], az[3];
+	world_axes(ax, ay, az);
+	float light[3] = { -sun_direction[0], -sun_direction[1], -sun_direction[2] };
+	const float ll = sqrtf(light[0] * light[0] + light[1] * light[1] + light[2] * light[2]);
+	for (int c = 0; c < 3; ++c)
+		light[c] /= ll;
+	int v = 0;
+	for (int j = 0; j <= STACKS; ++j)
+		for (int i = 0; i <= SLICES; ++i, ++v)
+		{
+			const float lat = (float)M_PI * j / STACKS, lon = 2 * (float)M_PI * i / SLICES;
+			const float n[3] = { sinf(lat) * cosf(lon), cosf(lat), sinf(lat) * sinf(lon) };
+			float *out = &vertices[v * 24];
+			memset(out, 0, 24 * sizeof(float));
+			memcpy(out, n, sizeof(n));
+			memcpy(out + 3, n, sizeof(n));
+			out[6] = (float)i / SLICES;
+			out[7] = (float)j / STACKS;
+			out[8] = 1, out[11] = 1;
+			// Lit by the sun: its normal in the world (as the instance turns it), a soft terminator, a faint night.
+			const float wn[3] = { ax[0] * n[0] + ay[0] * n[1] + az[0] * n[2], ax[1] * n[0] + ay[1] * n[1] + az[1] * n[2],
+			                      ax[2] * n[0] + ay[2] * n[1] + az[2] * n[2] };
+			const float d = wn[0] * light[0] + wn[1] * light[1] + wn[2] * light[2];
+			const float t = SDL_clamp((d + 0.15f) / 0.6f, 0.0f, 1.0f);
+			const float lit = 0.05f + 0.95f * t * t * (3 - 2 * t);
+			out[12] = out[13] = out[14] = lit;
+			out[15] = 1;
+		}
+	int k = 0;
+	for (int j = 0; j < STACKS; ++j)
+		for (int i = 0; i < SLICES; ++i)
+		{
+			const uint32_t a = (uint32_t)(j * (SLICES + 1) + i), b = a + 1, c = a + SLICES + 1, d = c + 1;
+			indices[k++] = a, indices[k++] = c, indices[k++] = b;
+			indices[k++] = b, indices[k++] = c, indices[k++] = d;
+		}
+	BTBHGPUCustomMeshReport report;
+	BTBHGPUCustomMesh *mesh = btbh_gpu_window_custom_mesh_create(window, vertices, sizeof(vertices), VERTICES, indices,
+	                                                             (uint32_t)k, &report);
+	if (mesh == NULL)
+		fprintf(stderr, "warning: planet mesh: %s\n", report.message);
+	return mesh;
+}
+
+static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
+                             int *instance_count, int *batch_count)
+{
+	if (frame->star_count == 0 || !settings3d.effects || *batch_count + 2 > MAX_BATCHES || stars_covered() ||
+	    *instance_count + 2 > MAX_INSTANCES)
+		return;
+
+	// The level's planet, and where its drift began (the deep stars' scroll when the level's map came).
+	static unsigned int seeded_for = 0;  // b3d_map_generation + 1
+	static Uint32 level = 0;
+	static float scroll_start = 0;
+	if (seeded_for != b3d_map_generation + 1)
+	{
+		seeded_for = b3d_map_generation + 1;
+		const Uint64 map = b3d_map_hash(1);
+		level = hash32((Uint32)map ^ (Uint32)(map >> 32) ^ 0x5bd1e995u);
+		scroll_start = deep_star_scroll;
+	}
+	static const struct
+	{
+		J3DTexture texture;
+		float tint[3];
+	} kinds[] = {
+		{ J3D_TEXTURE_GAS_GIANT, { 1.0f, 1.0f, 1.0f } },
+		{ J3D_TEXTURE_GAS_GIANT, { 1.15f, 0.8f, 0.6f } },   // rust and cream
+		{ J3D_TEXTURE_GAS_GIANT, { 0.85f, 0.75f, 1.15f } }, // violet
+		{ J3D_TEXTURE_TERRAN, { 1.0f, 1.0f, 1.0f } },
+		{ J3D_TEXTURE_TERRAN, { 1.1f, 0.9f, 0.7f } },       // an arid world
+	};
+	const int kind = (int)(level % SDL_arraysize(kinds));
+	const J3DTexture texture = kinds[kind].texture;
+	if (world_textures[texture] == NULL)
+	{
+		int tw, th;
+		const Uint32 *pixels = jukebox3d_planet_texture(texture, &tw, &th);
+		BTBHGPUTextureReport report;
+		world_textures[texture] = btbh_gpu_window_texture_create_rgba8_ex(
+			window, (const uint8_t *)pixels, (uint32_t)tw, (uint32_t)th, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+			BTBH_GPU_TEXTURE_WRAP_REPEAT, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+	}
+	if (world_mesh == NULL)
+		world_mesh = create_world_mesh();
+	if (world_textures[texture] == NULL || world_mesh == NULL)
+		return;
+
+	const float height = heights[frame->star_layer] - stars_below_layer() - WORLD_DEPTH * rgpu_camera.height_scale;
+	float rect[4];
+	plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+	if (rect[0] > rect[2] || rect[1] >= rect[3])
+		return;
+	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+	const float radius = w * (0.11f + 0.08f * hash_unit(level + 1));
+	// Down the screen at a tenth of the stars' pace, a long gap before it comes round; first seen up the view.
+	const float span = h + 2 * radius + h;
+	const float drift = (deep_star_scroll - scroll_start + (2.0f + starfield_speed) * ahead) * 0.1f;
+	const float cx = rect[0] + w * (0.2f + 0.6f * hash_unit(level + 2));
+	const float cz = rect[1] - radius + fmodf(radius + h * 0.35f + drift, span);
+	if (cz - radius > rect[3] || cz + radius < rect[1])
+		return;
+
+	float ax[3], ay[3], az[3];
+	world_axes(ax, ay, az);
+	Mat4 transform = mat4_identity();
+	for (int c = 0; c < 3; ++c)
+	{
+		transform.m[c] = ax[c] * radius;
+		transform.m[4 + c] = ay[c] * radius;
+		transform.m[8 + c] = az[c] * radius;
+	}
+	transform.m[12] = cx;
+	transform.m[13] = height;
+	transform.m[14] = cz;
+	const int first = *instance_count;
+	float *instance = instances + *instance_count * 24;
+	write_instance_world(instance, &transform, 1.0f);
+	for (int c = 0; c < 3; ++c)
+		instance[16 + c] = kinds[kind].tint[c];
+	++*instance_count;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = world_mesh;
+	b->first_instance = first;
+	b->instance_count = 1;
+	b->albedo_texture = world_textures[texture];
+	b->uv_offset_x = fmodf((l3d_frame_number + ahead) * 0.00004f, 1.0f);  // (turning)
+	b->unlit_enabled = 1;
+	b->cull_mode = BTBH_GPU_SCENE_CULL_BACK;
+
+	// Its atmosphere's halo, in its own light.
+	Mat4 halo = mat4_identity();
+	halo.m[0] = halo.m[5] = halo.m[10] = radius * 2.5f;
+	halo.m[12] = cx;
+	halo.m[13] = height;
+	halo.m[14] = cz;
+	instance = instances + *instance_count * 24;
+	write_instance_world(instance, &halo, 1.0f);
+	const float glow[3] = { 0.35f, 0.55f, 0.85f };
+	for (int c = 0; c < 3; ++c)
+		instance[16 + c] = glow[c] * kinds[kind].tint[c] * 0.22f;
+	instance[19] = 1;
+	b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = (*instance_count)++;
+	b->instance_count = 1;
+	b->albedo_texture = particle_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
 // A composed background 1 has the stars in it already.
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -10201,7 +10390,7 @@ static void build_spotlight(const Layout3D *layout, float window_w, float window
 // blended (a scorch mark on water is foam instead, gone in FOAM_FRAMES).
 #define FOAM_FRAMES 70.0f
 
-static void add_particle_batches(int *instance_count, int *batch_count)
+static void add_particle_batches(bool space, int *instance_count, int *batch_count)
 {
 	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
 	{
@@ -10219,6 +10408,8 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			Mat4 transform = mat4_identity();
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
 			bool foam = false;  // a scorch mark on water: foam spreading where the blast hit it, soon gone
+			if (kind == P3D_SCORCH && space)
+				continue;  // (nothing to burn: it would hang over deep space)
 			if (kind == P3D_SCORCH)
 			{
 				// Lying on the ground, turned its own way (by its life).
@@ -10260,6 +10451,15 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			for (int c = 0; c < 3; ++c)
 				instance[16 + c] = srgb_to_linear((Uint8)(p->color[c] + (p->end_color[c] - p->color[c]) * t));
 			instance[19] = (p->color[3] + (p->end_color[3] - p->color[3]) * t) / 255.0f;
+			if (space && kind == P3D_SMOKE)
+			{
+				// In open space smoke thins out pale and blue-grey (dark, it shows as soot over the nebula and the
+				// planet far below).
+				static const float pale[3] = { 0.36f, 0.39f, 0.46f };
+				for (int c = 0; c < 3; ++c)
+					instance[16 + c] = instance[16 + c] * 0.25f + pale[c] * 0.75f;
+				instance[19] *= 0.4f;
+			}
 			if (foam)
 			{
 				// White foam, fading as it spreads; on the water.
@@ -11070,8 +11270,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, tile_colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	// (Deep space lies far under all that casts shadows: none falls on it.)
+	const int first_space_batch = batch_count;
+	add_planet_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_nebula_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
+	const int end_space_batch = batch_count;
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);
 	add_weather_batch(frame, &camera, heights, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
@@ -11088,7 +11292,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	for (int i = 0; i < batch_count; ++i)
 	{
 		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]);
-		if (shadows && batches[i].unlit_enabled == 1)
+		if (shadows && batches[i].unlit_enabled == 1 && (i < first_space_batch || i >= end_space_batch))
 			batches[i].unlit_enabled = 2;
 	}
 
@@ -11096,7 +11300,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int first_particle_batch = batch_count;
 	if (settings3d.effects)
 	{
-		add_particle_batches(&instance_count, &batch_count);
+		add_particle_batches(frame->star_count > 0 && !stars_covered(), &instance_count, &batch_count);
 		add_glow_batch(frame, colors, heights, &instance_count, &batch_count);
 	}
 	for (int i = first_particle_batch; i < batch_count; ++i)

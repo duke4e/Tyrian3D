@@ -612,7 +612,11 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 - **Deep space** (`render_gpu.c` `add_deep_star_batch`, `add_nebula_batch`). While the game's starfield
   is on, more stars lie in layers far below the ground and scroll with the game's stars, the deeper
   ones slower; deeper still, a few patches of faint glowing gas (a nebula in two hues of the level's
-  own, by its background 1 map) drift by. Both show through what background 1 leaves empty, and only
+  own, by its background 1 map) drift by, and deepest a planet (`add_planet_batch`: one of the jukebox's
+  surfaces, gas giant or green world, tinted by the level's map, its axis along the screen, turning slowly,
+  sunlit with its shading baked into its mesh, a halo of atmosphere round it) drifts by at a tenth of the
+  stars' pace, coming round again after a long while. No shadow falls so deep, and smoke there thins out pale
+  (dark, it showed as soot over the nebula and the planet). Both show through what background 1 leaves empty, and only
   with the Effects setting. A map that shows nothing (no tile, or only tiles of colour 0) is neither
   drawn as tiles nor makes the backgrounds under it composed, even if the game blends it (episode 6's
   GRAVITRON: its empty, blended background 2 had background 1 composed, opaque, hiding the deep space).
