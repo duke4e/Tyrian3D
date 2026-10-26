@@ -1735,10 +1735,66 @@ static void icon_quad(int slot, float x, float y, float w, float h, float alpha)
 	*q = (HudQuad){ x, y, w, h, u0, v0, u1, v1, { 1, 1, 1, alpha }, { 1, 1, 1, alpha }, .texture = icon_texture };
 }
 
+/*
+ * The modern UI's icons drawn anew (data/hd/icons, TYR3D_EXPORT_PICTURES' icons/ through tools/upscale_sprites.py):
+ * shop_<sprite>.png for the store's items (shopSpriteSheet's 2x2 sprites, as its cards show them) and
+ * planet_<sprite>.png for the planets of its map (PLANET_SHAPES); where one is there, it is drawn instead of the
+ * sprite's pixels, in the same rectangle (each loaded as it is first drawn).
+ */
+#define HD_ICONS 384
+static struct
+{
+	const void *sheet;
+	unsigned int table, sprite;
+	BTBHGPUTexture *texture;  // (NULL: none drawn anew)
+} hd_icons[HD_ICONS];
+static int hd_icon_count = 0;
+
+static BTBHGPUTexture *hd_icon(const void *sheet, unsigned int table, unsigned int sprite)
+{
+	const char *kind = sheet != NULL && sheet == (const void *)&shopSpriteSheet ? "shop"
+	                 : sheet == NULL && table == PLANET_SHAPES ? "planet" : NULL;
+	if (kind == NULL || window == NULL)
+		return NULL;
+	for (int i = 0; i < hd_icon_count; ++i)
+		if (hd_icons[i].sheet == sheet && hd_icons[i].table == table && hd_icons[i].sprite == sprite)
+			return hd_icons[i].texture;
+	if (hd_icon_count >= HD_ICONS)
+		return NULL;
+	char dir[1024], path[1200];
+	const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+	snprintf(path, sizeof(path), "%s/icons/%s_%u.png", base, kind, sprite);
+	BTBHGPUTexture *texture = NULL;
+	if (SDL_GetPathInfo(path, NULL))
+	{
+		BTBHGPUTextureReport report;
+		texture = btbh_gpu_window_texture_load_ex(window, path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR, BTBH_GPU_TEXTURE_WRAP_CLAMP,
+		                                          BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+	}
+	hd_icons[hd_icon_count].sheet = sheet;
+	hd_icons[hd_icon_count].table = table;
+	hd_icons[hd_icon_count].sprite = sprite;
+	hd_icons[hd_icon_count++].texture = texture;
+	return texture;
+}
+
+static void hd_icon_quad(BTBHGPUTexture *texture, float x, float y, float w, float h, float alpha)
+{
+	HudQuad *q = hud_quad_add();
+	if (q != NULL)
+		*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1, { 1, 1, 1, alpha }, { 1, 1, 1, alpha }, .texture = texture };
+}
+
 void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x, float y, float w, float h, float alpha)
 {
 	if (sheet == NULL || ((const Sprite2_array *)sheet)->data == NULL)
 		return;
+	BTBHGPUTexture *hd = large ? hd_icon(sheet, 0, sprite) : NULL;
+	if (hd != NULL)
+	{
+		hd_icon_quad(hd, x, y, w, h, alpha);
+		return;
+	}
 	const int slot = icon_slot(sheet, 0, sprite, large);
 	if (slot >= 0)
 		icon_quad(slot, x, y, w, h, alpha);
@@ -1757,7 +1813,11 @@ void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, floa
 		dh = h;
 		dw = h * aspect;
 	}
-	icon_quad(slot, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
+	BTBHGPUTexture *hd = hd_icon(NULL, table, sprite);
+	if (hd != NULL)
+		hd_icon_quad(hd, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
+	else
+		icon_quad(slot, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
 }
 
 /*

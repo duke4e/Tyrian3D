@@ -879,6 +879,59 @@ void dev_export_pictures(const char *dir)
 	snprintf(path, sizeof(path), "%s/face_frame.png", dir);
 	write_picture(path, surface, 147, 172, palettes[pcxpal[0]], true);
 
+	// The modern UI's icons drawn anew (data/hd/icons: tools/upscale_sprites.py over this folder): the store's items
+	// as its cards show them (shopSpriteSheet's 2x2 sprites by the items' itemgraphic) and the planets of its map
+	// (PLANET_SHAPES, the map's sizes), each in its screen's palette (the store's, the map's), clear round them.
+	{
+		char icons[1024];
+		snprintf(icons, sizeof(icons), "%s/icons", dir);
+		mkdir(icons, 0755);
+		if (shopSpriteSheet.data == NULL)
+			JE_loadCompShapes(&shopSpriteSheet, '1');
+		static bool wanted[1024];
+		memset(wanted, 0, sizeof(wanted));
+		// (The items of every episode there is: each episode's file holds its item data.)
+		for (int e = 1; e <= EPISODE_MAX; ++e)
+		{
+			if (!episodeAvail[e - 1])
+				continue;
+			JE_initEpisode((JE_byte)e);
+			for (size_t i = 0; i < COUNTOF(weaponPort); ++i)
+				wanted[weaponPort[i].itemgraphic % 1024] = true;
+			for (size_t i = 0; i < COUNTOF(shields); ++i)
+				wanted[shields[i].itemgraphic % 1024] = true;
+			for (size_t i = 0; i < COUNTOF(powerSys); ++i)
+				wanted[powerSys[i].itemgraphic % 1024] = true;
+			for (size_t i = 0; i < COUNTOF(options); ++i)
+				wanted[options[i].itemgraphic % 1024] = true;
+		}
+		int shop_count = 0, planet_count = 0;
+		for (int g = 1; g < 1024; ++g)
+		{
+			if (!wanted[g])
+				continue;
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			blit_sprite2x2(surface, 0, 0, shopSpriteSheet, (unsigned int)g);
+			snprintf(path, sizeof(path), "%s/shop_%d.png", icons, g);
+			write_picture(path, surface, 24, 28, palettes[pcxpal[0]], true);
+			++shop_count;
+		}
+		for (unsigned int i = 0; i < sprite_table[PLANET_SHAPES].count; ++i)
+		{
+			if (!sprite_exists(PLANET_SHAPES, i))
+				continue;
+			const Sprite *planet = sprite(PLANET_SHAPES, i);
+			if (planet->width > 64 || planet->height > 64)
+				continue;  // (the title's logo and its pieces)
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			blit_sprite(surface, 0, 0, PLANET_SHAPES, i);
+			snprintf(path, sizeof(path), "%s/planet_%u.png", icons, i);
+			write_picture(path, surface, planet->width, planet->height, palettes[18 - 1], true);  // (the map's: newPal 18)
+			++planet_count;
+		}
+		printf("icons: %d of the store's items, %d planets in %s\n", shop_count, planet_count, icons);
+	}
+
 	// The title's logo (PLANET_SHAPES 146) and its "2000(tm)" (151), each alone and together as the title shows
 	// them once they have flown in, in the title picture's palette, clear round them.
 	{
@@ -940,6 +993,7 @@ void dev_export_pictures(const char *dir)
 	      "tshp2   a story picture (]P0)\n"
 	      "face_NN the data cubes' faces in the store (who wrote the cube), clear round them\n"
 	      "face_frame the store's portrait frame round the faces (screen pixels from 0, 0), its window clear\n"
+	      "icons/  the store's items (shop_N: its cards' sprites) and its map's planets (planet_N), for data/hd/icons\n"
 	      "logo_tyrian, logo_2000, logo_tyrian2000  the title's logo alone, its 2000(tm), and both as the title shows them\n"
 	      "  (redrawn logo_tyrian.png and logo_2000.png go to data/hd/pictures too; a clear logo_2000.png hides the 2000)\n"
 	      "tyrend/  the ending's animation (episode 1's end), frame by frame\n",

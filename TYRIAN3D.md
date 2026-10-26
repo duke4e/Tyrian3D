@@ -797,7 +797,11 @@ window's colour and the new face shows over the portrait, fading with its palett
 the modern UI and the old store with the 3D view; only the face shown is loaded). `pictures/portrait_frame.png` is the
 portrait's frame round them drawn anew (the export's `face_frame.png` through `tools/upscale_sprites.py` with
 4x-BigFArt-Detail, cut to the portrait by `tools/hd_pictures.py --frame-hd <the upscale>`): drawn over the frame, under
-the face, where the store's screen shows it (`find_hd_frame`). `upscale/` is only the work folder
+the face, where the store's screen shows it (`find_hd_frame`). `icons/shop_<sprite>.png` and `icons/planet_<sprite>.png`
+are the modern UI's icons drawn anew: the export's `icons/` (the store's items as its cards show them, the planets of
+its map, each in its screen's palette) through `tools/upscale_sprites.py` with 4x-BigFArt-Detail; where one is there
+the UI draws it instead of the sprite's pixels (`render_gpu.c` `hd_icon`: the store's cards now; the planets wait for
+a map of the UI's own). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 
