@@ -136,6 +136,11 @@ static float option_float(const char *value, float fallback)
 // key=value options shared by enemy, sprite and ship lines.
 static bool parse_option(const char *token, M3DAppearance *a)
 {
+	if (strcmp(token, "trail") == 0)
+	{
+		a->trail = true;
+		return true;
+	}
 	if (strcmp(token, "glow") == 0)
 	{
 		a->glow_size = -DEFAULT_GLOW_SIZE;  // negative: relative to the sprite's width

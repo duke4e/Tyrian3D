@@ -335,6 +335,35 @@ static void plume(float x, float y, float height, int count, float size, Uint8 g
 	}
 }
 
+void p3d_trail(float x, float y, float dx, float dy, float height)
+{
+	const float speed = sqrtf(dx * dx + dy * dy);
+	if (speed < 0.5f)
+		return;
+	// Behind its motor, a little off its line, drifting slowly as it thins out.
+	const float bx = x - dx / speed * 5.0f, by = y - dy / speed * 5.0f;
+	P3DParticle *p = spawn(P3D_SMOKE, bx + random_range(-0.6f, 0.6f), by + random_range(-0.6f, 0.6f), height);
+	if (p != NULL)
+	{
+		p->vx = -dx * 0.04f + random_range(-0.08f, 0.08f);
+		p->vy = -dy * 0.04f + random_range(-0.08f, 0.08f);
+		p->vheight = random_range(0.0f, 0.06f);
+		p->drag = 0.94f;
+		p->size = random_range(2.2f, 3.0f);
+		p->grow = 0.22f;
+		p->life = random_range(16, 24);
+		const Uint8 grey = (Uint8)random_range(150, 190);
+		set_colors(p, grey, grey, grey, 95, grey, grey, grey, 0);
+	}
+	P3DParticle *spark = spawn(P3D_GLOW, bx + dx / speed * 1.5f, by + dy / speed * 1.5f, height);
+	if (spark != NULL)
+	{
+		spark->size = random_range(3.5f, 5.0f);
+		spark->life = 2;
+		set_colors(spark, 255, 190, 90, 255, 255, 110, 30, 0);
+	}
+}
+
 bool p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).

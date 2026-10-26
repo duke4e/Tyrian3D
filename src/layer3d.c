@@ -7,6 +7,8 @@
 #include "debugmode.h"
 
 #include "models3d.h"
+#include "particles3d.h"
+#include "settings3d.h"
 #include "volume3d.h"
 
 #include "sprite.h"
@@ -609,7 +611,7 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	if (!l3d_capturing || !m3d_enabled)
 		return false;
 	// A model of its own (models.cfg "shot" lines), or the sprite with volume.
-	M3DAppearance look;
+	M3DAppearance look = { 0 };
 	if (m3d_shot_appearance(sheet == &spriteSheet12, sprite, &look))
 	{
 		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * l3d_frame_number + (float)(key & 63) * 47.0f, 360.0f) : 0.0f);
@@ -622,6 +624,9 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	l3d_key_last_object(key, &vx, &vy);
 	l3d_add_glow(sheet, sprite, x, y);
 	l3d_last_glow_velocity(vx, vy);
+	// Missiles leave smoke (with Effects; at the shots' height, the particles adding the terrain's room).
+	if (look.trail && settings3d.effects && (vx != 0 || vy != 0))
+		p3d_trail(x + 6.0f, y + 7.0f, vx, vy, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
 	return true;
 }
 
