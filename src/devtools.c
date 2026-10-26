@@ -135,6 +135,10 @@ bool dev_setup_game(int episode, int section)
 	JE_initEpisode((JE_byte)episode);
 	initial_episode_num = episodeNum;
 	difficultyLevel = DIFFICULTY_NORMAL;
+	// TYR3D_DIFFICULTY=<n> (config.h's: 1 easy, 2 normal, 3 hard ...): some levels differ from Hard on (TYRIAN's
+	// and SAVARA's maps in episode 1).
+	if (SDL_getenv("TYR3D_DIFFICULTY") != NULL)
+		difficultyLevel = (JE_byte)SDL_clamp(SDL_atoi(SDL_getenv("TYR3D_DIFFICULTY")), DIFFICULTY_WIMP, DIFFICULTY_NORTANEOUS);
 	initialDifficulty = difficultyLevel;
 	player[0].cash = 10000;
 	const char *ship = SDL_getenv("TYR3D_SHIP");  // ship id as in the shop (1-18)

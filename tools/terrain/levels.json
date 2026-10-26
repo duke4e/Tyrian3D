@@ -957,5 +957,15 @@
   },
   "level": "LAVA II (gbc)",
   "episode": 7
+ },
+ "736ab2acea6f0b99": {
+  "classes": 5,
+  "heights": {
+   "1": 22,
+   "2": 8,
+   "4": "~"
+  },
+  "level": "SAVARA (hard)",
+  "forest": "palm"
  }
 }
