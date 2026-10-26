@@ -104,6 +104,7 @@ static BTBHGPUTexture *particle_texture = NULL;  // a soft round dot
 static BTBHGPUTexture *fire_texture = NULL;      // a billowing puff (fire and smoke particles)
 static BTBHGPUTexture *ring_texture = NULL;      // a soft ring (shock waves)
 static BTBHGPUTexture *nebula_texture = NULL;    // a patch of nebula (add_nebula_batch)
+static BTBHGPUTexture *leaf_texture = NULL;      // a leaf (add_weather_batch's leaves)
 static BTBHGPUTexture *world_textures[J3D_TEXTURES];  // the distant planets' surfaces, wrapping round (add_planet_batch)
 static BTBHGPUCustomMesh *world_mesh = NULL;
 static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
@@ -701,6 +702,31 @@ static BTBHGPUTexture *create_nebula_texture(void)
 	return texture;
 }
 
+// A leaf (white: the instances colour it): pointed at both ends, along the texture's x, a darker midrib and
+// veins, a soft edge.
+static BTBHGPUTexture *create_leaf_texture(void)
+{
+	enum { SIZE = 64 };
+	static Uint32 pixels[SIZE * SIZE];
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			const float u = (x + 0.5f) / SIZE * 2 - 1, v = (y + 0.5f) / SIZE * 2 - 1;
+			// Its half-width along it: widest a little behind the middle, a point at each end.
+			const float half = 0.42f * sinf((float)M_PI * SDL_clamp((u + 1) / 2, 0.0f, 1.0f)) * (1.0f - 0.25f * u);
+			const float inside = half - fabsf(v);
+			const float a = SDL_clamp(inside / 0.06f, 0.0f, 1.0f) * (fabsf(u) < 0.98f);
+			const float rib = fabsf(v) < 0.035f ? 0.7f : 1.0f;
+			const float vein = fabsf(fmodf(u * 4.0f + fabsf(v) * 3.0f + 8.0f, 1.0f) - 0.5f) < 0.06f ? 0.85f : 1.0f;
+			const Uint8 shade = (Uint8)(255 * rib * vein);
+			const Uint8 rgba[4] = { shade, shade, shade, (Uint8)(255 * a) };
+			memcpy(&pixels[y * SIZE + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
@@ -790,6 +816,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	fire_texture = create_fire_texture();
 	ring_texture = create_ring_texture();
 	nebula_texture = create_nebula_texture();
+	leaf_texture = create_leaf_texture();
 	fade_meshes[0] = create_quad_mesh(B3D_BEYOND_FADE, 1);
 	fade_meshes[1] = create_quad_mesh(1, B3D_BEYOND_FADE);
 
@@ -822,6 +849,7 @@ void rgpu_shutdown(void)
 	fire_texture = NULL;
 	ring_texture = NULL;
 	nebula_texture = NULL;
+	leaf_texture = NULL;
 	memset(world_textures, 0, sizeof(world_textures));
 	world_mesh = NULL;
 	puff_texture = NULL;
@@ -9978,11 +10006,21 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 				const float x = rect[0] + fmodf(r0 * w + t * speed, w);
 				const float z = rect[1] + fmodf(r1 * h + t * speed * 0.18f, h);
 				const float bob = leaves ? sinf(t * (1.5f + r3) + r0 * 6.2832f) * band * 0.4f : 0.0f;
-				const float size = sand ? 1.4f + 0.8f * r3 : 3.0f + 1.6f * r3;
+				const float size = sand ? 1.4f + 0.8f * r3 : 4.5f + 2.0f * r3;
 				const float flutter = leaves ? 0.35f + 0.65f * fabsf(sinf(t * (3.0f + 3.0f * r2) + r1 * 6.2832f)) : 3.5f;
 				Mat4 transform = mat4_identity();
 				transform.m[0] = size * flutter;
 				transform.m[5] = transform.m[10] = size;
+				if (leaves)
+				{
+					// Turned its own way, turning slowly as it goes; fluttering across its width.
+					const float angle = r0 * 6.2832f + t * (0.8f + 1.2f * r1) * (i % 2 ? 1 : -1);
+					const float ca = cosf(angle), sa = sinf(angle);
+					transform.m[0] = ca * size;
+					transform.m[1] = sa * size;
+					transform.m[4] = -sa * size * flutter;
+					transform.m[5] = ca * size * flutter;
+				}
 				transform.m[12] = x;
 				transform.m[13] = low + band * (0.5f + 0.4f * (r3 - 0.5f)) + bob;
 				transform.m[14] = z;
@@ -10065,7 +10103,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 	b->custom_mesh = billboard_mesh;
 	b->first_instance = first;
 	b->instance_count = *instance_count - first;
-	b->albedo_texture = particle_texture;
+	b->albedo_texture = leaves ? leaf_texture : particle_texture;
 	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
 	b->unlit_enabled = 1;
 	b->transparency_enabled = 1;
