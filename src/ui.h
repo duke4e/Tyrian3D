@@ -382,6 +382,16 @@ typedef struct
 	float ship_x, ship_y;     // where the ship is (screen pixels)
 	const void *ship_sheet;   // and its picture (a 2x2 sprite of that sheet), drawn anew by the UI; NULL: none
 	int ship_sprite;
+	// The map's paths, drawn by the UI (the game leaves them out of its picture): from a node (or the start, -1, at
+	// start_x, start_y) to a node, flown already or not.
+	#define UI_ROGUE_EDGES 64
+	int edge_count;
+	struct
+	{
+		Sint8 from, to;
+		bool flown;
+	} edge[UI_ROGUE_EDGES];
+	float start_x, start_y;
 } UIRogue;
 
 // Destruct (destruct.c): its pages over its arena, and the HUD while a battle is on.

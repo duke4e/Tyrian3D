@@ -676,6 +676,8 @@ static void backdrop(SDL_Surface *s)
 {
 	JE_loadPic(s, 1, false);  // for its palette
 	fill_rectangle_xy(s, 0, 0, 319, 199, 0);
+	if (ui_modern())
+		return;  // (the modern UI draws its own sky: ui.c rogue_sky)
 	Uint32 seed = 12345;
 	for (int i = 0; i < 260; ++i)
 	{
@@ -1337,7 +1339,8 @@ static bool map_screen(void)
 					int x0, y0, x1, y1;
 					node_position(r, c, &x0, &y0);
 					node_position(r + 1, k, &x1, &y1);
-					line(VGAScreen2, x0 + 14, y0, x1 - 14, y1, (Uint8)(HUE_TEXT * 16 + (r < run.row ? 10 : 6)), r >= run.row);
+					if (!ui_modern())  // (the modern UI draws the paths itself)
+						line(VGAScreen2, x0 + 14, y0, x1 - 14, y1, (Uint8)(HUE_TEXT * 16 + (r < run.row ? 10 : 6)), r >= run.row);
 				}
 	if (run.row < 0)
 	{
@@ -1346,7 +1349,8 @@ static bool map_screen(void)
 		{
 			int x, y;
 			node_position(0, c, &x, &y);
-			line(VGAScreen2, START_X + 14, START_Y, x - 14, y, (Uint8)(HUE_TEXT * 16 + 6), true);
+			if (!ui_modern())
+				line(VGAScreen2, START_X + 14, START_Y, x - 14, y, (Uint8)(HUE_TEXT * 16 + 6), true);
 		}
 	}
 	mouseCursor = MOUSE_POINTER_NORMAL;
@@ -1421,6 +1425,23 @@ static bool map_screen(void)
 					r->nodes[k].selected = is_selected;
 					r->nodes[k].visited = row < run.row || (row == run.row && c == run.col);
 				}
+			// The paths: node to node (the nodes in the order just published), from the start to the first row.
+			{
+				int index[MAX_ROWS][MAX_COLS], k = 0;
+				for (int row = 0; row < run.rows; ++row)
+					for (int c = 0; c < run.width[row]; ++c)
+						index[row][c] = k < UI_ROGUE_NODES ? k++ : -1;
+				r->start_x = START_X;
+				r->start_y = START_Y;
+				if (run.row < 0)
+					for (int c = 0; c < run.width[0] && r->edge_count < UI_ROGUE_EDGES; ++c)
+						r->edge[r->edge_count++] = (typeof(r->edge[0])){ -1, (Sint8)index[0][c], false };
+				for (int row = 0; row + 1 < run.rows; ++row)
+					for (int c = 0; c < run.width[row]; ++c)
+						for (int n = 0; n < run.width[row + 1] && r->edge_count < UI_ROGUE_EDGES; ++n)
+							if ((node_at(row, c)->next >> n) & 1 && index[row][c] >= 0 && index[row + 1][n] >= 0)
+								r->edge[r->edge_count++] = (typeof(r->edge[0])){ (Sint8)index[row][c], (Sint8)index[row + 1][n], row < run.row };
+			}
 			for (int i = 0; i < count; ++i)
 			{
 				int x, y;

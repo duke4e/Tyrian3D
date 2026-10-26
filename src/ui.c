@@ -3773,10 +3773,55 @@ static void rogue_card(Box r, const UIItem *it, bool selected, bool show_price)
 }
 
 // The rogue run's screens.
+// The rogue run's sky (its screens' own backdrop, the game leaving its pixels of stars out): stars in three depths
+// drifting slowly to the left, the far ones small and dim, a few twinkling, a faint warm haze low down.
+static void rogue_sky(void)
+{
+	const Box w = L.window;
+	rect((Box){ w.x, w.y + w.h * 0.55f, w.w, w.h * 0.45f }, (Colour){ 0, 0, 0, 0 }, (Colour){ 0.05f, 0.025f, 0.03f, 0.6f });
+	const float t = SDL_GetTicks() / 1000.0f;
+	Uint32 seed = 0x9e3779b9u;
+	for (int i = 0; i < 260; ++i)
+	{
+		seed = seed * 1664525u + 1013904223u;
+		const float rx = (seed >> 8) / 16777216.0f;
+		seed = seed * 1664525u + 1013904223u;
+		const float ry = (seed >> 8) / 16777216.0f;
+		seed = seed * 1664525u + 1013904223u;
+		const float rz = (seed >> 8) / 16777216.0f;
+		const int depth = rz < 0.6f ? 0 : rz < 0.9f ? 1 : 2;
+		const float speed = depth == 0 ? 0.004f : depth == 1 ? 0.009f : 0.018f;
+		const float x = w.x + fmodf(rx + 1 - fmodf(t * speed, 1.0f), 1.0f) * w.w, y = w.y + ry * w.h;
+		const float size = SDL_max(L.px, U(depth == 0 ? 1.6f : depth == 1 ? 2.4f : 3.4f));
+		float a = depth == 0 ? 0.35f : depth == 1 ? 0.6f : 0.9f;
+		if (i % 9 == 0)
+			a *= 0.6f + 0.4f * sinf(t * (1.5f + rz * 3) + rx * 40);
+		const Colour c = i % 13 == 0 ? (Colour){ 0.7f, 0.82f, 1, a } : i % 17 == 0 ? (Colour){ 1, 0.85f, 0.55f, a } : (Colour){ 0.92f, 0.92f, 1, a };
+		fill_octagon((Box){ x - size / 2, y - size / 2, size, size }, size * 0.3f, c, c);
+	}
+}
+
+// A path of the rogue run's map: dots from a to b (window points), the ends kept clear of the nodes.
+static void rogue_path(float ax, float ay, float ar, float bx, float by, float br, bool flown, bool open)
+{
+	const float dx = bx - ax, dy = by - ay, len = sqrtf(dx * dx + dy * dy);
+	if (len < 1)
+		return;
+	const float step = SDL_max(U(13), L.px * 3), from = ar + U(10), to = len - br - U(10);
+	const Colour c = flown ? C_GOLD_TOP : with_alpha(C_TAN, open ? 0.75f : 0.35f);
+	for (float d = from; d <= to; d += step)
+	{
+		const float r = flown ? U(3.2f) : U(2.4f);
+		const float x = ax + dx / len * d, y = ay + dy / len * d;
+		fill_octagon((Box){ x - r, y - r, 2 * r, 2 * r }, r * 0.6f, c, mix(c, (Colour){ 0, 0, 0, c.a }, 0.3f));
+	}
+}
+
 static void build_rogue(const UIMenu *m)
 {
 	const UIRogue *r = &m->rogue;
 	const float cap = CAP_ITEM(), small = CAP_SMALL();
+	rogue_sky();
 	switch (r->page)
 	{
 	case UI_ROGUE_MENU:
@@ -3865,6 +3910,18 @@ static void build_rogue(const UIMenu *m)
 				rgpu_ui_table_sprite(PLANET_SHAPES, (unsigned int)r->nodes[i].planet, pic.x + r->nodes[i].x * k - pw / 2,
 				                     pic.y + r->nodes[i].y * k - ph / 2, pw, ph, L.alpha * (lit ? 1.0f : 0.45f));
 			}
+		// The paths (drawn by the UI: the game leaves them out of its picture), the ones open now brighter.
+		for (int e = 0; e < r->edge_count; ++e)
+		{
+			const int from = r->edge[e].from, to = r->edge[e].to;
+			if (to < 0 || to >= r->node_count || from >= r->node_count)
+				continue;
+			const float ax = pic.x + (from < 0 ? r->start_x : r->nodes[from].x) * k, ay = pic.y + (from < 0 ? r->start_y : r->nodes[from].y) * k;
+			const float ar = from < 0 ? 14 * k : SDL_max(r->nodes[from].r * k, U(20));
+			const float bx = pic.x + r->nodes[to].x * k, by = pic.y + r->nodes[to].y * k, br = SDL_max(r->nodes[to].r * k, U(20));
+			const bool open = r->nodes[to].can_go && (from < 0 || r->nodes[from].visited);
+			rogue_path(ax, ay, ar, bx, by, br, r->edge[e].flown, open);
+		}
 		// The ship where it is, drawn anew (the game leaves it out of the picture).
 		if (r->ship_sheet != NULL)
 		{
