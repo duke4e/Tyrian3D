@@ -12794,9 +12794,12 @@ static void make_pad(float w, float h)
  * straight above: box is the screen's box it is laid out on (screen pixels, as its objects are
  * placed), the floor a texture over the box (u, v: how much of it). True if it was drawn.
  */
+static BTBHGPUTexture *sim_space;
+
 static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], const float box[4], BTBHGPUTexture *floor, float floor_u,
                                float floor_v, const BTBHGPUWindowReport *window_frame)
 {
+	const bool floor_is_space = floor != NULL && floor == sim_space;
 	const float logical_w = (float)window_frame->logical_width, logical_h = (float)window_frame->logical_height;
 	const float wx0 = rect[0], wy0 = rect[1], wx1 = rect[0] + rect[2], wy1 = rect[1] + rect[3];
 	if (wx1 - wx0 < 1 || wy1 - wy0 < 1 || box[2] <= 0 || box[3] <= 0)
@@ -12855,7 +12858,8 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 	for (int i = 0; i < batch_count; ++i)
 	{
 		casts_shadow[i] = shadows && i >= first_model_batch;
-		if (shadows && batches[i].unlit_enabled == 1)
+		// (Space takes no shadow: the simulator's floor is deep space.)
+		if (shadows && batches[i].unlit_enabled == 1 && !(i < first_model_batch && floor_is_space))
 			batches[i].unlit_enabled = 2;
 	}
 	BTBHGPUSceneLighting lighting;
@@ -12877,6 +12881,83 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 	if (!drawn)
 		fprintf(stderr, "warning: scene present failed: %s\n", scene_report.message);
 	return drawn;
+}
+
+/*
+ * The weapon simulator's space (make_sim_space): a dark navy deep, lighter in the middle, a faint nebula, and stars
+ * in three layers drifting down past the ship at their own pace (the far ones small, dim and slow), drawn anew each
+ * time it shows (by the time).
+ */
+#define SIM_SPACE_W 256
+#define SIM_SPACE_H 320
+static BTBHGPUTexture *sim_space = NULL;  // (declared above present_scene_pane)
+
+static void make_sim_space(float aspect)
+{
+	static Uint32 pixels[SIM_SPACE_W * SIM_SPACE_H];
+	static float base[SIM_SPACE_W * SIM_SPACE_H][3];
+	static bool based = false;
+	if (sim_space == NULL)
+		sim_space = create_texture_filtered(SIM_SPACE_W, SIM_SPACE_H, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	if (!based)
+	{
+		based = true;
+		for (int y = 0; y < SIM_SPACE_H; ++y)
+			for (int x = 0; x < SIM_SPACE_W; ++x)
+			{
+				const float u = (x + 0.5f) / SIM_SPACE_W, v = (y + 0.5f) / SIM_SPACE_H;
+				const float r = sqrtf((u - 0.5f) * (u - 0.5f) + (v - 0.45f) * (v - 0.45f) * 0.6f);
+				const float glow = SDL_clamp(1 - r * 1.7f, 0.0f, 1.0f);
+				const float gas = nebula_fbm(u * 3, v * 3, 3, 71u);
+				const float neb = SDL_clamp((gas - 0.45f) / 0.3f, 0.0f, 1.0f);
+				float *c = base[y * SIM_SPACE_W + x];
+				c[0] = 6 + 10 * glow + 40 * neb * neb;
+				c[1] = 8 + 14 * glow + 18 * neb * neb;
+				c[2] = 16 + 26 * glow + 52 * neb * neb;
+			}
+	}
+	static float scratch[SIM_SPACE_W * SIM_SPACE_H][3];
+	memcpy(scratch, base, sizeof(scratch));
+	const float t = SDL_GetTicks() / 1000.0f;
+	// (The texture is stretched over the pane: the stars kept round by the pane's shape.)
+	const float squash = SDL_clamp((float)SIM_SPACE_W / SIM_SPACE_H / SDL_max(aspect, 0.1f), 0.5f, 2.0f);
+	static const struct { int count; float speed, size, light; } layers[3] = {
+		{ 70, 14.0f, 0.7f, 0.45f }, { 40, 32.0f, 1.0f, 0.7f }, { 18, 70.0f, 1.5f, 1.0f },
+	};
+	for (int l = 0; l < 3; ++l)
+		for (int i = 0; i < layers[l].count; ++i)
+		{
+			const Uint32 seed = hash32((Uint32)(l * 1000 + i) * 2654435761u);
+			const float sx = hash_unit(seed) * SIM_SPACE_W;
+			const float sy = fmodf(hash_unit(seed + 1) * SIM_SPACE_H + t * layers[l].speed, SIM_SPACE_H);
+			const float size = layers[l].size * (0.7f + 0.6f * hash_unit(seed + 2));
+			const float light = layers[l].light * (0.6f + 0.4f * hash_unit(seed + 3)) * 255;
+			const bool blue = hash_unit(seed + 4) < 0.4f;
+			const int rx = (int)ceilf(size * 2 * squash), ry = (int)ceilf(size * 2);
+			for (int dy = -ry; dy <= ry; ++dy)
+				for (int dx = -rx; dx <= rx; ++dx)
+				{
+					const int x = (int)sx + dx, y = (int)sy + dy;
+					if (x < 0 || x >= SIM_SPACE_W || y < 0 || y >= SIM_SPACE_H)
+						continue;
+					const float ddx = (x + 0.5f - sx) / squash, ddy = y + 0.5f - sy;
+					const float d2 = (ddx * ddx + ddy * ddy) / (size * size);
+					const float a = expf(-d2 * 1.6f);
+					if (a < 0.01f)
+						continue;
+					float *c = scratch[y * SIM_SPACE_W + x];
+					c[0] += light * a * (blue ? 0.6f : 1.0f);
+					c[1] += light * a * (blue ? 0.75f : 0.97f);
+					c[2] += light * a;
+				}
+		}
+	for (int i = 0; i < SIM_SPACE_W * SIM_SPACE_H; ++i)
+	{
+		const Uint8 rgba[4] = { (Uint8)SDL_min(scratch[i][0], 255.0f), (Uint8)SDL_min(scratch[i][1], 255.0f),
+		                        (Uint8)SDL_min(scratch[i][2], 255.0f), 255 };
+		memcpy(&pixels[i], rgba, 4);
+	}
+	btbh_gpu_texture_update_rgba8(sim_space, (const uint8_t *)pixels, 0, 0, SIM_SPACE_W, SIM_SPACE_H);
 }
 
 // What the screen draws over the weapon simulator's box beside its models (shots without one): the
@@ -12960,16 +13041,20 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	{
 		if (ui_screen_scene() == UI_SCENE_SIM && scene->backdrop != NULL)
 		{
-			// The simulator's own picture under its models (its stars), and what the screen drew over it.
-			static Uint32 picture[SCREEN_W * SCREEN_H];
-			const int bx = (int)box[0], by = (int)box[1], bw = (int)box[2], bh = (int)box[3];
-			for (int y = 0; y < bh; ++y)
-				for (int x = 0; x < bw; ++x)
-					picture[y * bw + x] = rgb_palette[scene->backdrop[(by + y) * SCREEN_W + bx + x]];
-			btbh_gpu_texture_update_rgba8(showcase_texture, (const uint8_t *)picture, 0, 0, (uint32_t)bw, (uint32_t)bh);
-			drawn = present_scene_pane(scene, pane, box, showcase_texture, (float)bw / SCREEN_W, (float)bh / SCREEN_H, &frame);
+			// The simulator: its ship and shots over deep space (stars drifting by in layers, a faint nebula,
+			// sim_space) rather than its flat picture of stars; the pane shows a little more than its box, most of
+			// it below, so the ship's model is whole; what the screen drew over the box (shots without models) over
+			// it, where the box is in the pane.
+			const float grow = 1.22f;
+			const float wide[4] = { box[0] - box[2] * (grow - 1) / 2, box[1] - box[3] * 0.04f, box[2] * grow, box[3] * grow };
+			make_sim_space(wide[2] / wide[3]);
+			drawn = present_scene_pane(scene, pane, wide, sim_space, 1, 1, &frame);
 			if (drawn)
-				add_pane_overlay(scene, pane, box);
+			{
+				const float inner[4] = { pane[0] + (box[0] - wide[0]) / wide[2] * pane[2], pane[1] + (box[1] - wide[1]) / wide[3] * pane[3],
+				                         box[2] / wide[2] * pane[2], box[3] / wide[3] * pane[3] };
+				add_pane_overlay(scene, inner, box);
+			}
 		}
 		else
 		{

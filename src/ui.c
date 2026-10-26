@@ -2192,6 +2192,35 @@ static void shop_card(Box r, const UIItem *it, bool selected, bool preview)
 		      (Colour){ 0.5f, 0.38f, 0.2f, 0.9f }, C_CREAM, ALIGN_LEFT);
 }
 
+// The ship's parts as rows (the upgrade page): each what the ship has there, its icon, the part's name above it.
+static void shop_parts(const UIMenu *m, Box area)
+{
+	const float cap = CAP_ITEM(), key = CAP_KEY();
+	const float gap = U(8);
+	const int count = m->item_count;
+	const float row_h = SDL_max(SDL_min((area.h + gap) / SDL_max(count, 1) - gap, U(96)), cap + key + U(26));
+	for (int i = 0; i < count; ++i)
+	{
+		const UIItem *it = &m->items[i];
+		const Box r = { area.x, area.y + i * (row_h + gap), area.w, row_h };
+		if (r.y + r.h > area.y + area.h + U(2))
+			break;
+		const bool selected = i == m->selected;
+		panel(r, U(10), selected ? PANEL_CARD : hovered(r) ? PANEL_BAR : PANEL_HOVER);
+		const float iw = r.h - U(16);
+		const Box well = { r.x + U(14), r.y + U(8), iw, iw };
+		panel(well, U(8), PANEL_WELL);
+		item_icon(it, well, 1.0f);
+		const float x = well.x + iw + U(20);
+		const float y = r.y + (r.h - (key + U(8) + cap)) / 2;
+		text(FONT_SEMIBOLD, it->value2, x, y, key, selected ? C_SUB : C_DIM, ALIGN_LEFT);
+		char fitted[96];
+		fit_text(FONT_SEMIBOLD, it->label, cap, r.x + r.w - U(24) - x, fitted, sizeof(fitted));
+		text(selected ? FONT_BOLD : FONT_SEMIBOLD, fitted, x, y + key + U(8), cap, selected ? C_CREAM : C_TAN, ALIGN_LEFT);
+		add_hit(r, it->hit);
+	}
+}
+
 // The parts as tabs over a box: returns the height taken.
 static float shop_tabs(const UIShop *s, Box area, bool live)
 {
@@ -2490,16 +2519,12 @@ static void build_shop(const UIMenu *m)
 	{
 	case UI_SHOP_UPGRADE:
 	{
-		const float th = shop_tabs(s, (Box){ area.x + U(4), area.y, area.w - U(8), 0 }, true);
-		Box list = { area.x, area.y + th + U(22), area.w, area.h - th - U(22) };
-		// "Done" at the foot of the list, the selected part's choices above it.
+		// The parts as rows (as the original's list), "Done" at the foot.
+		Box list = area;
 		const float done_h = SDL_max(U(56), CAP_ITEM() * 2.15f);
 		const Box done = { list.x, list.y + list.h - done_h, list.w, done_h };
-		list.h -= done_h + U(16);
-		text(FONT_SEMIBOLD, "CHOICES", list.x + U(4), list.y, CAP_KEY(), C_DIM, ALIGN_LEFT);
-		list.y += CAP_KEY() + U(14);
-		list.h -= CAP_KEY() + U(14);
-		shop_cards(m, list, true);
+		list.h -= done_h + U(12);
+		shop_parts(m, list);
 		const bool done_selected = s->tab_selected < 0;
 		if (done_selected)
 			panel(inset(done, U(2)), U(10), PANEL_CARD);
@@ -2510,11 +2535,9 @@ static void build_shop(const UIMenu *m)
 		break;
 	}
 	case UI_SHOP_ITEMS:
-	{
-		const float th = shop_tabs(s, (Box){ area.x + U(4), area.y, area.w - U(8), 0 }, false);
-		shop_cards(m, (Box){ area.x, area.y + th + U(22), area.w, area.h - th - U(22) }, false);
+		// (The part's name is the title: no tabs, the list of its choices alone, as the original's.)
+		shop_cards(m, area, false);
 		break;
-	}
 	case UI_SHOP_CUBE:
 	{
 		const Box text_box = { area.x + U(20), area.y + U(10), area.w - U(70), area.h - U(90) };

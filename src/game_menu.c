@@ -555,9 +555,20 @@ static void shop_publish(void)
 		shop_tabs(s, part <= 8 ? part - 2 : -1, true);
 		SDL_strlcpy(s->done, menuInt[2][8], sizeof(s->done));
 		s->hit_done = hits[9];
-		if (part >= 2 && part <= 8)
-			shop_part_items(ui, part, false);
-		ui->selected = -1;
+		// The parts as rows, as the original lists them (Up and Down go through them): each its name and what
+		// the ship has there, where the original takes the mouse on it.
+		const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 8);
+		for (int p = 2; p <= parts_end; ++p)
+		{
+			const int item = *playeritem_map(&player[0].items, p - 2);
+			char name[48];
+			shop_item_name(p, item, name, sizeof(name));
+			UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, name, 0, 0, 0, 0);
+			it->hit = hits[p];
+			shop_item_icon(it, p, item);
+			shop_plain_text(it->value2, menuInt[2][p - 1], sizeof(it->value2));
+		}
+		ui->selected = part >= 2 && part <= parts_end ? part - 2 : -1;
 		break;
 	}
 	case MENU_UPGRADE_SUB:

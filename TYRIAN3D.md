@@ -120,8 +120,10 @@ last, the key hints show its pad and buttons. The store's next-level map is the 
 the routes' dots (the selected route lit as far as it has come), the planets drawn anew, a pulsing brass ring round the
 selected destination and a faint one where the ship is. In the store one click chooses (the original's first
 click only selects; `shop_one_click`), but a part's choices, where the first click tries one on the
-ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games;
-a choice's card on Upgrade Ship opens its part with that choice tried. The pointer is a smooth one sized in window points.
+ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games.
+Upgrade Ship lists the ship's parts as rows, as the original does (Up and Down go through them; each shows
+what the ship has there and its icon, the part's name above it); a part's page is its choices alone, its
+name the title. The pointer is a smooth one sized in window points.
 The original screens stay for Menus: Classic and the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
@@ -682,7 +684,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   The store publishes what it shows each time it shows (`shop_publish` in `game_menu.c`: its menu, the
   parts' choices with costs, icons and stats, the weapon's power, the credits, where the original takes
   the mouse on each) and the 3D view draws its own layout over the picture blurred, with the ship's
-  models or the weapon simulator's (its stars and shots without models from the screen) drawn by the
+  models or the weapon simulator's (its ship and shots over deep space of its own: stars drifting by in three
+  layers and a faint nebula, `make_sim_space`, the pane a little larger than the original's box so the ship's
+  model shows whole; shots without models from the screen) drawn by the
   scene into the layout's pane (`rgpu_present_ui`). Screens that animate on their own while shown (ship
   specs, a level's end) are published with `hold` and shown so until released. The screens over a level
   are drawn over the 3D scene (`rgpu_present_3d_menu` with `modern`); their glass shows the scene copied
