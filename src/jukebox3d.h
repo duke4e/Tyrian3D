@@ -26,7 +26,7 @@ typedef enum
 {
 	J3D_BOX,     // a unit cube about its middle
 	J3D_BAR,     // the same, dark at its foot, full at its top (vertex colours)
-	J3D_SPHERE,  // a unit sphere, textured (J3D_TEXTURE_PLANET) or not
+	J3D_SPHERE,  // a unit sphere, textured (J3DTexture) or not
 	J3D_GLOW,    // a soft dot facing the camera (a unit quad)
 	J3D_RING,    // a soft ring lying in the shape's XZ plane (a unit quad)
 	J3D_DOT,     // a soft dot lying in the shape's XZ plane (a unit quad)
@@ -41,10 +41,19 @@ typedef enum
 	J3D_ADDITIVE,  // light added to what is behind it
 } J3DLook;
 
+// A sphere's texture.
+typedef enum
+{
+	J3D_UNTEXTURED,
+	J3D_TEXTURE_GAS_GIANT,  // bands of teal, slate and amber
+	J3D_TEXTURE_TERRAN,     // green continents in teal seas, under clouds
+	J3D_TEXTURES
+} J3DTexture;
+
 typedef struct
 {
 	Uint8 shape, look;
-	Uint8 textured;  // J3D_SPHERE: the planet's texture
+	Uint8 textured;  // J3D_SPHERE: its J3DTexture
 	Sint16 model;    // J3D_MODEL: the model's index
 	float m[16];     // where (column-major: the shape's unit size to the world)
 	float color[4];  // linear RGB and alpha
@@ -83,9 +92,9 @@ void jukebox3d_next_look(void);
 const char *jukebox3d_look_name(int look);
 
 // The shapes' meshes as the renderer takes them (vertices of 24 floats: position, normal, uv,
-// tangent, colour, joints, weights), and the planet's texture (RGBA, sRGB), for J3D_BOX, J3D_BAR,
+// tangent, colour, joints, weights), and the planets' textures (RGBA, sRGB), for J3D_BOX, J3D_BAR,
 // J3D_SPHERE (the quads are the renderer's own).
 void jukebox3d_mesh(J3DShape shape, const float **vertices, int *vertex_count, const Uint32 **indices, int *index_count);
-const Uint32 *jukebox3d_planet_texture(int *w, int *h);
+const Uint32 *jukebox3d_planet_texture(J3DTexture texture, int *w, int *h);
 
 #endif /* JUKEBOX3D_H */

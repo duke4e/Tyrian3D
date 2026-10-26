@@ -395,7 +395,7 @@ static void orrery_frame(float aspect, float shift, float dt)
 		const M4 m = m4_place(p, &turn, PLANET_RADIUS, PLANET_RADIUS, PLANET_RADIUS);
 		J3DItem *it = add(J3D_SPHERE, J3D_LIT, &m, 1, 1, 1, 1);
 		if (it != NULL)
-			it->textured = 1;
+			it->textured = J3D_TEXTURE_GAS_GIANT;
 		const float halo[3] = { 0.16f, 0.42f, 0.75f };
 		glow(p, PLANET_RADIUS * 2.6f, halo, 0.1f + viz.bass * 0.2f + orb.punch * 0.12f);
 		const float flare[3] = { 0.8f, 0.9f, 1.0f };
@@ -874,7 +874,7 @@ static void freighter(const float p[3], const float d[3])
 	const M4 hull = m4_place(p, &turn, 16, 9, 78);
 	J3DItem *plating = add(J3D_SPHERE, J3D_LIT, &hull, 0.62f, 0.42f, 0.24f, 1);
 	if (plating != NULL)
-		plating->textured = 1;  // (the planet's bands round it: its plating)
+		plating->textured = J3D_TEXTURE_GAS_GIANT;  // (the planet's bands round it: its plating)
 	float q[3];
 	at_local(p, x, y, z, 0, 7.6f, 4, q);
 	const M4 spine = m4_place(q, &turn, 3.2f, 2.4f, 44);
@@ -996,10 +996,13 @@ const J3DScene *jukebox3d_ending_frame(float w, float h)
 	// The green planet up to the left.
 	{
 		const float p[3] = { -62, 34, -230 };
-		const M4 m = m4_place(p, NULL, 21, 21, 21);
-		J3DItem *it = add(J3D_SPHERE, J3D_LIT, &m, 0.55f, 1.0f, 0.62f, 1);
+		// (Turned to show its largest continent, slowly turning on.)
+		const M4 tilt = m4_rotation(2, 0.25f), spin = m4_rotation(1, 2.2f + t * 0.03f);
+		const M4 turn = m4_mul(&tilt, &spin);
+		const M4 m = m4_place(p, &turn, 21, 21, 21);
+		J3DItem *it = add(J3D_SPHERE, J3D_LIT, &m, 1, 1, 1, 1);
 		if (it != NULL)
-			it->textured = 1;
+			it->textured = J3D_TEXTURE_TERRAN;
 		const float halo[3] = { 0.3f, 0.8f, 0.45f };
 		glow(p, 54, halo, 0.08f);
 	}
@@ -1230,17 +1233,96 @@ static float noise2(float x, float y, int period, Uint32 seed)
 	return lerpf(lerpf(c[0], c[1], ux), lerpf(c[2], c[3], ux), uy);
 }
 
-// A gas giant: bands of teal, slate and amber, turbulent, a storm in the south.
-const Uint32 *jukebox3d_planet_texture(int *w, int *h)
+// Noise of `octaves` octaves, each twice as fine and half as strong, in [0, 1) (wrapping across).
+static float fbm2(float x, float y, int period, int octaves, Uint32 seed)
+{
+	float sum = 0, amp = 1, total = 0;
+	for (int o = 0, f = 1; o < octaves; ++o, f *= 2)
+	{
+		sum += noise2(x * f, y * f, period * f, seed + (Uint32)o) * amp;
+		total += amp;
+		amp *= 0.5f;
+	}
+	return sum / total;
+}
+
+static void put_rgb(Uint32 *pixel, const float c[3])
+{
+	const Uint8 rgba[4] = { (Uint8)SDL_clamp(c[0], 0, 255), (Uint8)SDL_clamp(c[1], 0, 255), (Uint8)SDL_clamp(c[2], 0, 255), 255 };
+	memcpy(pixel, rgba, 4);
+}
+
+static void gas_giant_texture(Uint32 *pixels, int W, int H);
+static void terran_texture(Uint32 *pixels, int W, int H);
+
+// The planets' textures (made the first time each is asked for).
+const Uint32 *jukebox3d_planet_texture(J3DTexture texture, int *w, int *h)
 {
 	enum { W = 512, H = 256 };
-	static Uint32 pixels[W * H];
-	static bool made = false;
+	static Uint32 pixels[J3D_TEXTURES][W * H];
+	static bool made[J3D_TEXTURES];
+	if (texture <= J3D_UNTEXTURED || texture >= J3D_TEXTURES)
+		texture = J3D_TEXTURE_GAS_GIANT;
 	*w = W;
 	*h = H;
-	if (made)
-		return pixels;
-	made = true;
+	if (!made[texture])
+	{
+		made[texture] = true;
+		if (texture == J3D_TEXTURE_TERRAN)
+			terran_texture(pixels[texture], W, H);
+		else
+			gas_giant_texture(pixels[texture], W, H);
+	}
+	return pixels[texture];
+}
+
+// A green world: continents (lowlands, hills, a few mountains) in teal seas, shallower by the coasts, ice at
+// the poles, and wisps of cloud over it.
+static void terran_texture(Uint32 *pixels, int W, int H)
+{
+	static const float deep[3] = { 10, 40, 62 }, shallow[3] = { 26, 98, 108 };
+	static const float low[3] = { 52, 128, 44 }, hill[3] = { 104, 140, 60 }, peak[3] = { 136, 128, 100 };
+	static const float ice[3] = { 222, 234, 236 }, cloud[3] = { 236, 242, 244 };
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x)
+		{
+			const float u = (float)x / W, v = (float)y / H;
+			// (The continents' outline warped a little, so the coasts wander.)
+			const float wu = (fbm2(u * 4, v * 2, 4, 3, 91u) - 0.5f) * 0.08f;
+			const float height = fbm2((u + wu) * 5, v * 2.5f, 5, 6, 41u);
+			const float sea_level = 0.45f;  // (about half land)
+			float c[3];
+			if (height < sea_level)
+			{
+				const float d = clamp01((sea_level - height) / 0.12f);
+				for (int k = 0; k < 3; ++k)
+					c[k] = lerpf(shallow[k], deep[k], sqrtf(d));
+			}
+			else
+			{
+				const float e = clamp01((height - sea_level) / 0.16f);
+				const float speckle = 0.9f + 0.2f * noise2(u * 160, v * 80, 160, 7u);
+				for (int k = 0; k < 3; ++k)
+					c[k] = (e < 0.5f ? lerpf(low[k], hill[k], e * 2) : lerpf(hill[k], peak[k], e * 2 - 1)) * speckle;
+			}
+			// Ice at the poles, its edge ragged.
+			const float lat = fabsf(v - 0.5f) * 2;
+			const float cap = clamp01((lat - 0.82f + (fbm2(u * 16, v * 8, 16, 4, 13u) - 0.5f) * 0.2f) / 0.04f);
+			for (int k = 0; k < 3; ++k)
+				c[k] = lerpf(c[k], ice[k], cap);
+			// Clouds, in swirls (their noise warped by another).
+			const float swirl = (fbm2(u * 4, v * 2, 4, 3, 77u) - 0.5f) * 1.6f;
+			const float cl = fbm2(u * 8 + swirl, v * 5 + swirl * 0.5f, 8, 5, 63u);
+			const float cover = clamp01((cl - 0.53f) / 0.14f) * 0.8f;
+			for (int k = 0; k < 3; ++k)
+				c[k] = lerpf(c[k], cloud[k], cover);
+			put_rgb(&pixels[y * W + x], c);
+		}
+}
+
+// A gas giant: bands of teal, slate and amber, turbulent, a storm in the south.
+static void gas_giant_texture(Uint32 *pixels, int W, int H)
+{
 	static const float palette[5][3] = { { 22, 52, 70 }, { 46, 98, 112 }, { 150, 132, 96 }, { 196, 150, 86 }, { 70, 78, 96 } };
 	for (int y = 0; y < H; ++y)
 		for (int x = 0; x < W; ++x)
@@ -1274,9 +1356,8 @@ const Uint32 *jukebox3d_planet_texture(int *w, int *h)
 			}
 			// Darker at the poles.
 			const float pole = 0.55f + 0.45f * sinf(PI_F * v);
-			const Uint8 rgba[4] = { (Uint8)SDL_clamp(c[0] * pole, 0, 255), (Uint8)SDL_clamp(c[1] * pole, 0, 255),
-				                    (Uint8)SDL_clamp(c[2] * pole, 0, 255), 255 };
-			memcpy(&pixels[y * W + x], rgba, 4);
+			for (int k = 0; k < 3; ++k)
+				c[k] *= pole;
+			put_rgb(&pixels[y * W + x], c);
 		}
-	return pixels;
 }

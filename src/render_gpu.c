@@ -10984,12 +10984,12 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 /* --- The jukebox's visuals (jukebox3d.h) -------------------------------------------------- */
 
 static BTBHGPUCustomMesh *jukebox_meshes[J3D_SHAPES];
-static BTBHGPUTexture *planet_texture = NULL;
+static BTBHGPUTexture *planet_textures[J3D_TEXTURES];
 
 static void forget_jukebox_scene(void)
 {
 	memset(jukebox_meshes, 0, sizeof(jukebox_meshes));  // (the window's)
-	planet_texture = NULL;
+	memset(planet_textures, 0, sizeof(planet_textures));
 }
 
 static BTBHGPUCustomMesh *jukebox_mesh(J3DShape shape)
@@ -11014,7 +11014,7 @@ static BTBHGPUCustomMesh *jukebox_mesh(J3DShape shape)
 // The order the items are drawn in batches: by shape, look and texture (models each their own).
 static int jukebox_key(const J3DItem *it)
 {
-	return (it->shape * 3 + it->look) * 2 + (it->textured ? 1 : 0);
+	return (it->shape * 3 + it->look) * J3D_TEXTURES + (it->textured < J3D_TEXTURES ? it->textured : 0);
 }
 
 // The jukebox's scene over the whole window, under its panel (whose glass shows it blurred). True if
@@ -11025,16 +11025,20 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 	const UIMenu *published = ui_published();
 	const J3DScene *js = ui_published_is(UI_SCREEN_ENDING) ? jukebox3d_ending_frame(w, h)
 	                   : jukebox3d_frame(w, h, published != NULL && !published->jukebox.hidden);
-	if (planet_texture == NULL)
+	for (int i = 0; i < js->item_count; ++i)
 	{
-		int tw, th;
-		const Uint32 *pixels = jukebox3d_planet_texture(&tw, &th);
-		planet_texture = create_texture_filtered(tw, th, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
-		btbh_gpu_texture_update_rgba8(planet_texture, (const uint8_t *)pixels, 0, 0, (uint32_t)tw, (uint32_t)th);
+		const int t = js->items[i].textured;
+		if (t > J3D_UNTEXTURED && t < J3D_TEXTURES && planet_textures[t] == NULL)
+		{
+			int tw, th;
+			const Uint32 *pixels = jukebox3d_planet_texture((J3DTexture)t, &tw, &th);
+			planet_textures[t] = create_texture_filtered(tw, th, BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+			btbh_gpu_texture_update_rgba8(planet_textures[t], (const uint8_t *)pixels, 0, 0, (uint32_t)tw, (uint32_t)th);
+		}
 	}
 
 	// The items in batches of the same shape, look and texture.
-	enum { KEYS = J3D_SHAPES * 3 * 2 };
+	enum { KEYS = J3D_SHAPES * 3 * J3D_TEXTURES };
 	static int order[J3D_MAX_ITEMS];
 	int starts[KEYS + 1] = { 0 };
 	for (int i = 0; i < js->item_count; ++i)
@@ -11101,8 +11105,8 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 		b->instance_count = (uint32_t)(instance_count - first_instance);
 		b->roughness = js->roughness;
 		b->metalness = js->metalness;
-		if (first->textured)
-			b->albedo_texture = planet_texture;
+		if (first->textured > J3D_UNTEXTURED && first->textured < J3D_TEXTURES)
+			b->albedo_texture = planet_textures[first->textured];
 		if (first->look != J3D_LIT)
 			b->unlit_enabled = 1;
 		if (first->look == J3D_ADDITIVE)
