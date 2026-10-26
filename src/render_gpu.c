@@ -10221,7 +10221,7 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			}
 			const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));  // not before it appears
 			transform.m[12] = p->x + p->vx * age;
-			transform.m[14] = p->y + (p->vy + explodeMove) * age;
+			transform.m[14] = p->y + (p->vy + (p->screen ? 0 : explodeMove)) * age;
 			const float height = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale;
 			transform.m[13] = height + (p->air ? l3d_terrain_headroom : stand_lift(transform.m[12], transform.m[14], height, NULL));
 			float *instance = instances + *instance_count * 24;

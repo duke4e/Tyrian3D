@@ -36,6 +36,7 @@ typedef struct
 	Uint8 kind;              // P3DKind
 	bool air;                // born in the air (above l3d_terrain_headroom's room), not on the ground
 	float turn, spin;        // P3D_DEBRIS: how far it has tumbled, and how fast while it flies (radians a frame)
+	bool screen;             // stays where it is on the screen (round the ship), not scrolling with the ground
 } P3DParticle;
 
 #define P3D_MAX_PARTICLES 4096
@@ -76,6 +77,9 @@ typedef enum
 	P3D_TRAIL_VAPOUR,
 } P3DTrail;
 void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind, float span);
+
+// An item picked up (x, y where): a ring of light widening round it and glints flying out, at that height.
+void p3d_pickup(float x, float y, float height);
 
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range

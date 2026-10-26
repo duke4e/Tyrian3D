@@ -245,6 +245,44 @@ static void shock_ring(float x, float y, float height, float size, float life)
 	set_colors(p, 255, 200, 140, 150, 255, 110, 40, 0);
 }
 
+void p3d_pickup(float x, float y, float height)
+{
+	// Pale gold, unlike the explosions' fire.
+	P3DParticle *ring = spawn(P3D_RING, x, y, height);
+	if (ring != NULL)
+	{
+		ring->screen = true;
+		ring->size = 6;
+		ring->grow = 1.6f;
+		ring->life = 12;
+		set_colors(ring, 255, 240, 190, 200, 255, 200, 110, 0);
+	}
+	P3DParticle *glow = spawn(P3D_GLOW, x, y, height);
+	if (glow != NULL)
+	{
+		glow->screen = true;
+		glow->size = 14;
+		glow->grow = -0.9f;
+		glow->life = 8;
+		set_colors(glow, 255, 245, 210, 170, 255, 210, 120, 0);
+	}
+	for (int i = 0; i < 10; ++i)
+	{
+		P3DParticle *p = spawn(P3D_GLOW, x, y, height);
+		if (p == NULL)
+			return;
+		p->screen = true;
+		const float angle = (i + random_range(0, 0.6f)) * 2 * (float)M_PI / 10, s = random_range(1.4f, 2.2f);
+		p->vx = cosf(angle) * s;
+		p->vy = sinf(angle) * s;
+		p->vheight = random_range(0.0f, 0.8f);
+		p->drag = 0.86f;
+		p->size = random_range(1.6f, 2.4f);
+		p->life = random_range(12, 18);
+		set_colors(p, 255, 250, 220, 255, 255, 200, 90, 0);
+	}
+}
+
 void p3d_field(float x, float y, float height, P3DField field, float reach, bool pulse)
 {
 	// Cold blue-white light, unlike the explosions' fire.
@@ -464,7 +502,7 @@ void p3d_update(int drift)
 		if (p->age > 0)
 		{
 			p->x += p->vx;
-			p->y += p->vy + drift;
+			p->y += p->vy + (p->screen ? 0 : drift);
 			p->height += p->vheight;
 			p->vx *= p->drag;
 			p->vy *= p->drag;

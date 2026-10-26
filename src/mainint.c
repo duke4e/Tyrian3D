@@ -35,6 +35,7 @@
 #include "joystick.h"
 #include "keyboard.h"
 #include "layer3d.h"
+#include "particles3d.h"
 #include "lds_play.h"
 #include "loudness.h"
 #include "music_midi.h"
@@ -6115,6 +6116,10 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 
 			if (abs(this_player->x - enemy_screen_x) < 12 && abs(this_player->y - enemy[z].ey) < 14)
 			{   /*Collide*/
+				// Tyrian3D: an item picked up flashes (it only shows).
+				if (enemy[z].scoreitem && l3d_capturing && settings3d.effects)
+					p3d_pickup((this_player->x + 7 + enemy_screen_x + 6) / 2.0f, (this_player->y + 7 + enemy[z].ey + 7) / 2.0f,
+					           l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
 				int evalue = enemy[z].evalue;
 				if (evalue > 29999)
 				{

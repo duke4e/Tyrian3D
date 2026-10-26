@@ -534,6 +534,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
 | `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses), scroll speed changes, warp orbs and data cubes picked up |
 | `TYR3D_TEST_EXPLOSION=<x>,<y>,<every>` | A large explosion at this screen point every so many frames, to look at the particles |
+| `TYR3D_TEST_PICKUP=<every>` | An item's pickup flash at the ship every so many frames, to look at it |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |
 | `TYR3D_SPECIAL=<n>`, `TYR3D_BOMBS=<n>` | With `TYR3D_START`: a special weapon (its id in the item data), super bombs at each level's start (0-10) |

@@ -3029,6 +3029,11 @@ draw_player_shot_loop_end:
 		int tx, ty, every;
 		if (test != NULL && sscanf(test, "%d,%d,%d", &tx, &ty, &every) == 3 && every > 0 && ++test_frame % every == 0)
 			JE_setupExplosionLarge((test_frame / every) & 1, 0, tx, ty);
+		// TYR3D_TEST_PICKUP=<every n frames>: an item's pickup flash at the ship (for looking at it).
+		const char *pickup = SDL_getenv("TYR3D_TEST_PICKUP");
+		static unsigned int pickup_frame = 0;
+		if (pickup != NULL && SDL_atoi(pickup) > 0 && ++pickup_frame % SDL_atoi(pickup) == 0 && l3d_capturing)
+			p3d_pickup(player[0].x + 7.0f, player[0].y + 7.0f, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
 	}
 
 	/*---------------------------- Draw Explosions ----------------------------*/
