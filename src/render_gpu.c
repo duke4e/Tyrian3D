@@ -4410,12 +4410,12 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + 2 + WEATHER_FLAKES + 32 + MAX_PLANTS + MAX_CLOUD_PUFFS)
+                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + 2 + WEATHER_FLAKES + 32 + 64 + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
 #define MAX_TERRAIN_ROW_DRAWS 192
-#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + MAX_TERRAIN_ROW_DRAWS + 14)
+#define MAX_BATCHES (L3D_MAX_LAYERS + M3D_MAX_MODELS * 4 + L3D_MAX_OBJECTS + B3D_ATLAS_CELLS * 12 + 1 + L3D_MAX_BACKGROUNDS + P3D_KIND_COUNT + 1 + 1 + MAX_TERRAIN_ROW_DRAWS + 20)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
@@ -10327,6 +10327,83 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 }
 
 /*
+ * Shooting stars in deep space (the starfield on, Effects only): now and then a meteor streaks across the deep
+ * space under the stars, a bright head and a tail fading behind it, gone in under a second; when, where and which way
+ * by the time, so they come unevenly.
+ */
+#define METEOR_SLOTS 2       // that many may fly at once
+#define METEOR_PERIOD 4.5f   // seconds: each slot's turn comes round
+#define METEOR_LIFE 0.7f     // seconds a meteor flies
+#define METEOR_DEPTH 500.0f  // game pixels below the game's stars
+#define METEOR_GLOWS 32      // along its tail
+
+static void add_meteor_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights, int *instance_count,
+                             int *batch_count)
+{
+	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
+		return;
+	const float height = heights[frame->star_layer] - stars_below_layer() - METEOR_DEPTH * rgpu_camera.height_scale;
+	float rect[4];
+	plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+	if (rect[0] > rect[2] || rect[1] >= rect[3])
+		return;
+	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+	const float t = (l3d_frame_number + ahead) / 35.0f;
+	const int first = *instance_count;
+	for (int m = 0; m < METEOR_SLOTS; ++m)
+	{
+		const float slot_t = t + m * METEOR_PERIOD * 0.5f;
+		const Uint32 turn = (Uint32)floorf(slot_t / METEOR_PERIOD);
+		const Uint32 seed = hash32(turn * 2654435761u + (Uint32)m * 97u);
+		if (hash_unit(seed) < 0.35f)
+			continue;  // (not every turn: they come unevenly)
+		// Its start within the period, so they don't keep time.
+		const float start = hash_unit(seed + 1) * (METEOR_PERIOD - METEOR_LIFE);
+		const float age = (fmodf(slot_t, METEOR_PERIOD) - start) / METEOR_LIFE;
+		if (age < 0 || age > 1)
+			continue;
+		const float angle = (hash_unit(seed + 2) < 0.5f ? 0.35f : (float)M_PI - 0.35f) + (hash_unit(seed + 3) - 0.5f) * 0.8f;
+		const float dx = cosf(angle), dz = sinf(angle);
+		const float x0 = rect[0] + w * (0.15f + 0.7f * hash_unit(seed + 4)), z0 = rect[1] + h * (0.1f + 0.5f * hash_unit(seed + 5));
+		const float travel = w * (0.35f + 0.25f * hash_unit(seed + 6));
+		const float hx = x0 + dx * travel * age, hz = z0 + dz * travel * age;
+		const float tail = travel * 0.45f * SDL_min(1.0f, age * 3);
+		const float fade = SDL_min(1.0f, (1 - age) * 4) * SDL_min(1.0f, age * 8);
+		for (int g = 0; g < METEOR_GLOWS && *instance_count < MAX_INSTANCES; ++g)
+		{
+			const float k = (float)g / (METEOR_GLOWS - 1);  // 0 the head, 1 the tail's end
+			Mat4 transform = mat4_identity();
+			const float size = (g == 0 ? 14.0f : 9.0f * (1 - k * 0.75f)) * rgpu_camera.height_scale;
+			transform.m[0] = transform.m[5] = transform.m[10] = size;
+			transform.m[12] = hx - dx * tail * k;
+			transform.m[13] = height;
+			transform.m[14] = hz - dz * tail * k;
+			float *instance = instances + *instance_count * 24;
+			write_instance_world(instance, &transform, 1.0f);
+			const float a = fade * (g == 0 ? 1.0f : 0.45f * (1 - k) * (1 - k));
+			instance[16] = 0.75f * a;
+			instance[17] = 0.85f * a;
+			instance[18] = 1.0f * a;
+			instance[19] = 1;
+			++*instance_count;
+		}
+	}
+	if (*instance_count == first)
+		return;
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = particle_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
+/*
  * Gulls over the sea levels (b3d_birds, Effects only): a few flocks, each in a loose V, flying their own heading over
  * the water at a height of their own, wings beating and gliding by turns; they come round again across the view.
  */
@@ -11484,6 +11561,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int first_space_batch = batch_count;
 	add_planet_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_nebula_batch(frame, &camera, heights, &instance_count, &batch_count);
+	add_meteor_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
 	const int end_space_batch = batch_count;
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);

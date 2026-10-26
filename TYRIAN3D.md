@@ -617,7 +617,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   own, by its background 1 map) drift by, and deepest a planet (`add_planet_batch`: one of the jukebox's
   surfaces, gas giant or green world, tinted by the level's map, its axis along the screen, turning slowly,
   sunlit with its shading baked into its mesh, a halo of atmosphere round it) drifts by at a tenth of the
-  stars' pace, coming round again after a long while. No shadow falls so deep, and smoke there thins out pale
+  stars' pace, coming round again after a long while; now and then a shooting star streaks across deep space
+  (`add_meteor_batch`: a bright head and a fading tail, under a second, at uneven times). No shadow falls so deep, and smoke there thins out pale
   (dark, it showed as soot over the nebula and the planet). Both show through what background 1 leaves empty, and only
   with the Effects setting. A map that shows nothing (no tile, or only tiles of colour 0) is neither
   drawn as tiles nor makes the backgrounds under it composed, even if the game blends it (episode 6's
