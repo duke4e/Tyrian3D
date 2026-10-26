@@ -36,6 +36,7 @@ OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
 # 37th (tools/content/gbc/build.py makes their records)
 NEW_ENEMIES = json.load(open(os.path.join(ROOT, 'tools', 'content', 'gbc', 'new_enemies.json')))
 NEW_SHEET = 37
+PAIR_COST = 4.0       # autotile: a pair of tiles side by side or above each other that no original has, in quarters off the plan
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
 
@@ -176,12 +177,10 @@ def autotile(spec, img, grids, letter):
     the used tiles' region means, weighted by use); a tile's signature is the materials of its n x n
     regions; the GBC map (spec 'match': its colours moved to the tile set's first), cut into the PC
     tiles' regions, gives each cell the signature it wants, and the cell takes a tile with the fewest
-    regions off it: the originals' common tiles (ground rather than the objects on it), and where the
-    originals have them, tiles that stand above the tile below and right of the one to the left."""
+    regions off it: the originals' common tiles (ground rather than the objects on it), paired with their
+    neighbours as the originals pair them (row by row, Viterbi, over a few passes: edges that join up)."""
     from collections import Counter
     from scipy.cluster.vq import kmeans2
-    import random
-    rnd = random.Random(spec.get('seed', 1))
     n = spec.get('regions', 2)
     tiles = preview.tiles(letter)
     pal = preview.palette()
@@ -245,25 +244,76 @@ def autotile(spec, img, grids, letter):
             x0 = rw * c - 38
             xs = np.clip(np.arange(int(round(x0)), max(int(round(x0 + rw)), int(round(x0)) + 1)), 0, g.shape[1] - 1)
             grid[r, c] = material(g[ys][:, xs].reshape(-1, 3).mean(0))
-    layer1 = [[0] * 14 for _ in range(ROWS)]
+    # each cell's candidates: the tiles nearest its plan (and one quarter further); the map is then the
+    # choice that misses the plan least and pairs its tiles as the originals pair them (beside and above
+    # each other: an edge that joins up, a texture that goes on), found row by row (the best row for the
+    # rows below and above it, Viterbi) over a few passes from a first pass that looks only below
+    T = len(ids)
+    idx = {t: i for i, t in enumerate(ids)}
+    seen_h = np.zeros((T, T), bool)  # [left, right]
+    seen_v = np.zeros((T, T), bool)  # [below, above]
+    for a_, cnt in right.items():
+        for b_ in cnt:
+            if a_ in idx and b_ in idx:
+                seen_h[idx[a_], idx[b_]] = True
+    for a_, cnt in above.items():
+        for b_ in cnt:
+            if a_ in idx and b_ in idx:
+                seen_v[idx[a_], idx[b_]] = True
+    prior = -np.log(np.array([use[t] for t in ids], np.float64) / max(use[t] for t in ids))
+    MISS, PAIR, PRIOR = 1.0, PAIR_COST, 0.12
+    cands, unary = [], []
     off = 0
-    for r in range(ROWS - 1, -1, -1):
+    for r in range(ROWS):
+        row_c, row_u = [], []
         for c in range(14):
             want = grid[n * r:n * r + n, n * c:n * c + n].ravel()
             miss = (sigs != want).sum(1)
             best = miss.min()
             off += best > 0
-            # the tiles nearest the plan, and one quarter further where that pairs with the tile below
-            # and the one to the left as the originals have them (an edge that joins up)
-            cand = np.nonzero(miss <= best + 1)[0]
-            below = layer1[r + 1][c] if r + 1 < ROWS else None
-            left = layer1[r][c - 1] if c > 0 else None
-            w = []
-            for i in cand:
-                t = ids[i]
-                fits = (below is None or bool(above.get(below, {}).get(t))) + (left is None or bool(right.get(left, {}).get(t)))
-                w.append(weight[i] * (30.0 ** fits) * (1.0 if miss[i] == best else 0.02))
-            layer1[r][c] = ids[cand[rnd.choices(range(len(cand)), w)[0]]]
+            ci = np.nonzero(miss <= best + 2)[0]
+            if len(ci) > 48:
+                ci = ci[np.argsort(miss[ci] * 10 + prior[ci])[:48]]
+            row_c.append(ci)
+            row_u.append(MISS * miss[ci] + PRIOR * prior[ci])
+        cands.append(row_c)
+        unary.append(row_u)
+    choice = [[None] * 14 for _ in range(ROWS)]
+
+    def solve_row(r, use_above):
+        """The best row r for its neighbours below (and above): Viterbi along the row."""
+        costs = []
+        for c in range(14):
+            u = unary[r][c].copy()
+            ci = cands[r][c]
+            if r + 1 < ROWS and choice[r + 1][c] is not None:
+                u += PAIR * ~seen_v[choice[r + 1][c], ci]
+            if use_above and r > 0 and choice[r - 1][c] is not None:
+                u += PAIR * ~seen_v[ci, choice[r - 1][c]]
+            costs.append(u)
+        acc, back = costs[0], []
+        for c in range(1, 14):
+            pair = PAIR * ~seen_h[np.ix_(cands[r][c - 1], cands[r][c])]  # (prev, cur)
+            tot = acc[:, None] + pair
+            back.append(tot.argmin(0))
+            acc = tot.min(0) + costs[c]
+        k_ = int(acc.argmin())
+        picks = [k_]
+        for c in range(13, 0, -1):
+            k_ = int(back[c - 1][k_])
+            picks.append(k_)
+        picks.reverse()
+        for c in range(14):
+            choice[r][c] = int(cands[r][c][picks[c]])
+    for r in range(ROWS - 1, -1, -1):
+        solve_row(r, False)
+    for _ in range(3):
+        for r in list(range(ROWS)) + list(range(ROWS - 1, -1, -1)):
+            solve_row(r, True)
+    layer1 = [[ids[choice[r][c]] for c in range(14)] for r in range(ROWS)]
+    bad = sum(not seen_h[choice[r][c - 1], choice[r][c]] for r in range(ROWS) for c in range(1, 14)) + \
+        sum(not seen_v[choice[r + 1][c], choice[r][c]] for r in range(ROWS - 1) for c in range(14))
+    print(f'  {bad} pairs of tiles the originals never put together')
     print(spec['name'], letter, f'{n_rows} rows from GBC, {len(set(map(tuple, sigs)))} signatures, {off} cells off theirs')
     return layer1, n_rows
 
@@ -331,6 +381,44 @@ def review_enemies(level, types, use):
         for i, r in enumerate(rows):
             out.paste(r, ((i % 2) * 230, (i // 2) * 66))
         out.save(os.path.join(OUT, 'preview', f'L{level:02d}_enemies.png'))
+
+
+def pieces(records, positions, sizes):
+    """The spawn records that are pieces of a big GBC enemy another record of the same moment makes: the GBC game
+    builds a big ship of several types side by side (in one group), and each type's look was found for the whole
+    of it (enemies.py draws the sprites round an enemy), so each made it again, on top of the other. A record
+    whose place lies inside the sprite of one before it (the leftmost first), in its group, is left out (its
+    type replaced by PIECE); the first is centred on the whole (script.py sizes)."""
+    out = [list(r) for r in records]
+    moment = {}
+    for i, (r, p) in enumerate(zip(records, positions)):
+        cmd = r[0]
+        if cmd in (3, 4, 0x21, 0x22, 0x23, 0x24) or cmd >= 0x28:
+            moment.setdefault(p, []).append(i)
+    dropped = 0
+    for idx in moment.values():
+        idx.sort(key=lambda i: (records[i][2], (records[i][3] + 128) % 256))
+        gone = set()
+        for n, i in enumerate(idx):
+            if i in gone:
+                continue
+            a = records[i]
+            k = a[0] - 0x28
+            cols, rows = ((((k >> 1) & 3) + 1, (k >> 3) + 1) if a[0] >= 0x28 else (1, 1))
+            w, h = sizes.get(a[1], (16, 16))
+            w, h = max(w, 16 * cols), max(h, 16 * rows)
+            for j in idx[n + 1:]:
+                b = records[j]
+                if j in gone or b[4] != a[4]:
+                    continue
+                if 0 <= b[2] - a[2] < w and abs(((b[3] + 128) % 256) - ((a[3] + 128) % 256)) < h:
+                    gone.add(j)
+                    out[j][1] = PIECE
+                    dropped += 1
+    return out, dropped
+
+
+PIECE = 0xFE              # (no GBC type: a record left out as a piece of another's enemy)
 
 
 def enemies(spec, look):
@@ -440,6 +528,7 @@ def enemies(spec, look):
     sizes = {int(t): (info['size'][1], info['size'][0]) for t, info in d['types'].items() if info.get('size')}
     for name in NEW_ENEMIES:
         ground[("gbc", sorted(NEW_ENEMIES).index(name) + 1)] = NEW_ENEMIES[name]["layer"] == "ground"
+    records, merged = pieces(records, positions, sizes)
     events = script.translate(records, positions, types, enemies_of, lambda k_: ground.get(k_[:2], False), clock=clock,
                               sizes=sizes)
     placements = []
@@ -449,7 +538,7 @@ def enemies(spec, look):
                                end=start + max([e['t'] for e in boss['events']] + [0])))
     review_enemies(spec['gbc'], types, use)
     print(f"  {len(records)} GBC records -> {len(events)} events, {len(types)}/{len(d['types'])} types as PC enemies, "
-          f"sheets {banks}, boss {boss_source.name if boss else None}"
+          f"sheets {banks}, boss {boss_source.name if boss else None}, {merged} pieces of others' enemies"
           + (f", spawns left out (type: count) {dict((f'{t:02x}', n) for t, n in use.items() if t not in types)}"
              if any(t not in types for t in use) else ''))
     return events, placements, banks

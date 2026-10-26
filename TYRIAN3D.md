@@ -298,8 +298,12 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   its enemies are the PC sprites made small). The GBC map is scaled 1.5x (its 176 pixels are the 264
   the PC playfield shows) and cut into the PC tiles' quarters; each quarter's material (the tile
   set's main colours, the GBC lightness range moved to the tile set's, the GBC grain blurred) picks a
-  tile with those quarters among the originals' ground tiles (not the objects standing on it), the
-  common ones and pairs the originals have side by side more often. Space levels are the original's
+  tile with those quarters among the originals' ground tiles (not the objects standing on it): the
+  map is the choice that misses the plan least (a quarter off costs 1, the rarer tiles a little) and
+  pairs its tiles as the originals pair them (a pair beside or above each other that no original has
+  costs 4: edges join up, textures go on), found row by row (Viterbi along a row, given the rows below
+  and above it) over a few passes; the preview's log counts the pairs left that no original has.
+  Space levels are the original's
   blank tile with the stars. The levels, in the GBC game's Full Game order (found by flying it
   through in the emulator) with its five Arcade-only levels after one of their look, go to
   `data/gbc/episode7` as episode 6's level JSON, with `preview/` pictures (the GBC map beside the
@@ -339,10 +343,28 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   an event 11 ends the level if the boss is never destroyed (as the originals have one near 8100;
   after the boss block's last event where that runs longer). What the GBC script does past its map's
   top (while its boss arena loops) is pressed into the time before the boss (at most clock 7000). Every GBC type is a PC enemy: the best candidate on the level's
-  sheets (4-part ones as event 12 blocks, a composite's parts each spawned at its offset from the
-  GBC enemy's top left, in its link; a GBC block record is the pieces of one big enemy, two columns
-  one robot, so a type with a PC enemy of several parts makes it once). `episode.py` names the spawns it leaves out (types never seen
-  in the flight, or with no candidate on the level's sheets).
+  sheets (4-part ones as event 12 blocks, a composite's parts each spawned at its offset, centred on
+  the GBC enemy, in its link). A GBC block record is the pieces of one big enemy (seen in the GBC
+  game: two columns one robot, a bunker, SAVARA's airship of eight, a stalactite of three; never a
+  formation): one PC enemy, centred on its pieces. The GBC game also builds a big ship of several
+  types side by side in one group, and each type's look was found for the whole of it: a spawn whose
+  place lies inside the sprite of another of the same moment and group is left out (`pieces`, its
+  type PIECE), so the ship isn't made two or three times on top of itself (LAVA II's rocks, DELI's
+  ships, OASIS's bunkers). `episode.py` names the spawns it leaves out (types never seen
+  in the flight, or with no candidate on the level's sheets) and the pieces merged.
+* The boss fight (`build.py` `boss_fight`): the originals' bosses come at their maps' ends, where
+  the map stops (their scroll events are not part of the boss block) and many drift down with the
+  scroll; in a GBC level the map still ran there, so a boss flew through the screen and its "end when
+  clear" (36) ended the level. Once the boss's body is on screen (its highest piece's top at y 24,
+  from its pieces' spawns and speeds), the map stops (2), forced events (53) keep the clock running
+  for its script, its drifting pieces stop (19 by link), and the level ends when it is gone (36,
+  added where its block has none), or at its event 11, at least 2400 ticks of fight later (an
+  unkillable boss); the block's map restarts (4, 83) are left out.
+* In the 3D view (`tyrian2.c` `gbc_faces_its_way`) episode 7's sky enemies turn from their models'
+  heading (down the screen, the way the originals fly them) to where they go when they move
+  otherwise (the GBC paths go sideways and up); not the pieces of an object of several sprites
+  (models drawn at their origin, or other sprites made with it at its side), turning items, nor
+  what stands on the ground.
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
   into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text

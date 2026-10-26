@@ -6,8 +6,8 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
 
     03/04 a x y g      enemy of type a at (x, y) in group g     -> 15 (sky) / 6 (ground), link of g
     21-24              the same on Hard / Normal and up          -> 66 (skip on easier) + the enemy
-    28+                a block of enemies (columns, rows by the command's bits, 16 px apart; the
-                       pieces of one big enemy: one PC enemy of several parts if its type has one)
+    28+                a block: the pieces of one big enemy (columns, rows by the command's bits, 16 px
+                       apart): one PC enemy, centred on them
     13/1d vx vy . g    group's speed (99: keep)                 -> 19
     14 cx cy rx g      group zig-zag: every |c| frames the speed  -> 20 (+ 27 for the turn speed)
                        steps by 1, turning at rx
@@ -87,12 +87,12 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
         ep, n, parts = pc
         k = cmd - 0x28
         block = (((k >> 1) & 3) + 1, (k >> 3) + 1) if cmd >= 0x28 else (1, 1)
-        if parts == 1:
-            cols, rows = block
-        else:
-            # (a block of pieces is one big GBC enemy, e.g. two columns one robot: the type's PC enemy
-            # of several parts was found for the whole of it, so it is made once)
-            cols = rows = 1
+        w, h = sizes.get(a, (16, 16))
+        # a block is the pieces of one big GBC enemy (two columns one robot, a bunker, an airship of
+        # eight, three rows one stalactite; seen in the GBC game, never a formation): one PC enemy for
+        # it, centred on its pieces
+        whole = True
+        cols = rows = 1
         link = links.get(g, t)
         ground = ground_of(pc)
         datas = [enemies_of(ep).get(m, {}) for m in ([p[0] for p in parts] if isinstance(parts, tuple) else [n])]
@@ -101,6 +101,7 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
             for i in range(cols):
                 x = SCALE * (b + 16 * i) - 12
                 y = max(-128, min(127, round(SCALE * (s8(c) - 16 * j))))
+                top = round(SCALE * (s8(c) - 16 * (block[1] - 1)))  # (the block's top row: its rows go up)
                 if parts == 4:
                     # a 4-part enemy (event 12: the parts d1..d1+3, the layer in d6, part 0 the lower
                     # left one) with its top left corner where the GBC one's is; in the sky it gets
@@ -111,21 +112,24 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
                 elif isinstance(parts, tuple):
                     # a composite: its parts with their offsets from its top left, in one link, centred
                     # on the GBC enemy (its sprite, or the block's pieces)
-                    w, h = sizes.get(a, (16, 16))
-                    w, h = max(w, 16 * block[0]), max(h, 16 * block[1])
-                    cx = (SCALE * w - (max(p[1] for p in parts) + 24)) / 2
-                    cy = round((SCALE * h - (max(p[2] for p in parts) + 28)) / 2)
+                    bw, bh = max(w, 16 * block[0]), max(h, 16 * block[1])
+                    cx = (SCALE * bw - (max(p[1] for p in parts) + 24)) / 2
+                    cy = round((SCALE * bh - (max(p[2] for p in parts) + 28)) / 2)
                     for m, dx, dy in parts:
                         dx += cx
-                        yy = max(-128, min(127, y + cy + dy))
+                        yy = max(-128, min(127, top + cy + dy))
                         if ground:
                             evs.append(ev(t, GROUND, m, round(x + dx) + 27, 0, yy, 0, link, ep=ep))
                         else:
                             evs.append(ev(t, SKY, m, round(x + dx), 0, yy, speed, link, ep=ep))
-                elif ground:
-                    evs.append(ev(t, GROUND, n, round(x) + 27, 0, y, 0, link, ep=ep))
                 else:
-                    evs.append(ev(t, SKY, n, round(x), 0, y, speed, link, ep=ep))
+                    if whole and block != (1, 1):  # (one PC enemy for a block's pieces: centred on them)
+                        x += (SCALE * 16 * block[0] - 24) / 2
+                        y = max(-128, min(127, top + round((SCALE * 16 * block[1] - 28) / 2)))
+                    if ground:
+                        evs.append(ev(t, GROUND, n, round(x) + 27, 0, y, 0, link, ep=ep))
+                    else:
+                        evs.append(ev(t, SKY, n, round(x), 0, y, speed, link, ep=ep))
         # GBC enemies start still: the PC enemy's own moves undone (by its link; alone: none to undo)
         if link and not ground:
             if any(d.get('xmove') or d.get('ymove') for d in datas):

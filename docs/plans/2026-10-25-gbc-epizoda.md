@@ -47,6 +47,16 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
    odobrio 2026-10-25 da idu u `assets/terrain` i git kao za epizodu 6): postavke originalnog levela, visine
    površina prenesene po boji.
 
+## Polish (2026-10-26, korisnik: prijelazi terena, nagurani i krivo okrenuti neprijatelji, šef prođe kroz ekran)
+
+- Šef: kad cijeli uđe na ekran mapa staje, sat teče dalje (53), šef se ne spušta dalje; level završava
+  kad je uništen (36) ili najranije 2400 tickova kasnije.
+- Nagurani: GBC slaže veliki brod od više tipova jedan do drugog i od blokova komada; svaki takav
+  objekt sad je jedan PC neprijatelj (zračni brod SAVARA, bombarderi, bunkeri, roboti, veliki brodovi).
+- Okretanje: u 3D-u brodovi na nebu epizode 7 gledaju kamo lete.
+- Teren: autotile bira cijele redove (Viterbi) tako da parovi susjednih tileova budu kakve imaju
+  originali; 3D teren ponovo izgrađen.
+
 ## Otvoreno
 
 - GBC-ovi vlastiti bossovi. (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i

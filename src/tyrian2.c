@@ -391,6 +391,23 @@ static void smoulder(unsigned int i, float x, float y, bool large)
 	             1 - since / SMOULDER_FRAMES);
 }
 
+// Tyrian3D: episode 7's enemies fly the GBC game's paths, not the PC originals' their models face for (down the
+// screen, the way the originals fly them): in the sky one that moves turns from that heading to where it goes.
+// Not the pieces of one object (models drawn at their origin, or other enemies' sprites made with it at its
+// side), turning items, nor what stands on the ground.
+static bool gbc_faces_its_way(unsigned int i, const M3DAppearance *look)
+{
+	if (episodeNum != EPISODE_GBC || look->model < 0 || look->spin != 0 || m3d_models[look->model].keep_origin ||
+	    l3d_current_layer() == L3D_GROUND_ENEMY || (enemy[i].exc == 0 && enemy[i].eyc >= 0))
+		return false;  // (still, or straight down: as it is)
+	for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+		if (j != i && enemyAvail[j] != 1 && enemy_group[i] != 0 && enemy_group[j] == enemy_group[i] &&
+		    enemy_group_link[j] == enemy_group_link[i] && enemy[j].egr[0] != enemy[i].egr[0] &&
+		    abs(enemy[j].ex - enemy[i].ex) < 40 && abs(enemy[j].ey - enemy[i].ey) < 40)
+			return false;  // (a piece of an object of several sprites)
+	return true;
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -461,6 +478,8 @@ static bool draw_enemy_model(unsigned int i)
 	switch (look.yaw_mode)
 	{
 	case M3D_YAW_FIXED:
+		if (gbc_faces_its_way(i, &look))
+			yaw += atan2f((float)enemy[i].exc, (float)-enemy[i].eyc) * 180.0f / (float)M_PI - 180.0f;
 		break;
 	case M3D_YAW_VELOCITY:
 		if (enemy[i].exc != 0 || enemy[i].eyc != 0)
