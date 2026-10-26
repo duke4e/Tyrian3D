@@ -195,6 +195,26 @@ typedef struct
 	bool cube_paused;
 	float cube_progress;
 	char cube_title[48];
+	// The next level's map (UI_SHOP_MAP), drawn by the UI itself when map_planet_count > 0, in the original's map
+	// window (picture_part, screen pixels): each planet's sprite (PLANET_SHAPES, its frame now), middle and size,
+	// whether it is a destination (the selected one) or where the ship is; the routes' dots (lit: the selected
+	// route as far as it has come); the grid's scroll (the original's navX and navY halved).
+#define UI_MAP_PLANETS 24
+#define UI_MAP_DOTS 64
+	int map_planet_count;
+	struct
+	{
+		int sprite;
+		float x, y, w, h;
+		bool destination, selected, origin;
+	} map_planet[UI_MAP_PLANETS];
+	int map_dot_count;
+	struct
+	{
+		float x, y;
+		bool lit, route;
+	} map_dot[UI_MAP_DOTS];
+	float map_grid_x, map_grid_y;
 } UIShop;
 
 // A question over the screen (the store's quit and save): its text, a field being typed, two buttons.

@@ -624,6 +624,48 @@ static void shop_publish(void)
 		s->page = UI_SHOP_MAP;
 		s->scene = UI_SCENE_NONE;
 		s->picture_part = (SDL_Rect){ 19, 16, 117, 154 };
+		{
+			// The map for the UI to draw (JE_updateNavScreen's planets, dots and grid, where it draws them).
+			const int selected = curSel[curMenu] < menuChoices[curMenu] ? mapPlanet[curSel[curMenu] - 2] : 0;
+			bool drawn[21] = { false };
+			for (int x = 0; x < 11; ++x)
+				drawn[x] = true;
+			for (int x = 0; x < menuChoices[curMenu] - 1; ++x)
+				if (mapPlanet[x] >= 1 && mapPlanet[x] <= 21)
+					drawn[mapPlanet[x] - 1] = true;
+			if (mapOrigin >= 1 && mapOrigin <= 21)
+				drawn[mapOrigin - 1] = true;
+			for (int p = 0; p < 21 && s->map_planet_count < UI_MAP_PLANETS; ++p)
+			{
+				if (!drawn[p])
+					continue;
+				const int sprite_n = PGR[p] - 1 + (PAni[p] ? planetAni : 0);
+				if (!sprite_exists(PLANET_SHAPES, (unsigned int)sprite_n))
+					continue;
+				const Sprite *sp = sprite(PLANET_SHAPES, (unsigned int)sprite_n);
+				const int i = s->map_planet_count++;
+				s->map_planet[i].sprite = sprite_n;
+				s->map_planet[i].x = planetX[p] + 66 - navX;
+				s->map_planet[i].y = planetY[p] + 85 - navY;
+				s->map_planet[i].w = sp->width;
+				s->map_planet[i].h = sp->height;
+				s->map_planet[i].origin = p + 1 == mapOrigin;
+				s->map_planet[i].selected = p + 1 == selected;
+				for (int x = 0; x < menuChoices[curMenu] - 1; ++x)
+					s->map_planet[i].destination |= mapPlanet[x] == p + 1;
+			}
+			for (int x = 0; x < mapPNum && x < 5; ++x)
+				for (int y = 0; y < planetDots[x] && y < 10 && s->map_dot_count < UI_MAP_DOTS; ++y)
+				{
+					const bool route = x == curSel[curMenu] - 2;
+					s->map_dot[s->map_dot_count].x = planetDotX[x][y] - navX + 66;
+					s->map_dot[s->map_dot_count].y = planetDotY[x][y] - navY + 85;
+					s->map_dot[s->map_dot_count].route = route;
+					s->map_dot[s->map_dot_count++].lit = route && y < currentDotNum;
+				}
+			s->map_grid_x = navX / 2;
+			s->map_grid_y = navY / 2;
+		}
 		for (int x = 2; x <= menuChoices[curMenu]; ++x)
 		{
 			UIItem *it = ui_menu_add(ui, UI_ITEM_ACTION, menuInt[4][x - 1], 0, 0, 0, 0);

@@ -113,7 +113,10 @@ screens (its menu with the profile, the unlocks, the act's map with its nodes na
 ringed, the cards and the merchants as large cards with their tiers, the messages as cards). The
 mouse works on the panels (hover, click, the wheel moves through the items, the pages and the cards
 and scrolls a data cube's text), the keys and the joystick as ever; when the joystick was used
-last, the key hints show its pad and buttons. In the store one click chooses (the original's first
+last, the key hints show its pad and buttons. The store's next-level map is the UI's own (`ui.c` `shop_map`, from what `game_menu.c` publishes of
+`JE_updateNavScreen`'s planets, routes and grid): deep space, a faint brass grid scrolling at half the planets' pace,
+the routes' dots (the selected route lit as far as it has come), the planets drawn anew, a pulsing brass ring round the
+selected destination and a faint one where the ship is. In the store one click chooses (the original's first
 click only selects; `shop_one_click`), but a part's choices, where the first click tries one on the
 ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games;
 a choice's card on Upgrade Ship opens its part with that choice tried. The pointer is a smooth one sized in window points.
@@ -800,8 +803,7 @@ portrait's frame round them drawn anew (the export's `face_frame.png` through `t
 the face, where the store's screen shows it (`find_hd_frame`). `icons/shop_<sprite>.png` and `icons/planet_<sprite>.png`
 are the modern UI's icons drawn anew: the export's `icons/` (the store's items as its cards show them, the planets of
 its map, each in its screen's palette) through `tools/upscale_sprites.py` with 4x-BigFArt-Detail; where one is there
-the UI draws it instead of the sprite's pixels (`render_gpu.c` `hd_icon`: the store's cards now; the planets wait for
-a map of the UI's own). `upscale/` is only the work folder
+the UI draws it instead of the sprite's pixels (`render_gpu.c` `hd_icon`: the store's cards and its map's planets). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

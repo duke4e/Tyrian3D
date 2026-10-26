@@ -1905,6 +1905,58 @@ static void shop_under(const UIMenu *m, Box u)
 	}
 }
 
+// The next level's map, drawn anew in the pane (the original's map window, its screen pixels scaled): deep space,
+// a faint brass grid scrolling at half the planets' pace, the routes' dots (the selected route lit as far as it has
+// come), the planets (drawn anew where data/hd/icons has them), the selected destination ringed, where the ship is
+// marked.
+static void shop_map(const UIShop *s, Box p)
+{
+	const SDL_Rect box = s->picture_part;
+	const float k = p.w / box.w;
+	rect(p, (Colour){ 0.035f, 0.045f, 0.06f, 1 }, (Colour){ 0.015f, 0.02f, 0.03f, 1 });
+	// The grid: lines every 15 of the map's pixels, at the original's places.
+	const Colour line = with_alpha(C_RIM_BOTTOM, 0.22f);
+	const float lw = SDL_max(L.px, U(1.5f));
+	for (int i = 1; i <= 20; ++i)
+	{
+		const float gx = 15.0f * i - s->map_grid_x, gy = 15.0f * i - s->map_grid_y;
+		if (gx > box.x && gx < box.x + box.w)
+			rect((Box){ p.x + (gx - box.x) * k, p.y, lw, p.h }, line, line);
+		if (gy > box.y && gy < box.y + box.h)
+			rect((Box){ p.x, p.y + (gy - box.y) * k, p.w, lw }, line, line);
+	}
+	// The routes' dots.
+	for (int i = 0; i < s->map_dot_count; ++i)
+	{
+		const float dx = s->map_dot[i].x, dy = s->map_dot[i].y;
+		if (dx < box.x + 2 || dx > box.x + box.w - 2 || dy < box.y + 2 || dy > box.y + box.h - 2)
+			continue;
+		const float r = (s->map_dot[i].lit ? 1.6f : 1.1f) * k;
+		const Box d = { p.x + (dx - box.x) * k - r, p.y + (dy - box.y) * k - r, 2 * r, 2 * r };
+		const Colour c = s->map_dot[i].lit ? C_GOLD_TOP
+		               : with_alpha(C_TAN, s->map_dot[i].route ? 0.55f : 0.3f);
+		fill_octagon(d, r * 0.6f, c, mix(c, (Colour){ 0, 0, 0, c.a }, 0.35f));
+	}
+	// The planets, whole inside the window (the original's frame covered what reached past it).
+	for (int i = 0; i < s->map_planet_count; ++i)
+	{
+		const float w = s->map_planet[i].w, h = s->map_planet[i].h, cx = s->map_planet[i].x, cy = s->map_planet[i].y;
+		if (cx - w / 2 < box.x - 2 || cx + w / 2 > box.x + box.w + 2 || cy - h / 2 < box.y - 2 || cy + h / 2 > box.y + box.h + 2)
+			continue;
+		const Box b = { p.x + (cx - w / 2 - box.x) * k, p.y + (cy - h / 2 - box.y) * k, w * k, h * k };
+		rgpu_ui_table_sprite(PLANET_SHAPES, (unsigned int)s->map_planet[i].sprite, b.x, b.y, b.w, b.h, L.alpha);
+		if (s->map_planet[i].selected || s->map_planet[i].origin)
+		{
+			// A brass ring round the selected destination, pulsing; a faint one where the ship is.
+			const float pulse = s->map_planet[i].selected ? 0.65f + 0.35f * sinf(SDL_GetTicks() / 260.0f) : 0.45f;
+			const float pad = U(10), d = SDL_max(b.w, b.h) + 2 * pad;
+			const Box ring = { b.x + b.w / 2 - d / 2, b.y + b.h / 2 - d / 2, d, d };
+			rim(ring, d * 0.29f, SDL_max(U(s->map_planet[i].selected ? 4 : 2), L.px), with_alpha(C_SEL_RIM, pulse),
+			    with_alpha(C_RIM_BOTTOM, pulse));
+		}
+	}
+}
+
 // The left column: the 3D scene's frame (the scene shows in it), or a part of the screen's picture.
 static void shop_left(const UIMenu *m, const ShopLayout *k)
 {
@@ -1924,8 +1976,11 @@ static void shop_left(const UIMenu *m, const ShopLayout *k)
 		const Box p = k->pane;
 		const float pad = SDL_max(U(10), L.px * 2);
 		panel(inset(p, -pad), U(20), PANEL_SOLID);
-		rgpu_ui_picture((float)s->picture_part.x, (float)s->picture_part.y, (float)s->picture_part.w, (float)s->picture_part.h, p.x, p.y,
-		                p.w, p.h, L.alpha);
+		if (s->page == UI_SHOP_MAP && s->map_planet_count > 0)
+			shop_map(s, p);
+		else
+			rgpu_ui_picture((float)s->picture_part.x, (float)s->picture_part.y, (float)s->picture_part.w, (float)s->picture_part.h, p.x,
+			                p.y, p.w, p.h, L.alpha);
 		frame_box(p, U(14));
 	}
 	if (s->page != UI_SHOP_SPECS)
