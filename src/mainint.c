@@ -5407,6 +5407,19 @@ redo:
 		    l3d_add_rgb_glow(this_player->x + 7, this_player->y + 19, 10.0f, 0.45f, engine_glow, ship_vx, ship_vy) &&
 		    follows_mouse)
 			l3d_pointer_last_glow();
+		// Tyrian3D: a hit on the shield shows it round the ship, a bubble of blue light fading out (the game's
+		// shield sprites left out, p3d_explosion).
+		const float shield_glow = l3d_shield_glow(this_player == &player[1] ? 1 : 0);
+		if (ship_model && settings3d.effects && shield_glow > 0)
+		{
+			static const Uint8 shield_rgb[3] = { 110, 180, 255 }, shield_rim[3] = { 190, 225, 255 };
+			if (l3d_add_rgb_glow(this_player->x + 7, this_player->y + 9, 34.0f, 0.4f * shield_glow, shield_rgb, ship_vx,
+			                     ship_vy) && follows_mouse)
+				l3d_pointer_last_glow();
+			if (l3d_add_rgb_glow(this_player->x + 7, this_player->y + 9, 20.0f, 0.35f * shield_glow * shield_glow, shield_rim,
+			                     ship_vx, ship_vy) && follows_mouse)
+				l3d_pointer_last_glow();
+		}
 		// Tyrian3D: and a flame trailing from them, flickering, longer while the ship flies forward and
 		// shorter while it falls back, white-hot to red along it.
 		if (ship_model && !ship_ghost && settings3d.effects)

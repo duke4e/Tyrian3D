@@ -2,6 +2,7 @@
  * Tyrian3D: particle effects for the 3D view. See particles3d.h.
  */
 #include "particles3d.h"
+#include "settings3d.h"
 
 #include <math.h>
 #include <string.h>
@@ -506,7 +507,10 @@ bool p3d_explosion(int x, int y, int type)
 			shock_ring(cx - 6, cy - 7, 30, 80, 14);
 		light(cx, cy, 24, 60, 5.5f, 12);
 		return true;
-	default:  // the player's shield, coin values, weapons' own hits: their sprites
+	case 14: case 15: case 16: case 17: case 18: case 19: case 20: case 21: case 22:
+		// The player's shield: the 3D view shows its own round the ship (l3d_shield_glow), with Effects.
+		return settings3d.effects;
+	default:  // coin values, weapons' own hits: their sprites
 		return false;
 	}
 }

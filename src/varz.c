@@ -1048,6 +1048,10 @@ JE_byte JE_playerDamage(JE_byte temp,
 	int playerDamage = 0;
 	soundQueue[7] = S_SHIELD_HIT;
 
+	// Tyrian3D: the 3D view's shield flash (shown in god mode too, for looking at it).
+	if (dev_godmode() || this_player->shield >= temp)
+		l3d_shield_hit(this_player == &player[1] ? 1 : 0);
+
 	if (dev_godmode())
 		return 0;
 

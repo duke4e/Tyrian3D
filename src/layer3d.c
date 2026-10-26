@@ -842,6 +842,24 @@ static void add_glow(float x, float y, float size, float strength, Uint8 color)
 	glow->pointer = false;
 }
 
+#define SHIELD_FRAMES 12
+
+static Uint32 shield_hit_at[2] = { 0, 0 };  // l3d_frame_number + 1 of the last hit, 0 none
+
+void l3d_shield_hit(int player_index)
+{
+	if (player_index >= 0 && player_index < 2)
+		shield_hit_at[player_index] = l3d_frame_number + 1;
+}
+
+float l3d_shield_glow(int player_index)
+{
+	if (player_index < 0 || player_index >= 2 || shield_hit_at[player_index] == 0)
+		return 0;
+	const Uint32 since = l3d_frame_number + 1 - shield_hit_at[player_index];
+	return since >= SHIELD_FRAMES ? 0.0f : 1.0f - (float)since / SHIELD_FRAMES;
+}
+
 bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy)
 {
 	if (!l3d_add_color_glow(x, y, size, strength, 255, vx, vy))

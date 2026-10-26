@@ -325,6 +325,11 @@ void l3d_pointer_last_glow(void);
 bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy);
 // The same in a colour of no palette (sRGB).
 bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy);
+// The player's shield took a hit (player 0 or 1): the 3D view shows the shield round the ship for a moment
+// (l3d_shield_glow) instead of the game's shield sprites.
+void l3d_shield_hit(int player_index);
+// How strongly the shield shows now (1 just hit, fading to 0).
+float l3d_shield_glow(int player_index);
 // Records a volumetric sprite (sheet is a Sprite2_array *). Same contract as l3d_add_object.
 bool l3d_add_volume(const void *sheet, unsigned int sprite, bool large, int style, float x, float y, float height,
                     float yaw, float roll, Uint8 filter);
