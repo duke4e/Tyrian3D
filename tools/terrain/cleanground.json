@@ -12,7 +12,8 @@
     "  where they are the painted picture. Pieces with neither get a placeholder: their own model, slumped",
     "  and darkened, until stage 4 gives them a wreck model of their own (a line here then).",
     "keep_maps: as keep, for one map (hash): where a look's painting is landscape there only (BOTANY B's cliff",
-    "  bunkers stand on rock in the water, MINERS' red spires and mounds are its rock).",
+    "  bunkers stand on rock in the water, MINERS' red spires and mounds are its rock, SAWBLADES' painted R bowls",
+    "  are its floor: one red ball lies in one of them).",
     "skip_maps: maps (hashes) the tool leaves alone (their .era and .std stay as they are), and why.",
     "no_palms: maps (hashes) whose painted palms stay painted.",
     "upper_maps: background 3's maps (hashes) cleaned too, where the top enemies riding them stand (the ground log's riding: lines; no copies of their tiles elsewhere), and their levels."
@@ -41,6 +42,9 @@
     "8362fe151f78556b": [
       "red_spire",
       "red_mound"
+    ],
+    "c99d83d90898734e": [
+      "red_ball"
     ]
   },
   "skip_maps": {
