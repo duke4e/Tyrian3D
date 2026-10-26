@@ -51,11 +51,13 @@ bool ui_fill_screens(void)
 
 void ui_fill_rect(int window_w, int window_h, SDL_Rect *out)
 {
-	int w = window_h * 8 / 5, h = window_h;
-	if (w > window_w)
+	// Filling the window, cut where the window's shape differs from 8:5 (its top and bottom in a wider window, its
+	// sides in a narrower one); on ultrawide only the window's 16:9 middle, the picture's blurred copy round it.
+	int w = SDL_min(window_w, window_h * 16 / 9), h = w * 5 / 8;
+	if (h < window_h)
 	{
-		w = window_w;
-		h = window_w * 5 / 8;
+		h = window_h;
+		w = h * 8 / 5;
 	}
 	*out = (SDL_Rect){ (window_w - w) / 2, (window_h - h) / 2, w, h };
 }
@@ -1120,25 +1122,33 @@ static void picker_list(const UIMenu *m, Box value)
 
 // Setup and its pages: a centred glass panel, the items in rows (name left, value right), the
 // selected item's description at the panel's foot, the keys below it.
+static float paging_controls(const UIPaging *pg, Box p, float y);
+
 static void build_setup(const UIMenu *m)
 {
 	const float cap = CAP_ITEM();
 	const float row_h = SDL_max(U(56), cap * 2.2f);
 	const float w = SDL_min(SDL_max(U(940), cap * 30), L.safe.w - U(96));
-	const float head_h = U(30) + (m->crumb[0] != '\0' ? CAP_SMALL() + U(14) : 0) + CAP_TITLE() + U(24) + U(18);
+	// (The pages as tabs under the title, the panel as tall on every tab: m->rows.)
+	const bool tabbed = m->paging.count > 1;
+	const float tabs_h = tabbed ? SDL_max(CAP_SMALL() * 2.5f, U(44)) + U(18) : 0;
+	const int rows = SDL_max(m->item_count, m->rows);
+	const float head_h = U(30) + (m->crumb[0] != '\0' ? CAP_SMALL() + U(14) : 0) + CAP_TITLE() + U(24) + U(18) + tabs_h;
 	const float foot_h = CAP_SMALL() * 1.75f * 2 + U(44);
-	float h = head_h + m->item_count * row_h + U(12) + foot_h;
+	float h = head_h + rows * row_h + U(12) + foot_h;
 	const float keys_h = key_hints_height() + U(28);
 	float rh = row_h;
 	const float room = L.window.h - U(48) - keys_h;
 	if (h > room)
 	{
-		rh = SDL_max((room - head_h - foot_h - U(12)) / SDL_max(m->item_count, 1), cap * 1.6f);
-		h = head_h + m->item_count * rh + U(12) + foot_h;
+		rh = SDL_max((room - head_h - foot_h - U(12)) / SDL_max(rows, 1), cap * 1.6f);
+		h = head_h + rows * rh + U(12) + foot_h;
 	}
 	const Box p = { L.safe.x + (L.safe.w - w) / 2, SDL_max((L.window.h - h - keys_h) / 2, U(24)), w, h };
 	panel(p, U(22), PANEL_GLASS);
-	const float top = p.y + header(p, m->crumb, m->title);
+	float top = p.y + header(p, m->crumb, m->title);
+	if (tabbed)
+		top += paging_controls(&m->paging, p, top - U(4)) + U(14);
 	const bool picking = m->picker_count > 0;
 	Box picker_value = { 0, 0, 0, 0 };
 	for (int i = 0; i < m->item_count; ++i)
@@ -1204,6 +1214,12 @@ static void build_setup(const UIMenu *m)
 	{
 		const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_LEFT_RIGHT, "", "Volume" }, { KEY_TEXT, "Enter", "Mute" },
 		                         { KEY_TEXT, "Esc", "Back" } };
+		key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, ky, ALIGN_CENTRE);
+	}
+	else if (tabbed)
+	{
+		const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_TEXT, "Enter", sel != NULL && sel->kind == UI_ITEM_CHOICE ? "Change" : "Confirm" },
+		                         { KEY_TEXT, "Tab", "Next Tab" }, { KEY_TEXT, "Esc", "Back" } };
 		key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, ky, ALIGN_CENTRE);
 	}
 	else

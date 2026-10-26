@@ -253,6 +253,7 @@ void setupMenu(void)
 		MENU_GRAPHICS,
 		MENU_SOUND,
 		MENU_3D,
+		MENU_EXTRAS,  // Tyrian3D: the modern UI's tabs (setup_tabs): the main page's other items
 	} MenuId;
 
 	typedef struct
@@ -328,7 +329,20 @@ void setupMenu(void)
 				{ -1 }
 			},
 		},
+		[MENU_EXTRAS] = {
+			.header = "Extras",
+			.items = {
+				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
+				{ MENU_ITEM_DEBUG, "Debug Flight", "Fly through any level without losing lives." },
+				{ MENU_ITEM_DONE, "Done", "Return to the main menu." },
+				{ -1 }
+			},
+		},
 	};
+	// Tyrian3D: with the modern UI the pages are tabs across the top (Tab, Shift+Tab, Page Up/Down or a click
+	// switch them; Esc and Done leave the settings); the original's main page is left out, its other items
+	// are the Extras tab.
+	static const MenuId setup_tabs[] = { MENU_GRAPHICS, MENU_3D, MENU_SOUND, MENU_EXTRAS };
 
 	char buffer[100];
 
@@ -365,6 +379,19 @@ void setupMenu(void)
 
 		// Restore background.
 		memcpy(VGAScreen->pixels, VGAScreen2->pixels, (size_t)VGAScreen->pitch * VGAScreen->h);
+
+		// Tyrian3D: the pages as tabs (the modern UI), or the original's main page and its sub-pages.
+		const bool tabbed = ui_modern();
+		if (tabbed && currentMenu == MENU_SETUP)
+			currentMenu = MENU_GRAPHICS;
+		else if (!tabbed && currentMenu == MENU_EXTRAS)
+			currentMenu = MENU_SETUP;
+		for (size_t t = 0; t < COUNTOF(setup_tabs); ++t)
+			menuParents[setup_tabs[t]] = tabbed ? MENU_NONE : MENU_SETUP;
+		int tab_index = -1;
+		for (size_t t = 0; t < COUNTOF(setup_tabs); ++t)
+			if (setup_tabs[t] == currentMenu)
+				tab_index = (int)t;
 
 		const Menu *menu = &menus[currentMenu];
 		dyMenuItems = currentMenu == MENU_3D ? 17 : 21;
@@ -516,9 +543,23 @@ void setupMenu(void)
 		// mouse on its name and its value (the volumes' bars and the pickers that open from their values;
 		// the others' rows act as their names do), the open picker's choices.
 		{
-			UIMenu *ui = ui_menu_begin(UI_SCREEN_SETUP, menu->header);
-			if (currentMenu != MENU_SETUP)
+			UIMenu *ui = ui_menu_begin(UI_SCREEN_SETUP, tabbed && tab_index >= 0 ? "Settings" : menu->header);
+			if (currentMenu != MENU_SETUP && !(tabbed && tab_index >= 0))
 				SDL_strlcpy(ui->crumb, "SETTINGS", sizeof(ui->crumb));
+			if (tabbed && tab_index >= 0)
+			{
+				ui->paging.count = (int)COUNTOF(setup_tabs);
+				ui->paging.index = tab_index;
+				ui->paging.tabs_click = currentPicker == MENU_ITEM_NONE;
+				for (size_t t = 0; t < COUNTOF(setup_tabs); ++t)
+				{
+					SDL_strlcpy(ui->paging.tab[t], menus[setup_tabs[t]].header, sizeof(ui->paging.tab[t]));
+					size_t n = 0;
+					while (menus[setup_tabs[t]].items[n].id != (MenuItemId)-1)
+						++n;
+					ui->rows = SDL_max(ui->rows, (int)n);
+				}
+			}
 			for (size_t i = 0; i < menuItemsCount && i < COUNTOF(values); ++i)
 			{
 				const MenuItem *menuItem = &menuItems[i];
@@ -591,6 +632,28 @@ void setupMenu(void)
 
 			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
 		} while (!(newkey || newmouse || mouseMoved || fullscreen_display != oldFullscreenDisplay));
+
+		// Tyrian3D: a tab clicked (the modern UI's own), or Tab, Shift+Tab, Page Up/Down: another page.
+		if (tabbed && tab_index >= 0 && currentPicker == MENU_ITEM_NONE)
+		{
+			int to = ui_take_press() - UI_ACTION_PAGE;
+			if (to < 0 || to >= (int)COUNTOF(setup_tabs))
+				to = -1;
+			const int n = (int)COUNTOF(setup_tabs);
+			if (to < 0 && newkey && (lastkey_scan == SDL_SCANCODE_TAB || lastkey_scan == SDL_SCANCODE_PAGEDOWN ||
+			                         lastkey_scan == SDL_SCANCODE_PAGEUP))
+			{
+				const bool back = lastkey_scan == SDL_SCANCODE_PAGEUP || (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+				to = (tab_index + (back ? n - 1 : 1)) % n;
+				newkey = false;
+			}
+			if (to >= 0 && to != tab_index)
+			{
+				JE_playSampleNum(S_CURSOR);
+				currentMenu = setup_tabs[to];
+				continue;
+			}
+		}
 
 		if (currentPicker == MENU_ITEM_NONE)
 		{

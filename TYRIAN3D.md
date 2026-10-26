@@ -76,9 +76,11 @@ panel each at the bottom corners: the score, shield and armor, the gun each fire
 player 2's sidekick level and charge (its pips over the ship too), lives and super bombs) or Classic
 (the original panel beside the playfield). The **Graphics** page adds the menus:
 Modern (the new UI over the 3D view, below) or Classic (the original screens), Screens: Fill (the
-game's other 320x200 screens fill the window's height, in whole steps and then smoothly, over a
-blurred, dimmed copy of themselves) or Integer (as Scaling Mode says, black bars), and the UI Scale
-(75-150 %). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
+game's other 320x200 screens fill the window, cut at its top and bottom in a window wider than 8:5 or at its
+sides in a narrower one; on ultrawide its 16:9 middle, a blurred, dimmed copy beyond) or Integer (as Scaling
+Mode says, black bars), and the UI Scale (75-150 %). With the modern menus the settings' pages are tabs
+across the top of one panel (Graphics, 3D, Sound, Extras: the jukebox and the debug flight; Tab, Shift+Tab,
+Page Up/Down or a click switch them, Esc and Done leave the settings). They are kept in the `[tyrian3d]` section of `opentyrian.cfg`; F3 and F4
 change the first two as well. In a level, Escape's options are Return to Game, **Graphics**, the two
 volumes, the music (SoundFont or AdLib) and its SoundFont, the game speed, the mouse and Quit Level; Graphics is a page
 of the 3D page's settings with the menus, screens, UI scale and the original's detail level, each
@@ -557,7 +559,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SOFTWARE_POINTER=1` | Draw the mouse pointer into the screen as the original does, instead of the system pointer |
 | `TYR3D_HUD=modern\|classic` | The HUD over the playfield, or the original panel beside it |
 | `TYR3D_MENUS=modern\|classic` | The menus in the modern UI's style, or the original screens (as Graphics > Menus) |
-| `TYR3D_SCREENS=fill\|integer` | With the modern UI: the old 320x200 screens fill the window's height over a blurred copy, or as Scaling Mode says |
+| `TYR3D_SCREENS=fill\|integer` | With the modern UI: the old 320x200 screens fill the window (cut to its shape; on ultrawide its 16:9 middle over a blurred copy), or as Scaling Mode says |
 | `TYR3D_UI_SCALE=<percent>` | The modern UI's and the HUD's size (50-200; the setting has 75-150) |
 | `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |

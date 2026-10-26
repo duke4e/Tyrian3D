@@ -5088,7 +5088,8 @@ void intro_logos(void)
 
 	SDL_FillSurfaceRect(VGAScreen, NULL, 0);
 
-	fade_white(25);
+	// Tyrian3D: the first logo comes in from black (the original flashed the screen to white first).
+	fade_black(1);
 
 	JE_loadPic(VGAScreen, 10, false);
 	JE_showVGA();

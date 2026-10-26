@@ -31,7 +31,8 @@ bool ui_modern(void);
 // The game's old 320x200 screens fill the window's height over a blurred copy of themselves (the
 // modern UI with Screens: Fill), in whole steps and then smoothly.
 bool ui_fill_screens(void);
-// The rectangle (window points) a 320x200 screen fills in a window: 8:5, as large as fits, centred.
+// The rectangle (window points) a 320x200 screen fills in a window: 8:5, covering the window (or its 16:9 middle
+// on ultrawide), centred, so a part of it may lie outside the window.
 void ui_fill_rect(int window_w, int window_h, SDL_Rect *out);
 
 /* --- Menus' screens -------------------------------------------------------------------------- */
@@ -465,6 +466,7 @@ typedef struct
 	UIResults results;
 	UIHelp help;
 	UIPaging paging;
+	int rows;  // the setup's pages as tabs: the panel holds this many rows, so it keeps its size from tab to tab
 	UIScores scores;
 	UIStory story;
 	UICard card;
