@@ -9929,8 +9929,9 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 		if (frame->layers[l].type == L3D_GROUND)
 			ground = heights[l];
 	const bool snow = weather == B3D_WEATHER_SNOW, pollen = weather == B3D_WEATHER_POLLEN;
-	// (Snow and dust from high up, below the camera; embers only up from the lava; pollen low.)
-	const float top = ground + (snow || dust ? 130.0f : pollen ? 60.0f : 80.0f) * rgpu_camera.height_scale;
+	const bool sand = weather == B3D_WEATHER_SAND, leaves = weather == B3D_WEATHER_LEAVES;
+	// (Snow and dust from high up, below the camera; embers only up from the lava; pollen low; sand lowest.)
+	const float top = ground + (snow || dust ? 130.0f : pollen || leaves ? 60.0f : sand ? 26.0f : 80.0f) * rgpu_camera.height_scale;
 	const float band = (top - ground) / WEATHER_BANDS;
 	const float t = (l3d_frame_number + ahead) / 35.0f;
 
@@ -9943,7 +9944,8 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 		if (rect[0] > rect[2] || rect[1] >= rect[3])
 			continue;
 		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
-		const int count = snow ? WEATHER_PER_BAND : dust || pollen ? WEATHER_PER_BAND / 2 : WEATHER_PER_BAND * 2 / 3;
+		const int count = snow || sand ? WEATHER_PER_BAND : dust || pollen ? WEATHER_PER_BAND / 2 : leaves ? WEATHER_PER_BAND / 3
+		                : WEATHER_PER_BAND * 2 / 3;
 		for (int i = 0; i < count && *instance_count < MAX_INSTANCES; ++i)
 		{
 			const Uint32 seed = hash32((Uint32)(k * 131 + i) * 2654435761u + (snow ? 17u : dust ? 41u : 29u));
@@ -9965,6 +9967,34 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 				instance[16] = 0.6f * a;
 				instance[17] = 0.68f * a;
 				instance[18] = 0.85f * a;
+				++*instance_count;
+				continue;
+			}
+			if (sand || leaves)
+			{
+				// Blown along by the wind, to the right and a little down the screen: sand in streaks low over the
+				// ground, fast; leaves slower, fluttering (their width beating as they turn), bobbing up and down.
+				const float speed = sand ? 70.0f + 50.0f * r2 : 22.0f + 16.0f * r2;
+				const float x = rect[0] + fmodf(r0 * w + t * speed, w);
+				const float z = rect[1] + fmodf(r1 * h + t * speed * 0.18f, h);
+				const float bob = leaves ? sinf(t * (1.5f + r3) + r0 * 6.2832f) * band * 0.4f : 0.0f;
+				const float size = sand ? 1.4f + 0.8f * r3 : 3.0f + 1.6f * r3;
+				const float flutter = leaves ? 0.35f + 0.65f * fabsf(sinf(t * (3.0f + 3.0f * r2) + r1 * 6.2832f)) : 3.5f;
+				Mat4 transform = mat4_identity();
+				transform.m[0] = size * flutter;
+				transform.m[5] = transform.m[10] = size;
+				transform.m[12] = x;
+				transform.m[13] = low + band * (0.5f + 0.4f * (r3 - 0.5f)) + bob;
+				transform.m[14] = z;
+				float *instance = instances + *instance_count * 24;
+				write_instance_world(instance, &transform, 1.0f);
+				// (Blended, not added: pale sand over the ground, autumn leaves over the grass.)
+				static const float sand_rgb[3] = { 0.86f, 0.7f, 0.46f };
+				static const float leaf_rgb[3][3] = { { 0.78f, 0.56f, 0.1f }, { 0.62f, 0.28f, 0.06f }, { 0.5f, 0.56f, 0.12f } };
+				const float *rgb = sand ? sand_rgb : leaf_rgb[i % 3];
+				for (int c = 0; c < 3; ++c)
+					instance[16 + c] = rgb[c] * (0.8f + 0.4f * r2);
+				instance[19] = sand ? 0.45f + 0.25f * r1 : 1.0f;
 				++*instance_count;
 				continue;
 			}
@@ -10039,7 +10069,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
 	b->unlit_enabled = 1;
 	b->transparency_enabled = 1;
-	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+	b->blend_mode = sand || leaves ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
 /*

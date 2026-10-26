@@ -1347,7 +1347,7 @@ static struct
 } water_sets[64];
 static int water_set_count = -1;
 
-// The levels' weather (terrain.cfg "weather <snow|embers|pollen> <level name or its beginning>").
+// The levels' weather (terrain.cfg "weather <snow|embers|pollen|sand|leaves> <level name or its beginning>").
 static struct
 {
 	char name[16];
@@ -1382,7 +1382,9 @@ static void load_terrain_config(void)
 		{
 			const B3DWeather weather = SDL_strcmp(kind, "snow") == 0 ? B3D_WEATHER_SNOW
 			                         : SDL_strcmp(kind, "embers") == 0 ? B3D_WEATHER_EMBERS
-			                         : SDL_strcmp(kind, "pollen") == 0 ? B3D_WEATHER_POLLEN : B3D_WEATHER_NONE;
+			                         : SDL_strcmp(kind, "pollen") == 0 ? B3D_WEATHER_POLLEN
+			                         : SDL_strcmp(kind, "sand") == 0 ? B3D_WEATHER_SAND
+			                         : SDL_strcmp(kind, "leaves") == 0 ? B3D_WEATHER_LEAVES : B3D_WEATHER_NONE;
 			if (weather != B3D_WEATHER_NONE)
 			{
 				SDL_strlcpy(weathers[weather_count].name, name, sizeof(weathers[0].name));

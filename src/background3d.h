@@ -181,6 +181,8 @@ typedef enum
 	B3D_WEATHER_SNOW,    // flakes falling and drifting
 	B3D_WEATHER_EMBERS,  // sparks rising from the lava
 	B3D_WEATHER_POLLEN,  // motes floating over the meadows and jungles, glinting
+	B3D_WEATHER_SAND,    // sand blowing low over the desert
+	B3D_WEATHER_LEAVES,  // leaves blown along by the wind
 } B3DWeather;
 
 B3DWeather b3d_weather(void);
