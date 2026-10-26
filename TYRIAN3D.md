@@ -298,7 +298,10 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   its enemies are the PC sprites made small). The GBC map is scaled 1.5x (its 176 pixels are the 264
   the PC playfield shows) and cut into the PC tiles' quarters; each quarter's material (the tile
   set's main colours, the GBC lightness range moved to the tile set's, the GBC grain blurred) picks a
-  tile with those quarters among the originals' ground tiles (not the objects standing on it): the
+  tile with those quarters among the originals' ground tiles (not the objects standing on it, nor
+  the tiles `make_cleanground.py` learns as objects' tiles, `learn_object_tiles`: it erases every copy
+  of those with a stand-in on it, and GBC DELIANI's pod tile as fill gave 2364; cached in
+  `data/gbc/cache/object_tiles.json` while the ground log and `cleanground.json` stay as they were): the
   map is the choice that misses the plan least (a quarter off costs 1, the rarer tiles a little) and
   pairs its tiles as the originals pair them (a pair beside or above each other that no original has
   costs 4: edges join up, textures go on), found row by row (Viterbi along a row, given the rows below

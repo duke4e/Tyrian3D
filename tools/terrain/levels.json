@@ -732,43 +732,6 @@
   "level": "SAVARA (hard)",
   "forest": "palm"
  },
- "a8e42ce38f263138": {
-  "classes": 7,
-  "heights": {},
-  "materials": {
-   "#0c3a0f": 8,
-   "#4a3213": 28,
-   "#2b1a07": 0,
-   "#071608": 0,
-   "#6d5228": 0,
-   "#164215": 0,
-   "#543e1f": "~"
-  },
-  "level": "TYRIAN (gbc)",
-  "episode": 7
- },
- "7987db8719269daf": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID (gbc)",
-  "episode": 7
- },
- "bc4d4c8290a62dfe": {
-  "classes": 6,
-  "forest": "palm",
-  "heights": {},
-  "materials": {
-   "#163b52": 0,
-   "#242424": "~",
-   "#616361": 16,
-   "#183c53": 0,
-   "#424444": 16,
-   "#06121c": "~"
-  },
-  "level": "SAVARA (gbc)",
-  "episode": 7
- },
  "17830badb2aac32d": {
   "classes": 6,
   "forest": "palm",
@@ -799,56 +762,6 @@
   "level": "OASIS (gbc)",
   "episode": 7
  },
- "ee987ed413c880af": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#444444": 18,
-   "#8d755e": 0,
-   "#715d47": 4,
-   "#41602e": 0,
-   "#4f4b47": "~",
-   "#342d27": "~"
-  },
-  "level": "DESERT (gbc)",
-  "episode": 7
- },
- "e0a14fa054b8b0ba": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE (gbc)",
-  "episode": 7
- },
- "f2c66c55e803e09b": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE II (gbc)",
-  "episode": 7
- },
- "7b4620122b39de99": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID2 (gbc)",
-  "episode": 7
- },
  "7d4c969a6b14bd20": {
   "classes": 6,
   "void": "hole",
@@ -856,46 +769,11 @@
   "level": "BUBBLES (gbc)",
   "episode": 7
  },
- "65e33841fd6972e0": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#69a2b0": 0,
-   "#5e8299": "~",
-   "#223f52": 0,
-   "#48708a": 18,
-   "#1f425a": "~",
-   "#678c9a": "~"
-  },
-  "level": "CAMANIS (gbc)",
-  "episode": 7
- },
- "9ea5817131025643": {
-  "classes": 6,
-  "rolling": 10,
-  "heights": {},
-  "level": "ICE EXIT (gbc)",
-  "episode": 7
- },
- "612ad43fef63c83f": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "AST.BONUS (gbc)",
-  "episode": 7
- },
  "34db8d1be651842f": {
   "classes": 6,
   "void": "hole",
   "heights": {},
   "level": "FLEET (gbc)",
-  "episode": 7
- },
- "b66e8e69ed4d611d": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "DELIANI (gbc)",
   "episode": 7
  },
  "b3628c97045cc4cf": {
@@ -910,34 +788,6 @@
    "#5f4521": "~"
   },
   "level": "TUNNEL (gbc)",
-  "episode": 7
- },
- "2d580e9234337f88": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": 10,
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
- "634b31601a992817": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": 10,
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELI CORE (gbc)",
   "episode": 7
  },
  "aa65bdc4e996aa3d": {
@@ -966,6 +816,156 @@
    "#520300": -16
   },
   "level": "LAVA II (gbc)",
+  "episode": 7
+ },
+ "f48bf6faaf3d0c3f": {
+  "classes": 7,
+  "heights": {},
+  "materials": {
+   "#0c3a0f": 8,
+   "#4a3213": 28,
+   "#2b1a07": 0,
+   "#071608": 0,
+   "#6d5228": 0,
+   "#164215": 0,
+   "#543e1f": "~"
+  },
+  "level": "TYRIAN (gbc)",
+  "episode": 7
+ },
+ "ee234e1586013a50": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID (gbc)",
+  "episode": 7
+ },
+ "b8ca77149db03420": {
+  "classes": 6,
+  "forest": "palm",
+  "heights": {},
+  "materials": {
+   "#163b52": 0,
+   "#242424": "~",
+   "#616361": 16,
+   "#183c53": 0,
+   "#424444": 16,
+   "#06121c": "~"
+  },
+  "level": "SAVARA (gbc)",
+  "episode": 7
+ },
+ "d9e2181b2cf0c4cb": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#444444": 18,
+   "#8d755e": 0,
+   "#715d47": 4,
+   "#41602e": 0,
+   "#4f4b47": "~",
+   "#342d27": "~"
+  },
+  "level": "DESERT (gbc)",
+  "episode": 7
+ },
+ "840e67a5909ecc7c": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE (gbc)",
+  "episode": 7
+ },
+ "6880161569aef170": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE II (gbc)",
+  "episode": 7
+ },
+ "a13175fe15fcec82": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID2 (gbc)",
+  "episode": 7
+ },
+ "fe26797ee1c6f199": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#69a2b0": 0,
+   "#5e8299": "~",
+   "#223f52": 0,
+   "#48708a": 18,
+   "#1f425a": "~",
+   "#678c9a": "~"
+  },
+  "level": "CAMANIS (gbc)",
+  "episode": 7
+ },
+ "f3af717ad973cc59": {
+  "classes": 6,
+  "rolling": 10,
+  "heights": {},
+  "level": "ICE EXIT (gbc)",
+  "episode": 7
+ },
+ "88e78145bacb2766": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "AST.BONUS (gbc)",
+  "episode": 7
+ },
+ "50d1f0aad540fca4": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "DELIANI (gbc)",
+  "episode": 7
+ },
+ "dbf52103b521c9fa": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1a26": 0,
+   "#242f3a": "~",
+   "#48535d": 0,
+   "#0b1621": 10,
+   "#1a2631": "~",
+   "#1d2a36": 16
+  },
+  "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "c1bd141439918f90": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1a26": 0,
+   "#242f3a": "~",
+   "#48535d": 0,
+   "#0b1621": 10,
+   "#1a2631": "~",
+   "#1d2a36": 16
+  },
+  "level": "DELI CORE (gbc)",
   "episode": 7
  }
 }

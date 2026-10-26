@@ -1363,25 +1363,11 @@ def review(name, cl, standins):
     out.resize((out.width // 2, out.height // 2), Image.LANCZOS).save(os.path.join(mt.REVIEW, f"{name}_clean.png"))
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        return 1
-    overrides = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
-    every = sorted(os.path.basename(f)[4:-5] for f in glob.glob(os.path.join(mt.MAPS, "map_*.json"))
-                   if json.load(open(f))["background"] == 1)
-    every += sorted(overrides.get("upper_maps", {}))  # background 3's maps, for the top enemies riding them
-    names = every if sys.argv[1:] == ["all"] else sys.argv[1:]
-    skipped = [n for n in names if n in overrides.get("skip_maps", {})]
-    for n in skipped:
-        print(f"{n}: skipped ({overrides['skip_maps'][n]}), its assets stay as they are")
-    names = [n for n in names if n not in skipped]
-    tilesets = sorted({load(n)[0]["tileset"] for n in names})
-    learn_from = [n for n in every if load(n)[0]["tileset"] in tilesets]
-    mt.read_ground_log(learn_from)
-    # pass 1: the object tiles each tileset learns from its maps' logged objects (what stands on which tile)
+def learn_object_tiles(learn_from, overrides):
+    """Pass 1: the object tiles each tileset learns from its original maps' logged objects (what stands on which
+    tile): {tileset: {shape: Counter of (letter, sprite, large, dx, dy)}}. (tools/gbc/episode.py keeps them out
+    of the GBC maps' ground: each copy there would be erased, a stand-in on it.)"""
     object_tiles = {}
-    report = {}
     for n in learn_from:
         if derived(load(n)[0]):
             continue
@@ -1407,7 +1393,36 @@ def main():
                 del table[shape]
             else:
                 table[shape] = table[shape][0]
+    return object_tiles
+
+
+def tileset_object_tiles(tileset):
+    """The object tiles of one tileset (learn_object_tiles over its original maps): a set of shapes."""
+    overrides = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
+    maps = tileset_maps(tileset)
+    mt.read_ground_log(maps)
+    return set(learn_object_tiles(maps, overrides).get(tileset, {}))
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        return 1
+    overrides = json.load(open(OVERRIDES)) if os.path.exists(OVERRIDES) else {}
+    every = sorted(os.path.basename(f)[4:-5] for f in glob.glob(os.path.join(mt.MAPS, "map_*.json"))
+                   if json.load(open(f))["background"] == 1)
+    every += sorted(overrides.get("upper_maps", {}))  # background 3's maps, for the top enemies riding them
+    names = every if sys.argv[1:] == ["all"] else sys.argv[1:]
+    skipped = [n for n in names if n in overrides.get("skip_maps", {})]
+    for n in skipped:
+        print(f"{n}: skipped ({overrides['skip_maps'][n]}), its assets stay as they are")
+    names = [n for n in names if n not in skipped]
+    tilesets = sorted({load(n)[0]["tileset"] for n in names})
+    learn_from = [n for n in every if load(n)[0]["tileset"] in tilesets]
+    mt.read_ground_log(learn_from)
+    object_tiles = learn_object_tiles(learn_from, overrides)
     print("object tiles:", {ts: len(t) for ts, t in object_tiles.items()}, flush=True)
+    report = {}
     totals = Counter()
     for n in names:
         totals.update(build(n, overrides, object_tiles, report))

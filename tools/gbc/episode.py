@@ -173,6 +173,23 @@ def space(spec, img, grids, letter):
     return [[blank] * 14 for _ in range(ROWS)], n_rows
 
 
+def object_tiles(letter):
+    """The tile set's object tiles as make_cleanground.py learns them from the originals' logged objects (cached
+    in data/gbc/cache/object_tiles.json while the ground log and cleanground.json stay as they were)."""
+    sys.path.insert(0, os.path.join(ROOT, 'tools', 'terrain'))
+    import make_cleanground as mc
+    path = os.path.join(GBC, 'cache', 'object_tiles.json')
+    stamp = [os.path.getmtime(f) if os.path.exists(f) else 0 for f in (mc.mt.GROUND, mc.OVERRIDES)]
+    cache = json.load(open(path)) if os.path.exists(path) else {}
+    if cache.get('stamp') != stamp:
+        cache = dict(stamp=stamp, tiles={})
+    if letter not in cache['tiles']:
+        cache['tiles'][letter] = sorted(mc.tileset_object_tiles(letter))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        json.dump(cache, open(path, 'w'))
+    return set(cache['tiles'][letter])
+
+
 def autotile(spec, img, grids, letter):
     """Layer 1 from the GBC map by materials. The materials are the tile set's main colours (k-means of
     the used tiles' region means, weighted by use); a tile's signature is the materials of its n x n
@@ -202,7 +219,10 @@ def autotile(spec, img, grids, letter):
             for x in range(len(g[0])):
                 if (x > 0 and g[y][x - 1] == g[y][x]) or (y > 0 and g[y - 1][x] == g[y][x]):
                     selfish[g[y][x]] += 1
-    ground = [t for t, _ in use.most_common() if selfish[t] >= 1 or use[t] >= 100]
+    # (and not the tiles of objects: tools/terrain/make_cleanground.py erases every copy of those, a stand-in
+    # on it; GBC DELIANI's pod tile as fill made strips of 2364)
+    objects = object_tiles(letter)
+    ground = [t for t, _ in use.most_common() if (selfish[t] >= 1 or use[t] >= 100) and t not in objects]
     ids = ground[:mapsynth.LAYER_TILES[0]]  # (a layer's limit)
     rmean = {}
     for t in ids:
