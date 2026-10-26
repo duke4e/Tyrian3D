@@ -9852,7 +9852,8 @@ static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, cons
 /*
  * The level's weather (b3d_weather, Effects only): snow falling and drifting over the ice planets, at every
  * depth between the ground and the camera, so the air itself shows depth; embers rising from the lava,
- * flickering and fading as they climb; in open space (the starfield on) faint dust streaming by. Each lies in a band of heights, spread over what the camera sees
+ * flickering and fading as they climb; pollen floating and glinting low over the meadows and jungles; in
+ * open space (the starfield on) faint dust streaming by. Each lies in a band of heights, spread over what the camera sees
  * there, and comes round again within it.
  */
 #define WEATHER_BANDS 5
@@ -9870,9 +9871,9 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 	for (int l = 0; l < frame->layer_count; ++l)
 		if (frame->layers[l].type == L3D_GROUND)
 			ground = heights[l];
-	const bool snow = weather == B3D_WEATHER_SNOW;
-	// (Snow and dust from high up, below the camera; embers only up from the lava.)
-	const float top = ground + (snow || dust ? 130.0f : 80.0f) * rgpu_camera.height_scale;
+	const bool snow = weather == B3D_WEATHER_SNOW, pollen = weather == B3D_WEATHER_POLLEN;
+	// (Snow and dust from high up, below the camera; embers only up from the lava; pollen low.)
+	const float top = ground + (snow || dust ? 130.0f : pollen ? 60.0f : 80.0f) * rgpu_camera.height_scale;
 	const float band = (top - ground) / WEATHER_BANDS;
 	const float t = (l3d_frame_number + ahead) / 35.0f;
 
@@ -9885,7 +9886,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 		if (rect[0] > rect[2] || rect[1] >= rect[3])
 			continue;
 		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
-		const int count = snow ? WEATHER_PER_BAND : dust ? WEATHER_PER_BAND / 2 : WEATHER_PER_BAND * 2 / 3;
+		const int count = snow ? WEATHER_PER_BAND : dust || pollen ? WEATHER_PER_BAND / 2 : WEATHER_PER_BAND * 2 / 3;
 		for (int i = 0; i < count && *instance_count < MAX_INSTANCES; ++i)
 		{
 			const Uint32 seed = hash32((Uint32)(k * 131 + i) * 2654435761u + (snow ? 17u : dust ? 41u : 29u));
@@ -9907,6 +9908,26 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 				instance[16] = 0.6f * a;
 				instance[17] = 0.68f * a;
 				instance[18] = 0.85f * a;
+				++*instance_count;
+				continue;
+			}
+			if (pollen)
+			{
+				// Floating up and down in its band, wandering slowly; glinting now and then.
+				const float x = rect[0] + fmodf(r0 * w + sinf(t * (0.3f + 0.3f * r2) + r1 * 6.2832f) * 8.0f + w, w);
+				const float z = rect[1] + fmodf(r1 * h + t * (2.0f + 2.0f * r3), h);
+				const float glint = 0.5f + 0.5f * sinf(t * (1.2f + 1.6f * r1) + r3 * 6.2832f);
+				Mat4 transform = mat4_identity();
+				transform.m[0] = transform.m[5] = transform.m[10] = 1.2f + 0.9f * r2;
+				transform.m[12] = x;
+				transform.m[13] = low + band * (0.5f + 0.4f * sinf(t * (0.4f + 0.4f * r0) + r2 * 6.2832f));
+				transform.m[14] = z;
+				float *instance = instances + *instance_count * 24;
+				write_instance_world(instance, &transform, 1.0f);
+				const float a = (0.15f + 0.5f * glint * glint) * (0.7f + 0.3f * r0);
+				instance[16] = 1.0f * a;
+				instance[17] = 0.95f * a;
+				instance[18] = 0.45f * a;
 				++*instance_count;
 				continue;
 			}
