@@ -3582,6 +3582,45 @@ static void fade_under_ship(int first, float x0, float y0, float x1, float y1, f
 }
 
 /*
+ * Twin-stick's aim lines (mainint.h twin_stick_aim_lines): while the pointer aims the turret, a line
+ * across the playfield and one down it through the pointer, brass on a dark edge, fading towards the
+ * playfield's edges, apart round the crosshair; under the HUD.
+ */
+static void aim_line_quads(const Layout3D *layout)
+{
+	float px, py;
+	mouse_pointer_window(&px, &py);  // (where it is, the keys pressed since too)
+	const float x0 = layout->playfield[0], y0 = layout->playfield[1];
+	const float x1 = x0 + layout->playfield[2], y1 = y0 + layout->playfield[3];
+	if (menu.on || !twin_stick_aim_lines() || px < x0 || px > x1 || py < y0 || py > y1)
+		return;
+	const float pixel = 1.0f / text_density, gap = ui_pointer_points() * 0.6f + 6 * pixel;
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		// The dark edge, then the brass line over it.
+		const float t = (pass == 0 ? 5.0f : 2.5f) * pixel;
+		const float near[4] = { pass == 0 ? 0.0f : 0.98f, pass == 0 ? 0.0f : 0.82f, pass == 0 ? 0.0f : 0.46f, pass == 0 ? 0.4f : 0.75f };
+		const float far[4] = { near[0], near[1], near[2], near[3] * 0.3f };
+		if (px - gap > x0)
+			hud_quad(x0, py - t / 2, px - gap - x0, t, far, near);
+		if (px + gap < x1)
+			hud_quad(px + gap, py - t / 2, x1 - px - gap, t, near, far);
+		for (int k = 0; k < 2; ++k)
+		{
+			const float top = k == 0 ? y0 : py + gap, bottom = k == 0 ? py - gap : y1;
+			HudQuad *q = bottom > top ? hud_quad_add() : NULL;
+			if (q == NULL)
+				continue;
+			*q = (HudQuad){ px - t / 2, top, t, bottom - top, 0, 0, 1, 1 };
+			memcpy(q->left, k == 0 ? far : near, sizeof(q->left));
+			memcpy(q->right, k == 0 ? far : near, sizeof(q->right));
+			q->graded = true;
+			memcpy(q->below, k == 0 ? near : far, sizeof(q->below));
+		}
+	}
+}
+
+/*
  * The modern HUD (settings3d.hud_modern): instead of the panel beside the playfield, gauges and the
  * game's displays over the scene from the game's state, in the 16:9 area round the playfield (ui.c
  * ui_build_hud). Under a menu the game shows over the level, it is drawn under the menu's boxes.
@@ -3589,6 +3628,7 @@ static void fade_under_ship(int first, float x0, float y0, float x1, float y1, f
 static void build_modern_hud(float window_w, float window_h, const Layout3D *layout)
 {
 	hud_quad_count = 0;
+	aim_line_quads(layout);  // (Tyrian3D twin-stick, with either HUD)
 	if (!modern_hud())
 		return;
 	const UIView view = { .w = window_w, .h = window_h, .pixel = 1.0f / text_density,

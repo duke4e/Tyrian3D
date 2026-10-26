@@ -207,8 +207,10 @@ the Dragonwing's gun). It is a two-player arcade game (the Silver Ship with the 
 power-ups instead of the shop, the two-player Game Menu between levels) whose two players are one:
 
 * **Keyboard and mouse**: the arrows (or WASD, unless the keys are bound to something else) fly the
-  ship; the mouse aims the turret, which turns to the pointer (a brass crosshair; the ship doesn't
-  follow the mouse, whatever the mouse setting); the left button, or the fire key, fires the front
+  ship; the mouse aims the turret, which turns to the pointer (a brass crosshair, with a line across
+  and one down the playfield through it, fading to its edges, to find it in a busy screen: drawn by
+  the 3D view, `aim_line_quads` in `render_gpu.c`; the ship doesn't follow the mouse, whatever the
+  mouse setting); the left button, or the fire key, fires the front
   gun and the turret together; the other buttons and keys do what the settings say (the sidekicks,
   super bombs, the rear gun's mode).
 * **Controller**: the left stick (or the pad) flies, the right stick aims (let go, the turret keeps

@@ -4566,6 +4566,11 @@ static void twin_stick_pad(int j)
 	button[2] |= lt > 0.5f;
 }
 
+bool twin_stick_aim_lines(void)
+{
+	return twin_stick() && twin_aim == TWIN_AIM_POINTER && player[0].is_alive && !endLevel;
+}
+
 // The twin-stick turret's way, where the player aims it.
 static void twin_stick_aim(void)
 {

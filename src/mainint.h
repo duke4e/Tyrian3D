@@ -99,6 +99,9 @@ void JE_playerMovement(Player *this_player, JE_byte inputDevice, JE_byte playerN
 // Tyrian3D: how far the mouse has moved the ship it moves directly since the last tick (game
 // pixels, within the ship's bounds), for the frames shown between ticks.
 void player_pointer_lead(float lead[2]);
+// Tyrian3D: twin-stick (player.h): the pointer aims the turret now, so the 3D view draws its aim lines
+// through it (render_gpu.c).
+bool twin_stick_aim_lines(void);
 void JE_mainGamePlayerFunctions(void);
 const char *JE_getName(JE_byte pnum);
 
