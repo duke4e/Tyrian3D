@@ -67,6 +67,11 @@
 #include <ctype.h>
 #include <string.h>
 
+// Tyrian3D: the ship's arrival at the start of a level (3D view, Effects): from this high above its plane, over
+// so many frames.
+#define SHIP_ARRIVE_HEIGHT 70.0f
+#define SHIP_ARRIVE_FRAMES 80.0f
+
 bool button[4];
 
 #define MAX_PAGE 8
@@ -5387,8 +5392,16 @@ redo:
 		const bool two_part = shipGr_ <= 1;
 		const M3DAppearance ship_look = m3d_ship_appearance(shipGr_ == 0 ? M3D_SHIP_DRAGONWING : this_player->items.ship);
 		const bool ship_ghost = this_player->invulnerable_ticks > 0;  // drawn half transparent
+		// Tyrian3D: as the level begins the ship comes down into it from high up, slowing as it settles (seen
+		// where the game draws it all the while: only nearer the camera, larger).
+		float ship_arrive = 0;
+		{
+			const float since = (float)(l3d_frame_number - l3d_level_frame) / SHIP_ARRIVE_FRAMES;
+			if (settings3d.effects && since < 1)
+				ship_arrive = SHIP_ARRIVE_HEIGHT * (1 - since) * (1 - since) * (1 - since);
+		}
 		const bool ship_model = ship_look.model >= 0
-			? l3d_add_object(ship_look.model, this_player->x + 7, this_player->y + 7, ship_look.height,
+			? l3d_add_object(ship_look.model, this_player->x + 7, this_player->y + 7, ship_look.height + ship_arrive,
 			                 ship_look.yaw, ship_look.banking ? ship_banking * 12.0f : 0.0f, 0)
 			: !two_part && ship_look.model == M3D_VOLUME &&
 			  l3d_add_volume(shipGrPtr_, ship_sprite, true, V3D_STYLE_RAISED, this_player->x + 7, this_player->y + 7,

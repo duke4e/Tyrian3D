@@ -2090,6 +2090,7 @@ start_level_first:
 	editShip2 = false;
 
 	memset(smoothies, 0, sizeof(smoothies));
+	l3d_level_frame = l3d_frame_number;
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
 	// (not for the demos: they replay inputs on the original playfield)

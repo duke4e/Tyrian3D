@@ -214,6 +214,7 @@ extern L3DFrame l3d_frame;
 
 // Frames captured so far: a clock for things that only show (models spinning), apart from the game's.
 extern Uint32 l3d_frame_number;
+extern Uint32 l3d_level_frame;  // l3d_frame_number when the level began
 // The game's frames begun (l3d_frame_begin), in 3D or not.
 extern Uint32 l3d_frames_begun;
 
