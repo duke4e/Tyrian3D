@@ -10149,6 +10149,8 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 {
 	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
 	{
+		if (kind == P3D_DEBRIS)
+			continue;  // (lit chunks among the objects: add_debris_batch)
 		const int first = *instance_count;
 		for (int i = 0; i < p3d_particle_count && *instance_count < MAX_INSTANCES; ++i)
 		{
@@ -10206,6 +10208,63 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 		if (kind != P3D_SMOKE)
 			b->depth_compare = BTBH_GPU_SCENE_DEPTH_ALWAYS;
 	}
+}
+
+static BTBHGPUCustomMesh *jukebox_mesh(J3DShape shape);
+
+// The explosions' debris (P3D_DEBRIS): lit chunks, each its own odd shape, tumbling while they fly,
+// casting shadows as the objects do; shrinking away at the end of their life.
+static void add_debris_batch(int *instance_count, int *batch_count)
+{
+	if (*batch_count >= MAX_BATCHES)
+		return;
+	const int first = *instance_count;
+	for (int i = 0; i < p3d_particle_count && *instance_count < MAX_INSTANCES; ++i)
+	{
+		const P3DParticle *p = &p3d_particles[i];
+		if (p->kind != P3D_DEBRIS || p->age < 0)
+			continue;
+		const float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
+		const float size = p->size * (t > 0.8f ? (1 - t) / 0.2f : 1.0f);
+		// Its shape (its life is its own random number): a flake or a lump.
+		const float u = p->life * 0.618034f - floorf(p->life * 0.618034f);
+		const float sx = size * (0.7f + 0.6f * u), sy = size * (0.35f + 0.4f * (1 - u)), sz = size * (0.8f + 0.3f * u);
+		const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));
+		const float a = p->turn + (p->height > 0 ? p->spin * age : 0.0f), b = a * 0.73f + u * 3.0f;
+		const float ca = cosf(a), sa = sinf(a), cb = cosf(b), sb = sinf(b);
+		// Turned about x by a, then about y by b; scaled along its own axes.
+		Mat4 transform = mat4_identity();
+		transform.m[0] = cb * sx;
+		transform.m[1] = 0;
+		transform.m[2] = -sb * sx;
+		transform.m[4] = sb * sa * sy;
+		transform.m[5] = ca * sy;
+		transform.m[6] = cb * sa * sy;
+		transform.m[8] = sb * ca * sz;
+		transform.m[9] = -sa * sz;
+		transform.m[10] = cb * ca * sz;
+		transform.m[12] = p->x + p->vx * age;
+		transform.m[14] = p->y + (p->vy + explodeMove) * age;
+		const float height = SDL_max(0.0f, p->height + p->vheight * age) * rgpu_camera.height_scale + sy / 2;
+		transform.m[13] = height + (p->air ? l3d_terrain_headroom : stand_lift(transform.m[12], transform.m[14], height, NULL));
+		float *instance = instances + *instance_count * 24;
+		write_instance(instance, &transform, 1.0f);
+		for (int c = 0; c < 3; ++c)
+			instance[16 + c] = srgb_to_linear(p->color[c]);
+		++*instance_count;
+	}
+	if (*instance_count == first)
+		return;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = jukebox_mesh(J3D_BOX);
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = white_texture;
+	b->roughness = 0.7f;
+	b->metalness = 0.2f;
 }
 
 // Shots and items glow (L3DGlow): additive light around each, in its colour, a little above its
@@ -10924,6 +10983,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
+	if (settings3d.effects)
+		add_debris_batch(&instance_count, &batch_count);
 	log_clipping(frame);  // TYR3D_LOG_CLIP
 
 	// Shadows: objects (models and volumetric sprites) cast the sun's shadow; the unlit surfaces

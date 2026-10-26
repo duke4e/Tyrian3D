@@ -99,12 +99,12 @@ static void smoke(float x, float y, float height, int count, float size, Uint8 g
 	}
 }
 
-// Dark chunks thrown up from the ground that fall back.
+// Dark chunks thrown up from the ground that tumble and fall back, and lie there a moment.
 static void debris(float x, float y, float height, int count)
 {
 	for (int i = 0; i < count; ++i)
 	{
-		P3DParticle *p = spawn(P3D_SMOKE, x, y, height);
+		P3DParticle *p = spawn(P3D_DEBRIS, x, y, height);
 		if (p == NULL)
 			return;
 		const float angle = random_range(0, 2 * (float)M_PI), s = random_range(0.3f, 1.3f);
@@ -113,9 +113,35 @@ static void debris(float x, float y, float height, int count)
 		p->vheight = random_range(1.5f, 3.5f);
 		p->gravity = 0.22f;
 		p->drag = 0.97f;
-		p->size = random_range(1.0f, 2.2f);
-		p->life = random_range(22, 34);
-		set_colors(p, 60, 48, 36, 255, 40, 32, 24, 255);
+		p->size = random_range(2.0f, 3.6f);
+		p->life = random_range(40, 60);
+		p->turn = random_range(0, 2 * (float)M_PI);
+		p->spin = random_range(-0.35f, 0.35f);
+		const Uint8 shade = (Uint8)random_range(46, 78);
+		set_colors(p, shade, (Uint8)(shade * 0.82f), (Uint8)(shade * 0.66f), 255, shade, (Uint8)(shade * 0.82f), (Uint8)(shade * 0.66f), 255);
+	}
+}
+
+// Shards of a craft blown apart in the air: bits of grey plating that tumble down to the ground.
+static void shards(float x, float y, float height, int count)
+{
+	for (int i = 0; i < count; ++i)
+	{
+		P3DParticle *p = spawn(P3D_DEBRIS, x, y, height);
+		if (p == NULL)
+			return;
+		const float angle = random_range(0, 2 * (float)M_PI), s = random_range(0.4f, 1.6f);
+		p->vx = cosf(angle) * s;
+		p->vy = sinf(angle) * s;
+		p->vheight = random_range(-0.5f, 1.5f);
+		p->gravity = 0.1f;
+		p->drag = 0.96f;
+		p->size = random_range(2.2f, 3.8f);
+		p->life = random_range(50, 75);
+		p->turn = random_range(0, 2 * (float)M_PI);
+		p->spin = random_range(-0.45f, 0.45f);
+		const Uint8 shade = (Uint8)random_range(90, 140);
+		set_colors(p, shade, shade, (Uint8)(shade * 1.05f), 255, shade, shade, (Uint8)(shade * 1.05f), 255);
 	}
 }
 
@@ -329,6 +355,7 @@ bool p3d_explosion(int x, int y, int type)
 		sparks(cx, cy, 30, 9, 3.2f);
 		embers(cx, cy, 30, 4, 1.7f);
 		plume(cx, cy, 30, 2, 15, 60);
+		shards(cx, cy, 30, 2);
 		if (type == 10)
 			shock_ring(cx - 6, cy - 7, 30, 80, 14);
 		light(cx, cy, 24, 60, 5.5f, 12);
@@ -368,6 +395,8 @@ void p3d_update(int drift)
 			p->vx *= p->drag;
 			p->vy *= p->drag;
 			p->vheight = p->vheight * p->drag - p->gravity;
+			if (p->height > 0)
+				p->turn += p->spin;  // (debris tumbles while it flies)
 			if (p->height < 0)  // on the ground
 			{
 				p->height = 0;
