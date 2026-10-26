@@ -1507,7 +1507,6 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	{
 		pixels = screen_without_texts(screen);
 		convert_pixels(pixels, screen_rgba);
-		screen_text_quads(dst->x, dst->y, dst->w / (float)SCREEN_W, dst->h / (float)SCREEN_H, SCREEN_W, SCREEN_H);
 	}
 	else
 		convert_screen(screen, screen_rgba);
@@ -1530,11 +1529,12 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 		add_hd_logos(dst);
 		hud_under = hud_quad_count;
 	}
-	// (A data cube's face drawn anew, over the screen.)
+	// (A data cube's face drawn anew, and the texts in Oxanium, over the screen: after the quads under it.)
 	if (pixels != NULL)
 	{
 		find_hd_face(pixels, screen_rgba);
 		add_hd_face(0, 0, SCREEN_W, SCREEN_H, (float)dst->x, (float)dst->y, (float)dst->w, (float)dst->h, 1);
+		screen_text_quads(dst->x, dst->y, dst->w / (float)SCREEN_W, dst->h / (float)SCREEN_H, SCREEN_W, SCREEN_H);
 	}
 	btbh_gpu_texture_update_rgba8(screen_texture, (const uint8_t *)screen_rgba, 0, 0, SCREEN_W, SCREEN_H);
 	present_canvas(&quad, 1, false, true, &frame);

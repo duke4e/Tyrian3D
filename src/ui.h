@@ -57,6 +57,7 @@ typedef enum
 	UI_SCREEN_CREDITS,     // the credits rolling (UICredits)
 	UI_SCREEN_ROGUE,       // the rogue mode's screens (UIRogue)
 	UI_SCREEN_DESTRUCT,    // Destruct, the secret artillery duel: its pages and its HUD (UIDestruct)
+	UI_SCREEN_SECRETS,     // the secrets found and still locked (UISecrets, secrets.c)
 	UI_SCREEN_SHOP,        // the store between levels (game_menu.c), its pages (UIShop.page)
 	// Over a level's 3D view (rgpu_present_3d_menu), the game halted under them:
 	UI_SCREEN_LEVEL_MENU,  // the in-game options and their 3D page: rows as setup's
@@ -397,6 +398,18 @@ typedef struct
 	char help_footer[80];
 } UIDestruct;
 
+// The secrets (the title's Secrets: secrets.c): their kinds as tabs, how many of each are found of how many,
+// all; the rows are the menu's items (label: its name or "???", value: what or where it is, value2: a share
+// found or "", owned: found, hint: how it was found or where to look).
+#define UI_SECRET_TABS 4
+typedef struct
+{
+	int tab, tab_count;
+	char tab_names[UI_SECRET_TABS][24];
+	int found[UI_SECRET_TABS], total[UI_SECRET_TABS];
+	int all_found, all_total;
+} UISecrets;
+
 typedef struct
 {
 	UIScreenKind kind;
@@ -436,6 +449,7 @@ typedef struct
 	UICredits credits;
 	UIRogue rogue;
 	UIDestruct destruct;
+	UISecrets secrets;
 } UIMenu;
 
 // What the wheel does over a screen: moves through its items as Up and Down do (the default, with more

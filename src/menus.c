@@ -31,6 +31,7 @@
 #include "palette.h"
 #include "picload.h"
 #include "rogue.h"
+#include "secrets.h"
 #include "sprite.h"
 #include "ui.h"
 #include "vga256d.h"
@@ -719,6 +720,8 @@ bool difficultySelect(void)
 			if (menuItemsVisibleCount == 3 && keysactive[SDL_SCANCODE_G])
 				menuItemsVisibleCount = 4;
 		}
+		if (menuItemsVisibleCount > menuItemsCount - 3)
+			secrets_difficulty((int)menuItemsVisibleCount);  // (Tyrian3D: secrets.h)
 
 		bool action = false;
 		bool cancel = false;

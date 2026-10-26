@@ -31,6 +31,7 @@
 #include "particles3d.h"
 #include "models3d.h"
 #include "rogue.h"
+#include "secrets.h"
 #include "volume3d.h"
 #include "episodes.h"
 #include "file.h"
@@ -3735,11 +3736,13 @@ new_game:
 							itemAvailMax[i] = j;
 						}
 
+						secrets_shop(episodeNum, mainLevel);  // (Tyrian3D: secrets.h)
 						if (!rogue_run)  // Tyrian3D: a rogue run has its own merchants
 							JE_itemScreen();
 						break;
 
 					case 'L':
+						secrets_level(episodeNum, mainLevel);  // (Tyrian3D: a secret level's, secrets.h)
 						nextLevel = atoi(s + 9);
 						SDL_strlcpy(levelName, s + 13, 10);
 						levelSong = atoi(s + 22);
@@ -4452,6 +4455,7 @@ static void title_publish(size_t selected, const char *const *texts, const int *
 		"Watch a game play by itself.",
 		"Leave Tyrian.",
 		"The secret artillery duel: two armies, one battlefield.",
+		"The secrets you have found, and what is still locked.",
 	};
 	UIMenu *menu = ui_menu_begin(UI_SCREEN_TITLE, "");
 	for (size_t i = 0; i < count; ++i)
@@ -4478,6 +4482,7 @@ bool titleScreen(void)
 		MENU_ITEM_DEMO,
 		MENU_ITEM_QUIT,
 		MENU_ITEM_DESTRUCT,  // Tyrian3D: once it has been found (destruct.h)
+		MENU_ITEM_SECRETS,   // Tyrian3D: the secrets found and locked (secrets.h), where the instructions were
 	};
 
 	if (shopSpriteSheet.data == NULL)
@@ -4507,7 +4512,12 @@ bool titleScreen(void)
 			for (int i = 0; i < (int)COUNTOF(menuText); ++i)
 			{
 				if (i == MENU_ITEM_INSTRUCTIONS)
-					continue;  // (the user: take the instructions away)
+				{
+					// (The user: take the instructions away; the secrets in their place.)
+					itemText[itemCount] = "Secrets";
+					itemId[itemCount++] = MENU_ITEM_SECRETS;
+					continue;
+				}
 				if (i == MENU_ITEM_DEMO && destruct_discovered())
 				{
 					itemText[itemCount] = "Destruct";
@@ -4722,6 +4732,7 @@ bool titleScreen(void)
 
 					if (specialName[i][specialNameProgress[i]] == '\0')
 					{
+						secrets_code((int)i);  // (Tyrian3D: secrets.h)
 						if (i + 1 == SA_DESTRUCT)
 						{
 							fade_black(10);
@@ -4822,6 +4833,15 @@ bool titleScreen(void)
 				fade_black(15);
 
 				return false;
+			}
+			case MENU_ITEM_SECRETS:
+			{
+				fade_black(15);
+
+				secrets_screen();
+
+				restart = true;
+				break;
 			}
 			case MENU_ITEM_DESTRUCT:
 			{

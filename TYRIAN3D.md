@@ -513,6 +513,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_CUBES=1` | Every store holds all the data cubes its script lists, as if they were picked up (to test the reader and its voices) |
+| `TYR3D_SECRETS=0\|1` | Record the secrets found, or not, whatever the run (by default a dev run, a demo, a rogue run or a custom episode records none; see Secrets). Use with its own `XDG_CONFIG_HOME` |
 | `TYR3D_TEST_KEYS=<frame>:<key>[,<ms>:<key>...]` | Press a key (an SDL scancode name: `P`, `Escape`, `Return`, `Down`...; `MouseLeft`, `MouseRight`, `MouseMiddle`; `<key>*<ms>` holds it; `MouseTo<x>x<y>` moves the game's pointer to that window point, where the mouse buttons then click, without moving the system's; `WheelUp`, `WheelDown` turn the mouse wheel a notch; `Joy<key>` presses the key as the joystick's, as its menu input does, so the key hints show the joystick's; `Type<text>` types the text, as a name or a code at the title) when that frame shows, then each next one so many milliseconds after the one before; any length |
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
@@ -844,6 +845,27 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/content/gbc/sheet.py` | Episode 7's own enemies' sprites (sheet W, `newshw.shp`) from their models' top views (needs PIL) |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
+
+## Secrets
+
+The title menu's **Secrets** (where the instructions were; `src/secrets.c`) lists the game's secrets in four kinds,
+as tabs with how many of each are found: the levels only a warp orb or a hidden condition leads to (episodes 1-4
+and 6: BUBBLES, HOLES, SOH JIN, ASTEROID?, MINEMAZE, WINDY and ALE; GEM WAR, MARKERS, MISTAKES; AST. CITY,
+SAWBLADES and the hard-only TYRIAN X, SAVARA Y, New Deli; episode 4's WINDY, DESERTRUN, ICESECRET, SIDE EXIT,
+?TUNNEL?, TIME WAR, SQUADRON; episode 6's VAULT), the codes typed at the title (the nine Super Arcade ships,
+DESTRUCT, ENGAGE: locked ones as a question mark per letter), the data cubes read in each episode (of how many its
+`cubetxt` file holds), and the others (the hidden difficulties Impossible, Suicide and Lord of Game, episode 4's
+shop that sells the Stalker 21.126). A found one shows its name, a locked one "???"; the selected one's line says
+where to look. Modern UI: a panel over the menus' picture (tabs, rows with FOUND or LOCKED, a click on a tab or a
+row); classic: the original screen's fonts. Left/Right change the kind, Up/Down the row, Esc goes back.
+
+The game reveals them as it plays (`tyrian2.c`: a secret level's `]L` line read, the shop's `]I` in its section,
+a code accepted at the title; `menus.c`: a difficulty shown; `game_menu.c` `load_cubes`: the store's cubes), and
+each is kept at once in the user directory's `tyrian3d_secrets.cfg` (`found <id>` lines: `level <episode>
+<section>`, `code <n>`, `cube <episode> <n>`, `difficulty <n>`, `shop <episode> <section>`). Nothing is recorded
+in a demo, a rogue run, a custom episode or a dev run (`TYR3D_START`, `TYR3D_TEST_KEYS`, `TYR3D_AUTOPILOT`,
+`TYR3D_ROGUE`, `TYR3D_MODE`, `TYR3D_DUMP_DIR`, `TYR3D_EXIT_AFTER`), unless `TYR3D_SECRETS=1`. Destruct counts as
+found once it has been discovered (`[destruct] discovered`).
 
 ## Voices
 

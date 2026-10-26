@@ -4012,6 +4012,94 @@ static void build_destruct_hud(const UIMenu *m)
 	key_hints(keys, (int)COUNTOF(keys), L.safe.x + L.safe.w / 2, L.window.h - U(18) - key_hints_height(), ALIGN_CENTRE);
 }
 
+// The secrets: a panel with how many are found, their kinds as tabs (each with its share), the kind's rows
+// (found: its name and a FOUND badge; locked: "???"), what the selected one is or where to look.
+static void build_secrets(const UIMenu *m)
+{
+	const UISecrets *s = &m->secrets;
+	const float cap = CAP_ITEM(), small = CAP_SMALL(), key = CAP_KEY();
+	const Box p = centred_panel(SDL_max(U(1200), cap * 40), L.window.h);
+	panel(p, U(22), PANEL_GLASS);
+	float y = p.y + header(p, "", m->title);
+	// All found, at the header's right.
+	{
+		char all[32];
+		snprintf(all, sizeof(all), "%d / %d", s->all_found, s->all_total);
+		const float x = p.x + p.w - U(40);
+		text(FONT_SEMIBOLD, "FOUND", x, p.y + U(30), key, C_DIM, ALIGN_RIGHT);
+		text_graded(FONT_BOLD, all, x, p.y + U(30) + key + U(10), CAP_HEAD(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT, true);
+	}
+	// The kinds as tabs (a click goes to one: UI_ACTION_PAGE + n).
+	{
+		char names[UI_SECRET_TABS][40];
+		const char *labels[UI_SECRET_TABS];
+		const int n = SDL_min(s->tab_count, UI_SECRET_TABS);
+		for (int t = 0; t < n; ++t)
+		{
+			snprintf(names[t], sizeof(names[t]), "%s  %d/%d", s->tab_names[t], s->found[t], s->total[t]);
+			labels[t] = names[t];
+		}
+		float widths[UI_SECRET_TABS];
+		const float th = tabs(p.x + U(40), y, labels, n, s->tab, widths);
+		float x = p.x + U(40);
+		for (int t = 0; t < n; ++t)
+		{
+			if (t != s->tab)
+				add_action((Box){ x, y, widths[t], th }, UI_ACTION_PAGE + t);
+			x += widths[t] + U(8);
+		}
+		y += th + U(22);
+	}
+	// The rows, scrolled to the selected one.
+	const float foot_h = small * 1.75f * 2 + U(44);
+	const float foot_y = p.y + p.h - foot_h + U(10);
+	const Box area = { p.x + U(16), y, p.w - U(32), foot_y - U(12) - y };
+	const float row_h = SDL_max(U(64), cap + small * 1.9f + U(22));
+	const int fits = SDL_max((int)(area.h / row_h), 1);
+	const int first = list_first(LIST_ROWS, m->item_count, m->selected, fits);
+	const bool scrolls = m->item_count > fits;
+	for (int i = first; i < m->item_count && i < first + fits; ++i)
+	{
+		const UIItem *it = &m->items[i];
+		const Box row = { area.x, area.y + (i - first) * row_h, area.w - (scrolls ? U(26) : 0), row_h };
+		const bool selected = i == m->selected;
+		if (selected)
+			panel(inset(row, U(2)), U(10), PANEL_CARD);
+		else if (hovered(row))
+			panel(inset(row, U(2)), U(10), PANEL_HOVER);
+		add_action(row, UI_ACTION_ITEM + i);
+		// The right: the share found (the data cubes), and FOUND or LOCKED.
+		float right = row.x + row.w - U(22);
+		const float by = row.y + (row.h - key * 1.9f) / 2;
+		const bool share = it->value2[0] != '\0';
+		if (it->owned)
+			right -= badge(right, by, "FOUND", C_OWNED_FILL, C_OWNED_INK, ALIGN_RIGHT) + U(18);
+		else if (!share)
+			right -= badge(right, by, "LOCKED", (Colour){ 0.18f, 0.14f, 0.1f, 0.85f }, C_FAINT, ALIGN_RIGHT) + U(18);
+		if (share)
+		{
+			text(FONT_BOLD, it->value2, right, row.y + (row.h - cap) / 2, cap, it->owned ? C_GOLD_TOP : C_TAN, ALIGN_RIGHT);
+			right -= text_w(FONT_BOLD, it->value2, cap) + U(24);
+		}
+		// The left: its name (or ???) and what it is under it.
+		const float x = row.x + U(28), total = cap + small * 1.9f, ty = row.y + (row.h - total) / 2;
+		char fitted[64];
+		fit_text(FONT_SEMIBOLD, it->label, cap, right - x, fitted, sizeof(fitted));
+		text(selected ? FONT_BOLD : FONT_SEMIBOLD, fitted, x, ty, cap, it->owned || share ? (selected ? C_CREAM : C_TAN) : C_DIM, ALIGN_LEFT);
+		fit_text(FONT_MEDIUM, it->value, small, right - x, fitted, sizeof(fitted));
+		text(FONT_MEDIUM, fitted, x, ty + cap + small * 0.9f, small, selected ? C_SUB : C_DIM, ALIGN_LEFT);
+	}
+	if (scrolls)
+		scroll_bar((Box){ area.x + area.w - U(12), area.y, U(10), SDL_min(fits, m->item_count - first) * row_h }, first, fits,
+		           m->item_count);
+	// The selected one: how it was found, or where to look.
+	rule(p.x + U(24), foot_y, p.w - U(48), with_alpha(C_RIM_BOTTOM, 0.6f));
+	if (m->selected >= 0 && m->selected < m->item_count)
+		text_wrapped(FONT_MEDIUM, m->items[m->selected].hint, p.x + U(40), foot_y + U(22), p.w - U(80), small, C_DIM, ALIGN_LEFT, 2);
+	const KeyHint keys[] = { { KEY_UP_DOWN, "", "Select" }, { KEY_LEFT_RIGHT, "", "Kind" }, { KEY_TEXT, "Esc", "Back" } };
+	key_hints(keys, (int)COUNTOF(keys), p.x + p.w / 2, p.y + p.h + U(22), ALIGN_CENTRE);
+}
+
 static void build_destruct(const UIMenu *m)
 {
 	switch (m->destruct.page)
@@ -4096,6 +4184,9 @@ void ui_build_screen(const UIView *view)
 		break;
 	case UI_SCREEN_DESTRUCT:
 		build_destruct(&published);
+		break;
+	case UI_SCREEN_SECRETS:
+		build_secrets(&published);
 		break;
 	case UI_SCREEN_SHOP:
 		build_shop(&published);

@@ -44,6 +44,7 @@
 #include "ui.h"
 #include "video.h"
 #include "voiceover.h"
+#include "secrets.h"
 
 #include <assert.h>
 
@@ -2657,6 +2658,7 @@ void load_cubes(void)
 
 		load_cube(cube_slot, cubeList[cube_slot]);
 	}
+	secrets_cubes(episodeNum, cubeList, cubeMax);  // (Tyrian3D: the cubes found, secrets.h)
 }
 
 bool load_cube(int cube_slot, int cube_index)
