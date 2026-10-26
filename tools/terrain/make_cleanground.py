@@ -1163,6 +1163,10 @@ def build(name, overrides, object_tiles, report):
                 if part.size == 0 or part.mean() < 0.3:
                     continue
                 p = table_piece(cl, table, r, c)
+                # (Not where one of the object's own stands: a tile of the same object's painting, a building over
+                # several tiles, puts its piece where the piece already is.)
+                if any(abs(p.x - q.x) < TILE_W * 0.75 and abs(p.y - q.y) < TILE_H * 0.75 for q, _ in specs):
+                    continue
                 spec = standin_spec(p.letter, p.sprite, False, overrides)
                 if spec is not None:
                     specs.append((p, spec))
