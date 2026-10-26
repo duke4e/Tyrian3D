@@ -62,6 +62,7 @@
 #define MAX_TILES 6144
 #define MAX_STARS 4096
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
+#define NEBULA_PATCHES 6  // the nebula's patches deep under the stars (add_nebula_batch)
 #define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
 #define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
 // Stand-ins for a painting that has no model yet (L3D_STANDIN_PLACEHOLDER): the enemy's own model, this
@@ -101,6 +102,7 @@ static BTBHGPUTexture *white_texture = NULL;   // 1x1, for flat-coloured quads
 static BTBHGPUTexture *particle_texture = NULL;  // a soft round dot
 static BTBHGPUTexture *fire_texture = NULL;      // a billowing puff (fire and smoke particles)
 static BTBHGPUTexture *ring_texture = NULL;      // a soft ring (shock waves)
+static BTBHGPUTexture *nebula_texture = NULL;    // a patch of nebula (add_nebula_batch)
 static BTBHGPUCustomMesh *billboard_mesh = NULL;  // unit quad in the XY plane, centred
 // Filtered backgrounds composed on the CPU (background3d.h): a square slot per background.
 #define COMPOSED_SIZE 1024
@@ -638,6 +640,64 @@ static BTBHGPUTexture *create_ring_texture(void)
 	return texture;
 }
 
+// Value noise for the nebula (its own hash: the renderer's comes later), wrapping every `period` cells.
+static float nebula_noise(float x, float y, int period, Uint32 seed)
+{
+	const int xi = (int)floorf(x), yi = (int)floorf(y);
+	const float fx = x - xi, fy = y - yi;
+	const float ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+	float c[4];
+	for (int k = 0; k < 4; ++k)
+	{
+		Uint32 h = (Uint32)((((xi + (k & 1)) % period + period) % period) * 7919 + (((yi + (k >> 1)) % period + period) % period) * 104729) ^ seed;
+		h ^= h >> 16;
+		h *= 0x7feb352du;
+		h ^= h >> 15;
+		h *= 0x846ca68bu;
+		h ^= h >> 16;
+		c[k] = (h >> 8) / 16777216.0f;
+	}
+	const float top = c[0] + (c[1] - c[0]) * ux, bottom = c[2] + (c[3] - c[2]) * ux;
+	return top + (bottom - top) * uy;
+}
+
+static float nebula_fbm(float x, float y, int period, Uint32 seed)
+{
+	float sum = 0, amp = 1, total = 0;
+	for (int o = 0, f = 1; o < 5; ++o, f *= 2)
+	{
+		sum += nebula_noise(x * f, y * f, period * f, seed + (Uint32)o) * amp;
+		total += amp;
+		amp *= 0.5f;
+	}
+	return sum / total;
+}
+
+// A patch of nebula: wispy gas with brighter filaments, fading out towards a ragged edge (white: the
+// instances colour it; alpha its density).
+static BTBHGPUTexture *create_nebula_texture(void)
+{
+	enum { SIZE = 256 };
+	static Uint32 pixels[SIZE * SIZE];
+	for (int y = 0; y < SIZE; ++y)
+		for (int x = 0; x < SIZE; ++x)
+		{
+			const float u = (x + 0.5f) / SIZE, v = (y + 0.5f) / SIZE;
+			const float gas = nebula_fbm(u * 4, v * 4, 4, 11u);
+			const float ridge = 1 - fabsf(2 * nebula_fbm(u * 3 + gas, v * 3 - gas, 3, 23u) - 1);
+			const float density = 0.65f * gas + 0.35f * ridge * ridge * ridge;
+			const float dx = u * 2 - 1, dy = v * 2 - 1;
+			const float r = sqrtf(dx * dx + dy * dy) * (0.8f + 0.4f * nebula_fbm(u * 3, v * 3, 3, 37u));
+			const float edge = 1 - SDL_clamp((r - 0.35f) / 0.6f, 0.0f, 1.0f);
+			const float a = SDL_clamp((density - 0.3f) / 0.45f, 0.0f, 1.0f) * edge * edge * (3 - 2 * edge);
+			const Uint8 rgba[4] = { 255, 255, 255, (Uint8)(255 * a) };
+			memcpy(&pixels[y * SIZE + x], rgba, 4);
+		}
+	BTBHGPUTexture *texture = create_texture_filtered(SIZE, SIZE, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, BTBH_GPU_TEXTURE_FILTER_LINEAR);
+	btbh_gpu_texture_update_rgba8(texture, (const uint8_t *)pixels, 0, 0, SIZE, SIZE);
+	return texture;
+}
+
 static void init_shader_paths(BTBHGPUBackendRequest backend)
 {
 	tyr3d_resource_dir("TYR3D_SHADER_DIR", TYR3D_SHADER_DIR, "shaders", shader_dir, sizeof(shader_dir));
@@ -726,6 +786,7 @@ SDL_Window *rgpu_init(const char *title, int width, int height)
 	particle_texture = create_particle_texture();
 	fire_texture = create_fire_texture();
 	ring_texture = create_ring_texture();
+	nebula_texture = create_nebula_texture();
 	fade_meshes[0] = create_quad_mesh(B3D_BEYOND_FADE, 1);
 	fade_meshes[1] = create_quad_mesh(1, B3D_BEYOND_FADE);
 
@@ -757,6 +818,7 @@ void rgpu_shutdown(void)
 	particle_texture = NULL;
 	fire_texture = NULL;
 	ring_texture = NULL;
+	nebula_texture = NULL;
 	puff_texture = NULL;
 	billboard_mesh = NULL;
 	composed_texture = NULL;
@@ -4253,7 +4315,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS + MAX_PLANTS + MAX_CLOUD_PUFFS)
+                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
@@ -8575,6 +8637,9 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		const L3DBackground *background = &frame->backgrounds[i];
 		if (only != NULL && SDL_strchr(only, '0' + background->set) == NULL)
 			continue;
+		// (An empty map shows nothing; blended, its blank tiles would darken all under it.)
+		if (b3d_map_empty(background->set))
+			continue;
 		if (water_overlay(background) || background->set == tint_set)
 			continue;
 		// A composed (filtered) background covers only so much; its tiles, in the filters' colours,
@@ -9699,6 +9764,90 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 	b->unlit_enabled = 1;
 }
 
+/*
+ * Deep space's nebula: a few patches of glowing gas far under the deepest stars, in two hues of the
+ * level's own (by its background 1 map), drifting by slower still as the stars scroll. Like the stars
+ * they show through what background 1 leaves empty, and only with the Effects setting. Faint: the
+ * game's shots must read over them.
+ */
+#define NEBULA_DEPTH 900.0f  // game pixels below the game's stars
+
+static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
+                             int *instance_count, int *batch_count)
+{
+	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
+		return;
+
+	static const float hues[][2][3] = {
+		{ { 0.16f, 0.26f, 0.85f }, { 0.52f, 0.18f, 0.78f } },  // blue and violet
+		{ { 0.08f, 0.50f, 0.62f }, { 0.22f, 0.30f, 0.85f } },  // teal and blue
+		{ { 0.78f, 0.24f, 0.30f }, { 0.80f, 0.48f, 0.18f } },  // rose and amber
+		{ { 0.20f, 0.60f, 0.38f }, { 0.12f, 0.38f, 0.72f } },  // green and sea blue
+		{ { 0.62f, 0.20f, 0.62f }, { 0.20f, 0.42f, 0.86f } },  // magenta and blue
+	};
+	static unsigned int seeded_for = 0;  // b3d_map_generation + 1
+	static Uint32 level = 0;
+	if (seeded_for != b3d_map_generation + 1)
+	{
+		seeded_for = b3d_map_generation + 1;
+		const Uint64 map = b3d_map_hash(1);
+		level = (Uint32)map ^ (Uint32)(map >> 32);
+	}
+	const float (*hue)[3] = hues[hash32(level) % SDL_arraysize(hues)];
+
+	const float height = heights[frame->star_layer] - stars_below_layer() - NEBULA_DEPTH * rgpu_camera.height_scale;
+	float rect[4];
+	plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+	if (rect[0] > rect[2] || rect[1] >= rect[3])
+		return;
+	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+	// (They scroll as the deep stars do; deeper, they seem to drift slower.)
+	const float scroll = deep_star_scroll + (2.0f + starfield_speed) * ahead;
+
+	const int first = *instance_count;
+	for (int i = 0; i < NEBULA_PATCHES && *instance_count < MAX_INSTANCES; ++i)
+	{
+		const Uint32 seed = hash32(level + (Uint32)i * 977u);
+		const float size = w * (0.35f + 0.45f * hash_unit(seed + 1));
+		// (Each comes round again past the far end, out of sight: the span is the view and a patch.)
+		const float span = h + size;
+		const float cx = rect[0] + hash_unit(seed + 2) * w;
+		const float cz = rect[1] - size / 2 + fmodf(hash_unit(seed + 3) * span + scroll, span);
+		const float turn = hash_unit(seed + 4) * 6.2832f, stretch = 0.7f + 0.6f * hash_unit(seed + 5);
+		const float c = cosf(turn), sn = sinf(turn);
+		const float sx = size * stretch, sz = size / stretch;
+
+		Mat4 transform = mat4_identity();
+		transform.m[0] = c * sx;
+		transform.m[2] = -sn * sx;
+		transform.m[8] = sn * sz;
+		transform.m[10] = c * sz;
+		// (The quad's corner at the origin: its middle at cx, cz.)
+		transform.m[12] = cx - (transform.m[0] + transform.m[8]) / 2;
+		transform.m[13] = height;
+		transform.m[14] = cz - (transform.m[2] + transform.m[10]) / 2;
+		float *instance = instances + *instance_count * 24;
+		write_instance_world(instance, &transform, 1.0f);
+		const float strength = 0.05f + 0.06f * hash_unit(seed + 6);
+		for (int k = 0; k < 3; ++k)
+			instance[16 + k] = hue[i & 1][k] * strength;
+		++*instance_count;
+	}
+	if (*instance_count == first)
+		return;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = quad_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = nebula_texture;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
 // A composed background 1 has the stars in it already.
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -10631,6 +10780,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, tile_colors, &instance_count, &batch_count);
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
+	add_nebula_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;

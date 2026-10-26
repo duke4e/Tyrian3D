@@ -608,6 +608,13 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   filters (lava, water, ice) cannot be tiles, since the filters blur and waver across tile edges:
   they are composed on the CPU for the area the camera sees and run through the game's own
   filter code, with the waver aligned to the game's screen.
+- **Deep space** (`render_gpu.c` `add_deep_star_batch`, `add_nebula_batch`). While the game's starfield
+  is on, more stars lie in layers far below the ground and scroll with the game's stars, the deeper
+  ones slower; deeper still, a few patches of faint glowing gas (a nebula in two hues of the level's
+  own, by its background 1 map) drift by. Both show through what background 1 leaves empty, and only
+  with the Effects setting. A map that shows nothing (no tile, or only tiles of colour 0) is neither
+  drawn as tiles nor makes the backgrounds under it composed, even if the game blends it (episode 6's
+  GRAVITRON: its empty, blended background 2 had background 1 composed, opaque, hiding the deep space).
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each

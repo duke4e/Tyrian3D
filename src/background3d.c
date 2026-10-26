@@ -571,6 +571,44 @@ bool b3d_solid_background(const L3DFrame *frame, const L3DBackground *b)
 	       b3d_terrain(b->set) != NULL;
 }
 
+// Whether a background's map shows nothing anywhere (no tile, or only tiles of colour 0, which the
+// game leaves see-through): drawn, blended or not, it leaves the screen as it was.
+bool b3d_map_empty(int set)
+{
+	static unsigned int made_for[B3D_SETS];  // b3d_map_generation + 1
+	static bool empty[B3D_SETS];
+	if (set < 1 || set > B3D_SETS)
+		return false;
+	if (made_for[set - 1] != b3d_map_generation + 1)
+	{
+		made_for[set - 1] = b3d_map_generation + 1;
+		const MapSet m = map_set(set);
+		Sint8 clear[B3D_TILES_PER_SET];  // per tile: -1 not looked at yet, 0 has pixels, 1 all colour 0
+		SDL_memset(clear, -1, sizeof(clear));
+		bool none = true;
+		for (int i = 0; i < m.rows * m.width && none; ++i)
+		{
+			const int kind = tile_kind(&m, m.map[i]);
+			if (kind >= m.tile_count)
+				continue;
+			if (clear[kind] < 0)
+			{
+				const Uint8 *pixels = m.first_tile + kind * m.tile_stride;
+				clear[kind] = 1;
+				for (int p = 0; p < B3D_TILE_W * B3D_TILE_H; ++p)
+					if (pixels[p] != 0)
+					{
+						clear[kind] = 0;
+						break;
+					}
+			}
+			none = clear[kind] == 1;
+		}
+		empty[set - 1] = none;
+	}
+	return empty[set - 1];
+}
+
 void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKGROUNDS])
 {
 	// Over a ground of terrain nothing is composed: the backgrounds over it are their tiles.
@@ -585,8 +623,10 @@ void b3d_composed_backgrounds(const L3DFrame *frame, bool composed[L3D_MAX_BACKG
 	{
 		const L3DBackground *b = &frame->backgrounds[i];
 		// A blended background of clouds isn't blended in the 3D view (its clouds are the canvas),
-		// nor one that is a solid.
-		const bool blended = b->blend && !(b3d_clouds && b3d_set_has_clouds(b->set)) && !b3d_solid_background(frame, b);
+		// nor one that is a solid, nor an empty one (episode 6's GRAVITRON: composed, its space
+		// would hide the deep stars).
+		const bool blended = b->blend && !(b3d_clouds && b3d_set_has_clouds(b->set)) && !b3d_solid_background(frame, b) &&
+		                     !b3d_map_empty(b->set);
 		if (b->effect_count > 0 || blended)
 			last = i;
 	}

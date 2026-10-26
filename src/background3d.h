@@ -171,6 +171,8 @@ bool b3d_water_color(int set, Uint8 rgb[3]);
 
 // A map's name (the hash in TYR3D_EXPORT_MAPS's files and terrain assets).
 Uint64 b3d_map_hash(int set);
+// Whether a map has no tile anywhere.
+bool b3d_map_empty(int set);
 
 /*
  * Terrain (polish): heights for a whole map, computed offline from its surfaces
