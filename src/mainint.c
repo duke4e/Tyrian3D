@@ -5203,12 +5203,25 @@ redo:
 				trail_spacing++;
 			}
 
+			// Tyrian3D: a ship with a model leaves a streak of light as it warps away, not copies of its sprite.
+			const M3DAppearance warp_look = m3d_ship_appearance(shipGr_ == 0 ? M3D_SHIP_DRAGONWING : this_player->items.ship);
+			const bool warp_3d = l3d_capturing && m3d_enabled && warp_look.model >= 0;
 			for (int i = 1; i < num_trails; i++)
 			{
 				trail_y -= trail_spacing;
 				trail_spacing--;
 
-				if (trail_y > 0 && trail_y < 170)
+				if (warp_3d)
+				{
+					// (A glow every few pixels between this trail point and the one before it: a line, not beads.)
+					static const Uint8 warp_rgb[3] = { 150, 200, 255 };
+					const int from = trail_y - (trail_spacing + 1);
+					for (int y = from; settings3d.effects && y < trail_y; y += 3)
+						if (y > -l3d_field_ahead - 20 && y < 200)
+							l3d_add_rgb_glow(this_player->x + 7, y + 7, 14.0f - 0.35f * i, 0.4f * (1 - (float)i / num_trails),
+							                 warp_rgb, 0, 0);
+				}
+				else if (trail_y > 0 && trail_y < 170)
 				{
 					if (shipGr_ == 0)
 					{
