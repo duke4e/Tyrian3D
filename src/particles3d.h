@@ -85,6 +85,10 @@ void p3d_pickup(float x, float y, float height);
 // strength 1 just damaged down to 0): called every frame it shows, a puff now and then, an ember now and then.
 void p3d_smoulder(float x, float y, float height, float scale, float strength);
 
+// The player's ship blown apart (x, y its centre, at that height): a shock wave, sparks, and pieces of its hull
+// flung out tumbling, falling to the ground (the game's own explosions burst round it, its fire and light).
+void p3d_ship_destroyed(float x, float y, float height);
+
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range
 // magnet's sparks streaming sideways. pulse: a ring with it (callers space them out).

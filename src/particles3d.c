@@ -469,6 +469,41 @@ void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind
 	}
 }
 
+void p3d_ship_destroyed(float x, float y, float height)
+{
+	// (The game's own explosions burst round it for a second: its fire and light.)
+	shock_ring(x, y, height, 130, 22);
+	sparks(x, y, height, 20, 4.0f);
+	// Pieces of the hull: bronze plates and dark machinery, flung out, tumbling down to the ground.
+	for (int i = 0; i < 16; ++i)
+	{
+		P3DParticle *d = spawn(P3D_DEBRIS, x, y, height);
+		if (d == NULL)
+			return;
+		const float angle = random_range(0, 2 * (float)M_PI), s = random_range(2.0f, 4.0f);
+		d->vx = cosf(angle) * s;
+		d->vy = sinf(angle) * s;
+		d->vheight = random_range(-0.2f, 1.6f);
+		d->gravity = 0.1f;
+		d->drag = 0.975f;
+		d->size = random_range(3.0f, 5.5f);
+		d->life = random_range(70, 100);
+		d->turn = random_range(0, 2 * (float)M_PI);
+		d->spin = random_range(-0.5f, 0.5f);
+		if (i % 3 == 0)
+		{
+			const Uint8 shade = (Uint8)random_range(40, 60);
+			set_colors(d, shade, shade, (Uint8)(shade + 4), 255, shade, shade, (Uint8)(shade + 4), 255);
+		}
+		else
+		{
+			const Uint8 shade = (Uint8)random_range(150, 200);
+			set_colors(d, shade, (Uint8)(shade * 0.78f), (Uint8)(shade * 0.5f), 255, shade, (Uint8)(shade * 0.78f),
+			           (Uint8)(shade * 0.5f), 255);
+		}
+	}
+}
+
 bool p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).

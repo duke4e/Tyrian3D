@@ -3057,6 +3057,14 @@ draw_player_shot_loop_end:
 		static unsigned int pickup_frame = 0;
 		if (pickup != NULL && SDL_atoi(pickup) > 0 && ++pickup_frame % SDL_atoi(pickup) == 0 && l3d_capturing)
 			p3d_pickup(player[0].x + 7.0f, player[0].y + 7.0f, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
+		// TYR3D_TEST_WRECK=<every n frames>: a ship's wreck flung apart in the middle of the screen.
+		const char *wreck = SDL_getenv("TYR3D_TEST_WRECK");
+		static unsigned int wreck_frame = 0;
+		if (wreck != NULL && SDL_atoi(wreck) > 0 && ++wreck_frame % SDL_atoi(wreck) == 0 && l3d_capturing)
+		{
+			JE_setupExplosionLarge(false, 0, 160, 100);
+			p3d_ship_destroyed(160.0f, 93.0f, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
+		}
 	}
 
 	/*---------------------------- Draw Explosions ----------------------------*/

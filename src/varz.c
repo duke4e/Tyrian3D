@@ -19,6 +19,7 @@
 #include "varz.h"
 #include "layer3d.h"
 #include "particles3d.h"
+#include "settings3d.h"
 
 #include "config.h"
 #include "devtools.h"
@@ -1077,6 +1078,10 @@ JE_byte JE_playerDamage(JE_byte temp,
 						levelTimer = false;
 					this_player->is_alive = false;
 					this_player->exploding_ticks = 60;
+					// Tyrian3D: the ship blown apart (it only shows).
+					if (l3d_capturing && settings3d.effects)
+						p3d_ship_destroyed(this_player->x + 7.0f, this_player->y + 7.0f,
+						                   l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
 					levelEnd = 40;
 					tempVolume = tyrMusicVolume;
 					soundQueue[1] = S_EXPLOSION_22;
