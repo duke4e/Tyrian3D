@@ -802,14 +802,27 @@ is the HD tiles' input. To make everything again (the upscales take 3-4 hours on
 tools/setup_tools_venv.sh
 PY=~/Library/Caches/Tyrian3D/tools-venv/bin/python
 MODEL=~/Library/Caches/Tyrian3D/esrgan/4x-Fatality.pth
-$PY tools/tiles_hd.py $MODEL
+DETAIL=~/Library/Caches/Tyrian3D/esrgan/4x-BigFArt-Detail.pth
+$PY tools/tiles_hd.py $DETAIL --tilesets z,y,x,w --work upscale/out/tiles_bigfart
+$PY tools/tiles_hd.py $MODEL --tilesets ')'
 TYR3D_EXTRACT=export/extract build/game/tyrian3d
 $PY tools/make_atlases.py export/extract upscale/in
 $PY tools/upscale_sprites.py $MODEL upscale/in upscale/out
 $PY tools/hd_sheets.py
 ```
 
-The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
+The sprites, the HUD panels and the lava's tiles (x29) are upscaled with 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA
+4.0); the other tilesets' tiles (z: asteroids, TYRIAN, DELI; y: SAVARA; x: TORM and the jungles; w: the ice) since
+2026-10-26 with 4x-BigFArt-Detail by DinJerr (OpenModelDB, CC BY-NC 4.0): sharper stones, grids and ice (the user
+chose Fatality for the lava after a comparison in the game on 2026-10-18; the comparison of the others is in item 58 of
+`TYRIAN3D_HANDOFF.md`). The Fatality tiles of z, y, x and w are kept in `data/hd/tiles_fatality` (`cp
+data/hd/tiles_fatality/*.hdt data/hd/tiles/` goes back). BigFArt-Detail is not in OpenModelDB's own storage: its
+author's public OneDrive folder holds it as `4x_BigFArt_Detail_300000_G.pth` (SHA-256
+0f8007e6a5ee9b08567c1219def8c13fc2b902f1cfc5f4d6fa17103b69c06002, 66 958 607 bytes; OneDrive's anonymous API: a
+token from `https://api-badgerp.svc.ms/v1.0/token` with app id 5cbed6ac-a083-4e14-b191-b4ba07653de2, then the share
+`https://1drv.ms/u/s!Aip-EMByJHY23if0ac150Sj2qnbp?e=qLp7SP` encoded as `u!<base64url>` under
+`https://api.onedrive.com/v1.0/shares/.../driveitem/children` with `Authorization: Badger <token>`; ask the user
+before downloading).
 
 ## Tools
 

@@ -26,7 +26,8 @@ Made with, not included:
   output, under the project's license).
 - **AudioSR** (Haohe Liu et al.) upscales the sound effects (`tools/upscale_sfx.py`); the upscaled
   sounds are made from the game's data and are not in the repository.
-- **ESRGAN models from OpenModelDB** (4x-Lady0101 by DinJerr, and for comparison 4x-Fatality,
-  4x-Rebout-Blend, 4x-BigFArt-Detail) upscale the sprite atlases (`tools/upscale_sprites.py`). The
-  upscales are references for modelling and the HUD panel's picture; they are made from the game's
-  data and are not in the repository. Some of these models are licensed for non-commercial use only.
+- **ESRGAN models from OpenModelDB**: 4x-Fatality by twittman (CC BY-NC-SA 4.0) upscales the sprite
+  atlases, the HUD panels and the lava's background tiles; 4x-BigFArt-Detail by DinJerr (CC BY-NC 4.0)
+  the other background tiles (`tools/upscale_sprites.py`, `tools/tiles_hd.py`; earlier, for comparison,
+  4x-Lady0101 and 4x-Rebout-Blend). The upscales are made from the game's data and are not in the
+  repository (`data/hd`). Both models are licensed for non-commercial use only.
