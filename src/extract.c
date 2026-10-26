@@ -888,8 +888,10 @@ void dev_export_pictures(const char *dir)
 		mkdir(icons, 0755);
 		if (shopSpriteSheet.data == NULL)
 			JE_loadCompShapes(&shopSpriteSheet, '1');
-		static bool wanted[1024];
+		static bool wanted[1024], ship[1024], special_wanted[1024];
 		memset(wanted, 0, sizeof(wanted));
+		memset(ship, 0, sizeof(ship));
+		memset(special_wanted, 0, sizeof(special_wanted));
 		// (The items of every episode there is: each episode's file holds its item data.)
 		for (int e = 1; e <= EPISODE_MAX; ++e)
 		{
@@ -904,6 +906,10 @@ void dev_export_pictures(const char *dir)
 				wanted[powerSys[i].itemgraphic % 1024] = true;
 			for (size_t i = 0; i < COUNTOF(options); ++i)
 				wanted[options[i].itemgraphic % 1024] = true;
+			for (size_t i = 0; i < COUNTOF(ships); ++i)
+				ship[ships[i].shipgraphic % 1024] = true;
+			for (size_t i = 0; i < COUNTOF(special); ++i)
+				special_wanted[special[i].itemgraphic % 1024] = true;
 		}
 		int shop_count = 0, planet_count = 0;
 		for (int g = 1; g < 1024; ++g)
@@ -915,6 +921,49 @@ void dev_export_pictures(const char *dir)
 			snprintf(path, sizeof(path), "%s/shop_%d.png", icons, g);
 			write_picture(path, surface, 24, 28, palettes[pcxpal[0]], true);
 			++shop_count;
+		}
+		// The ships (spriteSheet9, spriteSheetT2000 from 500 on: 2x2, the store's and the rogue run's cards), the
+		// HUD's small ship and bomb (spriteSheet9 285, 304), the specials (spriteSheet10, 2x2), the data cube icons
+		// (OPTION_SHAPES 25, 34).
+		int other_count = 0;
+		for (int g = 1; g < 1024; ++g)
+		{
+			const struct { bool want; Sprite2_array *sheet; int sprite; const char *name; } kinds[] = {
+				{ ship[g] && g <= 500, &spriteSheet9, g, "ship" },
+				{ ship[g] && g > 500, &spriteSheetT2000, g - 500, "shipt" },
+				{ special_wanted[g], &spriteSheet10, g, "special" },
+			};
+			for (size_t k = 0; k < COUNTOF(kinds); ++k)
+			{
+				if (!kinds[k].want || kinds[k].sheet->data == NULL)
+					continue;
+				SDL_FillSurfaceRect(surface, NULL, 0);
+				blit_sprite2x2(surface, 0, 0, *kinds[k].sheet, (unsigned int)kinds[k].sprite);
+				snprintf(path, sizeof(path), "%s/%s_%d.png", icons, kinds[k].name, kinds[k].sprite);
+				write_picture(path, surface, 24, 28, palettes[pcxpal[0]], true);
+				++other_count;
+			}
+		}
+		static const int small_ships[] = { 285, 304 };
+		for (size_t i = 0; i < COUNTOF(small_ships); ++i)
+		{
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			blit_sprite2(surface, 0, 0, spriteSheet9, (unsigned int)small_ships[i]);
+			snprintf(path, sizeof(path), "%s/ship_s_%d.png", icons, small_ships[i]);
+			write_picture(path, surface, 12, 14, palettes[pcxpal[0]], true);
+			++other_count;
+		}
+		static const unsigned int option_icons[] = { 25, 34 };
+		for (size_t i = 0; i < COUNTOF(option_icons); ++i)
+		{
+			if (!sprite_exists(OPTION_SHAPES, option_icons[i]))
+				continue;
+			const Sprite *icon = sprite(OPTION_SHAPES, option_icons[i]);
+			SDL_FillSurfaceRect(surface, NULL, 0);
+			blit_sprite(surface, 0, 0, OPTION_SHAPES, option_icons[i]);
+			snprintf(path, sizeof(path), "%s/option_%u.png", icons, option_icons[i]);
+			write_picture(path, surface, icon->width, icon->height, palettes[pcxpal[0]], true);
+			++other_count;
 		}
 		for (unsigned int i = 0; i < sprite_table[PLANET_SHAPES].count; ++i)
 		{
@@ -929,7 +978,8 @@ void dev_export_pictures(const char *dir)
 			write_picture(path, surface, planet->width, planet->height, palettes[18 - 1], true);  // (the map's: newPal 18)
 			++planet_count;
 		}
-		printf("icons: %d of the store's items, %d planets in %s\n", shop_count, planet_count, icons);
+		printf("icons: %d of the store's items, %d ships, specials and others, %d planets in %s\n", shop_count, other_count,
+		       planet_count, icons);
 	}
 
 	// The title's logo (PLANET_SHAPES 146) and its "2000(tm)" (151), each alone and together as the title shows

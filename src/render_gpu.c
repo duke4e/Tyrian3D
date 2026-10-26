@@ -1737,8 +1737,9 @@ static void icon_quad(int slot, float x, float y, float w, float h, float alpha)
 
 /*
  * The modern UI's icons drawn anew (data/hd/icons, TYR3D_EXPORT_PICTURES' icons/ through tools/upscale_sprites.py):
- * shop_<sprite>.png for the store's items (shopSpriteSheet's 2x2 sprites, as its cards show them) and
- * planet_<sprite>.png for the planets of its map (PLANET_SHAPES); where one is there, it is drawn instead of the
+ * shop_<sprite>.png for the store's items (shopSpriteSheet's 2x2 sprites, as its cards show them), ship_, shipt_
+ * (T2000's), ship_s_ (small), special_, option_ (the data cube icons) and planet_<sprite>.png for the planets of its
+ * map (PLANET_SHAPES); where one is there, it is drawn instead of the
  * sprite's pixels, in the same rectangle (each loaded as it is first drawn).
  */
 #define HD_ICONS 384
@@ -1746,18 +1747,32 @@ static struct
 {
 	const void *sheet;
 	unsigned int table, sprite;
+	bool large;
 	BTBHGPUTexture *texture;  // (NULL: none drawn anew)
 } hd_icons[HD_ICONS];
 static int hd_icon_count = 0;
 
-static BTBHGPUTexture *hd_icon(const void *sheet, unsigned int table, unsigned int sprite)
+static BTBHGPUTexture *hd_icon(const void *sheet, unsigned int table, unsigned int sprite, bool large)
 {
-	const char *kind = sheet != NULL && sheet == (const void *)&shopSpriteSheet ? "shop"
-	                 : sheet == NULL && table == PLANET_SHAPES ? "planet" : NULL;
+	// (The kinds TYR3D_EXPORT_PICTURES' icons/ has: the store's items, the ships, the HUD's small ship and bomb,
+	// the specials, the data cube icons, the planets.)
+	const char *kind = NULL;
+	if (sheet == (const void *)&shopSpriteSheet && large)
+		kind = "shop";
+	else if (sheet == (const void *)&spriteSheet9)
+		kind = large ? "ship" : "ship_s";
+	else if (sheet == (const void *)&spriteSheetT2000 && large)
+		kind = "shipt";
+	else if (sheet == (const void *)&spriteSheet10 && large)
+		kind = "special";
+	else if (sheet == NULL && table == PLANET_SHAPES)
+		kind = "planet";
+	else if (sheet == NULL && table == OPTION_SHAPES)
+		kind = "option";
 	if (kind == NULL || window == NULL)
 		return NULL;
 	for (int i = 0; i < hd_icon_count; ++i)
-		if (hd_icons[i].sheet == sheet && hd_icons[i].table == table && hd_icons[i].sprite == sprite)
+		if (hd_icons[i].sheet == sheet && hd_icons[i].table == table && hd_icons[i].sprite == sprite && hd_icons[i].large == large)
 			return hd_icons[i].texture;
 	if (hd_icon_count >= HD_ICONS)
 		return NULL;
@@ -1774,6 +1789,7 @@ static BTBHGPUTexture *hd_icon(const void *sheet, unsigned int table, unsigned i
 	hd_icons[hd_icon_count].sheet = sheet;
 	hd_icons[hd_icon_count].table = table;
 	hd_icons[hd_icon_count].sprite = sprite;
+	hd_icons[hd_icon_count].large = large;
 	hd_icons[hd_icon_count++].texture = texture;
 	return texture;
 }
@@ -1789,7 +1805,7 @@ void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x,
 {
 	if (sheet == NULL || ((const Sprite2_array *)sheet)->data == NULL)
 		return;
-	BTBHGPUTexture *hd = large ? hd_icon(sheet, 0, sprite) : NULL;
+	BTBHGPUTexture *hd = hd_icon(sheet, 0, sprite, large);
 	if (hd != NULL)
 	{
 		hd_icon_quad(hd, x, y, w, h, alpha);
@@ -1813,7 +1829,7 @@ void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, floa
 		dh = h;
 		dw = h * aspect;
 	}
-	BTBHGPUTexture *hd = hd_icon(NULL, table, sprite);
+	BTBHGPUTexture *hd = hd_icon(NULL, table, sprite, false);
 	if (hd != NULL)
 		hd_icon_quad(hd, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh, alpha);
 	else
