@@ -10167,7 +10167,9 @@ static void build_spotlight(const Layout3D *layout, float window_w, float window
 }
 
 // Appends the particles (particles3d.h): glowing ones added to what is behind them, smoke and scorch marks
-// blended.
+// blended (a scorch mark on water is foam instead, gone in FOAM_FRAMES).
+#define FOAM_FRAMES 70.0f
+
 static void add_particle_batches(int *instance_count, int *batch_count)
 {
 	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
@@ -10185,18 +10187,22 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 				t *= t;  // fire stays hot, then cools quickly
 			Mat4 transform = mat4_identity();
 			transform.m[0] = transform.m[5] = transform.m[10] = p->size;
+			bool foam = false;  // a scorch mark on water: foam spreading where the blast hit it, soon gone
 			if (kind == P3D_SCORCH)
 			{
-				// Lying on the ground, turned its own way (by its life); not on water.
-				if (ground_water_at(p->x, p->y + explodeMove * ahead))
+				// Lying on the ground, turned its own way (by its life).
+				foam = ground_water_at(p->x, p->y + explodeMove * ahead);
+				const float since = (p->age + ahead) / FOAM_FRAMES;
+				if (foam && (since >= 1))
 					continue;
+				const float size = foam ? p->size * (0.7f + 0.7f * sqrtf(SDL_max(0.0f, since))) : p->size;
 				// (The quad's x and up along the ground.)
 				const float angle = p->life * 2.39996f;
-				transform.m[0] = cosf(angle) * p->size;
-				transform.m[2] = sinf(angle) * p->size;
-				transform.m[4] = -sinf(angle) * p->size;
+				transform.m[0] = cosf(angle) * size;
+				transform.m[2] = sinf(angle) * size;
+				transform.m[4] = -sinf(angle) * size;
 				transform.m[5] = 0;
-				transform.m[6] = cosf(angle) * p->size;
+				transform.m[6] = cosf(angle) * size;
 			}
 			else if (kind == P3D_RING)
 			{
@@ -10223,7 +10229,17 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 			for (int c = 0; c < 3; ++c)
 				instance[16 + c] = srgb_to_linear((Uint8)(p->color[c] + (p->end_color[c] - p->color[c]) * t));
 			instance[19] = (p->color[3] + (p->end_color[3] - p->color[3]) * t) / 255.0f;
-			if (kind == P3D_SCORCH)
+			if (foam)
+			{
+				// White foam, fading as it spreads; on the water.
+				const float since = SDL_clamp((p->age + ahead) / FOAM_FRAMES, 0.0f, 1.0f);
+				instance[16] = 0.78f;
+				instance[17] = 0.86f;
+				instance[18] = 0.9f;
+				instance[19] = 0.6f * (1 - since) * (1 - since);
+				instance[13] += 0.8f;
+			}
+			else if (kind == P3D_SCORCH)
 			{
 				// Burnt in at once, holding, then fading in its last third; just above the ground.
 				instance[19] = p->color[3] / 255.0f * SDL_min(1.0f, (1 - t) / 0.35f);
@@ -10257,7 +10273,7 @@ static void add_particle_batches(int *instance_count, int *batch_count)
 static BTBHGPUCustomMesh *jukebox_mesh(J3DShape shape);
 
 // The explosions' debris (P3D_DEBRIS): lit chunks, each its own odd shape, tumbling while they fly,
-// casting shadows as the objects do; shrinking away at the end of their life.
+// casting shadows as the objects do; shrinking away at the end of their life, or gone once down on water.
 static void add_debris_batch(int *instance_count, int *batch_count)
 {
 	if (*batch_count >= MAX_BATCHES)
@@ -10274,6 +10290,9 @@ static void add_debris_batch(int *instance_count, int *batch_count)
 		const float u = p->life * 0.618034f - floorf(p->life * 0.618034f);
 		const float sx = size * (0.7f + 0.6f * u), sy = size * (0.35f + 0.4f * (1 - u)), sz = size * (0.8f + 0.3f * u);
 		const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));
+		// (Down on water it has sunk.)
+		if (p->height + p->vheight * age <= 0 && ground_water_at(p->x + p->vx * age, p->y + (p->vy + explodeMove) * age))
+			continue;
 		const float a = p->turn + (p->height > 0 ? p->spin * age : 0.0f), b = a * 0.73f + u * 3.0f;
 		const float ca = cosf(a), sa = sinf(a), cb = cosf(b), sb = sinf(b);
 		// Turned about x by a, then about y by b; scaled along its own axes.
