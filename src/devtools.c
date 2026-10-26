@@ -418,6 +418,24 @@ static Uint32 SDLCALL release_mouse(void *userdata, SDL_TimerID timer, Uint32 in
 	return 0;
 }
 
+// A modifier key's flag (Shift, Ctrl, Alt, GUI), or none: a pressed one is held in SDL's modifier state too, as
+// a real key would be (the game asks SDL_GetModState: the difficulty menu's Shift+G).
+static SDL_Keymod modifier_of(SDL_Scancode scancode)
+{
+	switch (scancode)
+	{
+	case SDL_SCANCODE_LSHIFT: return SDL_KMOD_LSHIFT;
+	case SDL_SCANCODE_RSHIFT: return SDL_KMOD_RSHIFT;
+	case SDL_SCANCODE_LCTRL: return SDL_KMOD_LCTRL;
+	case SDL_SCANCODE_RCTRL: return SDL_KMOD_RCTRL;
+	case SDL_SCANCODE_LALT: return SDL_KMOD_LALT;
+	case SDL_SCANCODE_RALT: return SDL_KMOD_RALT;
+	case SDL_SCANCODE_LGUI: return SDL_KMOD_LGUI;
+	case SDL_SCANCODE_RGUI: return SDL_KMOD_RGUI;
+	default: return SDL_KMOD_NONE;
+	}
+}
+
 static Uint32 SDLCALL release_key(void *userdata, SDL_TimerID timer, Uint32 interval)
 {
 	(void)timer, (void)interval;
@@ -425,6 +443,10 @@ static Uint32 SDLCALL release_key(void *userdata, SDL_TimerID timer, Uint32 inte
 	event.type = SDL_EVENT_KEY_UP;
 	event.key.scancode = (SDL_Scancode)(intptr_t)userdata;
 	event.key.key = SDL_GetKeyFromScancode(event.key.scancode, SDL_KMOD_NONE, false);
+	const SDL_Keymod mod = modifier_of(event.key.scancode);
+	if (mod != SDL_KMOD_NONE)
+		SDL_SetModState(SDL_GetModState() & ~mod);
+	event.key.mod = SDL_GetModState();
 	SDL_PushEvent(&event);
 	return 0;
 }
@@ -526,6 +548,9 @@ static void press_key(const char *name)
 	event.key.scancode = scancode;
 	event.key.key = SDL_GetKeyFromScancode(scancode, SDL_KMOD_NONE, false);
 	event.key.down = true;
+	if (modifier_of(scancode) != SDL_KMOD_NONE)
+		SDL_SetModState(SDL_GetModState() | modifier_of(scancode));
+	event.key.mod = SDL_GetModState();
 	SDL_PushEvent(&event);
 	// Released a little later, so the game sees it held.
 	SDL_AddTimer(hold, release_key, (void *)(intptr_t)scancode);
