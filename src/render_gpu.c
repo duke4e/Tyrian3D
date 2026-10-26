@@ -9989,6 +9989,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 			ground = heights[l];
 	const bool snow = weather == B3D_WEATHER_SNOW, pollen = weather == B3D_WEATHER_POLLEN;
 	const bool sand = weather == B3D_WEATHER_SAND, leaves = weather == B3D_WEATHER_LEAVES;
+	const bool bubbles = weather == B3D_WEATHER_BUBBLES;
 	// (Snow and dust from high up, below the camera; embers only up from the lava; pollen low; sand lowest.)
 	const float top = ground + (snow || dust ? 130.0f : pollen || leaves ? 60.0f : sand ? 26.0f : 80.0f) * rgpu_camera.height_scale;
 	const float band = (top - ground) / WEATHER_BANDS;
@@ -10003,7 +10004,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 		if (rect[0] > rect[2] || rect[1] >= rect[3])
 			continue;
 		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
-		const int count = snow || sand ? WEATHER_PER_BAND : dust || pollen ? WEATHER_PER_BAND / 2 : leaves ? WEATHER_PER_BAND / 3
+		const int count = snow || sand ? WEATHER_PER_BAND : dust || pollen ? WEATHER_PER_BAND / 2 : leaves || bubbles ? WEATHER_PER_BAND / 3
 		                : WEATHER_PER_BAND * 2 / 3;
 		for (int i = 0; i < count && *instance_count < MAX_INSTANCES; ++i)
 		{
@@ -10026,6 +10027,27 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 				instance[16] = 0.6f * a;
 				instance[17] = 0.68f * a;
 				instance[18] = 0.85f * a;
+				++*instance_count;
+				continue;
+			}
+			if (bubbles)
+			{
+				// Rising from the floor, wobbling, swelling a little as they go; drifting with the water.
+				const float speed = 6.0f + 6.0f * r2;
+				const float through = fmodf(r3 * band * WEATHER_BANDS + t * speed, band * WEATHER_BANDS) / (band * WEATHER_BANDS);
+				const float wobble = sinf(t * (2.0f + 2.0f * r1) + r0 * 6.2832f) * 1.5f;
+				Mat4 transform = mat4_identity();
+				const float size = (1.2f + 1.8f * r1) * (0.8f + 0.4f * through);
+				transform.m[0] = transform.m[5] = transform.m[10] = size;
+				transform.m[12] = rect[0] + fmodf(r0 * w + wobble + w, w);
+				transform.m[13] = ground + 2.0f + band * WEATHER_BANDS * through;
+				transform.m[14] = rect[1] + fmodf(r1 * h + t * 1.5f, h);
+				float *instance = instances + *instance_count * 24;
+				write_instance_world(instance, &transform, 1.0f);
+				const float a = 0.5f * sinf(through * 3.14159f);
+				instance[16] = 0.7f * a;
+				instance[17] = 0.92f * a;
+				instance[18] = 1.0f * a;
 				++*instance_count;
 				continue;
 			}
@@ -10134,7 +10156,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 	b->custom_mesh = billboard_mesh;
 	b->first_instance = first;
 	b->instance_count = *instance_count - first;
-	b->albedo_texture = leaves ? leaf_texture : particle_texture;
+	b->albedo_texture = leaves ? leaf_texture : bubbles ? ring_texture : particle_texture;
 	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
 	b->unlit_enabled = 1;
 	b->transparency_enabled = 1;
