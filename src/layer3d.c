@@ -851,6 +851,7 @@ void l3d_shield_hit(int player_index)
 {
 	if (player_index >= 0 && player_index < 2)
 		shield_hit_at[player_index] = l3d_frame_number + 1;
+	p3d_add_shake(0.3f);
 }
 
 float l3d_shield_glow(int player_index)

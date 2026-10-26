@@ -3,6 +3,7 @@
  */
 #include "particles3d.h"
 #include "settings3d.h"
+#include "player.h"
 
 #include <math.h>
 #include <string.h>
@@ -472,6 +473,7 @@ void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind
 void p3d_ship_destroyed(float x, float y, float height)
 {
 	// (The game's own explosions burst round it for a second: its fire and light.)
+	p3d_add_shake(1.0f);
 	shock_ring(x, y, height, 130, 22);
 	sparks(x, y, height, 20, 4.0f);
 	// Pieces of the hull: bronze plates and dark machinery, flung out, tumbling down to the ground.
@@ -504,6 +506,15 @@ void p3d_ship_destroyed(float x, float y, float height)
 	}
 }
 
+// A big explosion shakes the view the more the nearer it is to the ship (none beyond 110 pixels).
+static void shake_near(float x, float y)
+{
+	const float dx = x - (player[0].x + 7), dy = y - (player[0].y + 7);
+	const float d = sqrtf(dx * dx + dy * dy);
+	if (d < 110)
+		p3d_add_shake(0.45f * (1 - d / 110));
+}
+
 bool p3d_explosion(int x, int y, int type)
 {
 	// The explosion sprite's centre (they are 12x14).
@@ -525,6 +536,7 @@ bool p3d_explosion(int x, int y, int type)
 		plume(cx, cy, 8, 3, 18, 40);
 		if (type == 5)  // once, at the middle of the four
 		{
+			shake_near(cx - 6, cy - 7);
 			shock_ring(cx - 6, cy - 7, 2, 90, 16);
 			scorch(cx - 6, cy - 7, 36);
 		}
@@ -541,7 +553,10 @@ bool p3d_explosion(int x, int y, int type)
 		plume(cx, cy, 30, 2, 15, 60);
 		shards(cx, cy, 30, 2);
 		if (type == 10)
+		{
+			shake_near(cx - 6, cy - 7);
 			shock_ring(cx - 6, cy - 7, 30, 80, 14);
+		}
 		light(cx, cy, 24, 60, 5.5f, 12);
 		return true;
 	case 14: case 15: case 16: case 17: case 18: case 19: case 20: case 21: case 22:
@@ -552,8 +567,20 @@ bool p3d_explosion(int x, int y, int type)
 	}
 }
 
+float p3d_shake = 0;
+
+void p3d_add_shake(float amount)
+{
+	if (settings3d.effects)
+		p3d_shake = SDL_min(1.0f, p3d_shake + amount);
+}
+
 void p3d_update(int drift)
 {
+	p3d_shake *= 0.84f;
+	if (p3d_shake < 0.01f)
+		p3d_shake = 0;
+
 	for (int i = 0; i < p3d_light_count; )
 	{
 		P3DLight *l = &p3d_lights[i];

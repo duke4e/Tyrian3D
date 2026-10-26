@@ -11524,9 +11524,22 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		heights[l] = height;
 	}
 
-	const Camera3D camera = fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways);
+	// The view shakes (p3d_shake): its picture moves a little, a new way every frame (the mouse still finds
+	// the game's points in the steady view).
+	float shaken[4];
+	memcpy(shaken, ndc_rect, sizeof(shaken));
+	if (p3d_shake > 0 && settings3d.effects)
+	{
+		const Uint32 k = hash32(l3d_frame_number * 2654435761u);
+		const float amount = p3d_shake * p3d_shake * 0.012f;
+		const float sx = (hash_unit(k) - 0.5f) * 2 * amount, sy = (hash_unit(k + 1) - 0.5f) * 2 * amount;
+		shaken[0] += sx, shaken[2] += sx;
+		shaken[1] += sy, shaken[3] += sy;
+	}
+	const Camera3D camera = fit_camera(reference_height, viewport_aspect, shaken, upside_down, sideways);
 	set_alignment(&camera, reference_height);
-	shown_view = (ShownView){ true, camera, reference_height, logical_w, logical_h, upside_down };
+	shown_view = (ShownView){ true, fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways),
+	                          reference_height, logical_w, logical_h, upside_down };
 	bool composed[L3D_MAX_BACKGROUNDS];
 	b3d_composed_backgrounds(frame, composed);
 	// What stands on the ground stands on it as drawn, the layers' objects in the game's order

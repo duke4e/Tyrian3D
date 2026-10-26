@@ -101,6 +101,11 @@ typedef enum
 } P3DField;
 void p3d_field(float x, float y, float height, P3DField field, float reach, bool pulse);
 
+// How much the view shakes now (0 none, 1 the most): big explosions near the ship, hits, the ship blown apart.
+// It only shows (the 3D view's projection moves, nothing else); it dies down by itself.
+extern float p3d_shake;
+void p3d_add_shake(float amount);
+
 // Advances the particles by one game frame; drift is how far explosions move down the screen in
 // it (explodeMove).
 void p3d_update(int drift);
