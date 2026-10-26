@@ -20,7 +20,7 @@ of every speaker in cast.json (its cubes, portraits and characters).
 Local corrections that quote the game's text go in data/voices/overrides.json (same keys as
 cast.json's "cube_rules", plus "tts_replace": [[old, new], ...] for a cube's spoken text).
 
-usage: tools/voices/export_cubes.py [--data DIR] [--episode6 DIR] [--out DIR] [--show E:N]
+usage: tools/voices/export_cubes.py [--data DIR] [--episode6 DIR] [--episode7 DIR] [--out DIR] [--show E:N]
 """
 import argparse
 import base64
@@ -73,6 +73,7 @@ SPELLING = {
     "berillium": "beryllium", "vaccuum": "vacuum", "millenia": "millennia", "Marbelized": "Marbleized",
     "occured": "occurred", "manuever": "maneuver", "manuvering": "maneuvering", "commited": "committed",
     "androi": "androi-",
+    "insignifigant": "insignificant", "deceivied": "deceived", "forefeit": "forfeit",
 }
 
 # Paragraphs that are the comm system's own notes, not the sender's words (whole paragraphs).
@@ -817,6 +818,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--data", default=os.path.join(ROOT, "data", "tyrian2000"), help="the game's data (cubetxt1-5.dat, levels1-5.dat, tyrian.shp)")
     ap.add_argument("--episode6", default=os.path.join(ROOT, "assets", "content", "episode6"), help="cubetxt6.dat and levels6.dat")
+    ap.add_argument("--episode7", default=os.path.join(ROOT, "assets", "content", "episode7"),
+                    help="cubetxt7.dat and levels7.dat (the Game Boy Color episode, made from the user's ROM: tools/content/gbc/build.py)")
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "voices"), help="where script.json and script.html go")
     ap.add_argument("--cast", default=CAST)
     ap.add_argument("--show", action="append", default=[], metavar="E:N", help="print a cube's paragraphs and segments")
@@ -850,8 +853,8 @@ def main():
               "episodes": []}
     usage = {k: {"cubes": [], "characters": 0, "segments": 0, "portraits": set()} for k in cast["speakers"]}
     problems = []
-    for episode in range(1, 7):
-        base = args.episode6 if episode == 6 else args.data
+    for episode in range(1, 8):
+        base = {6: args.episode6, 7: args.episode7}.get(episode, args.data)
         path = os.path.join(base, f"cubetxt{episode}.dat")
         if not os.path.exists(path):
             problems.append(f"episode {episode}: {path} missing")

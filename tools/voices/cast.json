@@ -85,10 +85,15 @@
           "4:26",
           "4:29",
           "4:39",
-          "4:48"
+          "4:48",
+          "7:1",
+          "7:5",
+          "7:11",
+          "7:17",
+          "7:20"
         ],
-        "segments": 27,
-        "characters": 13951,
+        "segments": 32,
+        "characters": 16337,
         "portraits": [
           8
         ]
@@ -124,10 +129,13 @@
           "3:21",
           "4:25",
           "4:27",
-          "4:31"
+          "4:31",
+          "7:7",
+          "7:12",
+          "7:15"
         ],
-        "segments": 11,
-        "characters": 4622,
+        "segments": 14,
+        "characters": 5672,
         "portraits": [
           1
         ]
@@ -162,10 +170,11 @@
           "3:8",
           "3:15",
           "4:46",
-          "4:47"
+          "4:47",
+          "7:9"
         ],
-        "segments": 9,
-        "characters": 1858,
+        "segments": 10,
+        "characters": 2083,
         "portraits": [
           7
         ]
@@ -195,10 +204,11 @@
           "3:1",
           "3:3",
           "3:5",
-          "4:63"
+          "4:63",
+          "7:10"
         ],
-        "segments": 5,
-        "characters": 2549,
+        "segments": 6,
+        "characters": 3056,
         "portraits": [
           6
         ]
@@ -227,11 +237,13 @@
           "2:3",
           "4:33",
           "4:37",
-          "4:62"
+          "4:62",
+          "7:8"
         ],
-        "segments": 4,
-        "characters": 2894,
+        "segments": 5,
+        "characters": 3235,
         "portraits": [
+          10,
           11
         ]
       },
@@ -291,10 +303,12 @@
           "4:9",
           "4:19",
           "4:20",
-          "4:49"
+          "4:49",
+          "7:14",
+          "7:18"
         ],
-        "segments": 7,
-        "characters": 1839,
+        "segments": 9,
+        "characters": 2332,
         "portraits": [
           10
         ]
@@ -329,11 +343,14 @@
           "3:6",
           "3:12",
           "4:32",
-          "4:36"
+          "4:36",
+          "7:4",
+          "7:13"
         ],
-        "segments": 5,
-        "characters": 2504,
+        "segments": 7,
+        "characters": 3004,
         "portraits": [
+          2,
           9
         ]
       },
@@ -425,10 +442,11 @@
           "4:7",
           "4:17",
           "4:21",
-          "4:22"
+          "4:22",
+          "7:16"
         ],
-        "segments": 5,
-        "characters": 3208,
+        "segments": 6,
+        "characters": 3679,
         "portraits": [
           2
         ]
@@ -533,12 +551,14 @@
           "4:112",
           "4:113",
           "4:114",
-          "4:115"
+          "4:115",
+          "7:2"
         ],
-        "segments": 10,
-        "characters": 2351,
+        "segments": 11,
+        "characters": 2508,
         "portraits": [
-          4
+          4,
+          17
         ]
       },
       "adopted_preview": "1-1"
@@ -701,10 +721,11 @@
           "5:102",
           "6:102",
           "6:109",
-          "6:110"
+          "6:110",
+          "7:101"
         ],
-        "segments": 26,
-        "characters": 5308,
+        "segments": 27,
+        "characters": 5489,
         "portraits": []
       },
       "adopted_preview": "1-1"
@@ -841,10 +862,11 @@
           "1:108",
           "4:50",
           "5:1",
-          "6:10"
+          "6:10",
+          "7:3"
         ],
-        "segments": 8,
-        "characters": 2628,
+        "segments": 9,
+        "characters": 3215,
         "portraits": [
           1,
           14
@@ -931,10 +953,18 @@
           "6:205",
           "6:206",
           "6:207",
-          "6:208"
+          "6:208",
+          "7:201",
+          "7:202",
+          "7:203",
+          "7:204",
+          "7:205",
+          "7:206",
+          "7:207",
+          "7:208"
         ],
-        "segments": 61,
-        "characters": 12684,
+        "segments": 69,
+        "characters": 13446,
         "portraits": []
       },
       "adopted_preview": "1-1"
@@ -1089,12 +1119,14 @@
           "6:105",
           "6:106",
           "6:107",
-          "6:108"
+          "6:108",
+          "7:19"
         ],
-        "segments": 31,
-        "characters": 2634,
+        "segments": 32,
+        "characters": 2709,
         "portraits": [
-          2
+          2,
+          13
         ]
       },
       "model_id": "eleven_multilingual_v2",
@@ -1758,11 +1790,14 @@
       "match": {},
       "usage": {
         "cubes": [
-          "1:107"
+          "1:107",
+          "7:6"
         ],
-        "segments": 1,
-        "characters": 175,
-        "portraits": []
+        "segments": 2,
+        "characters": 551,
+        "portraits": [
+          13
+        ]
       }
     },
     "hazudra_band": {
@@ -1998,6 +2033,34 @@
     "4:115": {
       "speaker": "trent",
       "why": "story text: Trent to his computer"
+    },
+    "7:2": {
+      "speaker": "trent",
+      "why": "GBC: Trent's personal log"
+    },
+    "7:4": {
+      "speaker": "ninja",
+      "why": "GBC: a coded message from 'an interested party' (face 2), the same sender as 7:13, whose race is beyond the stargate: Nanol's people"
+    },
+    "7:6": {
+      "speaker": "citizen",
+      "why": "GBC: a Savaran's distress call"
+    },
+    "7:8": {
+      "speaker": "dougan",
+      "why": "GBC: sender 'Captain' with Nob's face, but signed 'captain Dougan, freespace' and friendly (7:14 and 7:18 are Nob's)"
+    },
+    "7:13": {
+      "speaker": "ninja",
+      "why": "GBC: Nanol's race beyond the stargate (as 3:6)"
+    },
+    "7:16": {
+      "speaker": "harble",
+      "why": "GBC: Harble Wom's coded emergency message (as 4:17's quotes)"
+    },
+    "7:19": {
+      "speaker": "system",
+      "why": "GBC: the ship's computer"
     }
   },
   "ambiguous": [

@@ -966,7 +966,8 @@ onboard connect --env-path .env.local` writes, or `~/.config/tyrian3d/elevenlabs
 into the request header):
 
 1. `python3 tools/voices/export_cubes.py` writes the script `data/voices/script.json` and the
-   proofreading copy `script.html` from the game's data: 170 cubes (`E:N`), the 96 story texts and
+   proofreading copy `script.html` from the game's data: 170 cubes (`E:N`; 190 with the Game Boy
+   Color episode 7, `--episode7`), the 96 story texts and
    hints (`E:101`... in the order of the episode's script, the end's secret hints `E:201`...), split
    by speaker. `tools/voices/cast.json` has the speakers (28 designed voices; minor parts borrow one,
    `voice_of`), which cubes and stories each reads (`cube_rules`, by the same ids) and the voice
@@ -983,7 +984,10 @@ into the request header):
 Rendered 2026-10-25 with `eleven_v4` (about 0.44 credits a character; about 69,000 credits with the voice
 design): all 170 cubes and the 96 story texts and hints, about 140 minutes, 100 MB of WAVs, with the
 render cache (about 400 MB) beside them in `data/voices`. The voices chosen are in `cast.json` (`voice_id`,
-`adopted_preview`); the account's 30 custom voices hold the 28 and the user's own;
+`adopted_preview`); the account's 30 custom voices hold the 28 and the user's own. The Game Boy Color
+episode's 20 cubes (episode 7, from `assets/content/episode7` when it has been built from the user's ROM;
+local corrections such as 7:11's "your're" in `data/voices/overrides.json`) were rendered 2026-10-26 with the
+same voices (3,180 credits); its 9 story texts are in the script but not rendered.
 another take of a cube is `generate.py generate --retake E:N`, a speaker's tempo its `settings.speed`
 and `generate.py build --only ...` (from the cache, free).
 
