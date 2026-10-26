@@ -6481,6 +6481,7 @@ static bool object_footprint(const L3DObject *object, bool mirror, float footpri
 // Pieces with one link made this many ticks apart at most are one object (a row of 28 pixels every 28
 // ticks at a pixel a tick, longer on slow maps).
 #define PIECES_LINK_TICKS 100
+#define STANDIN_STEP 6.0f      // a wreck's stand-ins whose own ground differs more than this (pixels) stand apart
 
 // A piece of one object: a ground enemy whose model is drawn at its own origin, side by side with the
 // others' on the sprites' grid (L3DObject.group: which object).
@@ -6978,6 +6979,35 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 			    fabsf(a->vy - b->vy) < 0.01f)
 				group[lift_group_root(group, pieces[j])] = lift_group_root(group, pieces[i]);
 		}
+	// A wreck's stand-ins (the pieces lying where the game paints them) over a step in the ground, the edge of a
+	// pillar or a cliff: each piece on its own ground, not all at their mean, which floated the ones off the
+	// step (SAVARA V's airship in its slot on a rock in the sea, up to 16 pixels over the water).
+	{
+		static float lo[L3D_MAX_OBJECTS], hi[L3D_MAX_OBJECTS];
+		static bool all_standins[L3D_MAX_OBJECTS];
+		for (int i = 0; i < piece_count; ++i)
+		{
+			lo[pieces[i]] = INFINITY;
+			hi[pieces[i]] = -INFINITY;
+			all_standins[pieces[i]] = true;
+		}
+		for (int i = 0; i < piece_count; ++i)
+		{
+			const int root = lift_group_root(group, pieces[i]);
+			lo[root] = SDL_min(lo[root], object_lifts[pieces[i]]);
+			hi[root] = SDL_max(hi[root], object_lifts[pieces[i]]);
+			all_standins[root] &= frame->objects[pieces[i]].standin != 0;
+		}
+		static bool apart[L3D_MAX_OBJECTS];
+		for (int i = 0; i < piece_count; ++i)
+		{
+			const int root = lift_group_root(group, pieces[i]);
+			apart[pieces[i]] = all_standins[root] && hi[root] - lo[root] > STANDIN_STEP;
+		}
+		for (int i = 0; i < piece_count; ++i)
+			if (apart[pieces[i]])
+				group[pieces[i]] = pieces[i];
+	}
 	static int n[L3D_MAX_OBJECTS];
 	for (int i = 0; i < piece_count; ++i)
 		n[pieces[i]] = 0;

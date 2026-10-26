@@ -722,7 +722,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   <model>`: the painting as a model, drawn with the enemy type's options; `none`: nothing), or until it has one the enemy's
   model slumped and darkened (`render_gpu.c` `STANDIN_SLUMP`, `STANDIN_SHADE`). A stand-in is drawn while no ground
   enemy of its looks (the enemy itself, its damaged and dead looks, what it turns into) stands on its place;
-  it is only drawn, the game knows nothing of it. The terrain and the vegetation are made on the clean
+  it is only drawn, the game knows nothing of it. A wreck's pieces stand together on the terrain as an object's
+  pieces do (at their lifts' mean), unless the ground under them steps by more than 6 pixels (a slot on the edge
+  of SAVARA V's sea rocks): then each stands on its own (`render_gpu.c` `STANDIN_STEP`). The terrain and the vegetation are made on the clean
   ground, so grass grows round the turrets and the palms stand on bare sand; the plants are kept off the
   models' footprints, and in the game cleared only under the enemies that move.
 - **Appearances** (`src/models3d.c`, `assets/models/models.cfg`). Each enemy type and player
