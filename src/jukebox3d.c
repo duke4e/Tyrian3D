@@ -799,6 +799,253 @@ static void warp_frame(float aspect, float shift, float dt)
 	}
 }
 
+/* --- The game's ending (tyrend.anm) --------------------------------------------------------- */
+
+static struct
+{
+	int ship_model;
+	float t;
+	Uint64 last;
+} ending;
+
+void jukebox3d_ending_start(int ship_model)
+{
+	ending.ship_model = ship_model;
+	ending.t = 0;
+	ending.last = 0;
+}
+
+float jukebox3d_ending_time(void)
+{
+	return ending.t;
+}
+
+// 0 before a, 1 after b, smoothly between.
+static float smooth(float a, float b, float t)
+{
+	t = clamp01((t - a) / (b - a));
+	return t * t * (3 - 2 * t);
+}
+
+static void mix3(const float a[3], const float b[3], float t, float out[3])
+{
+	for (int k = 0; k < 3; ++k)
+		out[k] = lerpf(a[k], b[k], t);
+}
+
+static void normalize3(float v[3])
+{
+	const float l = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+	if (l > 0)
+		for (int k = 0; k < 3; ++k)
+			v[k] /= l;
+}
+
+// The turn of something flying along d (its nose; a model's nose is its -z), its up as near the world's as d
+// allows, rolled about d.
+static M4 flying_turn(const float d[3], float roll, float x[3], float y[3], float z[3])
+{
+	z[0] = -d[0], z[1] = -d[1], z[2] = -d[2];
+	normalize3(z);
+	float rx[3] = { z[2], 0, -z[0] };  // world up x z
+	normalize3(rx);
+	const float ry[3] = { z[1] * rx[2] - z[2] * rx[1], z[2] * rx[0] - z[0] * rx[2], z[0] * rx[1] - z[1] * rx[0] };
+	const float c = cosf(roll), s = sinf(roll);
+	for (int k = 0; k < 3; ++k)
+	{
+		x[k] = rx[k] * c + ry[k] * s;
+		y[k] = -rx[k] * s + ry[k] * c;
+	}
+	return m4_columns(x, y, z);
+}
+
+// A point of a flying thing's frame (its axes x, y, z, at p).
+static void at_local(const float p[3], const float x[3], const float y[3], const float z[3], float lx, float ly, float lz, float out[3])
+{
+	for (int k = 0; k < 3; ++k)
+		out[k] = p[k] + x[k] * lx + y[k] * ly + z[k] * lz;
+}
+
+// The freighter: a long brown hull with a spine, its portholes lit lavender, a dim engine.
+static void freighter(const float p[3], const float d[3])
+{
+	float x[3], y[3], z[3];
+	const M4 turn = flying_turn(d, 0.35f, x, y, z);
+	const M4 hull = m4_place(p, &turn, 16, 9, 78);
+	J3DItem *plating = add(J3D_SPHERE, J3D_LIT, &hull, 0.62f, 0.42f, 0.24f, 1);
+	if (plating != NULL)
+		plating->textured = 1;  // (the planet's bands round it: its plating)
+	float q[3];
+	at_local(p, x, y, z, 0, 7.6f, 4, q);
+	const M4 spine = m4_place(q, &turn, 3.2f, 2.4f, 44);
+	add(J3D_BOX, J3D_LIT, &spine, 0.34f, 0.24f, 0.13f, 1);
+	for (int side = -1; side <= 1; side += 2)
+	{
+		at_local(p, x, y, z, side * 12.5f, -1.5f, 10, q);
+		const M4 pod = m4_place(q, &turn, 3.0f, 3.0f, 26);
+		add(J3D_SPHERE, J3D_LIT, &pod, 0.40f, 0.28f, 0.15f, 1);
+	}
+	// Ribs round the hull every few metres, a bridge over its front with a lit window.
+	for (int i = 0; i < 9; ++i)
+	{
+		const float lz = -32 + i * 8.0f, along = lz / 39.0f;
+		const float r = sqrtf(SDL_max(0.0f, 1 - along * along));
+		at_local(p, x, y, z, 0, 0, lz, q);
+		const M4 rib = m4_place(q, &turn, 16.5f * r, 9.3f * r, 1.1f);
+		add(J3D_SPHERE, J3D_LIT, &rib, 0.30f, 0.21f, 0.12f, 1);
+	}
+	at_local(p, x, y, z, 0, 7.4f, -22, q);
+	const M4 bridge = m4_place(q, &turn, 4.5f, 2.6f, 7);
+	add(J3D_SPHERE, J3D_LIT, &bridge, 0.55f, 0.40f, 0.24f, 1);
+	at_local(p, x, y, z, 0, 8.2f, -26.5f, q);
+	const M4 window = m4_place(q, &turn, 3.2f, 0.45f, 0.6f);
+	add(J3D_BOX, J3D_UNLIT, &window, 0.9f, 0.85f, 1.3f, 1);
+	// Two rows of portholes along its flank facing the camera (-x, as it passes left of it).
+	const float lavender[3] = { 0.75f, 0.70f, 1.0f };
+	for (int row = 0; row < 2; ++row)
+		for (int i = 0; i < 13; ++i)
+		{
+			const float lz = -27 + i * 4.5f, along = lz / 39.0f, ly = row == 0 ? 1.8f : -1.6f;
+			const float r = sqrtf(SDL_max(0.0f, 1 - along * along - (ly / 9) * (ly / 9)));
+			at_local(p, x, y, z, -16.1f * r, ly, lz, q);
+			const M4 port = m4_place(q, &turn, 0.75f, 0.75f, 1.1f);
+			add(J3D_SPHERE, J3D_UNLIT, &port, 0.85f, 0.8f, 1.2f, 1);
+			glow(q, 2.2f, lavender, 0.07f);
+		}
+	at_local(p, x, y, z, 0, 0, 38, q);
+	const float engine[3] = { 1.0f, 0.5f, 0.25f };
+	glow(q, 10, engine, 0.25f);
+}
+
+const J3DScene *jukebox3d_ending_frame(float w, float h)
+{
+	static bool stars_made = false;
+	if (!stars_made)
+	{
+		make_stars();
+		stars_made = true;
+	}
+	const Uint64 now = SDL_GetTicksNS();
+	const float dt = ending.last != 0 ? SDL_min((now - ending.last) / 1e9f, 0.1f) : 0;
+	ending.last = now;
+	ending.t += dt;
+	now_t += dt;
+	const float t = ending.t, aspect = h > 0 ? w / h : 16.0f / 9.0f;
+	scene.item_count = 0;
+	scene.light_count = 0;
+	scene.items = items;
+
+	// The ship: in from the right to beside the camera (3.0-6.2 s), its engines fired (6.4), away into the
+	// distance towards a red star that flares (6.6-8.6).
+	const float in_from[3] = { 46, -2, -64 }, in_to[3] = { -4, 1.5f, -40 };
+	const float away_dir[3] = { 0.22f, 0.04f, -0.97f };  // (away from the planet, up to the left)
+	const float s_in = smooth(3.0f, 6.2f, t);
+	float ship[3];
+	mix3(in_from, in_to, 1 - (1 - s_in) * (1 - s_in), ship);
+	const float go = SDL_max(0.0f, t - 6.6f);
+	for (int k = 0; k < 3; ++k)
+		ship[k] += away_dir[k] * (go * go * 46 + go * 6);
+	float heading[3];
+	const float in_dir[3] = { -1.0f, 0.06f, -0.42f };
+	mix3(in_dir, away_dir, smooth(5.6f, 6.8f, t), heading);
+	normalize3(heading);
+	const float roll = lerpf(0.7f, 0.12f, smooth(3.0f, 6.0f, t)) - 0.25f * smooth(6.6f, 7.6f, t);
+
+	// The camera: still at first, the planet and the freighter; then after the ship, closing in on its rear.
+	float eye[3] = { 0, 0, 0 }, target[3] = { -6, 2, -100 };
+	const float follow = smooth(3.2f, 6.0f, t);
+	float x[3], y[3], z[3];
+	flying_turn(heading, roll, x, y, z);
+	float close_eye[3];
+	at_local(ship, x, y, z, 7.5f, 3.2f, 14, close_eye);
+	if (t > 6.6f)  // (the camera stays where it was as the ship leaves)
+	{
+		float hold[3], hold_dir[3], hx[3], hy[3], hz[3];
+		mix3(in_dir, away_dir, smooth(5.6f, 6.8f, 6.6f), hold_dir);
+		normalize3(hold_dir);
+		flying_turn(hold_dir, lerpf(0.7f, 0.12f, smooth(3.0f, 6.0f, 6.6f)), hx, hy, hz);
+		mix3(in_from, in_to, 1, hold);
+		at_local(hold, hx, hy, hz, 7.5f, 3.2f, 14, close_eye);
+	}
+	mix3(eye, close_eye, follow, eye);
+	float look_at[3];
+	at_local(ship, x, y, z, 0, 0, -8, look_at);
+	mix3(target, look_at, smooth(3.0f, 4.6f, t), target);
+	camera(eye, target, 50.0f, aspect, 0);
+
+	scene.sun[0] = -0.5f;  // (the way its light goes: from the front, up to the right)
+	scene.sun[1] = -0.4f;
+	scene.sun[2] = -0.75f;
+	scene.sun_color[0] = 1.0f;
+	scene.sun_color[1] = 0.93f;
+	scene.sun_color[2] = 0.82f;
+	scene.sun_energy = 3.0f;
+	scene.ambient[0] = 0.45f;
+	scene.ambient[1] = 0.5f;
+	scene.ambient[2] = 0.65f;
+	scene.ambient_energy = 0.3f;
+	scene.metalness = 0.45f;
+	scene.roughness = 0.45f;
+	scene.bloom = 0.5f;
+	scene.bloom_threshold = 1.0f;
+	// (In from black and out to it.)
+	scene.exposure = smooth(0.0f, 0.6f, t) * (1 - smooth(8.4f, J3D_ENDING_SECONDS, t));
+
+	sky(eye, 900, 0.1f);
+
+	// The green planet up to the left.
+	{
+		const float p[3] = { -62, 34, -230 };
+		const M4 m = m4_place(p, NULL, 21, 21, 21);
+		J3DItem *it = add(J3D_SPHERE, J3D_LIT, &m, 0.55f, 1.0f, 0.62f, 1);
+		if (it != NULL)
+			it->textured = 1;
+		const float halo[3] = { 0.3f, 0.8f, 0.45f };
+		glow(p, 54, halo, 0.08f);
+	}
+
+	// The freighter sweeping past from the top right to the bottom left (0.9-3.4 s).
+	if (t > 0.6f && t < 3.8f)
+	{
+		const float from[3] = { 120, 44, -96 }, to[3] = { -150, -50, -62 };
+		float p[3], d[3] = { to[0] - from[0], to[1] - from[1], to[2] - from[2] };
+		mix3(from, to, (t - 0.6f) / 3.2f, p);
+		normalize3(d);
+		freighter(p, d);
+	}
+
+	// The ship, its engines, the red star it leaves for and the flash as it gets there.
+	if (t > 2.8f && ending.ship_model >= 0)
+	{
+		const M4 turn = flying_turn(heading, roll, x, y, z);
+		const M4 m = m4_place(ship, &turn, 9, 9, 9);
+		J3DItem *it = add(J3D_MODEL, J3D_LIT, &m, 1, 1, 1, 1);
+		if (it != NULL)
+			it->model = (Sint16)ending.ship_model;
+		const float fire = smooth(6.3f, 6.7f, t);
+		const float engine[3] = { 1.0f, 0.62f, 0.28f };
+		float rear[3];
+		at_local(ship, x, y, z, 0, 0.3f, 4.8f, rear);
+		glow(rear, 1.2f + 3.0f * fire, engine, 0.06f + 0.28f * fire);
+		light(rear, 22, engine, 0.5f + 5 * fire);
+		const float lamp[3] = { 1.0f, 0.9f, 0.75f };
+		at_local(ship, x, y, z, 3, 8, -6, rear);
+		light(rear, 30, lamp, 2.0f);
+	}
+	{
+		float star[3];
+		const float base[3] = { in_to[0], in_to[1], in_to[2] };
+		for (int k = 0; k < 3; ++k)
+			star[k] = base[k] + away_dir[k] * 620;
+		const float red[3] = { 1.0f, 0.42f, 0.22f }, white[3] = { 1.0f, 0.9f, 0.75f };
+		glow(star, 30 + 50 * smooth(6.8f, 8.2f, t), red, 0.15f + 0.5f * smooth(6.8f, 8.2f, t));
+		const float flash = smooth(7.9f, 8.3f, t) * (1 - smooth(8.5f, 9.0f, t));
+		if (flash > 0)
+			glow(star, 120 + 400 * flash, white, 1.6f * flash);
+	}
+	return &scene;
+}
+
 /* --- The frame ------------------------------------------------------------------------------- */
 
 static const char *const look_names[J3D_LOOKS] = { "Orrery", "Warp" };

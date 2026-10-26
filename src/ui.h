@@ -58,6 +58,7 @@ typedef enum
 	UI_SCREEN_ROGUE,       // the rogue mode's screens (UIRogue)
 	UI_SCREEN_DESTRUCT,    // Destruct, the secret artillery duel: its pages and its HUD (UIDestruct)
 	UI_SCREEN_SECRETS,     // the secrets found and still locked (UISecrets, secrets.c)
+	UI_SCREEN_ENDING,      // the game's ending animation as a 3D scene (jukebox3d.h), nothing over it
 	UI_SCREEN_SHOP,        // the store between levels (game_menu.c), its pages (UIShop.page)
 	// Over a level's 3D view (rgpu_present_3d_menu), the game halted under them:
 	UI_SCREEN_LEVEL_MENU,  // the in-game options and their 3D page: rows as setup's

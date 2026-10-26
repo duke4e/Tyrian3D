@@ -25,6 +25,11 @@
 #include "palette.h"
 #include "sizebuf.h"
 #include "video.h"
+#include "jukebox3d.h"
+#include "layer3d.h"
+#include "models3d.h"
+#include "player.h"
+#include "ui.h"
 
 #include <assert.h>
 #include <string.h>
@@ -149,10 +154,40 @@ int JE_renderFrame(unsigned int framenumber)
 	return (JE_playRunSkipDump(CurrentPageBuffer + offset + 4, CurrentPageRecordSizes[destframe] - 4));
 }
 
+// Tyrian3D: the ending (tyrend.anm) as a 3D scene (jukebox3d.h) with the modern UI and the 3D view: its time, or
+// until a key; false if it can't be shown so (the animation plays as ever).
+static bool play_ending_3d(void)
+{
+	if (!ui_modern() || !l3d_enabled || !m3d_enabled)
+		return false;
+	const M3DAppearance ship = m3d_ship_appearance(player[0].items.ship);
+	jukebox3d_ending_start(ship.model >= 0 ? ship.model : m3d_find_model("talon"));
+	JE_clr256(VGAScreen);
+	service_SDL_events(true);
+	while (jukebox3d_ending_time() < J3D_ENDING_SECONDS)
+	{
+		setDelay(1);
+		UIMenu *ui = ui_menu_begin(UI_SCREEN_ENDING, "");
+		ui->selected = -1;
+		ui_menu_publish(ui, VGAScreen, VGAScreen);
+		JE_showVGA();
+		video_wait_tick_ui();
+		service_SDL_events(false);
+		if (newkey || newmouse)
+			break;
+		NETWORK_KEEP_ALIVE();
+	}
+	ui_screen_done();
+	return true;
+}
+
 void JE_playAnim(const char *animfile, JE_byte startingframe, JE_byte speed)
 {
 	unsigned int i;
 	int pageNum;
+
+	if (strcmp(animfile, "tyrend.anm") == 0 && play_ending_3d())
+		return;
 
 	if (JE_loadAnim(animfile) != 0)
 		return; /* Failed to open or process file */

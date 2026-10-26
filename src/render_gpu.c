@@ -11023,7 +11023,8 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 {
 	const float w = (float)frame->logical_width, h = (float)frame->logical_height;
 	const UIMenu *published = ui_published();
-	const J3DScene *js = jukebox3d_frame(w, h, published != NULL && !published->jukebox.hidden);
+	const J3DScene *js = ui_published_is(UI_SCREEN_ENDING) ? jukebox3d_ending_frame(w, h)
+	                   : jukebox3d_frame(w, h, published != NULL && !published->jukebox.hidden);
 	if (planet_texture == NULL)
 	{
 		int tw, th;
@@ -11951,7 +11952,7 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	SDL_Rect dst;
 	ui_fill_rect(frame.logical_width, frame.logical_height, &dst);
 	// The jukebox: its visuals under its panel, instead of the original's stars (jukebox3d.h).
-	bool drawn = ui_published_is(UI_SCREEN_JUKEBOX) && present_jukebox_scene(&frame);
+	bool drawn = (ui_published_is(UI_SCREEN_JUKEBOX) || ui_published_is(UI_SCREEN_ENDING)) && present_jukebox_scene(&frame);
 	const bool jukebox = drawn;
 	if (!jukebox)
 		make_blur(screen_rgba, w, h);

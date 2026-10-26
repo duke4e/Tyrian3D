@@ -874,6 +874,17 @@ before downloading).
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 
+## The ending in 3D
+
+With the modern UI and the 3D view the game's ending animation (`tyrend.anm`, played by the episode script's `]A`
+at the end of episode 3's last level) is a 3D scene of its own instead (`animlib.c` `play_ending_3d`,
+`jukebox3d.c` `jukebox3d_ending_frame`, drawn as the jukebox's scenes are: `UI_SCREEN_ENDING`): nine seconds, as the
+original: out of black, a green planet up to the left, a freighter (a long plated hull with ribs, a bridge and two
+rows of lit portholes) sweeping past close by from the top right, then the player's own ship (its model) flying in
+from the right, the camera closing in behind it, its engines flaring as it leaves into the distance for a red star
+that flashes white, and back to black. A key or a click skips it. Classic menus and the 2D view play the original
+animation.
+
 ## Secrets
 
 The title menu's **Secrets** (where the instructions were; `src/secrets.c`) lists the game's secrets in four kinds,

@@ -68,6 +68,15 @@ typedef struct
 // higher, or in the window's middle).
 const J3DScene *jukebox3d_frame(float w, float h, bool panel_shown);
 
+// The game's ending animation (tyrend.anm, the end of episode 1) as a 3D scene: a green planet, a freighter
+// sweeping past close by, the ship (its model: the player's) flying in, firing its engines and leaving in a flash.
+// animlib.c plays it with the modern UI and the 3D view; jukebox3d_ending_start before its first frame, then a
+// frame for each one shown (its clock: real time), until J3D_ENDING_SECONDS.
+#define J3D_ENDING_SECONDS 9.0f
+void jukebox3d_ending_start(int ship_model);
+const J3DScene *jukebox3d_ending_frame(float w, float h);
+float jukebox3d_ending_time(void);
+
 // The look shown, and the next one (V).
 int jukebox3d_look(void);
 void jukebox3d_next_look(void);

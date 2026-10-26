@@ -4196,7 +4196,8 @@ void ui_build_screen(const UIView *view)
 	// stars and pictures are what they show).
 	if (published.kind == UI_SCREEN_STORY || (published.kind == UI_SCREEN_ROGUE && published.rogue.page == UI_ROGUE_MAP))
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.08f }, (Colour){ 0, 0, 0, 0.3f });
-	else if (published.kind != UI_SCREEN_TITLE && published.kind != UI_SCREEN_JUKEBOX && published.kind != UI_SCREEN_CREDITS &&
+	else if (published.kind != UI_SCREEN_TITLE && published.kind != UI_SCREEN_JUKEBOX && published.kind != UI_SCREEN_ENDING &&
+	         published.kind != UI_SCREEN_CREDITS &&
 	         published.kind < UI_SCREEN_SHOP && !(published.kind == UI_SCREEN_DESTRUCT && published.destruct.page == UI_DESTRUCT_PLAY))
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.25f }, (Colour){ 0, 0, 0, 0.4f });
 	static int gallery = -1;
@@ -4251,6 +4252,8 @@ void ui_build_screen(const UIView *view)
 	case UI_SCREEN_SECRETS:
 		build_secrets(&published);
 		break;
+	case UI_SCREEN_ENDING:
+		break;  // (the scene alone: render_gpu.c present_jukebox_scene)
 	case UI_SCREEN_SHOP:
 		build_shop(&published);
 		break;
