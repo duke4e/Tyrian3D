@@ -64,7 +64,7 @@ The original controls are unchanged. These are added:
 The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
-sprites), shadows, effects (explosion particles, glowing shots), a camera preset (Standard,
+sprites), shadows, effects (explosion particles, glowing shots, the ship's engine flame, deep space), a camera preset (Standard,
 Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs

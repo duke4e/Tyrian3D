@@ -5406,6 +5406,28 @@ redo:
 		    l3d_add_rgb_glow(this_player->x + 7, this_player->y + 19, 10.0f, 0.45f, engine_glow, ship_vx, ship_vy) &&
 		    follows_mouse)
 			l3d_pointer_last_glow();
+		// Tyrian3D: and a flame trailing from them, flickering, longer while the ship flies forward and
+		// shorter while it falls back, white-hot to red along it.
+		if (ship_model && !ship_ghost && settings3d.effects)
+		{
+			static const Uint8 flame[5][3] = { { 255, 226, 168 }, { 255, 176, 84 }, { 255, 120, 40 }, { 226, 70, 22 },
+			                                   { 170, 40, 16 } };
+			static const float flame_size[5] = { 8.0f, 7.0f, 6.0f, 5.0f, 4.0f };
+			static const float flame_strength[5] = { 0.56f, 0.46f, 0.36f, 0.26f, 0.16f };
+			static Uint32 flicker = 0x2545f491u;
+			const float thrust = MAX(-1.0f, MIN(-ship_vy / 3.0f, 1.0f));
+			const float length = 1.0f + 0.45f * thrust;
+			for (int i = 0; i < 5; ++i)
+			{
+				flicker = flicker * 1664525u + 1013904223u;
+				const float wobble = 0.85f + 0.3f * (float)(flicker >> 8) / 16777216.0f;
+				if (l3d_add_rgb_glow(this_player->x + 7, this_player->y + 19 + (2.5f + 2.2f * i) * length * wobble,
+				                     flame_size[i] * (0.85f + 0.3f * length - 0.15f), flame_strength[i] * wobble,
+				                     flame[i], ship_vx, ship_vy) &&
+				    follows_mouse)
+					l3d_pointer_last_glow();
+			}
+		}
 		bool two_part_volume = false;
 		if (two_part && ship_look.model == M3D_VOLUME)
 		{
