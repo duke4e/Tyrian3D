@@ -794,7 +794,10 @@ clear round the figure): `tools/hd_pictures.py` fits each into the store's portr
 `face_frame.png`: the frame, its window clear), as large as it takes to cover it, cut to its shape with a soft edge,
 over the whole portrait at 6x; where the store's screen shows a face as it draws it, its pixels give way to the
 window's colour and the new face shows over the portrait, fading with its palette (`render_gpu.c` `find_hd_face`; in
-the modern UI and the old store with the 3D view; only the face shown is loaded). `upscale/` is only the work folder
+the modern UI and the old store with the 3D view; only the face shown is loaded). `pictures/portrait_frame.png` is the
+portrait's frame round them drawn anew (the export's `face_frame.png` through `tools/upscale_sprites.py` with
+4x-BigFArt-Detail, cut to the portrait by `tools/hd_pictures.py --frame-hd <the upscale>`): drawn over the frame, under
+the face, where the store's screen shows it (`find_hd_frame`). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

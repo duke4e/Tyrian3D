@@ -8,7 +8,11 @@ store's portrait window: the export's face_frame.png (the frame where the store 
 pictures' folder or given with --frame) gives the window, the face covers it (as large as it takes, centred on it)
 and is cut to its shape with a soft edge. Each goes to data/hd/pictures/face_NN.png over the whole portrait (screen
 pixels FRAME_BOX at FACE_SCALE times, clear but for the window), as the game draws it (render_gpu.c find_hd_face).
+The portrait frame itself drawn anew: --frame-hd <face_frame.png upscaled> (tools/upscale_sprites.py on the export's
+face_frame.png, any scale) is cut to FRAME_BOX and written as data/hd/pictures/portrait_frame.png, which the game
+draws over the frame (under the face) where the store shows it.
 usage: <python with PIL> tools/hd_pictures.py <dir with the new pictures> [data/hd/pictures] [--frame face_frame.png]
+           [--frame-hd <upscaled face_frame.png>]
 """
 import glob
 import os
@@ -57,10 +61,14 @@ def bake_face(face, window):
 
 def main():
     args = [a for a in sys.argv[1:]]
-    frame = None
+    frame = frame_hd = None
     if "--frame" in args:
         i = args.index("--frame")
         frame = args[i + 1]
+        del args[i:i + 2]
+    if "--frame-hd" in args:
+        i = args.index("--frame-hd")
+        frame_hd = args[i + 1]
         del args[i:i + 2]
     if not args:
         sys.exit(__doc__)
@@ -69,6 +77,13 @@ def main():
     dst = args[1] if len(args) > 1 else os.path.join(root, "data", "hd", "pictures")
     os.makedirs(dst, exist_ok=True)
     frame = frame or os.path.join(src, "face_frame.png")
+    if frame_hd is not None:
+        # (The upscale of the export's 147 x 172 frame: its scale from its width.)
+        im = Image.open(frame_hd).convert("RGBA")
+        k = im.width / 147.0
+        x0, y0, x1, y1 = FRAME_BOX
+        im.crop((round(x0 * k), round(y0 * k), round(x1 * k), round(y1 * k))).save(os.path.join(dst, "portrait_frame.png"))
+        print("portrait_frame.png", im.size, "at", k)
     window = None
     for path in sorted(glob.glob(os.path.join(src, "*.png"))):
         name = os.path.basename(path)

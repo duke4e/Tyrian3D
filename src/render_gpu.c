@@ -825,6 +825,7 @@ static void add_hd_picture(float sx, float sy, float sw, float sh, float x, floa
 static void find_hd_logos(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_logos(const SDL_Rect *dst);
 static int hd_face;  // (the data cube's face drawn anew this frame: find_hd_face)
+static bool hd_frame_shown;  // (and the portrait's frame)
 static void find_hd_face(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_face(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 static void screen_text_quads(float ox, float oy, float kx, float ky, int clip_w, int clip_h);
@@ -1541,6 +1542,7 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	blur_ready = false;
 	hd_picture = 0;
 	hd_face = -1;
+	hd_frame_shown = false;
 }
 
 /* --- The UI's drawing (ui.c) ----------------------------------------------------------------- */
@@ -2143,6 +2145,99 @@ static struct
 } hd_faces[HD_FACES];
 static int hd_face = -1;  // the face drawn anew this frame (-1: none)
 static float hd_face_brightness = 1;
+// The portrait's frame drawn anew (data/hd/pictures/portrait_frame.png, tools/hd_pictures.py --frame-hd: over the
+// whole portrait, clear in its window): where the screen shows the frame as the store draws it (OPTION_SHAPES 20 at
+// FACE_BOX's corner), it is drawn over it, under the face.
+#define FRAME_SPRITE 20
+static struct
+{
+	char path[1200];
+	bool looked, made, loaded;
+	BTBHGPUTexture *texture;
+	Uint8 *pixels;  // the frame in the portrait's box as blit_sprite draws it (0: clear)
+} hd_frame;
+static bool hd_frame_shown = false;
+static float hd_frame_brightness = 1;
+
+// The frame's pixels in the portrait's box (false: not there, or no frame drawn anew).
+static bool make_hd_frame(void)
+{
+	if (!hd_frame.looked)
+	{
+		hd_frame.looked = true;
+		char dir[1024];
+		const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+		snprintf(hd_frame.path, sizeof(hd_frame.path), "%s/pictures/portrait_frame.png", base);
+		if (!SDL_GetPathInfo(hd_frame.path, NULL))
+			hd_frame.path[0] = '\0';
+	}
+	if (hd_frame.path[0] == '\0')
+		return false;
+	if (hd_frame.made)
+		return hd_frame.pixels != NULL;
+	if (!sprite_exists(OPTION_SHAPES, FRAME_SPRITE))
+		return false;  // (not loaded yet: tried again)
+	hd_frame.made = true;
+	SDL_Surface *surface = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_INDEX8);
+	hd_frame.pixels = surface != NULL ? malloc((size_t)FACE_BOX_W * FACE_BOX_H) : NULL;
+	if (hd_frame.pixels != NULL)
+	{
+		SDL_FillSurfaceRect(surface, NULL, 0);
+		blit_sprite(surface, FACE_BOX_X, FACE_BOX_Y, OPTION_SHAPES, FRAME_SPRITE);
+		for (int y = 0; y < FACE_BOX_H; ++y)
+			memcpy(&hd_frame.pixels[y * FACE_BOX_W], (const Uint8 *)surface->pixels + (FACE_BOX_Y + y) * surface->pitch + FACE_BOX_X,
+			       FACE_BOX_W);
+	}
+	SDL_DestroySurface(surface);
+	return hd_frame.pixels != NULL;
+}
+
+// Whether the screen shows the frame; if so its brightness against the store's palette, its picture loaded.
+static void find_hd_frame(const Uint8 *picture)
+{
+	hd_frame_shown = false;
+	if (!make_hd_frame())
+		return;
+	int same = 0, own = 0;
+	int uses[256] = { 0 };
+	for (int y = 0; y < FACE_BOX_H; y += 2)
+		for (int x = 0; x < FACE_BOX_W; ++x)
+		{
+			const Uint8 v = hd_frame.pixels[y * FACE_BOX_W + x];
+			if (v == 0)
+				continue;
+			++own;
+			++uses[v];
+			same += picture[(FACE_BOX_Y + y) * SCREEN_W + FACE_BOX_X + x] == v;
+		}
+	if (own == 0 || same < own * HD_FACE_SAME)
+		return;
+	if (!hd_frame.loaded && window != NULL)
+	{
+		hd_frame.loaded = true;
+		BTBHGPUTextureReport report;
+		hd_frame.texture = btbh_gpu_window_texture_load_ex(window, hd_frame.path, 1, BTBH_GPU_TEXTURE_FILTER_LINEAR,
+		                                                   BTBH_GPU_TEXTURE_WRAP_CLAMP, BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		if (hd_frame.texture != NULL)
+			printf("portrait frame drawn anew: %s\n", hd_frame.path);
+	}
+	if (hd_frame.texture == NULL)
+		return;
+	const SDL_Color *store = palettes[pcxpal[0]];
+	float dark[256];
+	int weight[256], n = 0;
+	for (int i = 1; i < 256; ++i)
+	{
+		const int sum = store[i].r + store[i].g + store[i].b;
+		if (uses[i] == 0 || sum < 60)
+			continue;
+		const Uint8 *c = (const Uint8 *)&rgb_palette[i];
+		dark[n] = SDL_min((c[0] + c[1] + c[2]) / (float)sum, 1.0f);
+		weight[n++] = uses[i];
+	}
+	hd_frame_brightness = weighted_median(dark, weight, n, 1.0f);
+	hd_frame_shown = true;
+}
 
 // The face's pixels as blit_sprite draws them (false: not there, or no face drawn anew for it).
 static bool make_hd_face(int i)
@@ -2185,6 +2280,7 @@ static bool make_hd_face(int i)
 
 static void find_hd_face(const Uint8 *picture, Uint32 *rgba)
 {
+	find_hd_frame(picture);
 	hd_face = -1;
 	const int count = SDL_min((int)sprite_table[FACE_SHAPES].count, HD_FACES);
 	for (int i = 0; i < count && hd_face < 0; ++i)
@@ -2244,14 +2340,26 @@ static void find_hd_face(const Uint8 *picture, Uint32 *rgba)
 // The face found drawn anew over the portrait, in the part of the screen (sx, sy, sw, sh) drawn at x, y, w, h.
 static void add_hd_face(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
 {
-	if (hd_face < 0 || sw <= 0 || sh <= 0)
+	if (sw <= 0 || sh <= 0)
+		return;
+	const float kx = w / sw, ky = h / sh;
+	const float bx = x + (FACE_BOX_X - sx) * kx, by = y + (FACE_BOX_Y - sy) * ky, bw = FACE_BOX_W * kx, bh = FACE_BOX_H * ky;
+	// (The frame first, the face in its window over it.)
+	if (hd_frame_shown)
+	{
+		HudQuad *q = hud_quad_add();
+		if (q == NULL)
+			return;
+		const float b = hd_frame_brightness;
+		*q = (HudQuad){ bx, by, bw, bh, 0, 0, 1, 1, { b, b, b, alpha }, { b, b, b, alpha }, .texture = hd_frame.texture };
+	}
+	if (hd_face < 0)
 		return;
 	HudQuad *q = hud_quad_add();
 	if (q == NULL)
 		return;
-	const float kx = w / sw, ky = h / sh, b = hd_face_brightness;
-	*q = (HudQuad){ x + (FACE_BOX_X - sx) * kx, y + (FACE_BOX_Y - sy) * ky, FACE_BOX_W * kx, FACE_BOX_H * ky, 0, 0, 1, 1, { b, b, b, alpha },
-	                { b, b, b, alpha }, .texture = hd_faces[hd_face].texture };
+	const float b = hd_face_brightness;
+	*q = (HudQuad){ bx, by, bw, bh, 0, 0, 1, 1, { b, b, b, alpha }, { b, b, b, alpha }, .texture = hd_faces[hd_face].texture };
 }
 
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
@@ -11803,4 +11911,5 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	blur_ready = false;
 	hd_picture = 0;
 	hd_face = -1;
+	hd_frame_shown = false;
 }
