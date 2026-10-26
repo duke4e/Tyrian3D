@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.join(HERE, "..", "episode6"))
 import tyrformat as tf  # noqa: E402
 import tyrdata  # noqa: E402
 import compose  # noqa: E402
+import waves  # noqa: E402
 import enemydata  # noqa: E402
 from build import ENEMY_D1, level_entries  # noqa: E402  (episode 6's: a level's two entries)
 
@@ -232,80 +233,150 @@ def script(stages, levels, planet_of, cube_numbers, ending_text):
     return lines + [""]
 
 
-# The boss fight. The originals' bosses come at their maps' ends, where the map stops (their scroll events are not
-# part of the boss block, waves.Source.boss) and many drift down with the scroll; in a GBC level the map still runs
-# there, so a boss flew through the screen and its "end when clear" (36) ended the level. Here, once the boss's body
-# is on screen, the map stops and forced events (53) keep the clock running for its script, its pieces stop
-# drifting (19, by link), and the level ends when it is gone (36), or at its event 11 after BOSS_TIME at least;
-# the boss block's map restarts (4, 83) are left out.
+# The boss fight. The boss is the original level's (or a related one's): its block from the spawns of its last boss
+# bar's links (BOSS_LEAD before the bar: those links also make ordinary enemies all through some levels, DELIANI's,
+# LAVA EXIT's), its links ones of its own (31-40 where the original's are low: the GBC script's are 1-30), and the
+# original's scroll over it (the blocks leave scroll events out): where the original stops its map there, so does
+# the level. Where it doesn't (the originals' bosses come at their maps' ends and many drift down with the scroll;
+# in a GBC level they flew through the screen and their "end when clear", 36, ended the level), once the boss's body
+# is on screen the map stops, its drifting pieces stop (19 by link). Forced events (53) keep the clock running for
+# its script; the level ends when it is gone (36, added where its block has none), or at its event 11, at least
+# BOSS_TIME ticks of fight later (an unkillable boss); the block's map restarts (4, 83) are left out.
 BOSS_TOP = 24            # the boss's highest piece's y when it stops (its top edge a few pixels into the screen)
 BOSS_TIME = 2400         # ticks of fight at least before the level's 11 ends it anyway (an unkillable boss)
+BOSS_MAX = 6000          # ... and at most (a boss block that runs on: the final one's phases)
+BOSS_LEAD = 400          # the block's spawns from this long before its last boss bar
 LAYER_OF = {15: "sky", 18: None, 6: "ground", 10: "ground", 17: None, 56: None, 7: "top", 23: None, 32: None}
+
+
+def boss_template(src):
+    """The original's boss block (waves.Source.boss) from its last bar's spawns, and its scroll events."""
+    b = src.boss()
+    if b is None:
+        return None
+    links = b["links"]
+    events = [e for e in src.events if e["t"] < 60000]
+    bars = [e["t"] for e in events if e["type"] == 79 and (e["d1"] in links or e["d2"] in links)]
+    spawns = sorted(e["t"] for e in events if e["type"] in waves.SPAWNS and e["d4"] in links
+                    and e["t"] >= max(bars + [0]) - BOSS_LEAD)
+    start = spawns[0] if spawns else b["start"]
+    start = min([e["t"] for e in events if e["type"] == 16 and start - 400 <= e["t"] <= start] + [start])
+    block = []
+    for e in events:
+        if e["t"] < start:
+            continue
+        link = waves.by_link(e)
+        if (link in links or e["type"] in waves.BOSS_SCRIPT and e["type"] != 2 or e["type"] == 39 and e["d1"] in links):
+            block.append(dict(e, t=e["t"] - start))
+    length = max([e["t"] for e in block] + [0])
+    # (and the moves of every enemy of a layer, or all, over it: BRAINIAC's hold its brain against the scroll)
+    block += [dict(e, t=e["t"] - start) for e in events
+              if e["type"] == 19 and e["d3"] in (1, 2, 3, 99) and start <= e["t"] <= start + length]
+    block.sort(key=lambda e: e["t"])
+    scroll = [dict(e, t=e["t"] - start) for e in events if e["type"] in (2, 30) and start <= e["t"] <= start + length]
+    before = [e for e in events if e["type"] in (2, 30) and e["t"] < start]
+    return dict(start=start, events=block, links=links, length=length, scroll=scroll,
+                speed=(before[-1]["d1"], before[-1]["d2"], before[-1]["d3"]) if before else (1, 2, 3))
+
+
+class BossLinks:
+    """The boss's links: its own (31-40 for the originals' low ones; the GBC script's are 1-30)."""
+
+    def remap(self, links, start, end):
+        low = iter(range(31, 41))
+        return {link: (next(low, link) if link <= 40 else link) for link in sorted(links)}
 
 
 def boss_fight(level, events):
     bosses = [p for p in level["placements"] if p["kind"] == "boss"]
     if not bosses:
         return events
-    start = bosses[0]["start"]
-    bars = [e for e in events if e["type"] == 79 and e["t"] >= start]
-    links = {v for e in bars for v in (e["d1"], e["d2"]) if v}
-    if not links:
+    p = bosses[0]
+    src = waves.Source(p["episode"], p["name"])
+    tpl = boss_template(src)
+    if tpl is None:
         return events
-    speeds = [e for e in events if e["type"] in (2, 30) and e["t"] <= start]
-    s1 = speeds[-1]["d1"] if speeds else 1
-    s3 = speeds[-1]["d3"] if speeds else 1
+    start = p["start"]
+    placed = compose.place(tpl, start, BossLinks(), src.episode)
+    links = {v for e in placed if e["type"] == 79 for v in (e["d1"], e["d2"]) if v}
+    s1, s2, s3 = tpl["speed"]
+    scroll = [dict(t=start, type=2, d1=s1, d2=s2, d3=s3, d5=0, d6=0, d4=0)]
+    scroll += [dict(t=start + e["t"], type=e["type"], d1=e["d1"], d2=e["d2"], d3=e["d3"], d5=0, d6=0, d4=0)
+               for e in tpl["scroll"]]
+    stops = [e["t"] for e in scroll if e["d1"] == 0]
     data = {}
-    spawns = [e for e in events if e["t"] >= start and e["d4"] in links and e["type"] in tuple(LAYER_OF) + (12,)]
-    if not spawns:
-        return events
-    first = min(e["t"] for e in spawns)
-    freeze = first
-    drifting = set()  # the links whose pieces drift down with no motion of their own (stopped at the freeze)
+    spawns = [e for e in placed if e["d4"] in links and e["type"] in tuple(LAYER_OF) + (12,)]
+    first = min(e["t"] for e in spawns) if spawns else start
+    arrive = None
+    drifting = set()  # the links whose pieces drift down with no motion of their own (stopped when it is in)
     for e in spawns:
         if e["t"] > first + 300:
             continue  # (the body only: later spawns are what it launches, adds, brings back)
         if e["type"] == 12:
             layer = {0: "ground", 1: "ground", 2: "sky", 3: "top", 4: "ground"}.get(e["d6"])
             top = -28 + e["d5"] - 28
-            n = e["d1"]
         else:
             layer = LAYER_OF[e["type"]]
             top = -28 + e["d5"]
-            n = e["d1"]
-        if layer is None or s1 <= 0:
+        if layer is None:
             continue  # (from the bottom: on screen at once)
-        if e.get("ep") == "gbc" or "ep" not in e:
-            dat = {}
-        else:
-            dat = data.setdefault(e["ep"], tyrdata.load_items(e["ep"])["enemies"]).get(n, {})
+        dat = data.setdefault(e["ep"], tyrdata.load_items(e["ep"])["enemies"]).get(e["d1"], {}) if "ep" in e else {}
         if dat.get("ycaccel") or dat.get("yaccel") or dat.get("yrev"):
             continue  # (it moves to a place of its own, or to and fro)
         own = e["d3"] + dat.get("ymove", 0) + (e["d6"] if e["type"] != 12 else 0)
-        vy = own + {"sky": 0, "ground": s1, "top": s3}[layer]
+        moving = not stops or e["t"] < stops[0]  # (the map: still moving when it is made)
+        vy = own + ({"sky": 0, "ground": s1, "top": s3}[layer] if moving else 0)
         if own > 0:
             drifting.add(e["d4"])
         if vy <= 0 or top >= BOSS_TOP:
             continue
-        ticks = (BOSS_TOP - top) / vy
-        freeze = max(freeze, e["t"] + int(ticks * s1 + 0.999))
-    added = [dict(t=freeze, type=2, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0),
-             dict(t=freeze, type=53, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0)]
-    added += [dict(t=freeze, type=19, d1=-99, d2=0, d3=0, d5=0, d6=-99, d4=link) for link in sorted(drifting)]
-    if not any(e["type"] == 36 and e["t"] >= start for e in events):
-        added.append(dict(t=freeze + 1, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+        # (the clock: the map's scroll while it moves, a tick at a time once it stops, forced)
+        arrive = max(arrive or 0, e["t"] + int((BOSS_TOP - top) / vy * (s1 if moving and s1 > 0 else 1) + 0.999))
+    if arrive is None:
+        arrive = first + 100  # (pieces that move to their places themselves: they are in a while after)
+    # Where the original stops its map over the boss, the level does the same (its boss is made for it: TORM's
+    # holds its place against the scroll till then; pieces drifting down over a map already stopped stop once they
+    # are in); where not, the map stops and its drifting pieces stop once it is in (for one the map brings in row
+    # by row, its last row)
+    # (a boss that holds its place against the scroll itself, its own speed up the screen while the map runs:
+    # IXMUCANE's; the map runs on as the original's)
+    holds = any(e["type"] in (19, 20) and e["d4"] in links and -99 < e["d2"] < 0 and e["t"] < (stops[0] if stops else 65000)
+                for e in placed)
+    if stops:
+        halt = stops[0]
+        if halt > arrive:
+            drifting = set()  # (drifting with the scroll till the original's stop: that is its design)
+    elif holds:
+        halt, drifting = None, set()
+    else:
+        if not all(e["t"] <= first + 300 for e in spawns):
+            arrive, drifting = max(e["t"] for e in spawns) + 28 * 8, set()
+        halt = arrive
+    added = []
+    if halt is None:
+        halt = arrive
+    else:
+        scroll = [e for e in scroll if e["t"] < halt or (e["t"] == halt and e["d1"] == 0)]
+        if not any(e["t"] == halt and e["d1"] == 0 for e in scroll):
+            added.append(dict(t=halt, type=2, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+        if not any(e["type"] == 53 and e["d1"] != 99 and e["t"] <= halt for e in placed):
+            added.append(dict(t=halt, type=53, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    added += [dict(t=arrive, type=19, d1=-99, d2=0, d3=0, d5=0, d6=-99, d4=link) for link in sorted(drifting)]
+    freeze = max(halt, arrive)
+    if not any(e["type"] == 36 and e["t"] >= freeze for e in placed):
+        added.append(dict(t=max(freeze, first) + 1, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     out = []
-    for e in events:
-        if e["t"] >= freeze and (e["type"] in (2, 30) or (e["type"] == 53 and e["d1"] == 99)):
-            continue  # (nothing after it starts the map or stops the clock again)
-        if e["t"] >= start and e["type"] in (4, 83):
+    for e in placed:
+        if e["t"] > freeze and e["type"] == 53 and e["d1"] == 99:
+            continue  # (nothing after it stops the clock again)
+        if e["type"] in (4, 83):
             continue  # (nor the map's restart once the screen is clear: the boss would scroll away)
-        if e["type"] == 11:
-            e = dict(e, t=min(65000, max(e["t"], freeze + BOSS_TIME)))
         out.append(e)
-    out += added
-    out.sort(key=lambda e: e["t"])  # (stable: same-time events keep their order, the added after)
-    return out
+    end = freeze + min(BOSS_MAX, max(BOSS_TIME, start + tpl["length"] - freeze + 300))
+    rest = [dict(e, t=min(65000, end)) if e["type"] == 11 else e for e in events]
+    merged = rest + out + scroll + added
+    merged.sort(key=lambda e: e["t"])  # (stable: same-time events keep their order)
+    return compose.with_small_adjust(merged)
 
 
 def main():
@@ -318,7 +389,12 @@ def main():
     levels = [json.load(open(os.path.join(SRC, "levels", st["slug"] + ".json"))) for st in stages]
     os.makedirs(OUT, exist_ok=True)
     for level in levels:
-        level["events"] = boss_fight(level, compose.expand(level))  # the placed bosses of the originals
+        # (the boss is placed here, boss_fight; the rest as episode 6 places them)
+        bosses = [p for p in level["placements"] if p["kind"] == "boss"]
+        level["placements"] = [p for p in level["placements"] if p["kind"] != "boss"]
+        expanded = compose.expand(level)
+        level["placements"] += bosses
+        level["events"] = boss_fight(level, expanded)
     # (as episode 6: episode 5's enemies used as they are keep their weapons)
     probe = Importer()
     kept = set()

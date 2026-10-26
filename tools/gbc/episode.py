@@ -62,7 +62,8 @@ LEVELS = [
     dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES),
     dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES),
     dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')]),
-    dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), pool=[(3, 'STARGATE'), (1, 'BUBBLES')], boss=(1, 'ASSASSIN')),
+    dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), space=True, stars=True, pool=[(3, 'STARGATE'), (1, 'BUBBLES')],
+         boss=(1, 'ASSASSIN')),
     dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')], boss=(2, 'GEM WAR')),
     dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS'), pool=ICES),
     dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES),
@@ -565,6 +566,9 @@ def make_level(spec):
     enemy_events, placements, banks = enemies(spec, look)
     # (its scroll speeds the GBC script's: event 2 at the start, backgrounds 2 and 3 with layer 1)
     events = [dict(e) for e in look.events if e['t'] == 0 and e['type'] in LOOK_EVENTS and e['type'] not in (2, 3)]
+    if spec.get('stars'):
+        # (the stars on where the original has them off: STARGATE's black, the GBC WARP's a starfield)
+        events = [e for e in events if e['type'] not in (8, 9)] + [dict(t=0, type=9, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0)]
     if not any(x['t'] == 0 and x['type'] == 2 for x in enemy_events):
         events.insert(0, dict(t=0, type=2, d1=1, d2=1, d3=1, d5=0, d6=0, d4=0))
     for e in events:

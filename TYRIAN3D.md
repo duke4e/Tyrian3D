@@ -352,14 +352,22 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   type PIECE), so the ship isn't made two or three times on top of itself (LAVA II's rocks, DELI's
   ships, OASIS's bunkers). `episode.py` names the spawns it leaves out (types never seen
   in the flight, or with no candidate on the level's sheets) and the pieces merged.
-* The boss fight (`build.py` `boss_fight`): the originals' bosses come at their maps' ends, where
-  the map stops (their scroll events are not part of the boss block) and many drift down with the
-  scroll; in a GBC level the map still ran there, so a boss flew through the screen and its "end when
-  clear" (36) ended the level. Once the boss's body is on screen (its highest piece's top at y 24,
-  from its pieces' spawns and speeds), the map stops (2), forced events (53) keep the clock running
-  for its script, its drifting pieces stop (19 by link), and the level ends when it is gone (36,
-  added where its block has none), or at its event 11, at least 2400 ticks of fight later (an
-  unkillable boss); the block's map restarts (4, 83) are left out.
+* The boss fight (`build.py` `boss_fight`, which places the boss itself): the boss is the original
+  level's (or a related one's), its block taken from the spawns of its last boss bar's links (from 400
+  before the bar: those links make ordinary enemies all through some levels, DELIANI's, LAVA EXIT's,
+  and the block ran on for thousands of ticks), with the moves of a layer's or all enemies over it
+  (BRAINIAC's hold its brain against the scroll), links of its own (31-40 for the originals' low
+  ones: the GBC script's are 1-30) and the original's scroll over it (the blocks leave scroll events
+  out; in a GBC level the map still ran there, so bosses flew through the screen and their "end when
+  clear", 36, ended the level). Where the original stops its map over the boss, so does the level
+  (TORM's boss holds its place against the scroll till then); a boss that holds its place itself (its
+  own speed up the screen while the map runs: IXMUCANE's, SAVARA IV's) keeps the original's scroll;
+  any other stops the map once its body is on screen (its highest piece's top at y 24, from its
+  pieces' spawns and speeds) and its drifting pieces stop (19 by link). Forced events (53) keep the
+  clock running for its script; the level ends when it is gone (36, added where its block has none),
+  or at its event 11, 2400 to 6000 ticks of fight later (an unkillable boss: as long as its block, the
+  final one's phases); the block's map restarts (4, 83) are left out. All 24 bosses checked by eye.
+* WARP (STARGATE's look, black, its stars off) is open space with the stars on, as the GBC level is.
 * In the 3D view (`tyrian2.c` `gbc_faces_its_way`) episode 7's sky enemies turn from their models'
   heading (down the screen, the way the originals fly them) to where they go when they move
   otherwise (the GBC paths go sideways and up); not the pieces of an object of several sprites
