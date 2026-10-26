@@ -2,7 +2,8 @@
   "_doc": [
     "Overrides for tools/terrain/make_cleanground.py (clean ground under the 3D view's ground objects).",
     "keep: models (name prefixes) whose painting stays: landscape the game animates or builds from enemies",
-    "  (TORM's, BONUS' and ROOST's waterfalls, FRUIT's glyph trees, the rock arches standing on painted rock),",
+    "  (TORM's, BONUS' and ROOST's waterfalls, FRUIT's glyph trees, the rock arches standing on painted rock,",
+    "  JUNGLE's fire housings, whose maps paint the jungle's own claws and posts under them, no wreck),",
     "  and what the map paints as landscape (FRUIT's geodesic balls leave a hole into space; the gun silos of",
     "  SAVARA, SAVARA IV, REEF and DIG SITE are pits in the fortress walls).",
     "standin: a piece's look -> the look whose model stands in for the painting once the piece is gone",
@@ -22,7 +23,8 @@
     "rock_arch",
     "desert_rock_tip",
     "fruit_geoball",
-    "gun_silo"
+    "gun_silo",
+    "fire_housing"
   ],
   "standin": {
     "m1": "m3",
