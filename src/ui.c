@@ -3816,6 +3816,14 @@ static void build_rogue(const UIMenu *m)
 		text_graded(FONT_BOLD, m->title, top.x + U(30), top.y + (top.h - CAP_TITLE()) / 2, CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT,
 		            true);
 		rogue_chips(r, top.x + top.w - U(10), top.y + (top.h - (CAP_KEY() + U(10) + CAP_HEAD())) / 2, true);
+		// (The planets drawn anew over the map's, where data/hd/icons has them: render_gpu.c hd_icon.)
+		for (int i = 0; i < r->node_count; ++i)
+			if (r->nodes[i].planet >= 0)
+			{
+				const float pw = r->nodes[i].planet_w * k, ph = r->nodes[i].planet_h * k;
+				rgpu_ui_table_sprite(PLANET_SHAPES, (unsigned int)r->nodes[i].planet, pic.x + r->nodes[i].x * k - pw / 2,
+				                     pic.y + r->nodes[i].y * k - ph / 2, pw, ph, L.alpha);
+			}
 		for (int i = 0; i < r->node_count; ++i)
 		{
 			const float nx = pic.x + r->nodes[i].x * k, ny = pic.y + r->nodes[i].y * k, nr = SDL_max(r->nodes[i].r * k, U(20));

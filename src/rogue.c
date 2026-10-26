@@ -1395,6 +1395,7 @@ static bool map_screen(void)
 					const int k = r->node_count++;
 					r->nodes[k].x = (float)x;
 					r->nodes[k].y = (float)y;
+					r->nodes[k].planet = -1;
 					if (node->kind == NODE_MERCHANT)
 						r->nodes[k].r = 9;
 					else
@@ -1402,6 +1403,9 @@ static bool map_screen(void)
 						const int scale = node->kind != NODE_BOSS && get_sprite_width(PLANET_SHAPES, node->planet) > 30 ? 2 : 1;
 						r->nodes[k].r = SDL_max(get_sprite_width(PLANET_SHAPES, node->planet), get_sprite_height(PLANET_SHAPES, node->planet)) /
 						                (2.0f * scale);
+						r->nodes[k].planet = node->planet;
+						r->nodes[k].planet_w = get_sprite_width(PLANET_SHAPES, node->planet) / (float)scale;
+						r->nodes[k].planet_h = get_sprite_height(PLANET_SHAPES, node->planet) / (float)scale;
 					}
 					SDL_strlcpy(r->nodes[k].name, trimmed(node_name(row, c)), sizeof(r->nodes[k].name));
 					r->nodes[k].kind = node->kind == NODE_ELITE ? 1 : node->kind == NODE_MERCHANT ? 2 : node->kind == NODE_BOSS ? 3 : 0;

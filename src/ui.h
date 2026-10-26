@@ -374,6 +374,8 @@ typedef struct
 		char name[16];
 		int kind;             // 0 a level, 1 elite, 2 merchant, 3 boss
 		bool can_go, selected, visited;
+		int planet;           // its planet's sprite (PLANET_SHAPES), drawn anew over the map's, or -1
+		float planet_w, planet_h;  // as the map draws it (screen pixels)
 	} nodes[UI_ROGUE_NODES];
 	float ship_x, ship_y;     // where the ship is (screen pixels)
 } UIRogue;
