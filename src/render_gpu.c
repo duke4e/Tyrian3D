@@ -2288,7 +2288,8 @@ static struct
 	bool made;
 	Uint8 *pixels;  // the face as blit_sprite draws it (0: clear)
 	int w, h;
-} hd_faces[HD_FACES];
+} hd_faces[HD_FACES + 1];
+#define HD_FACE_NONE HD_FACES  // (pictures/face_none.png: what the window shows for a cube without a face)
 static int hd_face = -1;  // the face drawn anew this frame (-1: none)
 static float hd_face_brightness = 1;
 // The portrait's frame drawn anew (data/hd/pictures/portrait_frame.png, tools/hd_pictures.py --frame-hd: over the
@@ -2445,6 +2446,31 @@ static void find_hd_face(const Uint8 *picture, Uint32 *rgba)
 		if (own > 0 && same >= own * HD_FACE_SAME)
 			hd_face = i;
 	}
+	// A data cube without a face (a message, a guide): the frame round an empty window; its picture there.
+	if (hd_face < 0 && hd_frame_shown)
+	{
+		// (The window's glass has a few highlights of its own; a face covers most of it.)
+		const Uint8 empty = picture[FACE_WINDOW_Y * SCREEN_W + FACE_WINDOW_X];
+		int other = 0, all = 0;
+		for (int y = FACE_CENTRE_Y - 40; y <= FACE_CENTRE_Y + 40; y += 2)
+			for (int x = FACE_CENTRE_X - 30; x <= FACE_CENTRE_X + 30; ++x, ++all)
+				other += picture[y * SCREEN_W + x] != empty;
+		const bool clear = other * 8 < all;
+		if (clear)
+		{
+			if (!hd_faces[HD_FACE_NONE].looked)
+			{
+				hd_faces[HD_FACE_NONE].looked = true;
+				char dir[1024];
+				const char *base = tyr3d_resource_dir("TYR3D_UPSCALE_DIR", TYR3D_UPSCALE_DIR, "upscale", dir, sizeof(dir));
+				snprintf(hd_faces[HD_FACE_NONE].path, sizeof(hd_faces[0].path), "%s/pictures/face_none.png", base);
+				if (!SDL_GetPathInfo(hd_faces[HD_FACE_NONE].path, NULL))
+					hd_faces[HD_FACE_NONE].path[0] = '\0';
+			}
+			if (hd_faces[HD_FACE_NONE].path[0] != '\0')
+				hd_face = HD_FACE_NONE;
+		}
+	}
 	if (hd_face >= 0 && !hd_faces[hd_face].loaded && window != NULL)
 	{
 		hd_faces[hd_face].loaded = true;
@@ -2457,6 +2483,11 @@ static void find_hd_face(const Uint8 *picture, Uint32 *rgba)
 	if (hd_face < 0 || hd_faces[hd_face].texture == NULL)
 	{
 		hd_face = -1;
+		return;
+	}
+	if (hd_face == HD_FACE_NONE)
+	{
+		hd_face_brightness = hd_frame_brightness;  // (in the store's palette, as the frame)
 		return;
 	}
 	const int w = hd_faces[hd_face].w, h = hd_faces[hd_face].h, x0 = FACE_CENTRE_X - w / 2, y0 = FACE_CENTRE_Y - h / 2;

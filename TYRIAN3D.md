@@ -817,7 +817,9 @@ window's colour and the new face shows over the portrait, fading with its palett
 the modern UI and the old store with the 3D view; only the face shown is loaded). `pictures/portrait_frame.png` is the
 portrait's frame round them drawn anew (the export's `face_frame.png` through `tools/upscale_sprites.py` with
 4x-BigFArt-Detail, cut to the portrait by `tools/hd_pictures.py --frame-hd <the upscale>`): drawn over the frame, under
-the face, where the store's screen shows it (`find_hd_frame`). `icons/` holds the modern UI's icons drawn anew (`shop_`, `ship_`,
+the face, where the store's screen shows it (`find_hd_frame`). `pictures/face_none.png` is what the window shows for a
+cube without a face (a message, a guide): a hologram of a data cube in amber (`tools/make_empty_face.py` writes it into
+`export/legacy`, `tools/hd_pictures.py` fits it as the faces), shown where the frame shows round an empty window. `icons/` holds the modern UI's icons drawn anew (`shop_`, `ship_`,
 `shipt_`, `ship_s_`, `special_`, `option_`, `planet_<sprite>.png`): the export's `icons/` (the store's items as its cards
 show them, the ships, the HUD's small ship and bomb, the specials, the data cube icons, the planets of its map, each in
 its screen's palette) through `tools/upscale_sprites.py` with 4x-BigFArt-Detail; where one is there

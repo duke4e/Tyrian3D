@@ -8,7 +8,8 @@ store's portrait window: the export's face_frame.png (the frame where the store 
 pictures' folder or given with --frame) gives the window, the face covers it (as large as it takes, centred on it)
 and is cut to its shape with a soft edge. Each goes to data/hd/pictures/face_NN.png over the whole portrait (screen
 pixels FRAME_BOX at FACE_SCALE times, clear but for the window), as the game draws it (render_gpu.c find_hd_face).
-The portrait frame itself drawn anew: --frame-hd <face_frame.png upscaled> (tools/upscale_sprites.py on the export's
+face_none.png (tools/make_empty_face.py: a hologram of a data cube) is fitted the same way: the window shows it for
+the cubes without a face. The portrait frame itself drawn anew: --frame-hd <face_frame.png upscaled> (tools/upscale_sprites.py on the export's
 face_frame.png, any scale) is cut to FRAME_BOX and written as data/hd/pictures/portrait_frame.png, which the game
 draws over the frame (under the face) where the store shows it.
 usage: <python with PIL> tools/hd_pictures.py <dir with the new pictures> [data/hd/pictures] [--frame face_frame.png]
@@ -87,7 +88,7 @@ def main():
     window = None
     for path in sorted(glob.glob(os.path.join(src, "*.png"))):
         name = os.path.basename(path)
-        if re.fullmatch(r"face_\d\d\.png", name):
+        if re.fullmatch(r"face_\d\d\.png|face_none\.png", name):
             if window is None:
                 if not os.path.exists(frame):
                     sys.exit(f"{name}: no {frame} (TYR3D_EXPORT_PICTURES writes it)")
