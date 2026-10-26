@@ -81,6 +81,10 @@ void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind
 // An item picked up (x, y where): a ring of light widening round it and glints flying out, at that height.
 void p3d_pickup(float x, float y, float height);
 
+// Smoke rising from something damaged (x, y its centre, at that height above the ground; scale its size,
+// strength 1 just damaged down to 0): called every frame it shows, a puff now and then, an ember now and then.
+void p3d_smoulder(float x, float y, float height, float scale, float strength);
+
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range
 // magnet's sparks streaming sideways. pulse: a ring with it (callers space them out).

@@ -370,6 +370,27 @@ static float enemy_shown(unsigned int i)
 	return shown;
 }
 
+// Tyrian3D: an enemy in its damaged look smokes, thick at first, thinning out over SMOULDER_FRAMES (it only
+// shows; with Effects).
+#define SMOULDER_FRAMES 420.0f
+
+static void smoulder(unsigned int i, float x, float y, bool large)
+{
+	static bool was_damaged[100];
+	static Uint32 damaged_at[100];
+	const bool damaged = enemy[i].edamaged != (enemy[i].edani < 0) && !enemy[i].scoreitem;
+	if (damaged && !was_damaged[i])
+		damaged_at[i] = l3d_frame_number;
+	was_damaged[i] = damaged;
+	const float since = (float)(l3d_frame_number - damaged_at[i]);
+	if (!damaged || !settings3d.effects || since > SMOULDER_FRAMES)
+		return;
+	const L3DLayerType layer = l3d_current_layer();
+	const bool ground = layer == L3D_GROUND_ENEMY || layer == L3D_BG2_LOW || layer == L3D_GROUND;
+	p3d_smoulder(x, y, ground ? 3.0f : l3d_layer_height(layer) - l3d_terrain_headroom, large ? 1.6f : 1.0f,
+	             1 - since / SMOULDER_FRAMES);
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
@@ -459,6 +480,8 @@ static bool draw_enemy_model(unsigned int i)
 
 	const float roll = (enemy[i].enemycycle - 1) * look.roll_step;
 	const bool added = l3d_add_object(look.model, x, y, look.height, yaw, roll, filter);
+	if (added)
+		smoulder(i, x, y, large);
 	if (added)
 	{
 		l3d_enemy_last_object(sheet, first_sprite);

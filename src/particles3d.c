@@ -245,6 +245,40 @@ static void shock_ring(float x, float y, float height, float size, float life)
 	set_colors(p, 255, 200, 140, 150, 255, 110, 40, 0);
 }
 
+void p3d_smoulder(float x, float y, float height, float scale, float strength)
+{
+	if (strength <= 0 || random_range(0, 1) > 0.2f + 0.45f * strength)
+		return;
+	const float spread = 3.0f * scale;
+	P3DParticle *p = spawn(P3D_SMOKE, x + random_range(-spread, spread), y + random_range(-spread, spread), height);
+	if (p != NULL)
+	{
+		p->vx = random_range(-0.06f, 0.06f);
+		p->vy = random_range(-0.1f, 0.02f);
+		p->vheight = random_range(0.25f, 0.45f);
+		p->drag = 0.985f;
+		p->size = random_range(3.5f, 5.0f) * scale;
+		p->grow = 0.14f * scale;
+		p->life = random_range(36, 54);
+		const Uint8 grey = (Uint8)random_range(70, 100);
+		set_colors(p, grey, grey, grey, (Uint8)(130 + 90 * strength), (Uint8)(grey + 30), (Uint8)(grey + 30),
+		           (Uint8)(grey + 30), 0);
+	}
+	if (random_range(0, 1) < 0.25f * strength)
+	{
+		P3DParticle *e = spawn(P3D_GLOW, x + random_range(-spread, spread), y + random_range(-spread, spread), height);
+		if (e == NULL)
+			return;
+		e->vx = random_range(-0.15f, 0.15f);
+		e->vy = random_range(-0.15f, 0.15f);
+		e->vheight = random_range(0.4f, 0.8f);
+		e->drag = 0.96f;
+		e->size = random_range(1.4f, 2.2f);
+		e->life = random_range(14, 24);
+		set_colors(e, 255, 170, 60, 255, 200, 50, 10, 0);
+	}
+}
+
 void p3d_pickup(float x, float y, float height)
 {
 	// Pale gold, unlike the explosions' fire.
