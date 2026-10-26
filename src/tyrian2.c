@@ -1110,8 +1110,8 @@ static void draw_standins(int set)
 					near = object;
 				}
 			}
-			printf("standin: frame %u look %c%d %s at %.0f,%.0f", l3d_frame_number, s->sheet, s->sprite,
-			       mode == L3D_STANDIN_PLACEHOLDER ? "placeholder" : wreck >= 0 ? "wreck" : "own", x, y);
+			printf("standin: frame %u look %c%d %s at %.0f,%.0f (map %.0f,%.0f)", l3d_frame_number, s->sheet, s->sprite,
+			       mode == L3D_STANDIN_PLACEHOLDER ? "placeholder" : wreck >= 0 ? "wreck" : "own", x, y, s->x, s->y);
 			if (near != NULL)
 				printf(" nearest %c%u (layer %d) at %+.1f,%+.1f", near->enemy_sheet, near->enemy_sprite, (int)near->layer,
 				       near->x - x, near->y - y);
