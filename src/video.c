@@ -155,6 +155,10 @@ void init_video(void)
 
 	SDL_ShowWindow(main_window);
 
+	// Tyrian3D: what is typed (the title's codes, the names of saves and high scores) comes as text input,
+	// which SDL3 sends only once asked (SDL2 had it on).
+	SDL_StartTextInput(main_window);
+
 	JE_showVGA();
 }
 
