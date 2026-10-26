@@ -64,7 +64,7 @@ The original controls are unchanged. These are added:
 The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
-sprites), shadows, effects (explosion particles, glowing shots, the ship's engine flame, deep space), a camera preset (Standard,
+sprites), shadows, effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather), a camera preset (Standard,
 Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
@@ -615,6 +615,12 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   with the Effects setting. A map that shows nothing (no tile, or only tiles of colour 0) is neither
   drawn as tiles nor makes the backgrounds under it composed, even if the game blends it (episode 6's
   GRAVITRON: its empty, blended background 2 had background 1 composed, opaque, hiding the deep space).
+- **Weather** (`render_gpu.c` `add_weather_batch`; `assets/models/terrain.cfg` "weather <snow|embers> <level>").
+  Over the ice planets (CAMANIS, ICE EXIT, ICESECRET, DEEP ICE, GLACIER, Camanis 2) snow falls and drifts
+  down the screen at every depth between the ground and the camera, so the air itself shows depth; over the
+  lava (LAVA RUN, LAVA EXIT, CORE, THE CORE, CRUSTGATE, MINERS, the GBC's LAVA I and II) embers rise from
+  the ground, flickering and fading as they climb. Five bands of heights, each spread over what the camera
+  sees there; Effects only.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each

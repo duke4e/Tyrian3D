@@ -174,6 +174,16 @@ Uint64 b3d_map_hash(int set);
 // Whether a map has no tile anywhere.
 bool b3d_map_empty(int set);
 
+// The level's weather, which the 3D view draws in the air over the ground (assets/models/terrain.cfg).
+typedef enum
+{
+	B3D_WEATHER_NONE,
+	B3D_WEATHER_SNOW,    // flakes falling and drifting
+	B3D_WEATHER_EMBERS,  // sparks rising from the lava
+} B3DWeather;
+
+B3DWeather b3d_weather(void);
+
 /*
  * Terrain (polish): heights for a whole map, computed offline from its surfaces
  * (tools/terrain/make_terrain.py) and loaded with the map from assets/terrain/<map>.ter. Samples

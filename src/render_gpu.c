@@ -63,6 +63,7 @@
 #define MAX_STARS 4096
 #define DEEP_STARS 720  // the deep starfield's stars, all layers (add_deep_star_batch)
 #define NEBULA_PATCHES 6  // the nebula's patches deep under the stars (add_nebula_batch)
+#define WEATHER_FLAKES 350  // the weather's flakes or embers (add_weather_batch: WEATHER_BANDS * WEATHER_PER_BAND)
 #define MAX_CLOUD_PUFFS 4096  // the clouds' puffs (add_cloud_puffs)
 #define MAX_PLANTS 12000      // plants drawn per frame (vegetation)
 // Stand-ins for a painting that has no model yet (L3D_STANDIN_PLACEHOLDER): the enemy's own model, this
@@ -4315,7 +4316,7 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 }
 
 #define MAX_INSTANCES (L3D_MAX_LAYERS + L3D_MAX_OBJECTS + MAX_TILES + MAX_STARS + L3D_MAX_BACKGROUNDS + P3D_MAX_PARTICLES + \
-                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + MAX_PLANTS + MAX_CLOUD_PUFFS)
+                       L3D_MAX_GLOWS + DEEP_STARS + NEBULA_PATCHES + WEATHER_FLAKES + MAX_PLANTS + MAX_CLOUD_PUFFS)
 // Background tiles: per background, a batch for each of its cells mirrored or not and fading
 // either way or not at all (B3D_ATLAS_CELLS covers the cells of all three backgrounds).
 // Terrain: rows of the three backgrounds' maps drawn at most.
@@ -9848,6 +9849,99 @@ static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, cons
 	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
 }
 
+/*
+ * The level's weather (b3d_weather, Effects only): snow falling and drifting over the ice planets, at every
+ * depth between the ground and the camera, so the air itself shows depth; embers rising from the lava,
+ * flickering and fading as they climb. Each lies in a band of heights, spread over what the camera sees
+ * there, and comes round again within it.
+ */
+#define WEATHER_BANDS 5
+#define WEATHER_PER_BAND 70
+
+static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
+                              int *instance_count, int *batch_count)
+{
+	const B3DWeather weather = b3d_weather();
+	if (weather == B3D_WEATHER_NONE || !settings3d.effects || *batch_count >= MAX_BATCHES)
+		return;
+	float ground = heights[0];
+	for (int l = 0; l < frame->layer_count; ++l)
+		if (frame->layers[l].type == L3D_GROUND)
+			ground = heights[l];
+	const bool snow = weather == B3D_WEATHER_SNOW;
+	// (Snow from high up, below the camera; embers only up from the lava.)
+	const float top = ground + (snow ? 130.0f : 80.0f) * rgpu_camera.height_scale;
+	const float band = (top - ground) / WEATHER_BANDS;
+	const float t = (l3d_frame_number + ahead) / 35.0f;
+
+	const int first = *instance_count;
+	for (int k = 0; k < WEATHER_BANDS; ++k)
+	{
+		const float low = ground + band * k + 4.0f;
+		float rect[4];
+		plane_footprint_world(camera, low + band / 2, -BACKGROUND_AHEAD, rect);
+		if (rect[0] > rect[2] || rect[1] >= rect[3])
+			continue;
+		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
+		const int count = snow ? WEATHER_PER_BAND : WEATHER_PER_BAND * 2 / 3;
+		for (int i = 0; i < count && *instance_count < MAX_INSTANCES; ++i)
+		{
+			const Uint32 seed = hash32((Uint32)(k * 131 + i) * 2654435761u + (snow ? 17u : 29u));
+			const float r0 = hash_unit(seed), r1 = hash_unit(seed + 1), r2 = hash_unit(seed + 2), r3 = hash_unit(seed + 3);
+			// Through its band: snow down, embers up; faint at the band's ends, where it comes round.
+			const float speed = snow ? 4.0f + 3.0f * r2 : 7.0f + 6.0f * r2;
+			const float through = fmodf(r3 * band + t * speed, band) / band;
+			const float height = snow ? low + band * (1 - through) : low + band * through;
+			const float fade = sinf(through * 3.14159f);
+			// Snow drifts down the screen with a little sway; embers waver as they climb.
+			const float drift = snow ? t * (9.0f + 5.0f * r1) : t * 2.0f;
+			const float sway = sinf(t * (0.6f + 0.8f * r2) + r0 * 6.2832f) * (snow ? 5.0f : 3.0f);
+			const float x = rect[0] + fmodf(r0 * w + sway + w, w);
+			const float z = rect[1] + fmodf(r1 * h + drift, h);
+			const float size = snow ? 2.0f + 1.8f * r2 : 1.8f + 1.4f * r3;
+
+			Mat4 transform = mat4_identity();
+			transform.m[0] = transform.m[5] = transform.m[10] = size;
+			transform.m[12] = x;
+			transform.m[13] = height;
+			transform.m[14] = z;
+			float *instance = instances + *instance_count * 24;
+			write_instance_world(instance, &transform, 1.0f);
+			if (snow)
+			{
+				const float a = (0.6f + 0.35f * r3) * fade;
+				instance[16] = 0.9f * a;
+				instance[17] = 0.94f * a;
+				instance[18] = 1.0f * a;
+			}
+			else
+			{
+				// Bright as they leave the lava, dimmer as they climb; flickering.
+				const float flicker = 0.7f + 0.3f * sinf(t * (9.0f + 7.0f * r1) + r0 * 6.2832f);
+				const float a = (0.55f + 0.3f * r0) * fade * (1.1f - 0.6f * (float)k / WEATHER_BANDS) * flicker;
+				instance[16] = 1.5f * a;
+				instance[17] = 0.6f * a;
+				instance[18] = 0.12f * a;
+			}
+			++*instance_count;
+		}
+	}
+	if (*instance_count == first)
+		return;
+
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = particle_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
 // Appends the starfield outside the playfield (inside it, the captured layer has the stars).
 // A composed background 1 has the stars in it already.
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
@@ -10783,6 +10877,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_nebula_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_deep_star_batch(frame, &camera, heights, colors, &instance_count, &batch_count);
 	add_cloud_batches(heights, &camera, new_frame, &instance_count, &batch_count);
+	add_weather_batch(frame, &camera, heights, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
 	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);

@@ -1347,6 +1347,14 @@ static struct
 } water_sets[64];
 static int water_set_count = -1;
 
+// The levels' weather (terrain.cfg "weather <snow|embers> <level name or its beginning>").
+static struct
+{
+	char name[16];
+	B3DWeather weather;
+} weathers[64];
+static int weather_count = 0;
+
 static void load_terrain_config(void)
 {
 	water_set_count = 0;
@@ -1369,8 +1377,36 @@ static void load_terrain_config(void)
 			water_sets[water_set_count].plain = plain;
 			++water_set_count;
 		}
+		char kind[16];
+		if (sscanf(line, " weather %15s %15[^\r\n]", kind, name) == 2 && weather_count < (int)COUNTOF(weathers))
+		{
+			const B3DWeather weather = SDL_strcmp(kind, "snow") == 0 ? B3D_WEATHER_SNOW
+			                         : SDL_strcmp(kind, "embers") == 0 ? B3D_WEATHER_EMBERS : B3D_WEATHER_NONE;
+			if (weather != B3D_WEATHER_NONE)
+			{
+				SDL_strlcpy(weathers[weather_count].name, name, sizeof(weathers[0].name));
+				weathers[weather_count++].weather = weather;
+			}
+		}
 	}
 	fclose(f);
+}
+
+B3DWeather b3d_weather(void)
+{
+	static unsigned int made_for = 0;  // b3d_map_generation + 1
+	static B3DWeather weather = B3D_WEATHER_NONE;
+	if (made_for != b3d_map_generation + 1)
+	{
+		made_for = b3d_map_generation + 1;
+		if (water_set_count < 0)
+			load_terrain_config();
+		weather = B3D_WEATHER_NONE;
+		for (int i = 0; i < weather_count && weather == B3D_WEATHER_NONE; ++i)
+			if (SDL_strncasecmp(levelName, weathers[i].name, SDL_strlen(weathers[i].name)) == 0)
+				weather = weathers[i].weather;
+	}
+	return weather;
 }
 
 static bool set_has_water(int set, bool *plain)
