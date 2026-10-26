@@ -3340,7 +3340,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 
 	// In space (the game's starfield is on) colour 0 of the stars' layer is empty space, where the
 	// game draws its stars: it lets the deep starfield through (add_deep_star_batch).
-	const bool space = frame->star_count > 0 && settings3d.effects && frame->filter_hue == -99 &&
+	const bool space = frame->space && settings3d.effects && frame->filter_hue == -99 &&
 	                   frame->filter_brightness == -99;
 
 	int slots = 0;
@@ -6169,7 +6169,7 @@ static bool ground_covered(const L3DFrame *frame)
 
 static bool relief_frame(const L3DFrame *frame, const bool *composed)
 {
-	if (!m3d_enabled || relief_height() <= 0 || frame->star_count > 0 || ground_covered(frame))
+	if (!m3d_enabled || relief_height() <= 0 || frame->space || ground_covered(frame))
 		return false;
 	for (int i = 0; i < frame->background_count; ++i)
 		if (frame->backgrounds[i].set == 1)
@@ -9895,7 +9895,7 @@ static float hash_unit(Uint32 x)
 static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
                                 const Uint32 colors[256], int *instance_count, int *batch_count)
 {
-	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
+	if (!frame->space || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 
 	// As fast as the game's slowest stars (2 + starfield_speed pixels a frame).
@@ -9966,7 +9966,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
                              int *instance_count, int *batch_count)
 {
-	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
+	if (!frame->space || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 
 	static const float hues[][2][3] = {
@@ -10054,7 +10054,7 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 {
 	const B3DWeather weather = b3d_weather();
 	// In open space, dust drifting by.
-	const bool dust = weather == B3D_WEATHER_NONE && frame->star_count > 0 && !stars_covered();
+	const bool dust = weather == B3D_WEATHER_NONE && frame->space && !stars_covered();
 	if ((weather == B3D_WEATHER_NONE && !dust) || !settings3d.effects || *batch_count >= MAX_BATCHES)
 		return;
 	float ground = heights[0];
@@ -10310,7 +10310,7 @@ static BTBHGPUCustomMesh *create_world_mesh(void)
 static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
                              int *instance_count, int *batch_count)
 {
-	if (frame->star_count == 0 || !settings3d.effects || *batch_count + 2 > MAX_BATCHES || stars_covered() ||
+	if (!frame->space || !settings3d.effects || *batch_count + 2 > MAX_BATCHES || stars_covered() ||
 	    *instance_count + 2 > MAX_INSTANCES)
 		return;
 
@@ -10436,7 +10436,7 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 static void add_meteor_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights, int *instance_count,
                              int *batch_count)
 {
-	if (frame->star_count == 0 || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
+	if (!frame->space || !settings3d.effects || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 	const float height = heights[frame->star_layer] - stars_below_layer() - METEOR_DEPTH * rgpu_camera.height_scale;
 	float rect[4];
@@ -11390,7 +11390,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		// background 2 in the colours the blend gives it). Backgrounds 2 and 3 over a flat ground: as
 		// for the relief, not composed nor filtered.
 		frame_terrains[1] = m3d_enabled ? b3d_terrain(1) : NULL;
-		if (frame_terrains[1] != NULL && frame->star_count > 0 && !frame_terrains[1]->holes)
+		if (frame_terrains[1] != NULL && frame->space && !frame_terrains[1]->holes)
 			frame_terrains[1] = NULL;
 		if (ground_covered(frame))
 			frame_terrains[1] = NULL;
@@ -11698,7 +11698,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const int first_particle_batch = batch_count;
 	if (settings3d.effects)
 	{
-		add_particle_batches(frame->star_count > 0 && !stars_covered(), &instance_count, &batch_count);
+		add_particle_batches(frame->space && !stars_covered(), &instance_count, &batch_count);
 		add_glow_batch(frame, colors, heights, &instance_count, &batch_count);
 	}
 	for (int i = first_particle_batch; i < batch_count; ++i)

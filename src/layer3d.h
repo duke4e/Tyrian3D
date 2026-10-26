@@ -170,6 +170,9 @@ typedef struct
 
 	int star_count;
 	int star_layer;  // layer the starfield was drawn into
+	// In open space: the starfield is on, or was on earlier in the level and background 1 (star_layer
+	// then) is still mostly empty space (FLEET turns the game's stars off over the stars its map paints).
+	bool space;
 	L3DStar stars[L3D_MAX_STARS];
 
 	int glow_count;

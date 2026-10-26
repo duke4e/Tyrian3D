@@ -253,6 +253,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	l3d_frame.object_count = 0;
 	l3d_frame.background_count = 0;
 	l3d_frame.star_count = 0;
+	l3d_frame.space = false;
 	l3d_frame.glow_count = 0;
 	l3d_frame.filter_hue = -99;
 	l3d_frame.filter_brightness = -99;
@@ -375,11 +376,47 @@ static void add_side_decor(void)
 		}
 }
 
+// Whether the frame is in open space (L3DFrame space): only presentation (the 3D view's deep space
+// under background 1's empty pixels), the game's own stars stay as they are.
+static void note_space(void)
+{
+	static Uint32 stars_level = UINT32_MAX;  // l3d_level_frame of the level the starfield was last on in
+	l3d_frame.space = l3d_frame.star_count > 0;
+	if (l3d_frame.space)
+	{
+		stars_level = l3d_level_frame;
+		return;
+	}
+	if (stars_level != l3d_level_frame)
+		return;
+	for (int b = 0; b < l3d_frame.background_count; ++b)
+	{
+		if (l3d_frame.backgrounds[b].set != 1)
+			continue;
+		const L3DLayer *layer = &l3d_frame.layers[l3d_frame.backgrounds[b].layer];
+		int empty = 0, all = 0;
+		for (int y = L3D_OVERSCAN; y < L3D_OVERSCAN + L3D_PLAYFIELD_H; y += 2)
+			for (int x = l3d_field_x(); x < l3d_field_x() + l3d_field_w(); x += 2)
+			{
+				const int i = y * L3D_WIDTH + x;
+				++all;
+				empty += !layer->cover[i] || layer->index[i] == 0;
+			}
+		if (empty * 2 > all)
+		{
+			l3d_frame.space = true;
+			l3d_frame.star_layer = l3d_frame.backgrounds[b].layer;
+		}
+		return;
+	}
+}
+
 void l3d_frame_end(void)
 {
 	if (!l3d_capturing)
 		return;
 
+	note_space();
 	add_side_decor();
 	end_phase();
 	phase_kind = PHASE_NONE;
