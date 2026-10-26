@@ -39,8 +39,9 @@ height 4: the game centres them in height there) and some from sky launchers.
   shades 0x40-0x46; each frame gives a class its own palette index): the band brightest at the upper right and
   darkest at the lower left, its inner side brighter than its outer edge, the crescent brightest along its outer edge
   at its middle, the lip dark save where the crescent joins the band, the undersides darker. I 19's damaged graphic
-  I 114 (dgr 114, dlevel 1: after a hit of 1) is left to the base model: catalogue enemy 0 also shows I 114 (as a 2x2
-  sprite in SAVARA), and frame lines apply to every enemy with a model.
+  I 114 (dgr 114, dlevel 1: after a hit of 1) has a sprite line of its own (models.cfg): it is V 209's pixels, so the
+  beetle ring's middle frame stands for it (the catalogue's enemy 0 shows it as 2x2 only because extract.c sizes the
+  damaged looks from enemy record 0).
 
 - red_needle (sheet F sprite 171; enemy 501 of episodes 1-3, launched by SAVARA's boss (F 195, F 197, F 234; SAVARA,
   SAVARA V, SAVARA Y, TORM) and aimed at the player at launch (speed 4)). The sprite: a thin needle of ramp 4 (salmon
