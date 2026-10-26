@@ -189,16 +189,16 @@ FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 	free(path);
 
 	// Tyrian3D: episode 6's and 7's files are content (tools/content/episode6, tools/content/gbc), not
-	// the game's data.
-	static const char *const content_files[][3] = {
-		{ "tyrian6.lvl", "levels6.dat", "cubetxt6.dat" },
-		{ "tyrian7.lvl", "levels7.dat", "cubetxt7.dat" },
+	// the game's data (newshw.shp: episode 7's own enemies' sprites, sheet W).
+	static const char *const content_files[][4] = {
+		{ "tyrian6.lvl", "levels6.dat", "cubetxt6.dat", NULL },
+		{ "tyrian7.lvl", "levels7.dat", "cubetxt7.dat", "newshw.shp" },
 	};
 	for (size_t e = 0; f == NULL && mode[0] == 'r' && e < COUNTOF(content_files); ++e)
 	{
 		for (size_t i = 0; i < COUNTOF(content_files[e]); ++i)
 		{
-			if (strcmp(file, content_files[e][i]) != 0)
+			if (content_files[e][i] == NULL || strcmp(file, content_files[e][i]) != 0)
 				continue;
 			char content[1024], content_path[1200];
 			tyr3d_resource_dir("TYR3D_CONTENT_DIR", TYR3D_CONTENT_DIR, "content", content, sizeof(content));

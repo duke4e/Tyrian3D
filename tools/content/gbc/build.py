@@ -12,6 +12,8 @@ runs at build time.
 """
 import json
 import os
+import shutil
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -56,11 +58,55 @@ HINTS = [
 ]
 
 
+# Episode 7's own enemies (the GBC levels' that no PC level has): their sprites are sheet W (shapeFile's 37th,
+# src/lvlmast.c; newshw.shp, written by sheet.py from their models), their records their base's with those sprites.
+# Levels name them as episode "gbc", enemy n: the n-th by name.
+NEW_ENEMIES = json.load(open(os.path.join(HERE, "new_enemies.json")))
+NEW_SHEET = 37
+
+
 class Importer(enemydata.Importer):
     """Episode 6's importer, but when the item data has no free weapon slot left, a brought-in
-    enemy's gun is episode 5's of that number (the episodes' guns of a number are mostly alike)."""
+    enemy's gun is episode 5's of that number (the episodes' guns of a number are mostly alike); and
+    episode 7's own enemies."""
 
     full = 0
+
+    def enemy_block(self, episode, first, count=4):
+        if episode == "gbc":
+            return self.new_enemy(first)
+        return super().enemy_block(episode, first, count)
+
+    def enemy(self, episode, number):
+        if episode == "gbc":
+            return self.new_enemy(number)
+        return super().enemy(episode, number)
+
+    def new_enemy(self, index):
+        """One of episode 7's own enemies (its parts in consecutive slots, as event 12 takes them): its base's
+        records (with their guns) on sheet W, one frame each, its armour and value."""
+        name = sorted(NEW_ENEMIES)[index - 1]
+        if ("gbc", name) in self.enemy_map:
+            return self.enemy_map[("gbc", name)]
+        spec = NEW_ENEMIES[name]
+        parts = spec["parts"]
+        block = self.free_enemies[:len(parts)]
+        assert block == list(range(block[0], block[0] + len(parts))), "no consecutive free enemy slots"
+        base_ep, base = spec["base"]
+        for k, part in enumerate(parts):
+            self.free_enemies.remove(block[k])
+            self._fill(base_ep, base + k % 4, block[k])
+            at = self.enemies[block[k]]
+            self.data[at] = 1                     # ani: one frame
+            self.data[at + 19] = spec["armor"]
+            self.data[at + 20] = 1                # esize: 2x2
+            struct.pack_into("<20H", self.data, at + 21, part["sprite"], *[0] * 19)
+            self.data[at + 62] = 0                # animate
+            self.data[at + 63] = NEW_SHEET        # shapebank
+            struct.pack_into("<HBb", self.data, at + 66, 0, 0, 0)  # dgr, dlevel, dani: no wreck sprite
+            struct.pack_into("<h", self.data, at + 73, spec["value"])
+        self.enemy_map[("gbc", name)] = block[0]
+        return block[0]
 
     def weapon(self, episode, number, chain=False):
         try:
@@ -203,7 +249,7 @@ def main():
         for e in level["events"]:
             if e["type"] in ENEMY_D1 and "ep" in e and e["d1"] > 0:
                 for k in range(4 if e["type"] == 12 else 1):
-                    if e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k):
+                    if e["ep"] != "gbc" and (e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k)):
                         kept.add(e["d1"] + k)
     importer = Importer(kept)
     entries = []
@@ -211,6 +257,7 @@ def main():
         entries += level_entries(level, importer)
     entries.append(bytes(importer.data))
     tf.write_level_file(os.path.join(OUT, "tyrian7.lvl"), entries)
+    shutil.copyfile(os.path.join(HERE, "newshw.shp"), os.path.join(OUT, "newshw.shp"))
     # the story as data cubes, numbered in order; the ending's text
     cubes, numbers, n = [], [], 0
     for st in stages:

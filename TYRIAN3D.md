@@ -368,8 +368,22 @@ levels and the item data): the table of a level file's entries holds 100 now (`l
 at the layer's speed) draws nothing there (`backgrnd.c`) rather than reading outside the map. `TYR3D_START=7:<section>` starts
 one of its levels (the levels are the even sections, 2-48). Stages 1-5 of the plan: the maps, shops,
 songs, enemies, bosses, story and the 3D terrain, and the enemies checked by eye; next: the GBC's own
-bosses and its big ships that the PC game has no counterpart for (SAVARA II's red bomber, the GBC's
-DELI claws, ASTEROID2's tripods are stand-ins).
+bosses.
+
+The GBC's big ships are mostly the PC's made smaller: SAVARA II's red bomber is SAVARA's of seven parts
+(1:302-308), the DELI levels' red claws DELIANI's claw ship of twelve (1:400-411; the GBC makes it of two
+types side by side, the second left out), both given by the overrides as composites; a composite is
+centred on the GBC enemy (its sprite, or a block's pieces: script.py `sizes`). What no PC level has is
+episode 7's own (`tools/content/gbc/new_enemies.json`): so far ASTEROID2's derrick, a mining rig on four
+legs with a wrecking ball hanging from its beam (`["gbc", "derrick"]` in the overrides). Its model is
+built like the PC enemies' (`tools/blender/models/enemies/gbc_derrick.py`: whole, leaned back as the
+levels' tall ground objects, cut into the four pieces of a 4-part ground enemy) and its sprites are
+drawn from it: the model's top view (`--sprite`) in the levels' palette, cut into the 2x2 sprites
+(`tools/content/gbc/sheet.py`, PIL) of a sheet of its own, W (`newshw.shp`, with `sheet_w.png` to look
+at; the game's compressed sprite format, checked against the game's sheets both ways), which the
+build copies into `assets/content/episode7`. The game takes it as the 37th sheet (`shapeFile`,
+`lvlmast.c`; `src/file.c` finds it in episode 7's content); the enemy's records are its base's (its
+guns, its explosion) with those sprites, its armour and value (`build.py` `new_enemy`).
 
 ## Custom episodes
 
@@ -821,6 +835,7 @@ The model is 4x-Fatality by twittman (OpenModelDB, CC BY-NC-SA 4.0).
 | `tools/content/episode6/build.py`, `tools/content/tyrformat.py` | Episode 6 in the game's formats (the encrypted script and data cubes, the level file with the episode's item data); run at build time |
 | `tools/gbc/extract.py`, `songs.py`, `report.py`, `episode.py` | The GBC Tyrian ROM (`data/gbc/Tyrian.gb`, the user's) read in the tools' GBC emulator (`gbemu.c`, `gb.py`; `disasm.py` disassembles): its levels, music and an overview to `data/gbc`, and its levels as PC levels for episode 7 (see Episode 7) |
 | `tools/content/gbc/build.py` | Episode 7 in the game's formats from `data/gbc/episode7`; run at build time when those are there |
+| `tools/content/gbc/sheet.py` | Episode 7's own enemies' sprites (sheet W, `newshw.shp`) from their models' top views (needs PIL) |
 | `tools/content/tyrdata.py` | Reads the game's item data (weapons, ports, sidekicks, ships, enemies...) for the content tools |
 | `tools/blender/` | The model pipeline (see Models) |
 

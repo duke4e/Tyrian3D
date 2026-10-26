@@ -1,0 +1,14 @@
+{
+ "derrick": {
+  "about": "GBC ASTEROID2's mining rig (no PC level has one): a 4-part ground enemy, models gbc_derrick_*",
+  "base": [1, 440], "armor": 20, "value": 100, "layer": "ground",
+  "columns": 2, "rows": 2,
+  "ramps": [0, 10, 14],
+  "parts": [
+   {"column": 0, "row": 1, "sprite": 1},
+   {"column": 1, "row": 1, "sprite": 3},
+   {"column": 0, "row": 0, "sprite": 5},
+   {"column": 1, "row": 0, "sprite": 7}
+  ]
+ }
+}

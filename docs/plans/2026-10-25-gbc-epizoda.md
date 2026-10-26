@@ -49,8 +49,10 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 
 ## Otvoreno
 
-- GBC-ovi brodovi bez PC parnjaka (crveni bombarder SAVARA II, crvene kliješta DELI levela, tronošci
-  ASTEROID2) zasad imaju zamjene.
+- GBC-ovi vlastiti bossovi. (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i
+  crvena kliješta DELI levela su PC-ovi brodovi od 7 i 12 dijelova; rudarski toranj ASTEROID2 nema PC
+  parnjaka, pa je prvi vlastiti neprijatelj epizode 7: model `gbc_derrick.py`, sprajtovi iz modela u
+  listu W, `tools/content/gbc/new_enemies.json`.)
 - Rubovi mapa (autotile daje stepenaste prijelaze na nekim tilesetovima).
 
 ## Podaci i git

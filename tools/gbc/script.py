@@ -66,12 +66,14 @@ class Links:
         return self.of.get(group)
 
 
-def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None):
+def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None, sizes=None):
     """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
     types: GBC type -> (episode, enemy, parts: 1, 4 for a 4-part enemy (event 12) or a composite's
     ((enemy, dx, dy), ...), its parts spawned each at its offset) or None (left out); enemies_of(ep) -> that episode's enemy
     data; ground_of((ep, n)) -> True if the PC enemy stands on the ground; clock(position) -> the PC
-    clock (default 1.5 x the position). Returns the events."""
+    clock (default 1.5 x the position); sizes: GBC type -> (width, height) of its sprite in GBC pixels,
+    a composite is centred on it (on the block's pieces for a block). Returns the events."""
+    sizes = sizes or {}
     clock = clock or (lambda p: round(SCALE * p))
     links = Links()
     speed = start_speed
@@ -83,9 +85,10 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
         if pc is None:
             return []
         ep, n, parts = pc
-        if cmd >= 0x28 and parts == 1:
-            k = cmd - 0x28
-            cols, rows = ((k >> 1) & 3) + 1, (k >> 3) + 1
+        k = cmd - 0x28
+        block = (((k >> 1) & 3) + 1, (k >> 3) + 1) if cmd >= 0x28 else (1, 1)
+        if parts == 1:
+            cols, rows = block
         else:
             # (a block of pieces is one big GBC enemy, e.g. two columns one robot: the type's PC enemy
             # of several parts was found for the whole of it, so it is made once)
@@ -106,9 +109,15 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
                     if not ground and link:
                         evs.append(ev(t, 19, -99, -99, 0, 0, speed, link))
                 elif isinstance(parts, tuple):
-                    # a composite: its parts with their offsets from its top left, in one link
+                    # a composite: its parts with their offsets from its top left, in one link, centred
+                    # on the GBC enemy (its sprite, or the block's pieces)
+                    w, h = sizes.get(a, (16, 16))
+                    w, h = max(w, 16 * block[0]), max(h, 16 * block[1])
+                    cx = (SCALE * w - (max(p[1] for p in parts) + 24)) / 2
+                    cy = round((SCALE * h - (max(p[2] for p in parts) + 28)) / 2)
                     for m, dx, dy in parts:
-                        yy = max(-128, min(127, y + dy))
+                        dx += cx
+                        yy = max(-128, min(127, y + cy + dy))
                         if ground:
                             evs.append(ev(t, GROUND, m, round(x + dx) + 27, 0, yy, 0, link, ep=ep))
                         else:

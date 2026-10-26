@@ -20,8 +20,11 @@
 
 #include "opentyr.h"
 
-const JE_char shapeFile[36] = /* [1..36] */
+const JE_char shapeFile[37] = /* [1..37] */
 {
 	'2', '4', '7', '8', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
-	'O', 'P', 'Q', 'R', 'S', 'T', 'U', '5', '#', 'V', '0', '@', '3', '^', '5', '9', '\'', '%'
+	'O', 'P', 'Q', 'R', 'S', 'T', 'U', '5', '#', 'V', '0', '@', '3', '^', '5', '9', '\'', '%',
+	// Tyrian3D: episode 7's own enemies (the GBC levels' that no PC level has: tools/content/gbc/new_enemies.json),
+	// a sheet of its content (src/file.c)
+	'W'
 };

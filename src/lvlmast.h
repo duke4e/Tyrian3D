@@ -40,6 +40,6 @@
 #define ENEMY_START2 1001
 #define ENEMY_NUM    1850
 
-extern const JE_char shapeFile[36]; /* [1..36] */
+extern const JE_char shapeFile[37]; /* [1..37]; Tyrian3D: 37 is episode 7's own sheet (newshw.shp, src/file.c) */
 
 #endif /* LVLMAST_H */

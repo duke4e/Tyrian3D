@@ -121,8 +121,10 @@ if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/gbc/episode7/episode.json"
          "${CMAKE_SOURCE_DIR}/data/gbc/episode7/levels/*.json")
     add_custom_command(
         OUTPUT "${TYR3D_EPISODE7_DIR}/tyrian7.lvl" "${TYR3D_EPISODE7_DIR}/levels7.dat" "${TYR3D_EPISODE7_DIR}/cubetxt7.dat"
+               "${TYR3D_EPISODE7_DIR}/newshw.shp"
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/content/gbc/build.py"
         DEPENDS ${TYR3D_EPISODE7_SOURCES} "${CMAKE_SOURCE_DIR}/data/gbc/episode7/episode.json"
+                "${CMAKE_SOURCE_DIR}/tools/content/gbc/new_enemies.json" "${CMAKE_SOURCE_DIR}/tools/content/gbc/newshw.shp"
                 "${CMAKE_SOURCE_DIR}/tools/content/tyrformat.py" "${CMAKE_SOURCE_DIR}/tools/content/episode6/build.py"
                 "${CMAKE_SOURCE_DIR}/tools/content/episode6/enemydata.py"
         COMMENT "episode 7"

@@ -32,6 +32,10 @@ SCALE = 1.5           # PC pixels per GBC pixel
 ROWS = 300            # layer 1 rows
 LOOK_EVENTS = {1, 2, 3, 8, 9, 21, 28, 29, 42, 43, 44, 48, 64, 65, 72, 73}  # as episode 6's generate.py
 OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
+# Episode 7's own enemies (the GBC levels' that no PC level has; overrides name them ["gbc", name]): sheet W, shapeFile's
+# 37th (tools/content/gbc/build.py makes their records)
+NEW_ENEMIES = json.load(open(os.path.join(ROOT, 'tools', 'content', 'gbc', 'new_enemies.json')))
+NEW_SHEET = 37
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
 
@@ -359,6 +363,8 @@ def enemies(spec, look):
     data = {}
 
     def enemies_of(e_):
+        if e_ == "gbc":
+            return {}  # (episode 7's own enemies stand still: nothing of theirs to undo)
         if e_ not in data:
             data[e_] = sources.tyrdata.load_items(e_)['enemies']
         return data[e_]
@@ -380,6 +386,8 @@ def enemies(spec, look):
                     boss_banks.update(waves.sheets_of(boss_source.enemies, e['d1'] + k))
     def sheet(c):
         """The sheets a candidate needs ({99}: none it can be drawn with, e.g. sheet 0)."""
+        if c['episode'] == "gbc":
+            return {NEW_SHEET}
         b = set().union(*(waves.sheets_of(enemies_of(c['episode']), n) for n in EN.part_numbers(c['enemy'], c.get('parts', 1))))
         return {99} if (0 in b or not b) else b
     # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], [episode, enemy, 4]
@@ -392,6 +400,9 @@ def enemies(spec, look):
             continue
         if v is None:
             over[int(t, 16)] = None
+        elif v[0] == "gbc":  # episode 7's own enemy (tools/content/gbc/new_enemies.json), by name
+            over[int(t, 16)] = dict(episode="gbc", enemy=sorted(NEW_ENEMIES).index(v[1]) + 1,
+                                    parts=4 if len(NEW_ENEMIES[v[1]]["parts"]) == 4 else 1)
         elif isinstance(v[1], list):
             over[int(t, 16)] = dict(episode=v[0], enemy=v[1][0][0], parts=v[1])
         else:
@@ -426,7 +437,11 @@ def enemies(spec, look):
 
     def clock(p):
         return round(1.5 * p) if p <= p_map else round(1.5 * p_map + (p - p_map) * k)
-    events = script.translate(records, positions, types, enemies_of, lambda k_: ground.get(k_[:2], False), clock=clock)
+    sizes = {int(t): (info['size'][1], info['size'][0]) for t, info in d['types'].items() if info.get('size')}
+    for name in NEW_ENEMIES:
+        ground[("gbc", sorted(NEW_ENEMIES).index(name) + 1)] = NEW_ENEMIES[name]["layer"] == "ground"
+    events = script.translate(records, positions, types, enemies_of, lambda k_: ground.get(k_[:2], False), clock=clock,
+                              sizes=sizes)
     placements = []
     if boss:
         start = min(clock(p_last) if positions else 4000, 7000)
