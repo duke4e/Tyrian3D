@@ -2223,44 +2223,6 @@ static void shop_parts(const UIMenu *m, Box area)
 	}
 }
 
-// The parts as tabs over a box: returns the height taken.
-static float shop_tabs(const UIShop *s, Box area, bool live)
-{
-	if (s->tab_count <= 0)
-		return 0;
-	float cap = CAP_SMALL(), pad = cap * 1.0f;
-	const float gap = U(8);
-	float total = 0;
-	for (int pass = 0; pass < 3; ++pass)
-	{
-		total = 0;
-		for (int i = 0; i < s->tab_count; ++i)
-			total += text_w(FONT_SEMIBOLD, s->tab[i], cap) + 2 * pad;
-		total += gap * (s->tab_count - 1);
-		if (total <= area.w)
-			break;
-		pad *= 0.7f;
-		if (pass == 1)
-			cap = SDL_max(cap * area.w / total, CAP_KEY());
-	}
-	const float h = SDL_max(cap * 2.5f, U(44));
-	// Spread over the width when there is room.
-	const float extra = total < area.w ? (area.w - total) / s->tab_count : 0;
-	float x = area.x;
-	for (int i = 0; i < s->tab_count; ++i)
-	{
-		const float w = text_w(FONT_SEMIBOLD, s->tab[i], cap) + 2 * pad + SDL_min(extra, U(30));
-		const Box t = { x, area.y, w, h };
-		const bool selected = i == s->tab_selected;
-		panel(t, h * 0.28f, selected ? PANEL_CARD : live && hovered(t) ? PANEL_BAR : PANEL_HOVER);
-		text_mid(FONT_SEMIBOLD, s->tab[i], t, 0, cap, selected ? C_CREAM : live ? C_TAN : C_DIM, ALIGN_CENTRE);
-		if (live)
-			add_hit(t, s->tab_hit[i]);
-		x += w + gap;
-	}
-	return h;
-}
-
 // Cards in a box (a part's choices), scrolled to the selected one; preview: the parts' list's view of
 // them (not chosen from here).
 static void shop_cards(const UIMenu *m, Box area, bool preview)
