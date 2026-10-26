@@ -619,8 +619,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   Over the ice planets (CAMANIS, ICE EXIT, ICESECRET, DEEP ICE, GLACIER, Camanis 2) snow falls and drifts
   down the screen at every depth between the ground and the camera, so the air itself shows depth; over the
   lava (LAVA RUN, LAVA EXIT, CORE, THE CORE, CRUSTGATE, MINERS, the GBC's LAVA I and II) embers rise from
-  the ground, flickering and fading as they climb. Five bands of heights, each spread over what the camera
-  sees there; Effects only.
+  the ground, flickering and fading as they climb; in open space (the starfield on) faint dust streams by
+  at every depth as the ship flies on. Five bands of heights, each spread over what the camera sees there;
+  Effects only.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen.
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each

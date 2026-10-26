@@ -9852,7 +9852,7 @@ static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, cons
 /*
  * The level's weather (b3d_weather, Effects only): snow falling and drifting over the ice planets, at every
  * depth between the ground and the camera, so the air itself shows depth; embers rising from the lava,
- * flickering and fading as they climb. Each lies in a band of heights, spread over what the camera sees
+ * flickering and fading as they climb; in open space (the starfield on) faint dust streaming by. Each lies in a band of heights, spread over what the camera sees
  * there, and comes round again within it.
  */
 #define WEATHER_BANDS 5
@@ -9862,15 +9862,17 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
                               int *instance_count, int *batch_count)
 {
 	const B3DWeather weather = b3d_weather();
-	if (weather == B3D_WEATHER_NONE || !settings3d.effects || *batch_count >= MAX_BATCHES)
+	// In open space, dust drifting by.
+	const bool dust = weather == B3D_WEATHER_NONE && frame->star_count > 0 && !stars_covered();
+	if ((weather == B3D_WEATHER_NONE && !dust) || !settings3d.effects || *batch_count >= MAX_BATCHES)
 		return;
 	float ground = heights[0];
 	for (int l = 0; l < frame->layer_count; ++l)
 		if (frame->layers[l].type == L3D_GROUND)
 			ground = heights[l];
 	const bool snow = weather == B3D_WEATHER_SNOW;
-	// (Snow from high up, below the camera; embers only up from the lava.)
-	const float top = ground + (snow ? 130.0f : 80.0f) * rgpu_camera.height_scale;
+	// (Snow and dust from high up, below the camera; embers only up from the lava.)
+	const float top = ground + (snow || dust ? 130.0f : 80.0f) * rgpu_camera.height_scale;
 	const float band = (top - ground) / WEATHER_BANDS;
 	const float t = (l3d_frame_number + ahead) / 35.0f;
 
@@ -9883,11 +9885,31 @@ static void add_weather_batch(const L3DFrame *frame, const Camera3D *camera, con
 		if (rect[0] > rect[2] || rect[1] >= rect[3])
 			continue;
 		const float w = rect[2] - rect[0], h = rect[3] - rect[1];
-		const int count = snow ? WEATHER_PER_BAND : WEATHER_PER_BAND * 2 / 3;
+		const int count = snow ? WEATHER_PER_BAND : dust ? WEATHER_PER_BAND / 2 : WEATHER_PER_BAND * 2 / 3;
 		for (int i = 0; i < count && *instance_count < MAX_INSTANCES; ++i)
 		{
-			const Uint32 seed = hash32((Uint32)(k * 131 + i) * 2654435761u + (snow ? 17u : 29u));
+			const Uint32 seed = hash32((Uint32)(k * 131 + i) * 2654435761u + (snow ? 17u : dust ? 41u : 29u));
 			const float r0 = hash_unit(seed), r1 = hash_unit(seed + 1), r2 = hash_unit(seed + 2), r3 = hash_unit(seed + 3);
+			if (dust)
+			{
+				// Still in height, streaming down the screen as the ship flies on; faint, bluish.
+				const float x = rect[0] + r0 * w;
+				const float z = rect[1] + fmodf(r1 * h + t * (34.0f + 22.0f * r2), h);
+				const float size = 0.8f + 0.9f * r3;
+				Mat4 transform = mat4_identity();
+				transform.m[0] = transform.m[5] = transform.m[10] = size;
+				transform.m[12] = x;
+				transform.m[13] = low + band * r3;
+				transform.m[14] = z;
+				float *instance = instances + *instance_count * 24;
+				write_instance_world(instance, &transform, 1.0f);
+				const float a = 0.22f + 0.2f * r2;
+				instance[16] = 0.6f * a;
+				instance[17] = 0.68f * a;
+				instance[18] = 0.85f * a;
+				++*instance_count;
+				continue;
+			}
 			// Through its band: snow down, embers up; faint at the band's ends, where it comes round.
 			const float speed = snow ? 4.0f + 3.0f * r2 : 7.0f + 6.0f * r2;
 			const float through = fmodf(r3 * band + t * speed, band) / band;
