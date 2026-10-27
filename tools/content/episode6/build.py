@@ -22,7 +22,9 @@ sys.path.insert(0, HERE)
 import compose  # noqa: E402
 import enemydata  # noqa: E402
 import story  # noqa: E402
+import tyrdata  # noqa: E402
 import tyrformat as tf  # noqa: E402
+import waves  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 OUT = os.path.join(ROOT, "assets", "content", "episode6")
@@ -137,16 +139,35 @@ def tables(maps):
     return out
 
 
+ITEMS = {}  # episode -> its enemies (tyrdata)
+
+
+def unseen(episode, number, sheets):
+    """Whether what an enemy launches, and what it leaves, are of sheets outside the level's (they
+    would fly or lie there unseen: TYRIAN X's middle piece's launches in DIG SITE, whose four sheets
+    are all in use)."""
+    if episode not in ITEMS:
+        ITEMS[episode] = tyrdata.load_items(episode)["enemies"]
+    enemies = ITEMS[episode]
+    e = enemies[number]
+    launched = (e["elaunchtype"] % 1000 if number <= 1000 else e["elaunchtype"]) if e["elaunchfreq"] else 0
+    return tuple(0 < other <= tyrdata.ENEMY_NUM and bool(waves.sheets_of(enemies, other) - sheets - {0})
+                 for other in (launched, e["eenemydie"]))
+
+
 def level_entries(level, importer):
     """The level's two entries: its header and events, and its maps."""
     letter = level["shapes"].upper().encode("latin1")
     head = letter + letter + struct.pack("<3H", 1, 1, 1) + struct.pack("<H", 0)
     events = level["events"]
+    sheets = {v for e in events if e["t"] == 0 and e["type"] == 5 for v in (e["d1"], e["d2"], e["d3"], e["d4"])}
     body = struct.pack("<H", len(events))
     for e in events:
         d1 = e["d1"]
         if e["type"] == 12 and "ep" in e:
             d1 = importer.enemy_block(e["ep"], d1)
+        elif e["type"] in waves.SPAWNS and "ep" in e and d1 > 0 and any(unseen(e["ep"], d1, sheets)):
+            d1 = importer.unseen_left_out(e["ep"], d1, *unseen(e["ep"], d1, sheets))
         elif e["type"] in ENEMY_D1 and "ep" in e:
             d1 = importer.enemy(e["ep"], d1)
         body += struct.pack("<HBhhbbbB", e["t"], e["type"], d1, e["d2"], e["d3"], e["d5"], e["d6"], e["d4"])

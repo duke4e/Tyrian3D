@@ -22,6 +22,10 @@ SKY_SPAWNS = {15, 18}             # sky enemies (at the top; 18 from the bottom)
 TOP_SPAWNS = {7, 23, 32}          # top layer
 GROUND_SPAWNS = {6, 10, 12, 17, 56}
 SPAWNS = SKY_SPAWNS | TOP_SPAWNS | GROUND_SPAWNS
+# Enemy 0 drawn as a sprite (d1) of a sheet (d3), with its armour (d6), on a link (d4): parts of
+# bosses (FLEET's walker, TORM's and BOTANY A's shells). Kept with a boss only: a wave never takes
+# them (their sheets may not be loaded where it goes).
+CUSTOM_SPAWNS = {49, 50, 51, 52}
 # Events that act on the enemies of one link (d4), when their selection is by link.
 LINK_EVENTS = {19, 20, 24, 25, 27, 31, 33, 45, 47, 55, 58, 59, 60, 68, 74}
 # Events a level's script uses around its boss (kept with the boss block).
@@ -112,7 +116,7 @@ class Source:
         for e in self.events:
             if e["t"] < start or e["t"] >= 60000:
                 continue
-            link = by_link(e)
+            link = e["d4"] if e["type"] in CUSTOM_SPAWNS else by_link(e)
             if link in links or e["type"] in BOSS_SCRIPT and e["type"] != 2 or e["type"] == 39 and e["d1"] in links:
                 block.append(dict(e, t=e["t"] - start))
         return dict(start=start, events=block, links=links)

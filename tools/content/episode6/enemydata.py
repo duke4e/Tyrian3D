@@ -128,6 +128,23 @@ class Importer:
             struct.pack_into("<h", self.data, self.enemies[new] + 73, value)
         return self.enemy_map[key]
 
+    def unseen_left_out(self, episode, number, launch, leave):
+        """A copy of an enemy (brought in as enemy() does) that launches nothing (launch) or leaves
+        nothing (leave): where those would be of a sheet its level doesn't load, so they would fly
+        or lie there unseen. The same copy again for the same enemy."""
+        key = (episode, number, "without", launch, leave)
+        if key not in self.enemy_map:
+            new = self.free_enemies.pop(0)
+            self.enemy_map[key] = new
+            self._fill(episode, number, new)
+            at = self.enemies[new]
+            if launch:
+                self.data[at + 70] = 0                    # elaunchfreq
+                struct.pack_into("<H", self.data, at + 71, 0)  # elaunchtype
+            if leave:
+                struct.pack_into("<H", self.data, at + 75, 0)  # eenemydie
+        return self.enemy_map[key]
+
     def _source(self, episode):
         if episode not in self.sources:
             data = item_data(episode)

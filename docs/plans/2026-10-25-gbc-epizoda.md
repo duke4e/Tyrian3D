@@ -118,7 +118,8 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 - GBC trgovina: ROM ima svoje nazive (oružja Pulse, Multi, Scatter, Sonic, Vulcan, Mega, Proton, Thunder,
   Fireball, Rail, Chip, Hotdog, L.Ball, Ninja, Banana, Fruit, Pretzel, IcePick, Laser, PowerS, Poison, Hyper,
   Arrow, Gumball, Plasma; brodovi Talon, Micros, Phoenx, Storm, Dragon, Carrot, UShip; generatori, štitovi,
-  sidekickovi, na 0xfc00). Napredovanje po levelima još nije iščitano; za odluku korisnika.
+  sidekickovi, na 0xfc00). Napredovanje po levelima iščitano 2026-10-27 (`tools/gbc/shop.py`, svaka trgovina
+  Full Gamea u `data/gbc/shop.json`; `build.py` ih stavlja u blokove trgovina), provjereno u igri.
 
 ## Podaci i git
 

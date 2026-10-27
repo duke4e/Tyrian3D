@@ -8,6 +8,7 @@ carries the episode it is from ("ep"), so the build can bring it into episode 6'
 import random
 from collections import Counter, defaultdict
 
+import tyrevents
 import waves as W
 
 LAYER1_ROWS = 300
@@ -76,7 +77,9 @@ def place(template, start, links, ep):
             e["d1"] = start + template["loop"][1] + 2
         elif jump == "loop":
             e["d1"] = start + template["loop"][0]
-        if e["d4"] in mapping and (e["type"] in W.SPAWNS or W.by_link(e) is not None):
+        elif jump is not None and e["type"] == 57:
+            e["d1"] = start + jump  # (the boss's own jump when it dies: boss_jumps)
+        if e["d4"] in mapping and (e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS or W.by_link(e) is not None):
             e["d4"] = mapping[e["d4"]]
         if e["type"] == 39:
             e["d1"] = mapping.get(e["d1"], e["d1"])
@@ -103,6 +106,7 @@ def expand(level):
     links = Links()
     sources = {}
     placed = []
+    end = None
     for p in sorted(level["placements"], key=lambda p: p["start"]):
         key = (p["episode"], p["name"])
         if key not in sources:
@@ -110,17 +114,119 @@ def expand(level):
         source = sources[key]
         if p["kind"] == "boss":
             template = dict(source.boss(), length=CLOCK_END - p["start"])
+            template["events"] = template["events"] + boss_speeds(source, template, speed_at(level["events"], p["start"])) + \
+                boss_jumps(source, template)
+            if not any(e["type"] in (36, 57) for e in template["events"]):
+                # (A boss whose original ends otherwise, ASTEROID2's by its map's restart: the level
+                # ends once it is gone.)
+                first = min(e["t"] for e in template["events"] if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS)
+                template["events"].append(event(first + 1, 36))
+            end = boss_end(source, template, p["start"])
         elif p["kind"] == "midboss":
             template = midboss_template(source, p)
         else:
             template = source.waves(ground=p.get("ground", False))[p["index"]]
+            template = dict(template, events=without_still_tops(source, template["events"],
+                                                                 speed_at(level["events"], p["start"])[2]))
         events = place(template, p["start"], links, source.episode)
         if p.get("drop"):
             events = with_drops(events, p["drop"])
         placed += events
-    head = [e for e in level["events"] if e["t"] == 0]
-    rest = [e for e in level["events"] if e["t"] > 0]
+    own = [dict(e, t=max(e["t"], end)) if end is not None and e["type"] == 11 else e for e in level["events"]]
+    head = [e for e in own if e["t"] == 0]
+    rest = [e for e in own if e["t"] > 0]
     return with_small_adjust(head + sorted(rest + placed, key=lambda e: e["t"]))
+
+
+def speed_at(events, t):
+    """The layers' speeds (event 2) in force at t."""
+    speeds = (1, 2, 3)
+    for e in sorted(events, key=lambda e: e["t"]):
+        if e["t"] > t:
+            break
+        if e["type"] == 2:
+            speeds = (e["d1"], e["d2"], e["d3"])
+    return speeds
+
+
+def boss_speeds(source, boss, level_speeds):
+    """Speed events (2) for an original's boss placed in a new level whose layers go at
+    level_speeds there: the layers that carry its enemies (1 its ground and ground 2 ones, 3 its
+    top ones; sky ones ride none) as the original had them when its boss came and changed them
+    after, and the whole map stopped where the original stops it once its boss is in place (the
+    clock running on: 53). Without them a top or ground boss rose off the screen or drifted down
+    with a map that went another speed (TORM's in GREY MOON never came into view). The layers that
+    carry none of its enemies keep the new level's speeds."""
+    carried = {tyrevents.SPAWN_OFFSET[e["type"]] for e in boss["events"] if e["type"] in tyrevents.SPAWN_OFFSET}
+    ground, top = bool(carried & {25, 75}), 50 in carried
+    end = boss["start"] + max(e["t"] for e in boss["events"])
+    changes = [(0, speed_at(source.events, boss["start"]))] + \
+        [(e["t"] - boss["start"], (e["d1"], e["d2"], e["d3"])) for e in source.events
+         if e["type"] == 2 and boss["start"] <= e["t"] <= end]
+    forced = {e["t"] for e in boss["events"] if e["type"] == 53 and e["d1"] != 99}
+    out, now = [], tuple(level_speeds)
+    for t, speeds in changes:
+        if t > 0 and speeds == (0, 0, 0):
+            new = speeds
+        else:
+            new = (speeds[0] if ground else level_speeds[0], level_speeds[1], speeds[2] if top else level_speeds[2])
+        if new != now:
+            out.append(event(t, 2, *new))
+            if new[0] == 0 and t not in forced:
+                out.append(event(t, 53))
+            now = new
+    return out
+
+
+def boss_jumps(source, boss):
+    """The original's jumps when its boss dies (57: the clock jumps to d1 when a link-254 enemy
+    dies), from just before its block to its end, their targets as far into the block (place()
+    makes them absolute): how BRAINIAC, FLEET and GEM WAR go on (GEM WAR to its second wave, then
+    to the level's end)."""
+    end = boss["start"] + max(e["t"] for e in boss["events"])
+    out = []
+    for e in source.events:
+        if e["type"] == 57 and boss["start"] - 100 <= e["t"] <= end:
+            jump = dict(event(e["t"] - boss["start"], 57, d1=e["d1"]))
+            if e["d1"]:
+                jump["jump"] = e["d1"] - boss["start"]
+            out.append(jump)
+    return out
+
+
+def without_still_tops(source, events, top_speed):
+    """A wave's events without its top enemies that would never come into view: where the new
+    level's layer 3 stands (top_speed 0) the ones that ride it with no move of their own (no y speed
+    in their data or their spawn, no event on their link) stay where they are made, above the
+    screen, and fill the top enemies' 25 slots (SURFACE's pyramids in COLLECTOR: its boss could
+    never be made)."""
+    if top_speed:
+        return events
+    linked = {W.by_link(e) for e in events if e["type"] not in W.SPAWNS} - {None}
+
+    def still(e):
+        if e["type"] not in W.TOP_SPAWNS or e["d1"] not in source.enemies:
+            return False
+        en = source.enemies[e["d1"]]
+        return (not e["d3"] and not e["d6"] and e["d4"] not in linked and
+                not en["ymove"] and not en["ycaccel"] and not en["yaccel"])
+    return [e for e in events if not still(e)]
+
+
+def boss_end(source, boss, start):
+    """Where a level whose boss (placed at start) stops the map ends at the latest: where the
+    original ends after its boss came, if that is later (with the map standing, layer 1 no longer
+    runs out at CLOCK_END; the boss's end-when-clear, 36, ends it once the boss is gone). None when
+    the boss doesn't stop the map."""
+    if not any(e["type"] == 2 and e["d1"] == 0 for e in boss["events"]):
+        return None
+    ends = [e["t"] - boss["start"] for e in source.events if e["type"] == 11 and boss["start"] <= e["t"] < 60000]
+    if not ends:
+        return None
+    # A jump when the boss dies leads to what the original does after it (BRAINIAC's 600 ticks of
+    # stars speeding up, not in the block): the level ends soon after its target instead.
+    targets = [e["jump"] for e in boss["events"] if e["type"] == 57 and "jump" in e]
+    return start + (min(ends[0], max(targets) + 150) if targets else ends[0])
 
 
 def with_small_adjust(events):
