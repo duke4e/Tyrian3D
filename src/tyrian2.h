@@ -66,6 +66,7 @@ void JE_readTextSync(void);
 void JE_displayText(void);
 
 bool JE_searchFor(JE_byte PLType, JE_byte* out_index);
+bool gbc_piece_link(int link);
 void JE_eventSystem(void);
 
 void draw_boss_bar(void);

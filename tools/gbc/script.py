@@ -66,20 +66,19 @@ class Links:
         return self.of.get(group)
 
 
-def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None, sizes=None):
-    """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
-    types: GBC type -> (episode, enemy, parts: 1, 4 for a 4-part enemy (event 12) or a composite's
-    ((enemy, dx, dy), ...), its parts spawned each at its offset) or None (left out); enemies_of(ep) -> that episode's enemy
-    data; ground_of((ep, n)) -> True if the PC enemy stands on the ground; clock(position) -> the PC
-    clock (default 1.5 x the position); sizes: GBC type -> (width, height) of its sprite in GBC pixels,
-    a composite is centred on it (on the block's pieces for a block). Returns the events."""
-    sizes = sizes or {}
-    clock = clock or (lambda p: round(SCALE * p))
-    links = Links()
-    speed = start_speed
-    out = []
+class Translator:
+    """The records' translation, record by record (translate(); the boss's stretch, boss.py): its links and the
+    scroll speed new enemies drift with carried from one to the next. Arguments as translate()'s."""
 
-    def spawn_events(t, rec):
+    def __init__(self, types, enemies_of, ground_of, start_speed=1, sizes=None, links=None):
+        self.types, self.enemies_of, self.ground_of = types, enemies_of, ground_of
+        self.sizes = sizes or {}
+        self.links = links or Links()
+        self.speed = start_speed
+
+    def spawn_events(self, t, rec):
+        types, sizes, links, speed = self.types, self.sizes, self.links, self.speed
+        enemies_of, ground_of = self.enemies_of, self.ground_of
         cmd, a, b, c, g = rec
         pc = types.get(a)
         if pc is None:
@@ -140,15 +139,14 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
                 evs.append(ev(t, 55, 0, 0, 0, 0, 0, link))
         return evs
 
-    def one(i):
-        nonlocal speed
-        rec = records[i]
-        t = clock(positions[i])
+    def one(self, rec, t):
+        """One record's events at clock t."""
+        links = self.links
         cmd, a, b, c, g = rec
         if cmd in (3, 4) or cmd >= 0x28:
-            return spawn_events(t, rec)
+            return self.spawn_events(t, rec)
         if cmd in (0x21, 0x22, 0x23, 0x24):
-            evs = spawn_events(t, [cmd - (0x1e if cmd < 0x23 else 0x20), a, b, c, g])
+            evs = self.spawn_events(t, [cmd - (0x1e if cmd < 0x23 else 0x20), a, b, c, g])
             return [ev(t, 66, 2 if cmd < 0x23 else 1, len(evs))] + evs if evs else []
         link = links.known(g) if g else None
         if cmd in (0x13, 0x1d):
@@ -176,12 +174,24 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
             return [ev(t, 39, link, links.get(a, t))]
         if cmd == 0x02:
             s = 0 if b == 0xff else max(1, round(4 / (b + 1)))
-            speed = s
+            self.speed = s
             # (backgrounds 2 and 3 are empty: at layer 1's speed they last its length; at the usual
             # 2x and 3x they run out of map at clock 8274 and 5516, which the GBC levels pass)
             return [ev(t, 2, s, s, s)]
         return []
 
+
+def translate(records, positions, types, enemies_of, ground_of, start_speed=1, clock=None, sizes=None, translator=None):
+    """records: the GBC records (lists of 5 bytes) in order, positions their trigger positions;
+    types: GBC type -> (episode, enemy, parts: 1, 4 for a 4-part enemy (event 12) or a composite's
+    ((enemy, dx, dy), ...), its parts spawned each at its offset) or None (left out); enemies_of(ep) -> that episode's enemy
+    data; ground_of((ep, n)) -> True if the PC enemy stands on the ground; clock(position) -> the PC
+    clock (default 1.5 x the position); sizes: GBC type -> (width, height) of its sprite in GBC pixels,
+    a composite is centred on it (on the block's pieces for a block); translator: a Translator to go on with (its
+    links and speed; else a new one). Returns the events."""
+    clock = clock or (lambda p: round(SCALE * p))
+    tr = translator or Translator(types, enemies_of, ground_of, start_speed, sizes)
+    out = []
     i = 0
     while i < len(records):
         rec = records[i]
@@ -190,11 +200,11 @@ def translate(records, positions, types, enemies_of, ground_of, start_speed=1, c
             t = clock(positions[i])
             sub = []
             for k in range(i + 1, min(len(records), i + 1 + n)):
-                sub += one(k)
+                sub += tr.one(records[k], clock(positions[k]))
             if sub:
                 out += [ev(t, 66, rec[1], len(sub))] + sub
             i += 1 + n
             continue
-        out += one(i)
+        out += tr.one(rec, clock(positions[i]))
         i += 1
     return out

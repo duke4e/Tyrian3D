@@ -391,6 +391,39 @@ static void smoulder(unsigned int i, float x, float y, bool large)
 	             1 - since / SMOULDER_FRAMES);
 }
 
+// Tyrian3D: the GBC bosses' pieces (episode 7, tools/gbc/boss.py) are on links of their own: one shot down or rammed
+// goes alone (and no other turns damaged with it), as the GBC's pieces do, each with its own hit points; their link
+// still moves them all, and the level's end waits for it to be empty.
+bool gbc_piece_link(int link)
+{
+	return episodeNum == EPISODE_GBC && link >= 101 && link <= 120;
+}
+
+// Tyrian3D: the GBC game's enemy table holds 17 (at $c192), and an enemy launched with it full doesn't come: in
+// episode 7 a launch waits for fewer than that alive (WARP's boss launches every few frames; on the GBC eight of its
+// orbs fly at once, here they filled the screen).
+#define GBC_ENEMY_MAX 17
+static bool gbc_enemies_full(void)
+{
+	if (episodeNum != EPISODE_GBC)
+		return false;
+	int alive = 0;
+	for (int i = 0; i < 100; i++)
+		alive += enemyAvail[i] == 0;
+	return alive >= GBC_ENEMY_MAX;
+}
+
+// Tyrian3D: and its enemy shots' table holds 10 (at $c37f): a GBC boss's piece fires only while fewer fly (OASIS's
+// tank fires a shot a frame in its bursts, which the GBC's table holds to a few at once).
+#define GBC_SHOT_MAX 10
+static bool gbc_shots_full(void)
+{
+	int flying = 0;
+	for (int i = 0; i < ENEMY_SHOT_MAX; i++)
+		flying += enemyShotAvail[i] == 0;
+	return flying >= GBC_SHOT_MAX;
+}
+
 // Tyrian3D: episode 7's enemies fly the GBC game's paths, not the PC originals' their models face for (down the
 // screen, the way the originals fly them): in the sky one that moves turns from that heading to where it goes.
 // Not the pieces of one object (models drawn at their origin, or other enemies' sprites made with it at its
@@ -1465,7 +1498,7 @@ enemy_still_exists:
 									if (enemyShotAvail[b] == 1)
 										break;
 								}
-								if (b == ENEMY_SHOT_MAX)
+								if (b == ENEMY_SHOT_MAX || (gbc_piece_link(enemy[i].linknum) && gbc_shots_full()))
 									goto draw_enemy_end;
 
 								enemyShotAvail[b] = !enemyShotAvail[b];
@@ -1589,7 +1622,7 @@ enemy_still_exists:
 						enemy[i].aniactive = 1;
 					}
 
-					if (enemy[i].launchtype == 0)
+					if (enemy[i].launchtype == 0 || gbc_enemies_full())
 						goto draw_enemy_end;
 
 					tempW = enemy[i].launchtype;
@@ -2674,7 +2707,7 @@ level_loop:
 										if (
 										     (temp3 == b) ||
 										     (
-										       (temp != 255) &&
+										       (temp != 255) && !gbc_piece_link(temp) &&
 										       (
 										         ((enemy[temp3].edlevel > 0) && (linknum == temp)) ||
 										         (
@@ -2741,7 +2774,7 @@ level_loop:
 								{
 									temp3 = enemy[temp2].linknum;
 									if ((temp2 == b) || (temp == 254) ||
-									    ((temp != 255) && ((temp == temp3) || (temp - 100 == temp3) ||
+									    ((temp != 255) && !gbc_piece_link(temp) && ((temp == temp3) || (temp - 100 == temp3) ||
 									                       ((temp3 > 40) && (temp3 / 20 == temp / 20) && (temp3 <= temp)))))
 									{
 

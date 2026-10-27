@@ -299,9 +299,11 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	// so that enemies live to be looked at). Timed by frames, so runs started with TYR3D_START repeat
 	// exactly (see dev_start_game).
 	const double t = frame / 35.0;
-	// (Across the wide playfield's 16-288 when it is on.)
-	const int target_x = l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
-	const int target_y = 140 + (int)(25 * SDL_sin(t * 0.37));
+	// (Across the wide playfield's 16-288 when it is on. TYR3D_AUTOPILOT=park: held in the bottom left corner,
+	// never firing, as tools/gbc/boss_rom.py flies the GBC's bosses: out of their way, so they live their loops.)
+	const bool park = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "park") == 0;
+	const int target_x = park ? 0 : l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
+	const int target_y = park ? 999 : 140 + (int)(25 * SDL_sin(t * 0.37));
 
 	if (x < target_x - speed)
 		*dx += speed;
@@ -312,7 +314,7 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	else if (y > target_y + speed)
 		*dy -= speed;
 
-	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0;
+	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0 && !park;
 }
 
 /*

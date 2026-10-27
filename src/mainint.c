@@ -58,6 +58,7 @@
 #include "settings3d.h"
 #include "sndmast.h"
 #include "sprite.h"
+#include "tyrian2.h"
 #include "varz.h"
 #include "vga256d.h"
 #include "video.h"
@@ -6500,7 +6501,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							{
 								temp3 = enemy[temp2].linknum;
 								if (temp2 == b ||
-									(temp != 255 &&
+									(temp != 255 && !gbc_piece_link(temp) &&
 									 (temp == temp3 || temp - 100 == temp3 ||
 									  (temp3 > 40 && temp3 / 20 == temp / 20 && temp3 <= temp))))
 								{

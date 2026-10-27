@@ -341,11 +341,12 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   1.5 PC pixels, its scroll of a pixel every 4 frames the PC's 1 px a tick); the GBC enemies move
   with the map, so sky ones get the scroll as fixedmovey. Backgrounds 2 and 3 (empty) scroll with
   layer 1 (at the usual 2x and 3x they run out of map at clock 8274 and 5516, which these levels
-  pass). The GBC boss (whose script runs from RAM) is the original level's boss, or a related
-  level's where the original has none, placed as episode 6 places them, with all its sprite sheets;
-  an event 11 ends the level if the boss is never destroyed (as the originals have one near 8100;
-  after the boss block's last event where that runs longer). What the GBC script does past its map's
-  top (while its boss arena loops) is pressed into the time before the boss (at most clock 7000). Every GBC type is a PC enemy: the best candidate on the level's
+  pass). The GBC boss is the script's last stretch (`boss.py`, below); the five levels with none in the GBC
+  game (DELICORE, AST.BONUS, LAVA I, BUBBLES, FINALE) get the original level's boss (or a related level's),
+  placed as episode 6 places them, with all its sprite sheets, and an event 11 ends the level if it is never
+  destroyed (as the originals have one near 8100; after the boss block's last event where that runs longer).
+  What the GBC script does past its map's top is pressed into the time before the boss (at most clock 7000).
+  Every GBC type is a PC enemy: the best candidate on the level's
   sheets (4-part ones as event 12 blocks, a composite's parts each spawned at its offset, centred on
   the GBC enemy, in its link). A GBC block record is the pieces of one big enemy (seen in the GBC
   game: two columns one robot, a bunker, SAVARA's airship of eight, a stalactite of three; never a
@@ -355,7 +356,7 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   type PIECE), so the ship isn't made two or three times on top of itself (LAVA II's rocks, DELI's
   ships, OASIS's bunkers). `episode.py` names the spawns it leaves out (types never seen
   in the flight, or with no candidate on the level's sheets) and the pieces merged.
-* The boss fight (`build.py` `boss_fight`, which places the boss itself): the boss is the original
+* The boss fight of the levels without a GBC boss (`build.py` `boss_fight`, which places the boss itself): the boss is the original
   level's (or a related one's), its block taken from the spawns of its last boss bar's links (from 400
   before the bar: those links make ordinary enemies all through some levels, DELIANI's, LAVA EXIT's,
   and the block ran on for thousands of ticks), with the moves of a layer's or all enemies over it
@@ -415,16 +416,87 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   has no shield, repair, magnet or cold sidekick: the nearest in use); the rear guns and armour stay the
   originals' shops' (from episode 1's first to episode 4's, spread over the episode). The Arcade-only
   levels and FINALE take the offer before them.
-* `bosses.py`: the GBC levels' own bosses are code (the script ends with command 06 and 01; the level
-  dispatcher with level + 100 runs the boss), so each level is flown from its script's end and the
-  boss's look taken (the largest cluster of sprites on screen, `data/gbc/bosses/Lnn_boss.png`, with the
-  screens) beside the PC bosses' bodies (every original level's). They are mostly the PC's made small,
-  often another level's: TYRIAN's is ASSASSIN's, ASTEROID's and OASIS's ASTEROID2's tank, SPACE's ICE
-  EXIT's claws, SAVARA's SAVARA V's airship, SAVARA II's SAVARA's red fortress, ASTEROID2's ASTEROID1's
-  dome, ICE EXIT's and DELI CORE's DREAD-NOT's skull, DELIANI's DELIANI's claw ship (`episode.py`
-  LEVELS boss=, picked by eye; JUNGLE's TORM, CAMANIS's, TUNNEL's IXMUCANE and DESERT's SURFACE are
-  their originals'). LAVA I, JUNGLE II and the Arcade-only DELICORE and BUBBLES have no boss in the GBC
-  game; FINALE's flight ends with its script. Their behaviour is the PC boss's own script.
+* `bosses.py`: each level is flown from its script's end and the boss's look taken (the largest cluster of
+  sprites on screen, `data/gbc/bosses/Lnn_boss.png`, with the screens) beside the PC bosses' bodies (every
+  original level's). They are mostly the PC's made small, often another level's: TYRIAN's is ASSASSIN's,
+  ASTEROID's and OASIS's ASTEROID2's tank, SPACE's ICE EXIT's claws, SAVARA's SAVARA V's airship, SAVARA
+  II's SAVARA's red fortress, ASTEROID2's ASTEROID1's dome, ICE EXIT's and DELI CORE's DREAD-NOT's skull,
+  DELIANI's DELIANI's claw ship (`episode.py` LEVELS boss=, picked by eye; JUNGLE's and JUNGLE II's TORM,
+  CAMANIS's, FLEET's, TUNNEL's IXMUCANE, LAVA II's CORE and DESERT's SURFACE are their originals').
+* The GBC bosses' behaviour (`boss_rom.py`, `boss.py`; the user: translate their movement and attacks from
+  the ROM as faithfully as possible). A GBC boss is no code of its own: it is enemies of the level's type
+  table spawned by the script and steered by it as the other enemies are, the script's last stretch run as a
+  loop. Its interpreter (bank 0 `$2741`-`$2828`, the per-enemy update `$1160`-`$12e3`, the fire routine `$054d`,
+  the spawn `$2ca8`) gives the commands: 02's third byte stops the map while the clock runs on (from the boss
+  on); 06 sets the clock back (the loop: the records from its position run again); 05 (end, ., ., group) ends
+  the level once no enemy of the group is left (255: none at all), every enemy taken off first (`$2b79`,
+  `$0a9d`); 0e (gun, frames, filter, group) sets a group's gun and how often it fires (ff: those whose gun is
+  the filter); 0a a group's hit points; 1d its speed and fire interval; 13 with 99 steers towards the ship (a
+  step every 10 frames). The level's tables (pointers set by its init): types at `$c453`, 10 bytes (hit points
+  for Normal, Easy half, Hard 1.5x, 255 can't be hurt, 0 dies at the first hit; start speed, 99 towards the
+  ship; gun; interval; sprite tile), guns at `$c451`, 7 bytes from gun 1 (sprite, damage plus the difficulty
+  minus 1, 99 when the next gun fires with it, speed in pixels a frame or 99 aimed at 3 pixels a frame along x
+  and y together, where from); guns 20 and up launch an enemy of type gun - 20. At most 10 enemy shots fly
+  at once and 17 enemies live (its tables at `$c37f`, `$c192`; WARP's and ASTEROID2's bosses launch at the
+  17, OASIS's tank fires a shot a frame into the 10): in episode 7 a GBC boss's piece fires only while fewer
+  than 10 enemy shots fly, and a launch waits for fewer than 17 enemies (`tyrian2.c` `gbc_shots_full`,
+  `gbc_enemies_full`; WARP's orbs filled the screen). GBC enemies move on the screen by their own speeds (half pixels a frame), and with the map only those
+  command 03 or an even block command makes (`$2ca8`'s flag, `$20b8`); they leave when off it (x from -36 to
+  190, y from -36 to 160). `boss_rom.py` reads all that for each level whose
+  script ends in a loop (19 of them) into `data/gbc/bosses/rom.json`: the stretch, the loop, the end, the
+  boss's groups (the one its end waits for and those spawned with it, or right after it: TYRIAN's claws,
+  DESERT's turrets, JUNGLE II's body after its head), their types and guns, and a flight from the boss on
+  (Normal, the ship kept in a corner, never firing: each group's place every 4 frames, the shots fired, the
+  loops; the enemies the pieces launch, matched to PC enemies by look as `enemies.py` does).
+  `boss.py` makes the stretch PC events (`script.Translator`, the main script's) and what only the boss does:
+  each piece one PC enemy of its own (a block's 16-px pieces each; episode 7's record, `build.py`
+  `boss_enemy`) at the GBC piece's place, drawn as the PC boss's part nearest that place in its body (both
+  boxes 0-1; `boss_overrides.json` by eye, `boss_review.py` draws `Lnn_pieces.png` to check), in the sky
+  (the PC parts that stand on the ground in their originals too; one drawn damaged from the start, dani < 0,
+  loses that flag, which in the PC keeps it from firing: ASTEROID2's tank, ASTEROID's and OASIS's boss, was
+  silent), drifting with the map as the GBC's does,
+  with the GBC piece's hit
+  points as its armour (1:1: the PC's and the GBC's first guns do 2 a shot), its start speed, its guns
+  (each GBC gun with the ones chained to it one PC weapon, `build.py` `gbc_weapon`: the shots' speeds 4x, at
+  most 18 px a tick, faster ones would pass by the ship between ticks; aimed ones at the PC's aim 9; the
+  same damage; from where the GBC's come), what it launches, the PC part's worth; 0e and 1d's interval event
+  31 (a link's three guns' frequencies: a group's three most used guns), 0a event 25, homing event 55, 02's
+  stop the map stopped (2), forced events (53) and every enemy's drift stopped (19), the loop event 54 back
+  to its first event (when it starts before the map stops, a copy of it after the first time, timed as the
+  stopped map's; its clock from the last record before it at the rate then, as the stopped map's rate can
+  change after the stop: DELIANI's loop ran its speed record again each time round and drifted off the
+  screen; the jump after whatever else falls on its tick: a speed rounded onto it was lost, ICE EXIT's boss
+  went 104 px a loop), the end event 70 every 6 ticks (a jump to the end once the group's link is empty; 255: the
+  boss's links) where every enemy is taken off (41) and the level ends (11). The clock: a position 1.5 ticks
+  while the map moves, (b + 1) x 0.375 after a 02 that stops it (a step every b + 1 frames). A group's
+  pieces share a link of 101-120: in the PC an enemy shot down or rammed takes every enemy of its link with
+  it, the GBC's pieces go one by one, each with its own hit points, so in episode 7 a piece on those links
+  goes alone (`tyrian2.c` `gbc_piece_link`, also in `mainint.c`'s ramming; nor does it turn the others
+  damaged); the link still moves them all and the end waits for it. Pieces that can't be hurt in the group
+  the end waits for (CAMANIS's middle one: the GBC level can never end) get a link of their own that does
+  what the group does, the end not waiting for them. A group's speeds are the GBC's own (`gbc_speeds`, as its
+  mover changes them, `$2109`: every |c| frames a step of a unit, the counter starting at |c|, a negative c's
+  at |c| - 1, the turn at a bound that isn't 0, speeds bytes that wrap; checked frame by frame against the
+  emulator), each change an event 19 at its time: the PC's own steps (20) are half a unit at whole ticks, and
+  the zig-zags came out off (SAVARA's boss went 104 px a loop). The PC's whole ticks and the GBC's half pixels
+  (odd speeds move a pixel on alternate frames) still part the ways a little, and a loop repeats that
+  (TYRIAN's boss rose 18 px a loop, out of the screen): each group's way over its first pass and over a loop
+  is simulated as the engine moves enemies (its clock at the map's speed, a tick a tick when forced) and
+  made the GBC's (the flight's, frame by frame: each loop's way) by a nudge while its speed is steady
+  (`corrections`). So each boss goes as the GBC's does, the GBC's own slow drifts too (DESERT's right turret
+  rises 16 GBC px a loop, TUNNEL's boss sinks 6-7). Groups steered towards the ship, or whose steps go on
+  through the loops (ASTEROID's, OASIS's, WARP's, DELIANI's zig-zags between bounds), keep the PC's own steps
+  (20, 27); but where the loop runs again from before their spawn (JUNGLE II's: the whole level) they keep the
+  GBC's, carried on through the replay, its records steering them as the GBC's do (the PC's steps, without
+  the GBC's bounds, took the boss off the screen in seconds): after about 560 ticks its boss flies off and
+  the GBC's level ends (the flight: 71 frames into the replay), so the replay is cut 100 ticks after that,
+  where the level ends. The other enemies of the boss's stretch (its waves) move at their types' start speeds, and with
+  the map only those 03 or an even block command makes (the main script's start still and drift with it:
+  with the map stopped they stood at the top of the screen). The levels with no GBC boss keep
+  the original's (`boss_fight`, above). The free weapon numbers are few (enemies name their guns by a byte),
+  so the GBC guns are made first and the same gun of two levels is one weapon, and a brought-in enemy's gun
+  it never fires (frequency 0) stays episode 5's of its number unless an event 31 of its level may turn it
+  on.
 
 Its 3D view's assets are made as episode 6's (`tools/content/gbc/terrain.py`, with the game built):
 each level's maps are exported and their side columns written, the export marked episode 7 (several
@@ -444,8 +516,8 @@ levels and the item data): the table of a level file's entries holds 100 now (`l
 42, and a longer file overran it). A background whose pointer runs past its map's top (a long level
 at the layer's speed) draws nothing there (`backgrnd.c`) rather than reading outside the map. `TYR3D_START=7:<section>` starts
 one of its levels (the levels are the even sections, 2-48). Stages 1-5 of the plan: the maps, shops,
-songs, enemies, bosses, story and the 3D terrain, and the enemies checked by eye; next: the GBC's own
-bosses.
+songs, enemies, bosses, story and the 3D terrain, and the enemies checked by eye; the GBC's own bosses'
+behaviour translated from the ROM (2026-10-27).
 
 The GBC's big ships are mostly the PC's made smaller: SAVARA II's red bomber is SAVARA's of seven parts
 (1:302-308), the DELI levels' red claws DELIANI's claw ship of twelve (1:400-411; the GBC makes it of two
@@ -561,7 +633,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level) |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
-| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
+| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
 | `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |

@@ -67,6 +67,12 @@ NEW_ENEMIES = json.load(open(os.path.join(HERE, "new_enemies.json")))
 NEW_SHEET = 37
 
 
+# The PC enemy shots the GBC guns' shots are drawn as (sprite numbers of the enemy shots' sheet): an aimed one the
+# round two-frame shot most PC enemies aim with; fast straight ones (12 PC px a tick and more) the long one; slower
+# ones the small ball.
+GBC_SHOT_SPRITE = {"aimed": 112, "fast": 70, "slow": 146}
+
+
 class Importer(enemydata.Importer):
     """Episode 6's importer, but when the item data has no free weapon slot left, a brought-in
     enemy's gun is episode 5's of that number (the episodes' guns of a number are mostly alike); and
@@ -82,7 +88,87 @@ class Importer(enemydata.Importer):
     def enemy(self, episode, number):
         if episode == "gbc":
             return self.new_enemy(number)
+        if episode == "boss":
+            return self.boss_enemy(number)
         return super().enemy(episode, number)
+
+    # The GBC bosses' pieces (tools/gbc/boss.py: the level's gbc_boss): a record each, the PC boss part's whose looks
+    # it takes (its sprites, explosion, worth, what it leaves) with the GBC piece's armour, start speed, guns and
+    # launches (the level's events move it on: the GBC script's); level_boss is the level being written.
+    level_boss = None
+    level_slug = None
+    overridden = frozenset()  # (episode, enemy) whose guns an event 31 (fire override) may turn on: all brought in
+
+    def boss_enemy(self, index):
+        key = ("boss", self.level_slug, index)
+        if key in self.enemy_map:
+            return self.enemy_map[key]
+        spec = self.level_boss["records"][index - 1]
+        new = self.free_enemies.pop(0)
+        self.enemy_map[key] = new
+        base_ep, base = spec["base"] or (5, 1)
+        # (the part's record without its own guns, which it doesn't fire: they'd take weapon numbers; what it leaves
+        # when shot down comes with it)
+        record = bytearray(self._enemy_record(base_ep, base))
+        die = struct.unpack_from("<H", record, 75)[0]
+        if 0 < die <= tyrdata.ENEMY_NUM:
+            struct.pack_into("<H", record, 75, self.enemy(base_ep, die))
+        at = self.enemies[new]
+        self.data[at:at + enemydata.ENEMY_SIZE] = record
+        for k in range(3):
+            gun = spec["tur"][k]
+            self.data[at + 1 + k] = self.gbc_weapon(gun) if gun else 0
+            self.data[at + 4 + k] = min(255, spec["freq"][k])
+        # xmove, ymove (its start speed), xaccel, yaccel (towards the ship), xcaccel, ycaccel
+        struct.pack_into("<bbbb", self.data, at + 7, *spec.get("move", [0, 0]), *spec.get("accel", [0, 0]))
+        self.data[at + 11:at + 13] = bytes(2)
+        self.data[at + 17:at + 19] = bytes(2)          # startxc, startyc
+        self.data[at + 19] = spec["armor"]
+        self.data[at + 64:at + 66] = bytes(2)          # xrev, yrev: no turning till the events give it
+        # (a part drawn damaged from the start, dani < 0, never fires: ASTEROID2's tank, ASTEROID's and OASIS's
+        # boss, kept silent; its look stays, the damaged flag goes)
+        if struct.unpack_from("<b", self.data, at + 69)[0] < 0:
+            self.data[at + 69] = 0
+        launch = spec.get("launch")
+        self.data[at + 70] = min(255, spec.get("launchfreq", 0)) if launch else 0
+        struct.pack_into("<H", self.data, at + 71, self.enemy(*launch) if launch else 0)
+        return new
+
+    def gbc_weapon(self, key, spec=None):
+        """A GBC gun (boss.py gun_weapon) as a weapon of the episode: its shots at their speeds, from their places, the
+        PC's enemy shots that look most like the GBC's (aimed: the round one); the same gun of another level the same
+        weapon. (main() makes them all first: the free weapon numbers are few.)"""
+        if key in self.weapon_map:
+            return self.weapon_map[key]
+        spec = spec or self.level_boss["guns"][key]
+        content = json.dumps(spec, sort_keys=True)
+        if content in self.weapon_content:
+            self.weapon_map[key] = self.weapon_content[content]
+            return self.weapon_map[key]
+        assert self.free_weapons, "no free weapon slot for a GBC gun"
+        new = self.free_weapons.pop()  # (the highest: chain targets must be below 150)
+        self.weapon_map[key] = self.weapon_content[content] = new
+        shots = spec["shots"]
+        rec = bytearray(enemydata.WEAPON_SIZE)
+        rec[3] = spec["multi"]
+        rec[6] = spec["max"]
+        rec[9] = spec["aim"]
+        aimed = spec["aim"] > 0
+        for k, sh in enumerate(shots[:8]):
+            rec[10 + k] = min(255, sh["attack"])
+            rec[18 + k] = 255                                  # del: till it leaves the screen
+            struct.pack_into("<b", rec, 26 + k, max(-128, min(127, sh["sx"])))
+            struct.pack_into("<b", rec, 34 + k, max(-128, min(127, sh["sy"])))
+            struct.pack_into("<b", rec, 42 + k, max(-128, min(127, sh["bx"])))
+            struct.pack_into("<b", rec, 50 + k, max(-128, min(127, sh["by"])))
+            struct.pack_into("<H", rec, 58 + 2 * k, GBC_SHOT_SPRITE["aimed" if aimed else
+                                                                     "fast" if abs(sh["sy"]) >= 12 or abs(sh["sx"]) >= 12 else "slow"])
+        if aimed:
+            struct.pack_into("<H", rec, 4, 2)                  # weapani: the round shot's two frames
+        rec[77] = 13 if aimed else 6                           # sound
+        rec[78] = 255                                          # trail: none
+        self.data[self.weapons[new]:self.weapons[new] + enemydata.WEAPON_SIZE] = rec
+        return new
 
     def new_enemy(self, index):
         """One of episode 7's own enemies (its parts in consecutive slots, as event 12 takes them): its base's
@@ -110,7 +196,23 @@ class Importer(enemydata.Importer):
         self.enemy_map[("gbc", name)] = block[0]
         return block[0]
 
+    def _fill(self, episode, number, new):
+        """As episode 6's, but a gun the enemy never fires (its frequency 0: only an event 31 would make it) stays episode
+        5's gun of its number: the free weapon numbers are few (the GBC bosses' guns take some)."""
+        record = self._enemy_record(episode, number)
+        if (episode, number) in self.overridden:
+            return super()._fill(episode, number, new)
+        fired = {record[1 + k] for k in range(3) if record[4 + k]}
+        idle = {record[1 + k] for k in range(3) if not record[4 + k] and 0 < record[1 + k] < 252} - fired
+        self._idle = getattr(self, "_idle", []) + [idle]
+        try:
+            super()._fill(episode, number, new)
+        finally:
+            self._idle.pop()
+
     def weapon(self, episode, number, chain=False):
+        if not chain and getattr(self, "_idle", None) and number in self._idle[-1]:
+            return number
         try:
             return super().weapon(episode, number, chain)
         except AssertionError:
@@ -460,11 +562,23 @@ def main():
         for e in level["events"]:
             if e["type"] in ENEMY_D1 and "ep" in e and e["d1"] > 0:
                 for k in range(4 if e["type"] == 12 else 1):
-                    if e["ep"] != "gbc" and (e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k)):
+                    if e["ep"] not in ("gbc", "boss") and (e["ep"] == 5 or probe._same_enemy(e["ep"], e["d1"] + k)):
                         kept.add(e["d1"] + k)
     importer = Importer(kept)
+    overridden = set()
+    for level in levels:
+        links = {e["d4"] for e in level["events"] if e["type"] == 31}
+        overridden |= {(e["ep"], e["d1"] + k) for e in level["events"]
+                       if e["type"] in ENEMY_D1 and "ep" in e and e["d1"] > 0 and (99 in links or e["d4"] in links)
+                       for k in range(4 if e["type"] == 12 else 1)}
+    importer.overridden = frozenset(overridden)
+    # (the GBC bosses' guns first: the free weapon numbers are few)
+    for level in levels:
+        for key, spec in (level.get("gbc_boss") or {}).get("guns", {}).items():
+            importer.gbc_weapon(key, spec)
     entries = []
     for level in levels:
+        importer.level_boss, importer.level_slug = level.get("gbc_boss"), level["name"]
         entries += level_entries(level, importer)
     entries.append(bytes(importer.data))
     tf.write_level_file(os.path.join(OUT, "tyrian7.lvl"), entries)

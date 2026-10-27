@@ -59,12 +59,37 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 
 ## Šefovi, trgovina i načini igre (2026-10-26)
 
-- Šefovi: GBC šefovi su kod (skripta završava naredbom 06); `tools/gbc/bosses.py` snima kako izgledaju i
-  stavlja ih uz tijela PC šefova. Većinom su umanjeni PC šefovi drugih levela, pa leveli dobivaju te
-  (TYRIAN: ASSASSIN, ASTEROID i OASIS: ASTEROID2-ov tenk, SPACE: ICE EXIT-ova kliješta, SAVARA: zračni
-  brod SAVARA V, SAVARA II: crvena tvrđava SAVARA, ASTEROID2: kupola ASTEROID1, ICE EXIT i DELI CORE: lubanja
-  DREAD-NOT, DELIANI: brod s kliještima DELIANI). Ponašanje je skripta PC šefa (GBC-ov kod šefa nije
-  preveden u događaje: isti su šefovi, a PC skripte su potpune).
+- Šefovi: `tools/gbc/bosses.py` snima kako izgledaju i stavlja ih uz tijela PC šefova. Većinom su
+  umanjeni PC šefovi drugih levela, pa leveli dobivaju njihove sprajtove (TYRIAN: ASSASSIN, ASTEROID i
+  OASIS: ASTEROID2-ov tenk, SPACE: ICE EXIT-ova kliješta, SAVARA: zračni brod SAVARA V, SAVARA II: crvena
+  tvrđava SAVARA, ASTEROID2: kupola ASTEROID1, ICE EXIT i DELI CORE: lubanja DREAD-NOT, DELIANI: brod s
+  kliještima DELIANI).
+
+## GBC ponašanje šefova iz ROM-a (2026-10-27, korisnik: kretanje i napadi što vjernije iz ROM-a)
+
+- GBC šef nije zaseban kod: to su neprijatelji iz tablice tipova levela koje skripta stvara i vodi kao i
+  ostale, a zadnji dio skripte se vrti u petlji (naredba 06 vraća sat). Naredbe: 02 s trećim bajtom
+  zaustavlja mapu (sat ide dalje), 05 završava level kad grupa nestane, 0e pušku i ritam paljbe grupe,
+  0a životne bodove, 1d brzinu i ritam, 13 s 99 navođenje prema brodu. Tablice tipova (`$c453`) i pušaka
+  (`$c451`) daju bodove, početne brzine, puške, ritam, metke (brzina, ciljani, šteta, ulančani).
+- `tools/gbc/boss_rom.py` to čita za 19 levela s petljom (`data/gbc/bosses/rom.json`) i leti svakog šefa
+  u emulatoru kao referencu; `tools/gbc/boss.py` to pretvara u PC događaje: svaki GBC komad je PC
+  neprijatelj (sprajt najbližeg dijela PC šefa) s GBC bodovima, početnom brzinom, puškama i lansiranjem;
+  0e -> 31, 0a -> 25, navođenje -> 55, zaustavljanje mape -> 2/53/19, petlja -> 54, kraj -> 70 svakih 6
+  tickova pa 41 i 11. `boss_review.py` crta `Lnn_pieces.png` za provjeru izgleda.
+- Komadi grupe dijele link 101-120; u epizodi 7 komad na tim linkovima pogiba sam (`tyrian2.c`
+  `gbc_piece_link`), jer u PC-u pogođeni neprijatelj ruši cijeli svoj link, a GBC-ovi komadi padaju jedan po
+  jedan. Brzine grupa šefa su GBC-ove (simulacija GBC-ova pomicanja, `$2109`, provjerena okvir po okvir u
+  emulatoru), svaka promjena događaj 19; ostatak razlike (cijeli tickovi, GBC-ovi polupikseli) ispravlja se
+  malim pomakom prema putu iz GBC leta po petlji (TYRIAN-ov šef se dizao 18 px po petlji, SAVARA-in 104).
+- Pet levela bez GBC šefa (DELICORE, AST.BONUS, LAVA I, BUBBLES, FINALE) zadržava PC šefa (`boss_fight`).
+- Provjera snimanjem (brod parkiran u kutu kao u GBC letu, `TYR3D_AUTOPILOT=park`) našla je i ispravila:
+  JUNGLE II (petlja je cijeli level: grupe zadržavaju GBC brzine kroz ponavljanje, šef ~560 tickova kruži
+  pa odleti, kao u GBC-u, i level tada završava; prije su ga PC koraci odnijeli za par sekundi), DELIANI
+  (početak petlje uz promjenu brzine zaustavljene mape: zapis brzine se ponavljao i šef je odlutao),
+  ICE EXIT (brzina zaokružena na tick skoka petlje gubila se: 104 px po petlji), ASTEROID i OASIS (dijelovi
+  ASTEROID2-ova tenka nacrtani oštećeni od starta u PC-u nikad ne pucaju: zastavica maknuta), WARP i
+  ASTEROID2 (GBC drži najviše 17 neprijatelja i 10 metaka: lansiranja i paljba komada to sad poštuju).
 - Trgovina: `tools/gbc/shop.py` čita ponudu GBC trgovine prije svakog levela (18 trgovina); `build.py` je
   preslikava na PC predmete.
 - Načini igre: GBC nema vlastitih pickupova; leveli dobivaju ispuštanja svog originala (ljubičaste kugle,
@@ -72,7 +97,12 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
 
 ## Otvoreno
 
-- GBC-ovi vlastiti bossovi. (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i
+- Obični GBC neprijatelji (provjereno u emulatoru i ROM-u 2026-10-27): miču se svojom početnom brzinom iz
+  tipa (pola piksela po frameu za brzinu 1), a s mapom samo oni koje stvara naredba 03 ili parni blok
+  (04 i neparni blokovi stoje na ekranu). Glavna skripta svima na nebu daje pomak mape i poništava početnu
+  brzinu; šefovi su već ispravni. Za odluku: isto i za obične neprijatelje (mijenja kretanje u svim
+  levelima).
+- (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i
   crvena kliješta DELI levela su PC-ovi brodovi od 7 i 12 dijelova; rudarski toranj ASTEROID2 nema PC
   parnjaka, pa je prvi vlastiti neprijatelj epizode 7: model `gbc_derrick.py`, sprajtovi iz modela u
   listu W, `tools/content/gbc/new_enemies.json`.)
@@ -81,7 +111,7 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   strukturu: ASTEROID-ove rupe, DELICORE-ove zidove, SAVARA II otočiće) i hibrid s četvrtinama (sličan
   sadašnjem, ICE EXIT dobiva redove čahura). Nijedno nije jasno bolje, pa je ostao sadašnji autotile
   (Viterbi po parovima). Stepenice dolaze od malo dijagonalnih tileova u tilesetovima.
-- Svi šefovi provjereni na oko 2026-10-26: ostaju i bore se (vidi TYRIAN3D.md, boss fight).
+- Svi šefovi provjereni na oko 2026-10-26 (PC skripte); 2026-10-27 GBC ponašanje (vidi gore).
 - GBC trgovina: ROM ima svoje nazive (oružja Pulse, Multi, Scatter, Sonic, Vulcan, Mega, Proton, Thunder,
   Fireball, Rail, Chip, Hotdog, L.Ball, Ninja, Banana, Fruit, Pretzel, IcePick, Laser, PowerS, Poison, Hyper,
   Arrow, Gumball, Plasma; brodovi Talon, Micros, Phoenx, Storm, Dragon, Carrot, UShip; generatori, štitovi,
