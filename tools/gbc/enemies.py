@@ -5,10 +5,12 @@ every enemy lives out its path) while its script runs; for every spawn the new e
 are drawn, and each GBC enemy type gets the PC enemy whose sprite looks most like it (the PC sprites,
 made small, are what the GBC game shows: silhouette and shading against the PC atlases in
 upscale/in, at the 1.5x scale; the original level's episode first). Writes data/gbc/enemies/Lnn.json
-(the script as executed at Normal: positions and records; the types and their PC enemies) and a sheet
-of the matches for review.
+(the script as executed at Normal: positions and records; the types and their PC enemies; where the level's
+type and gun tables are, types_at and guns_at: tools/gbc/boss_rom.py reads them) and a sheet of the matches
+for review.
 
-    python tools/gbc/enemies.py [--levels 23,3,...]
+    python tools/gbc/enemies.py [--levels 23,3,...] [--tables]
+(--tables: only the tables' places, into the Lnn.json there are, without flying)
 """
 import argparse
 import json
@@ -82,6 +84,7 @@ def fly(level, frames):
     GBC enemy type, the images of the enemies spawned with it."""
     rom = open(G.ROM, 'rb').read()
     g, bank, init, c = X.start_level(level)
+    types_at, guns_at = tables(g)
     g.write(0xd92a, 2)  # on Hard: its spawns are Normal's and the Hard-only ones (records 21/22, skips 00)
     pos_list, rec_list = c['events_pos'], c['events']
     executed, types, pending = [], {}, []
@@ -131,7 +134,14 @@ def fly(level, frames):
                         pd['left'] = 0
                 pd['left'] -= 1
             pending[:] = [pd for pd in pending if pd['left'] > 0]
-    return dict(bank=bank, events_pos=pos_list, events=rec_list, executed=executed, types=types)
+    return dict(bank=bank, events_pos=pos_list, events=rec_list, executed=executed, types=types,
+                types_at=types_at, guns_at=guns_at)
+
+
+def tables(g):
+    """Where the level's enemy types ($c453: 10 bytes each) and guns ($c451) are, its init having set them."""
+    w = lambda a: g.read(a) | g.read(a + 1) << 8
+    return w(0xc453), w(0xc451)
 
 
 def atlas():
@@ -348,7 +358,16 @@ def main():
     ap.add_argument('--levels', default=','.join(str(i) for i in range(1, 25)))
     ap.add_argument('--frames', type=int, default=30000)
     ap.add_argument('--match', action='store_true', help='match the types again from the last flight')
+    ap.add_argument('--tables', action='store_true', help="only the type and gun tables' places, no flight")
     a = ap.parse_args()
+    if a.tables:
+        for level in [int(x) for x in a.levels.split(',')]:
+            path = os.path.join(OUT, f'L{level:02d}.json')
+            d = json.load(open(path))
+            d['types_at'], d['guns_at'] = tables(X.start_level(level)[0])
+            json.dump(d, open(path, 'w'))
+            print(f"L{level:02d}: types at {d['types_at']:04x}, guns at {d['guns_at']:04x}")
+        return
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import episode as E
     spec_of = {s['gbc']: s for s in E.LEVELS}
@@ -390,7 +409,8 @@ def main():
             for k, fr in enumerate(frames[1:], 1):
                 Image.fromarray(fr).save(os.path.join(OUT, f'L{level:02d}_type{t:02x}_{k}.png'))
         json.dump(dict(level=level, bank=run['bank'], events_pos=run['events_pos'], events=run['events'],
-                       executed=run['executed'], types=types), open(os.path.join(OUT, f'L{level:02d}.json'), 'w'))
+                       executed=run['executed'], types=types, types_at=run.get('types_at', old.get('types_at') if a.match else None),
+                       guns_at=run.get('guns_at', old.get('guns_at') if a.match else None)), open(os.path.join(OUT, f'L{level:02d}.json'), 'w'))
         review(level, sheet, matcher)
         print(f'L{level:02d}: {len(run["executed"])} records run, {len(types)} enemy types')
 

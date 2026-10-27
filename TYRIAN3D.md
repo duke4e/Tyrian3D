@@ -338,8 +338,27 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   turning at the third byte, as the PC's) events 20 and 27, its acceleration (16) event 20, turn
   speeds (15) event 27, a group's new group (0b) event 39, the scroll (02) event 2, the difficulty
   skip (00) event 66. A GBC frame is 0.375 PC ticks and a speed unit 2 PC px a tick (a GBC pixel is
-  1.5 PC pixels, its scroll of a pixel every 4 frames the PC's 1 px a tick); the GBC enemies move
-  with the map, so sky ones get the scroll as fixedmovey. Backgrounds 2 and 3 (empty) scroll with
+  1.5 PC pixels, its scroll of a pixel every 4 frames the PC's 1 px a tick). A GBC enemy moves as the
+  ROM moves it (the spawn `$2ca8`, the mover `$20b8`, command 13 at `$289c`): from its type's start speed
+  (the type table's bytes 3 and 4, half pixels a frame; 99 steers it towards the ship), and with the map
+  (a pixel each time it scrolls) only when command 03 or an even block command made it (04, odd blocks and
+  the Hard and Normal ones, 21-24, whose flag `$26f3` works out as 4 minus the command,
+  stay where they are on the screen but for their own speed: about a third of the scripts' spawns); 13 with 99 steers
+  that way towards the ship, without it steering stops. So each spawn gets its start speed's y as its own
+  (the spawn event's speed, which makes up for the PC enemy's: per enemy, which the 3D view's look ahead
+  and forecasts take), its x, the PC enemy's steps and steering undone and the steering towards the ship
+  by its link as it is made (a group's older enemies that a 13 sent elsewhere change with it: 64 of the
+  4,660 spawns); sky ones the map carries the scroll as fixedmovey (again at each new scroll speed, for links
+  made in the last 900 ticks), the others none; ground ones (the ground scrolls them) the GBC doesn't carry
+  get the scroll taken off their speeds (the spawn's and their 13s'). The level's type table's place
+  comes from its init (`enemies.py --tables`, into `Lnn.json`). `moves.py` checks it: it flies the GBC
+  level (the ship parked as `boss_rom.py` parks it) following each enemy from its spawn, reads the PC
+  level's from `TYR3D_LOG_MOVES`, and sets each spawn's speeds over its first 15 ticks side by side
+  (2026-10-27, TYRIAN, ASTEROID, OASIS, SPACE ATK, DELICORE: 284 of the 293 spawns it could pair move
+  within a pixel a tick of the GBC's; the rest the steering towards the ship, whose GBC step, a speed
+  unit every 10 frames with no top speed, the PC's 55 only comes near, and a zig-zag's first steps).
+  Where the GBC scrolls a pixel every 3 frames the PC map's whole pixel a tick is a quarter slower,
+  so carried enemies drift that much slower too. Backgrounds 2 and 3 (empty) scroll with
   layer 1 (at the usual 2x and 3x they run out of map at clock 8274 and 5516, which these levels
   pass). The GBC boss is the script's last stretch (`boss.py`, below); the five levels with none in the GBC
   game (DELICORE, AST.BONUS, LAVA I, BUBBLES, FINALE) get the original level's boss (or a related level's),
@@ -490,9 +509,9 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   GBC's, carried on through the replay, its records steering them as the GBC's do (the PC's steps, without
   the GBC's bounds, took the boss off the screen in seconds): after about 560 ticks its boss flies off and
   the GBC's level ends (the flight: 71 frames into the replay), so the replay is cut 100 ticks after that,
-  where the level ends. The other enemies of the boss's stretch (its waves) move at their types' start speeds, and with
-  the map only those 03 or an even block command makes (the main script's start still and drift with it:
-  with the map stopped they stood at the top of the screen). The levels with no GBC boss keep
+  where the level ends. The other enemies of the boss's stretch (its waves) are made as the main script makes
+  them (at their types' start speeds, with the map only those 03 or an even block command makes). The levels
+  with no GBC boss keep
   the original's (`boss_fight`, above). The free weapon numbers are few (enemies name their guns by a byte),
   so the GBC guns are made first and the same gun of two levels is one weapon, and a brought-in enemy's gun
   it never fires (frequency 0) stays episode 5's of its number unless an event 31 of its level may turn it
@@ -711,6 +730,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
 | `TYR3D_LAYER_PARALLAX=1` | Show the layers' planes unscaled (positions on different layers no longer line up as in the game) |
 | `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming |
+| `TYR3D_LOG_MOVES=1` | Print every enemy each tick (clock, slot, enemy, place, speed and what carries it, steering, link): `tools/gbc/moves.py` sets episode 7's paths against the GBC's |
 | `TYR3D_AA=<0..3>` | Anti-aliasing: 0 off, 1 SMAA low, 2 SMAA high (default), 3 FXAA |
 | `TYR3D_LOG_CLOUDS=1` | Print which tiles of backgrounds 2 and 3 are shown as cloud puffs, and each cloud canvas's height and the ground under it |
 | `TYR3D_TERRAIN=0` | Leave out the terrain from assets (the ground flat or with per-tile relief, backgrounds 2 and 3 flat) |

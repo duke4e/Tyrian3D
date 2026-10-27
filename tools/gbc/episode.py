@@ -570,7 +570,11 @@ def enemies(spec, look):
     for name in NEW_ENEMIES:
         ground[("gbc", sorted(NEW_ENEMIES).index(name) + 1)] = NEW_ENEMIES[name]["layer"] == "ground"
     records, merged = pieces(records, positions, sizes)
-    tr = script.Translator(types, enemies_of, lambda k_: ground.get(k_[:2], False), sizes=sizes)
+    # the types' start speeds (the type table's bytes 3 and 4: script.py; its place from enemies.py --tables)
+    if 'types_at' not in d:
+        raise SystemExit(f"L{spec['gbc']:02d}.json: no types_at (tools/gbc/enemies.py --tables)")
+    starts = {t: (rom[ro(d['types_at'] + 10 * t + 3)], rom[ro(d['types_at'] + 10 * t + 4)]) for t in range(100)}
+    tr = script.Translator(types, enemies_of, lambda k_: ground.get(k_[:2], False), sizes=sizes, starts=starts)
     events = script.translate(records, positions, types, enemies_of, None, clock=clock, translator=tr)
     placements = []
     gbc_boss = None

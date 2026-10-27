@@ -9,8 +9,8 @@ does (script.Translator), and what only the boss does as the PC engine has it:
   GBC flight's way, boss_rom.py), so that its loops go as the GBC's; a group steered towards the ship, or whose
   steps go on through the loops, as the main script translates them (19, 20, 27, 55), unless the loop runs again
   from before its spawn (JUNGLE II's whole level): carried on through the replay, cut where the GBC's level ended;
-- the other enemies of the stretch (its waves) at their types' start speeds, with the map only when 03 or an even
-  block command makes them (wave_spawn);
+- the other enemies of the stretch (its waves) as the main script's (script.Translator: at their types' start speeds,
+  with the map only when 03 or an even block command makes them);
 
 - its pieces (each GBC enemy of the groups spawned with the one its end waits for: a block's 16-px pieces each):
   one PC enemy each (episode 7's own record, build.py), at the GBC piece's place, drawn as the PC boss's part at
@@ -544,12 +544,6 @@ class Boss:
                     return evs + [fire(time, g)]
                 if cmd == 0x0a:
                     return [S.ev(time, 25, min(255, a), 0, 0, 0, 0, self.link[g])]
-                if cmd == 0x13 and 0x63 in (a, b):
-                    evs = tr.one(r, time)
-                    return evs + [S.ev(time, 55, HOMING if a == 0x63 else -99, HOMING if b == 0x63 else -99, 0, 0, 0,
-                                       self.link[g])]
-            if is_spawn(r):
-                return self.wave_spawn(r, time)
             return tr.one(r, time)
 
         def run(lo, hi, at, replay=False):
@@ -722,9 +716,11 @@ class Boss:
             if self.records[n - 1]['armor'] == 255 and u['group'] in self.inv_link:
                 link = self.inv_link[u['group']]
             # (in the sky, the PC parts that stand on the ground in their originals too; drifting with the map as the
-            # GBC's do: those its command 03 or an even block command makes, $2ca8's flag, $20b8)
+            # GBC's do: those its command 03 or an even block command makes, $2ca8's flag, $20b8; not 21-24)
             cmd = self.recs[u['rec']][0]
-            with_map = cmd in (3, 0x21, 0x23) or (cmd >= 0x28 and cmd % 2 == 0)
+            with_map = cmd == 3 or (cmd >= 0x28 and cmd % 2 == 0)  # (not 21-24: script.py)
+            ty = self.bd['types'].get(f"{u['type']:02x}", {})
+            self.tr.steered[link] = (ty.get('vx') == 0x63, ty.get('vy') == 0x63)  # (its record steers it: a 13 stops it)
             evs.append(S.ev(time, S.SKY, n, round(x), 0, y, self.tr.speed if with_map else 0, link, ep='boss'))
         return evs
 
@@ -772,31 +768,6 @@ class Boss:
         accel = [HOMING if v == 0x63 else 0 for v in (vx, vy)]
         return dict(base=base, layer=layer, armor=armor, tur=tur, freq=freq, move=move, accel=accel,
                     launch=list(launch) if launch else None, launchfreq=lf, gbc_type=u['type'], group=g)
-
-    def wave_spawn(self, r, time):
-        """Another enemy the boss's stretch makes (its waves, what comes with it): as the main script makes it, but moving
-        as the GBC's does: at its type's start speed (the main script's start still, drifting with the map, which stands
-        here: they stood at the top of the screen), with the map only when made by 03 or an even block command."""
-        evs = self.tr.one(r, time)
-        cmd = r[0]
-        with_map = cmd in (3, 0x21, 0x23) or (cmd >= 0x28 and cmd % 2 == 0)
-        link = self.tr.links.known(r[4]) if r[4] else None
-        spawns = [e for e in evs if e['type'] in (S.SKY, 12) and 'ep' in e]
-        if not with_map:
-            for e in spawns:
-                if e['type'] == S.SKY:
-                    e['d6'] = 0
-        ty = self.bd['types'].get(f"{r[1]:02x}", {})
-        vx, vy = ty.get('vx', 0), ty.get('vy', 0)
-        if link and spawns and (vx or vy):
-            add = [S.ev(time, 19, 0 if vx == 0x63 else S.SPEED_UNIT * s8(vx), 0 if vy == 0x63 else S.SPEED_UNIT * s8(vy),
-                        0, 0, 0, link)]
-            if 0x63 in (vx, vy):
-                add.append(S.ev(time, 55, HOMING if vx == 0x63 else -99, HOMING if vy == 0x63 else -99, 0, 0, 0, link))
-            if evs and evs[0]['type'] == 66:
-                evs[0]['d2'] += len(add)  # (in its difficulty skip)
-            evs += add
-        return evs
 
     def gun_given(self, g, n):
         return any(r[0] == 0x0e and r[4] == g and r[1] == n for r in self.recs)

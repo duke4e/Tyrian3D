@@ -2370,6 +2370,15 @@ level_loop:
 		JE_eventSystem();
 	}
 
+	// Tyrian3D dev: TYR3D_LOG_MOVES prints every enemy each tick as the events leave it (where, how fast, carried
+	// how far, its link): to set its paths against another's (tools/gbc: the GBC's).
+	if (SDL_getenv("TYR3D_LOG_MOVES") != NULL)
+		for (int i = 0; i < 100; i++)
+			if (enemyAvail[i] != 1)
+				printf("move: clock %u slot %d enemy %u at %d,%d moving %d,%d+%d steer %d,%d link %d\n", (unsigned)curLoc, i,
+				       enemy[i].enemytype, enemy[i].ex, enemy[i].ey, enemy[i].exc, enemy[i].eyc, enemy[i].fixedmovey,
+				       enemy[i].xaccel, enemy[i].yaccel, enemy[i].linknum);
+
 	if (isNetworkGame && reallyEndLevel)
 		goto start_level;
 

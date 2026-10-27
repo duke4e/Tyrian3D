@@ -94,14 +94,17 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   preslikava na PC predmete.
 - Načini igre: GBC nema vlastitih pickupova; leveli dobivaju ispuštanja svog originala (ljubičaste kugle,
   oružja) raspoređena po GBC grupama.
+- Obični neprijatelji kao u ROM-u (2026-10-27, korisnik: da): svaki kreće početnom brzinom svog tipa
+  (tablica tipova, bajtovi 3 i 4; 99 navođenje prema brodu), a s mapom pluta samo ako ga je stvorila
+  naredba 03 ili parni blok (04, neparni blokovi i 21-24 ne plutaju: zastavicu računa kao 4 minus naredba); 13 s 99 uključuje navođenje, bez njega ga
+  gasi. Prije su svi kretali na mjestu i plutali s mapom. Brzina po y ide u sam događaj stvaranja (po
+  neprijatelju), x i navođenje po linku grupe; zemaljski koje GBC ne nosi dobivaju brzinu mape oduzetu.
+  Provjera (`tools/gbc/moves.py` uz `TYR3D_LOG_MOVES`): u TYRIAN, ASTEROID, OASIS, SPACE ATK i DELICORE
+  284 od 293 uparena stvaranja ide unutar piksela po ticku od GBC-a; ostatak je navođenje prema brodu
+  (GBC ubrzava bez gornje granice, PC-ov 55 samo približno) i prvi koraci cik-caka.
 
 ## Otvoreno
 
-- Obični GBC neprijatelji (provjereno u emulatoru i ROM-u 2026-10-27): miču se svojom početnom brzinom iz
-  tipa (pola piksela po frameu za brzinu 1), a s mapom samo oni koje stvara naredba 03 ili parni blok
-  (04 i neparni blokovi stoje na ekranu). Glavna skripta svima na nebu daje pomak mape i poništava početnu
-  brzinu; šefovi su već ispravni. Za odluku: isto i za obične neprijatelje (mijenja kretanje u svim
-  levelima).
 - (Veliki brodovi su riješeni 2026-10-26: crveni bombarder SAVARA II i
   crvena kliješta DELI levela su PC-ovi brodovi od 7 i 12 dijelova; rudarski toranj ASTEROID2 nema PC
   parnjaka, pa je prvi vlastiti neprijatelj epizode 7: model `gbc_derrick.py`, sprajtovi iz modela u

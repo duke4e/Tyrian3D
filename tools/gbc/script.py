@@ -8,7 +8,7 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
     21-24              the same on Hard / Normal and up          -> 66 (skip on easier) + the enemy
     28+                a block: the pieces of one big enemy (columns, rows by the command's bits, 16 px
                        apart): one PC enemy, centred on them
-    13/1d vx vy . g    group's speed (99: keep)                 -> 19
+    13/1d vx vy . g    group's speed (99: towards the ship)     -> 19 (+ 55)
     14 cx cy rx g      group zig-zag: every |c| frames the speed  -> 20 (+ 27 for the turn speed)
                        steps by 1, turning at rx
     15 rx ry . g       turn speeds                               -> 27
@@ -19,9 +19,17 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
 
 Scale: a GBC pixel is 1.5 PC pixels; a trigger at scrolled position p is the PC clock 1.5 p; with the
 GBC scroll of a pixel every 4 frames as the PC's 1 px a tick, a GBC frame is 0.375 ticks, so a speed
-unit (half a pixel a frame) is 2 PC px a tick. GBC enemies move with the map: in the PC's sky slots
-(their height in the 3D view) they get the scroll as fixedmovey; the PC enemies that stand on the
-ground in their originals go to the ground slots, which scroll by themselves.
+unit (half a pixel a frame) is 2 PC px a tick.
+
+How a GBC enemy moves (the spawn $2ca8, the mover $20b8): from its type's start speed (the type table's
+bytes 3 and 4, half pixels a frame; 99: steered towards the ship), and with the map (a pixel each time it
+scrolls) only when command 03 or an even block command made it (the flag $2ca8 sets: not 21-24, the
+Hard and Normal ones); 13 and the rest
+change its speed, not that. Here: its start speed its own (y: the spawn event's own speed, which makes up
+for the PC enemy's; x, the PC enemy's steps and steering undone or the steering towards the ship: by its
+link, as it is made); the map's drift, in the PC's sky slots (their height in the 3D view), as fixedmovey,
+for those only; the PC enemies that stand on the ground in their originals go to the ground slots, which
+scroll by themselves: those the GBC doesn't carry get the scroll taken off their speeds.
 """
 SPEED_UNIT = 2          # PC px per tick for a GBC speed unit
 FRAME = 0.375           # PC ticks per GBC frame
@@ -29,6 +37,7 @@ SCALE = 1.5
 SKY, GROUND = 15, 6
 LINKS = range(1, 31)    # links for the GBC groups (above 40, links of a block of 20 die together)
 KEEP = 0x63
+HOMING = 97             # 55's xaccel / yaccel: towards the ship (13 with 99: a step every 10 frames)
 
 
 def s8(v):
@@ -70,13 +79,17 @@ class Translator:
     """The records' translation, record by record (translate(); the boss's stretch, boss.py): its links and the
     scroll speed new enemies drift with carried from one to the next. Arguments as translate()'s."""
 
-    def __init__(self, types, enemies_of, ground_of, start_speed=1, sizes=None, links=None):
+    def __init__(self, types, enemies_of, ground_of, start_speed=1, sizes=None, links=None, starts=None):
         self.types, self.enemies_of, self.ground_of = types, enemies_of, ground_of
         self.sizes = sizes or {}
         self.links = links or Links()
         self.speed = start_speed
+        self.starts = starts or {}  # GBC type -> its start speed, the type table's bytes (vx, vy)
+        self.uncarried = set()      # links of ground slots' enemies the GBC map doesn't carry (their 19s less the scroll)
+        self.steered = {}           # link -> (x, y) steered towards the ship
+        self.carried = {}           # link -> when the sky enemies the GBC map carries were last made on it
 
-    def spawn_events(self, t, rec):
+    def spawn_events(self, t, rec, carried=None):
         types, sizes, links, speed = self.types, self.sizes, self.links, self.speed
         enemies_of, ground_of = self.enemies_of, self.ground_of
         cmd, a, b, c, g = rec
@@ -84,6 +97,14 @@ class Translator:
         if pc is None:
             return []
         ep, n, parts = pc
+        # (with the map: made by 03 or an even block command, not 21-24 ($26f3 works the flag out from the command
+        # 4 - cmd, 1 only for 03); its start speed, a block's its first piece's)
+        if carried is None:
+            carried = cmd == 3 or (cmd >= 0x28 and cmd % 2 == 0)
+        vx, vy = self.starts.get(a, (0, 0))
+        sx = 0 if vx == KEEP else SPEED_UNIT * s8(vx)
+        sy = 0 if vy == KEEP else SPEED_UNIT * s8(vy)
+        drift = speed if carried else 0
         k = cmd - 0x28
         block = (((k >> 1) & 3) + 1, (k >> 3) + 1) if cmd >= 0x28 else (1, 1)
         w, h = sizes.get(a, (16, 16))
@@ -95,6 +116,12 @@ class Translator:
         link = links.get(g, t)
         ground = ground_of(pc)
         datas = [enemies_of(ep).get(m, {}) for m in ([p[0] for p in parts] if isinstance(parts, tuple) else [n])]
+
+        def start_y(m):
+            # (the spawn event's own speed: the GBC start speed's y for the PC enemy's; on the ground, which the map
+            # carries, less the scroll for one the GBC's doesn't)
+            own = enemies_of(ep).get(m, {}).get('ymove', 0)
+            return max(-128, min(127, sy - own - (0 if not ground or carried else speed)))
         evs = []
         for j in range(rows):
             for i in range(cols):
@@ -105,9 +132,9 @@ class Translator:
                     # a 4-part enemy (event 12: the parts d1..d1+3, the layer in d6, part 0 the lower
                     # left one) with its top left corner where the GBC one's is; in the sky it gets
                     # the scroll by its link (event 12 leaves fixedmovey 0)
-                    evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), 0, min(127, y + 28), 0 if ground else 2, link, ep=ep))
-                    if not ground and link:
-                        evs.append(ev(t, 19, -99, -99, 0, 0, speed, link))
+                    evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), start_y(n), min(127, y + 28), 0 if ground else 2, link, ep=ep))
+                    if not ground and link and drift:
+                        evs.append(ev(t, 19, -99, -99, 0, 0, drift, link))
                 elif isinstance(parts, tuple):
                     # a composite: its parts with their offsets from its top left, in one link, centred
                     # on the GBC enemy (its sprite, or the block's pieces)
@@ -118,25 +145,38 @@ class Translator:
                         dx += cx
                         yy = max(-128, min(127, top + cy + dy))
                         if ground:
-                            evs.append(ev(t, GROUND, m, round(x + dx) + 27, 0, yy, 0, link, ep=ep))
+                            evs.append(ev(t, GROUND, m, round(x + dx) + 27, start_y(m), yy, 0, link, ep=ep))
                         else:
-                            evs.append(ev(t, SKY, m, round(x + dx), 0, yy, speed, link, ep=ep))
+                            evs.append(ev(t, SKY, m, round(x + dx), start_y(m), yy, drift, link, ep=ep))
                 else:
                     if whole and block != (1, 1):  # (one PC enemy for a block's pieces: centred on them)
                         x += (SCALE * 16 * block[0] - 24) / 2
                         y = max(-128, min(127, top + round((SCALE * 16 * block[1] - 28) / 2)))
                     if ground:
-                        evs.append(ev(t, GROUND, n, round(x) + 27, 0, y, 0, link, ep=ep))
+                        evs.append(ev(t, GROUND, n, round(x) + 27, start_y(n), y, 0, link, ep=ep))
                     else:
-                        evs.append(ev(t, SKY, n, round(x), 0, y, speed, link, ep=ep))
-        # GBC enemies start still: the PC enemy's own moves undone (by its link; alone: none to undo)
-        if link and not ground:
-            if any(d.get('xmove') or d.get('ymove') for d in datas):
-                evs.append(ev(t, 19, 0, 0, 0, 0, 0, link))
+                        evs.append(ev(t, SKY, n, round(x), start_y(n), y, drift, link, ep=ep))
+        # the rest of its start speed by its link, as it is made (alone, with none: the PC enemy's x stays): x, the PC
+        # enemy's steps undone, steering towards the ship for 99 (or the PC's undone)
+        if link:
+            if ground and not carried:
+                self.uncarried.add(link)
+            else:
+                self.uncarried.discard(link)
+            if carried and not ground:
+                self.carried[link] = t
+            else:
+                self.carried.pop(link, None)
+            # (and when the PC enemy steps sideways by itself: made ahead of its time on a playfield reaching above the
+            # screen, tyrian2.c prespawn_events, it has stepped by then)
+            if sx or any(d.get('xmove') or d.get('xcaccel') for d in datas):
+                evs.append(ev(t, 19, sx, -99, 0, 0, 0, link))
             if any(d.get('xcaccel') or d.get('ycaccel') for d in datas):
                 evs.append(ev(t, 20, 0, 0, 0, 0, 0, link))
-            if any(d.get('xaccel') or d.get('yaccel') for d in datas):
-                evs.append(ev(t, 55, 0, 0, 0, 0, 0, link))
+            steer = (vx == KEEP, vy == KEEP)
+            if any(steer) or any(self.steered.get(link, ())) or any(d.get('xaccel') or d.get('yaccel') for d in datas):
+                evs.append(ev(t, 55, HOMING if steer[0] else 0, HOMING if steer[1] else 0, 0, 0, 0, link))
+            self.steered[link] = steer
         return evs
 
     def one(self, rec, t):
@@ -146,13 +186,20 @@ class Translator:
         if cmd in (3, 4) or cmd >= 0x28:
             return self.spawn_events(t, rec)
         if cmd in (0x21, 0x22, 0x23, 0x24):
-            evs = self.spawn_events(t, [cmd - (0x1e if cmd < 0x23 else 0x20), a, b, c, g])
+            evs = self.spawn_events(t, [cmd - (0x1e if cmd < 0x23 else 0x20), a, b, c, g], carried=False)
             return [ev(t, 66, 2 if cmd < 0x23 else 1, len(evs))] + evs if evs else []
         link = links.known(g) if g else None
         if cmd in (0x13, 0x1d):
             if not link:
                 return []
-            return [ev(t, 19, -99 if a == KEEP else SPEED_UNIT * s8(a), -99 if b == KEEP else SPEED_UNIT * s8(b), 0, 0, 0, link)]
+            # (99: that way steered towards the ship from its speed then; the other way's steering off, $289c)
+            less = self.speed if link in self.uncarried else 0
+            evs = [ev(t, 19, -99 if a == KEEP else SPEED_UNIT * s8(a), -99 if b == KEEP else SPEED_UNIT * s8(b) - less, 0, 0, 0, link)]
+            steer = (a == KEEP, b == KEEP)
+            if any(steer) or any(self.steered.get(link, ())):
+                evs.append(ev(t, 55, HOMING if steer[0] else 0, HOMING if steer[1] else 0, 0, 0, 0, link))
+            self.steered[link] = steer
+            return evs
         if cmd in (0x14, 0x16):
             if not link:
                 return []
@@ -171,13 +218,22 @@ class Translator:
         if cmd == 0x0b:
             if not link:
                 return []
-            return [ev(t, 39, link, links.get(a, t))]
+            new = links.get(a, t)
+            for known in (self.steered, self.carried):
+                if link in known:
+                    known[new] = known[link]
+            if link in self.uncarried:
+                self.uncarried.add(new)
+            return [ev(t, 39, link, new)]
         if cmd == 0x02:
             s = 0 if b == 0xff else max(1, round(4 / (b + 1)))
+            # (the sky enemies the map carries at its new speed: those of links made so lately that they may still fly)
+            drift = [ev(t, 19, -99, -99, 0, 0, s or -99, l) for l, when in sorted(self.carried.items())
+                     if s != self.speed and t - when < 900]
             self.speed = s
             # (backgrounds 2 and 3 are empty: at layer 1's speed they last its length; at the usual
             # 2x and 3x they run out of map at clock 8274 and 5516, which the GBC levels pass)
-            return [ev(t, 2, s, s, s)]
+            return [ev(t, 2, s, s, s)] + drift
         return []
 
 
