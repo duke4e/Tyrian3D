@@ -236,6 +236,25 @@ static Uint32 gbc_object[100];
 static Uint32 gbc_objects = 0;
 static int gbc_object_head = -1, gbc_object_event = -1;
 
+// Tyrian3D: episode 7's bosses in the 3D view (tools/gbc/boss.py wholes): a group of a GBC boss's pieces draws the PC
+// boss's whole body, each part by the piece nearest it, from the events 202 right before the piece's (its sprite,
+// sheet letter and size, d2 d5 from the piece's centre; d4 the group's look). A piece of the group with none draws
+// nothing while one of its others with parts is there, its own look once none is. Only the 3D view's.
+#define GBC_LOOK_PARTS 8
+#define GBC_LOOK_KEY(slot, part) (L3D_KEY_ENEMY + 0x100u * ((Uint32)(part) + 1) + (Uint32)(slot))
+#define GBC_COMING_LOOK_KEY(event) (COMING_KEY + (Uint32)(event) * 16)  // (as draw_coming_enemies' keys: an event 202's)
+typedef struct
+{
+	Uint16 sprite;
+	char sheet;
+	bool large;
+	Sint16 dx, dy;
+	Uint32 forecast;  // (the coming part it takes the place of, till first drawn)
+} GbcLookPart;
+static GbcLookPart gbc_look[100][GBC_LOOK_PARTS];
+static Uint8 gbc_look_parts[100];
+static Uint8 gbc_look_id[100];  // (0: none)
+
 // The forecast (draw_coming_enemies' key) an event's enemy takes the place of, by slot, till it is
 // first drawn: it fades in on from there (l3d_key_continue). Only the 3D view's.
 static Uint32 enemy_forecast[100];
@@ -474,11 +493,81 @@ static float gbc_lean_now(unsigned int i)
 	return gbc_lean[i];
 }
 
+// Tyrian3D: a part of an episode-7 boss's look (gbc_look) at x, y (game pixels, the sprite's centre), with its glow;
+// key: its motion's, forecast: the coming part it takes the place of (0: none). False if it has no model.
+static bool draw_gbc_look_part(const GbcLookPart *p, float x, float y, Uint32 key, Uint32 forecast, Uint8 filter, int vx,
+                               int vy, Uint32 group, Uint8 link)
+{
+	const M3DAppearance look = m3d_enemy_appearance(p->sheet, p->sprite, p->large, l3d_current_layer());
+	if (look.model < 0)
+		return false;
+	float yaw = look.yaw;
+	if (look.yaw_mode == M3D_YAW_AIM)
+		yaw = atan2f(player[0].x + 7 - x, -(player[0].y + 7 - y)) * 180.0f / (float)M_PI;
+	else if (look.yaw_mode == M3D_YAW_VELOCITY && (vx != 0 || vy != 0))
+		yaw = atan2f((float)vx, (float)-vy) * 180.0f / (float)M_PI;
+	if (look.spin != 0)
+		yaw += fmodf(look.spin * l3d_frame_number + (float)(key & 0xff) * 47.0f, 360.0f);
+	if (!l3d_add_object(look.model, x, y, look.height, yaw, 0.0f, filter))
+		return true;
+	l3d_enemy_last_object(p->sheet, p->sprite);
+	l3d_group_last_object(group, link);
+	if (look.layer > 0)
+		l3d_layer_last_object((L3DLayerType)(look.layer - 1));
+	float mx, my;
+	l3d_key_last_object(key, NULL, NULL);
+	if (forecast != 0)
+		l3d_key_continue(key, forecast);
+	l3d_new_object_velocity(vx, vy, &mx, &my);
+	const float shown = l3d_key_shown(key);
+	l3d_appear_last_object(shown);
+	if (look.glow_size != 0 && (look.glow_has_rgb || look.glow_color != 0))  // (not one of the sprite's colour)
+	{
+		const float size = look.glow_size < 0 ? -look.glow_size * (p->large ? 24 : 12) : look.glow_size;
+		if (look.glow_has_rgb)
+			l3d_add_rgb_glow(x + look.glow_dx, y + look.glow_dy, size, look.glow_strength * shown, look.glow_rgb, mx, my);
+		else
+			l3d_add_color_glow(x + look.glow_dx, y + look.glow_dy, size, look.glow_strength * shown, look.glow_color, mx,
+			                   my);
+	}
+	return true;
+}
+
+// Tyrian3D: an episode-7 boss's piece in the 3D view by its look (gbc_look): its parts of the PC boss's body, or none
+// (true) while another piece of its group draws some; false: as itself.
+static bool draw_gbc_look(unsigned int i)
+{
+	if (gbc_look_id[i] == 0)
+		return false;
+	if (gbc_look_parts[i] == 0)
+	{
+		for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+			if (j != i && enemyAvail[j] != 1 && gbc_look_id[j] == gbc_look_id[i] && gbc_look_parts[j] > 0)
+				return true;
+		return false;
+	}
+	const float x0 = enemy[i].ex + tempMapXOfs + 6, y0 = enemy[i].ey + 7;
+	const int vx = enemy[i].exc, vy = enemy[i].eyc + enemy[i].fixedmovey + tempBackMove;
+	for (unsigned int k = 0; k < gbc_look_parts[i]; ++k)
+	{
+		GbcLookPart *p = &gbc_look[i][k];
+		if (enemy[i].ey + p->dy <= -26 - SDL_max(screen_overscan_rows, l3d_field_ahead) || enemy[i].ey + p->dy >= 200)
+			continue;  // off screen
+		draw_gbc_look_part(p, x0 + p->dx, y0 + p->dy, GBC_LOOK_KEY(i, k), p->forecast, enemy[i].filter, vx, vy,
+		                   enemy_group[i], enemy_group_link[i]);
+		p->forecast = 0;
+	}
+	smoulder(i, x0, y0, enemy[i].size == 1);
+	return true;
+}
+
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
 static bool draw_enemy_model(unsigned int i)
 {
 	if (!l3d_capturing || enemy[i].sprite2s == NULL)
 		return false;
+	if (episodeNum == EPISODE_GBC && m3d_enabled && draw_gbc_look(i))
+		return true;
 
 	// Keyed by the first animation frame, so the appearance stays the same while the sprite animates.
 	const unsigned int first_sprite = enemy[i].egr[0];
@@ -667,6 +756,21 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 	}
 }
 
+// Tyrian3D: a coming episode-7 boss piece's part of its look (the event 202 k: gbc_look), as draw_coming_enemy draws
+// the piece (ex, ey: its place when made).
+static void draw_coming_look_part(int k, float ex, float ey, float dx, float dy, float ticks, int map_x_ofs,
+                                  bool from_below, Uint32 group, Uint8 link)
+{
+	const struct JE_EventRecType *ev = &eventRec[k];
+	const float x_now = ex - dx * ticks, y_now = ey - dy * ticks + ev->eventdat5;
+	if (ticks < 0 || (from_below ? y_now > COMING_BELOW : y_now < COMING_FAR))
+		return;
+	const GbcLookPart p = { .sprite = (Uint16)ev->eventdat, .sheet = (char)ev->eventdat3, .large = ev->eventdat6 != 0,
+	                        .dx = ev->eventdat2, .dy = ev->eventdat5 };
+	draw_gbc_look_part(&p, x_now + ev->eventdat2 + map_x_ofs + 6, y_now + 7, GBC_COMING_LOOK_KEY(k), 0, 0,
+	                   (int)lroundf(dx), (int)lroundf(dy), group, link);
+}
+
 // The slots an event's enemies take (-1: it makes none at the screen's top; bottom: made at the
 // screen's bottom), how many parts, and whether it is one of events 49-52 (enemy 0 with the
 // event's sprite).
@@ -762,7 +866,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202:
 		return true;
 	default:
 		return false;
@@ -1122,6 +1226,20 @@ static void draw_coming_enemies(int enemy_offset)
 			const int own_dy = custom ? dat->ymove : dat->ymove + ev->eventdat3 + ev->eventdat6 * (ev->eventtype != 12);
 			const float dy = own_dy + carried;
 			const Uint32 key = COMING_KEY + (Uint32)(e * 4 + part) * 4 + (eDatI & 3);
+			// (Tyrian3D: an episode-7 boss's piece with a look, the events 202 right before it: its parts instead)
+			int look_from = e;
+			while (episodeNum == EPISODE_GBC && parts == 1 && look_from > 0 && eventRec[look_from - 1].eventtype == 202 &&
+			       eventRec[look_from - 1].eventtime == ev->eventtime)
+				--look_from;
+			if (look_from < e)
+			{
+				if (bottom_y != 0 ? dy < 0 : dy > 0)
+					for (int k = look_from; k < e; ++k)
+						if (eventRec[k].eventdat > 0)
+							draw_coming_look_part(k, ex + dat->xmove, ey + dy, dat->xmove, dy, ticks, map_x_ofs, bottom_y != 0,
+							                      (Uint32)ev->eventtime + 1, (Uint8)ev->eventdat4);
+				continue;
+			}
 			if (bottom_y != 0 ? dy < 0 : dy > 0)
 				draw_coming_enemy(key, what, ex + dat->xmove, ey + dy, dat->xmove, dy, ticks, map_x_ofs, bottom_y != 0,
 				                  (Uint32)ev->eventtime + 1, (Uint8)ev->eventdat4);
@@ -5304,6 +5422,8 @@ Sint16 JE_newEnemy(int enemyOffset, Uint16 eDatI, Sint16 uniqueShapeTableI)
 			enemy_group[i] = 0;  // (Tyrian3D: a piece of no object, unless the caller says)
 			enemy_group_link[i] = 0;
 			gbc_object[i] = 0;
+			gbc_look_id[i] = 0;
+			gbc_look_parts[i] = 0;
 			gbc_lean[i] = NAN;
 			return i + 1;
 		}
@@ -5649,6 +5769,25 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	else
 		gbc_object[b-1] = 0;
 	gbc_lean[b-1] = NAN;
+	gbc_look_id[b-1] = 0;
+	gbc_look_parts[b-1] = 0;
+	if (episodeNum == EPISODE_GBC && enemyTypeOfs == 0)
+	{
+		// (Tyrian3D: its parts of its boss's look, the events 202 right before its own)
+		const int e = eventLoc - 1;
+		for (int k = e - 1; k >= 0 && eventRec[k].eventtype == 202 && eventRec[k].eventtime == eventRec[e].eventtime; --k)
+		{
+			gbc_look_id[b-1] = eventRec[k].eventdat4;
+			if (eventRec[k].eventdat > 0 && gbc_look_parts[b-1] < GBC_LOOK_PARTS)
+			{
+				const Uint32 key = GBC_COMING_LOOK_KEY(k);
+				gbc_look[b-1][gbc_look_parts[b-1]++] = (GbcLookPart){
+					.sprite = (Uint16)eventRec[k].eventdat, .sheet = (char)eventRec[k].eventdat3,
+					.large = eventRec[k].eventdat6 != 0, .dx = eventRec[k].eventdat2, .dy = eventRec[k].eventdat5,
+					.forecast = l3d_key_seen(key) ? key : 0 };
+			}
+		}
+	}
 
 	// When T2000 gives an X position of -200, what it actually wants is a random X position...
 	if (eventRec[eventLoc-1].eventdat2 == -200)
@@ -6497,6 +6636,9 @@ void JE_eventSystem(void)
 					enemy_group[b-1] = enemy_group[temp];  // (Tyrian3D: in its place)
 					enemy_group_link[b-1] = enemy_group_link[temp];
 					gbc_object[b-1] = gbc_object[temp];
+					gbc_look_id[b-1] = gbc_look_id[temp];
+					gbc_look_parts[b-1] = gbc_look_parts[temp];
+					memcpy(gbc_look[b-1], gbc_look[temp], sizeof(gbc_look[temp]));
 				}
 
 				enemyAvail[temp] = 1;
@@ -6726,6 +6868,9 @@ void JE_eventSystem(void)
 		break;
 
 	case 201:  // Tyrian3D: the next d1 events make one enemy (episode 7: its pieces; JE_createNewEventEnemy)
+		break;
+
+	case 202:  // Tyrian3D: a part of the next enemy's look (episode 7's bosses: gbc_look; JE_createNewEventEnemy)
 		break;
 
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)

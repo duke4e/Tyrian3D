@@ -108,6 +108,12 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   GBC-a (44.6 ms, `GBC_PACE`). Pucanj u jednog neprijatelja ubijao je cijelu njegovu GBC grupu (PC ubija
   link zajedno); sad svaki umire sam, osim dijelova istog neprijatelja (događaj 201). Modeli više ne
   okreću glavu prema smjeru leta: gledaju niz ekran kao GBC sprajtovi i naginju se do 40° u stranu.
+- Šefovi cijeli (2026-10-28, korisnik: šefovi imaju čudnih vizualnih dijelova): svaki GBC komad crtao se kao
+  jedan dio PC šefa, pa su šefovi bili nepotpuni (TYRIAN 9 od 12 ASSASSIN-ovih dijelova) a komadi koji se
+  odvoje izgledali kao krhotine. U 3D-u grupa od 4+ komada sad crta cijelo tijelo PC šefa (svaki dio crta
+  najbliži komad, događaj 202), a manje grupe dio koji izgleda cijelo (`boss_looks.json`, po oku; WARP-ovi
+  mjehuri STARGATE-ova velika kugla). JUNGLE-ovi zeleni lovci uz tenk (tip 04, list H nije učitan) crtali su se
+  kao četvrtina tenka: sad 2:760 (`enemy_overrides.json`).
 
 ## Otvoreno
 

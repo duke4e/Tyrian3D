@@ -15,7 +15,12 @@ does (script.Translator), and what only the boss does as the PC engine has it:
 - its pieces (each GBC enemy of the groups spawned with the one its end waits for: a block's 16-px pieces each):
   one PC enemy each (episode 7's own record, build.py), at the GBC piece's place, drawn as the PC boss's part at
   the same place in its body (parts(): both bodies' boxes 0-1; the GBC's are the PC's made small; checked by eye,
-  boss_review.py, corrections in tools/gbc/boss_overrides.json),
+  boss_review.py, corrections in tools/gbc/boss_overrides.json); in the 3D view a group of WHOLE_PIECES or more
+  draws the PC boss's whole body instead (wholes(): one piece a part fewer than the PC's left gaps, and pieces
+  apart are no parts of anything), centred on the group, each part drawn by the piece nearest it (events LOOK
+  before the piece's spawn: it is still the GBC piece that is shot at and goes alone); a smaller group's pieces
+  as tools/gbc/boss_looks.json has them (by eye: parts of the PC boss that look whole on their own; WARP's bubbles,
+  for which ASSASSIN is too big, STARGATE's big orb),
   with the GBC piece's hit points as its armour (255: can't be hurt; 0: dies at the first hit), its start speed, its
   guns, what it launches, the PC part's worth;
 - its guns: each GBC gun with the ones that fire with it one PC weapon: the shots' speeds 4x (a GBC pixel a frame
@@ -47,6 +52,7 @@ import script as S
 ROM_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                         'data', 'gbc', 'bosses', 'rom.json')
 OVERRIDES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'boss_overrides.json')
+LOOKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'boss_looks.json')
 CHECK = 6           # ticks between the end checks
 MAX_SPEED = 18      # PC pixels a tick: the ship's hit box is 19 high
 AIM = 3             # the GBC's aimed shots: 3 pixels a frame (x and y together)
@@ -55,6 +61,11 @@ BOSS_LINKS = range(101, 121)  # (the engine lets a piece on these die alone in e
 END_GAP = 40        # ticks after the boss's last event: the end's
 CUT_GAP = 100       # ticks after where the GBC's level ended in a replay its boss flies off in: the end's
 SPAWNS = {3, 4, 0x21, 0x22, 0x23, 0x24}
+LOOK = 202          # (Tyrian3D's event: a part of the next enemy's look in the 3D view, tyrian2.c gbc_look)
+WHOLE_PIECES = 4    # a group of this many pieces or more draws the PC boss's whole body
+WHOLE_AREA = 3.0    # ... if that is at most this many times the group's box
+LOOK_PARTS = 8      # (at most a piece's: tyrian2.c GBC_LOOK_PARTS)
+SHAPE_FILE = "2478ABCDEFGHIJKLMNOPQRSTU5#V0@3^59'%W"  # (src/lvlmast.c shapeFile: a shape bank's sheet letter)
 
 
 def s8(v):
@@ -146,6 +157,57 @@ def parts(units, body, overrides):
         o = overrides.get(f"{u['type']:02x}")
         res.append(tuple(o) if o else (body[k][0], body[k][3]))
     return res
+
+
+def wholes(units, body, enemies):
+    """The groups that draw the PC boss's whole body (WHOLE_PIECES pieces or more, the body WHOLE_AREA times their box at
+    most, of 4 parts or more): {piece (record, type, x, y): [(sprite, sheet letter, 2x2, dx, dy)]} (each part where it is in the body
+    round the group's centre, drawn by the piece nearest it, dx dy from that piece's centre: PC pixels), the group's
+    other pieces with none ([]). A part's sprite is its enemy's first frame (enemies: the PC boss's episode's)."""
+    out = {}
+    if len(body) < 4:
+        return out
+    bx = [p[1] for p in body]
+    by = [p[2] for p in body]
+    bw, bh = max(bx) - min(bx) + 24, max(by) - min(by) + 28
+    bcx, bcy = (min(bx) + max(bx)) / 2, (min(by) + max(by)) / 2
+    groups = {}
+    for i, u in enumerate(units):
+        groups.setdefault(u['group'], []).append(i)
+    for g, idx in groups.items():
+        us = [units[i] for i in idx]
+        gw = (max(u['x'] for u in us) - min(u['x'] for u in us) + 16) * S.SCALE
+        gh = (max(u['y'] for u in us) - min(u['y'] for u in us) + 16) * S.SCALE
+        if len(idx) < WHOLE_PIECES or bw * bh > WHOLE_AREA * gw * gh:
+            continue
+        # (the pieces' places as their events put them: piece_place; the parts' from the body's centre)
+        at = {i: piece_place(units[i]) for i in idx}
+        gcx = (min(x for x, _ in at.values()) + max(x for x, _ in at.values())) / 2
+        gcy = (min(y for _, y in at.values()) + max(y for _, y in at.values())) / 2
+        own = {i: [] for i in idx}
+        for n, x, y, _ in body:
+            px, py = gcx + x - bcx, gcy + y - bcy
+            i = min((i for i in idx if len(own[i]) < LOOK_PARTS),
+                    key=lambda i: (at[i][0] - px) ** 2 + (at[i][1] - py) ** 2)
+            e = enemies[n]
+            dx, dy = round(px - at[i][0]), round(py - at[i][1])
+            assert -128 <= dy <= 127, f"part {n}: {dy} px from its piece"
+            own[i].append((e['egraphic'][0], SHAPE_FILE[e['shapebank'] - 1], e['esize'] == 1, dx, dy))
+        out.update({(units[i]['rec'], units[i]['type'], units[i]['x'], units[i]['y']): v for i, v in own.items()})
+    return out
+
+
+def enemies_of(ep, _cache={}):
+    """An episode's enemies (tyrdata)."""
+    if ep not in _cache:
+        import sources
+        _cache[ep] = sources.tyrdata.load_items(ep)['enemies']
+    return _cache[ep]
+
+
+def piece_place(u):
+    """A piece's place as its spawn event puts it (Boss.spawn: x, y)."""
+    return S.SCALE * u['x'] - 12, max(-128, min(127, round(S.SCALE * u['y'])))
 
 
 def gun_weapon(chain):
@@ -364,6 +426,18 @@ class Boss:
         self.src_ep = src.episode
         self.body = pc_parts(src)
         self.looks = parts(self.units, self.body, overrides)
+        self.wholes = wholes(self.units, self.body, src.enemies)
+        by_eye = json.load(open(LOOKS)).get(f"L{level:02d}", {}) if os.path.exists(LOOKS) else {}
+        for u in self.units:
+            if f"{u['type']:02x}" not in by_eye:
+                continue
+            look = self.wholes[(u['rec'], u['type'], u['x'], u['y'])] = []
+            for part in by_eye[f"{u['type']:02x}"]:
+                ep, n, dx, dy = part if len(part) == 4 else [src.episode] + part
+                e = src.enemies[n] if ep == src.episode else enemies_of(ep)[n]
+                look.append((e['egraphic'][0], SHAPE_FILE[e['shapebank'] - 1], e['esize'] == 1, dx, dy))
+        self.look_ids = {g: k + 1 for k, g in enumerate(sorted({u['group'] for u in self.units
+                                                                if (u['rec'], u['type'], u['x'], u['y']) in self.wholes}))}
         self.made = {}
         self.speed0 = tr.speed  # (the map's speed as the boss's stretch starts: the main script's last)
         self.events, self.records, self.guns = [], [], {}
@@ -721,6 +795,11 @@ class Boss:
             with_map = cmd == 3 or (cmd >= 0x28 and cmd % 2 == 0)  # (not 21-24: script.py)
             ty = self.bd['types'].get(f"{u['type']:02x}", {})
             self.tr.steered[link] = (ty.get('vx') == 0x63, ty.get('vy') == 0x63)  # (its record steers it: a 13 stops it)
+            # (its parts of the whole body's look, LOOK events right before it: none, one of its group's that draws
+            # nothing while the group's others draw theirs)
+            if key in self.wholes:
+                for sprite, letter, large, dx, dy in self.wholes[key] or [(0, ' ', False, 0, 0)]:
+                    evs.append(S.ev(time, LOOK, sprite, dx, ord(letter), dy, int(large), self.look_ids[u['group']]))
             evs.append(S.ev(time, S.SKY, n, round(x), 0, y, self.tr.speed if with_map else 0, link, ep='boss'))
         return evs
 

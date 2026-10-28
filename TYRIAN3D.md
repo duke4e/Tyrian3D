@@ -483,7 +483,14 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   `boss.py` makes the stretch PC events (`script.Translator`, the main script's) and what only the boss does:
   each piece one PC enemy of its own (a block's 16-px pieces each; episode 7's record, `build.py`
   `boss_enemy`) at the GBC piece's place, drawn as the PC boss's part nearest that place in its body (both
-  boxes 0-1; `boss_overrides.json` by eye, `boss_review.py` draws `Lnn_pieces.png` to check), in the sky
+  boxes 0-1; `boss_overrides.json` by eye, `boss_review.py` draws `Lnn_pieces.png` to check); in the 3D view
+  (since 2026-10-28) a group of 4 pieces or more draws the PC boss's whole body instead, centred on the group,
+  each part drawn by the piece nearest it (`boss.py` `wholes`, events 202 right before the piece's spawn,
+  `tyrian2.c` `gbc_look`: a piece a part left gaps, TYRIAN showed 9 of ASSASSIN's 12, and a piece of a cut
+  body flying apart looked like a broken one), a piece with none drawing nothing while its group's others
+  draw theirs; smaller groups (TYRIAN's claws, SAVARA II's side pods, FLEET's hanging plates) as
+  `boss_looks.json` has them, by eye (parts of the PC boss that look whole on their own; WARP's bubbles, for
+  which ASSASSIN is too big, STARGATE's big orb); in the sky
   (the PC parts that stand on the ground in their originals too; one drawn damaged from the start, dani < 0,
   loses that flag, which in the PC keeps it from firing: ASTEROID2's tank, ASTEROID's and OASIS's boss, was
   silent), drifting with the map as the GBC's does,
