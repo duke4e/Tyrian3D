@@ -102,6 +102,12 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   Provjera (`tools/gbc/moves.py` uz `TYR3D_LOG_MOVES`): u TYRIAN, ASTEROID, OASIS, SPACE ATK i DELICORE
   284 od 293 uparena stvaranja ide unutar piksela po ticku od GBC-a; ostatak je navođenje prema brodu
   (GBC ubrzava bez gornje granice, PC-ov 55 samo približno) i prvi koraci cik-caka.
+- Brzina, nestajanje i okretanje (2026-10-28, korisnik: neki protivnici prebrzi i prenagli, neki nestaju
+  sami od sebe, neki okrenuti na krivu stranu; šefovi prebrzi): prijevod GBC frame računa kao 0.375 PC
+  tickova, a PC tick traje 28.75 ms, pa je sve išlo 1.55 puta brže od GBC-a. Epizoda 7 sad tickuje u ritmu
+  GBC-a (44.6 ms, `GBC_PACE`). Pucanj u jednog neprijatelja ubijao je cijelu njegovu GBC grupu (PC ubija
+  link zajedno); sad svaki umire sam, osim dijelova istog neprijatelja (događaj 201). Modeli više ne
+  okreću glavu prema smjeru leta: gledaju niz ekran kao GBC sprajtovi i naginju se do 40° u stranu.
 
 ## Otvoreno
 

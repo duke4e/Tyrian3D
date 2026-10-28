@@ -30,6 +30,7 @@ extern JE_word frameCountMax;
 
 extern float nortsong_time_scale;  // Tyrian3D: delays this many times as long (the debug flight's speed)
 extern bool nortsong_skip_waits;   // Tyrian3D: no waiting (the debug flight's replay)
+extern float nortsong_tick_pace;   // Tyrian3D: a level's ticks this many times as long (setTickDelay*)
 
 extern Sint16 *soundSamples[SOUND_COUNT];
 extern size_t soundSampleCount[SOUND_COUNT];
@@ -42,6 +43,9 @@ void setDelay(int delay);
 // Tyrian3D: a delay that starts where the last one ended, so the game keeps its pace while the
 // 3D view waits for ticks; and how much of the current delay is left or gone.
 void setDelayContinued(int delay);
+// Tyrian3D: a level's tick (nortsong_tick_pace times as long).
+void setTickDelay(int delay);
+void setTickDelayContinued(int delay);
 Sint64 getDelayLeftNS(void);
 float getDelayProgress(void);
 void wait_delay_precise(void);

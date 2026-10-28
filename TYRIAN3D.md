@@ -405,11 +405,24 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
 * A boss that passes by in its original (its map going on once it is gone: ASTEROID2's tank) stops once
   it is in and fights; one whose pieces are drawn damaged from the start (dani < 0) doesn't count as on
   screen, so it gets no end when clear (its level ends at its 11).
-* In the 3D view (`tyrian2.c` `gbc_faces_its_way`) episode 7's sky enemies turn from their models'
-  heading (down the screen, the way the originals fly them) to where they go when they move
-  otherwise (the GBC paths go sideways and up); not the pieces of an object of several sprites
-  (models drawn at their origin, or other sprites made with it at its side), turning items, nor
-  what stands on the ground.
+* In the 3D view (`tyrian2.c` `gbc_faces_its_way`) episode 7's sky enemies keep their models' heading
+  (down the screen, as the GBC's sprites always face, whichever way they fly) and lean towards where
+  they go sideways, at most 40 degrees, easing into it (`gbc_lean_now`; until 2026-10-28 they turned
+  round to their way at once, and on the ROM's paths, which go sideways and back up the screen, many
+  faced the wrong way); not the pieces of an object of several sprites (models drawn at their origin,
+  or other sprites made with it at its side; a boss's pieces even apart), turning items, nor what stands
+  on the ground.
+* Episode 7 at the GBC's pace (`tyrian2.c` `GBC_PACE`, `nortsong.c` `setTickDelay`): its translation
+  makes a GBC frame 0.375 ticks (the GBC map's pixel every 4 frames the PC's pixel a tick), and the GBC
+  shows 59.73 frames a second, so its levels' ticks last 8/3 of a GBC frame, 44.6 ms, where the PC's
+  Normal is 28.75 (its Slower 43): map, enemies, shots and script as fast as on the GBC; at the PC's
+  pace they all went 1.55 times as fast (the user: some enemies too fast and abrupt, the bosses too).
+  The player's ship and shots go by the same ticks. Menus and the shop keep the PC's pace.
+* Episode 7's enemies die alone, as the GBC's do (`gbc_takes_along`): a GBC group is one link, and the
+  PC kills a link's enemies together, so shooting one took its group's others with it (they seemed to
+  vanish by themselves). Only the pieces of one GBC enemy go together: a composite's parts (the events
+  after an event 201, Tyrian3D's, which names how many: `script.py` `OBJECT`) and an event 12's four
+  (`gbc_object`, tagged as an event makes them).
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
   into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text

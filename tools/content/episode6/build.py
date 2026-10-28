@@ -166,7 +166,8 @@ def level_entries(level, importer):
         d1 = e["d1"]
         if e["type"] == 12 and "ep" in e:
             d1 = importer.enemy_block(e["ep"], d1)
-        elif e["type"] in waves.SPAWNS and "ep" in e and d1 > 0 and any(unseen(e["ep"], d1, sheets)):
+        elif (e["type"] in waves.SPAWNS and "ep" in e and isinstance(e["ep"], int) and d1 > 0
+              and any(unseen(e["ep"], d1, sheets))):  # (episode 7's own, "gbc" and "boss": its importer's)
             d1 = importer.unseen_left_out(e["ep"], d1, *unseen(e["ep"], d1, sheets))
         elif e["type"] in ENEMY_D1 and "ep" in e:
             d1 = importer.enemy(e["ep"], d1)

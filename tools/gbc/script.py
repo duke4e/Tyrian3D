@@ -7,7 +7,8 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
     03/04 a x y g      enemy of type a at (x, y) in group g     -> 15 (sky) / 6 (ground), link of g
     21-24              the same on Hard / Normal and up          -> 66 (skip on easier) + the enemy
     28+                a block: the pieces of one big enemy (columns, rows by the command's bits, 16 px
-                       apart): one PC enemy, centred on them
+                       apart): one PC enemy, centred on them (a composite's parts after an event 201: one
+                       enemy, which dies alone; the GBC's all do, the PC's die with their link)
     13/1d vx vy . g    group's speed (99: towards the ship)     -> 19 (+ 55)
     14 cx cy rx g      group zig-zag: every |c| frames the speed  -> 20 (+ 27 for the turn speed)
                        steps by 1, turning at rx
@@ -37,6 +38,7 @@ SCALE = 1.5
 SKY, GROUND = 15, 6
 LINKS = range(1, 31)    # links for the GBC groups (above 40, links of a block of 20 die together)
 KEEP = 0x63
+OBJECT = 201            # (Tyrian3D's event: the next d1 events make one enemy)
 HOMING = 97             # 55's xaccel / yaccel: towards the ship (13 with 99: a step every 10 frames)
 
 
@@ -141,6 +143,9 @@ class Translator:
                     bw, bh = max(w, 16 * block[0]), max(h, 16 * block[1])
                     cx = (SCALE * bw - (max(p[1] for p in parts) + 24)) / 2
                     cy = round((SCALE * bh - (max(p[2] for p in parts) + 28)) / 2)
+                    # (one enemy: the engine lets the next events' pieces die together, and alone of the rest of
+                    # their link, the GBC group, whose enemies die alone: tyrian2.c gbc_takes_along)
+                    evs.append(ev(t, OBJECT, len(parts)))
                     for m, dx, dy in parts:
                         dx += cx
                         yy = max(-128, min(127, top + cy + dy))

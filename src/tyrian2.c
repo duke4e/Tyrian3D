@@ -113,7 +113,7 @@ void JE_starShowVGA(void)
 		if (smoothScroll != 0 /*&& thisPlayerNum != 2*/ && !frame_3d)
 		{
 			wait_delay();
-			setDelay(frameCountMax);
+			setTickDelay(frameCountMax);
 		}
 
 		if (starShowVGASpecialCode == 1)
@@ -228,6 +228,13 @@ static char enemy_sheet_letter(const Sprite2_array *sprite2s)
 // tags; the others (launched, random) have none (0). Only the 3D view reads them.
 static Uint32 enemy_group[100];
 static Uint8 enemy_group_link[100];
+
+// Tyrian3D: episode 7's enemies, which GBC enemy each is a piece of (a composite's parts, the events right after
+// an event 201 that names how many; an event 12's four): a GBC group is one link, and the PC kills a link's
+// enemies together, but the GBC's die alone (gbc_takes_along). 0: none.
+static Uint32 gbc_object[100];
+static Uint32 gbc_objects = 0;
+static int gbc_object_head = -1, gbc_object_event = -1;
 
 // The forecast (draw_coming_enemies' key) an event's enemy takes the place of, by slot, till it is
 // first drawn: it fades in on from there (l3d_key_continue). Only the 3D view's.
@@ -399,6 +406,19 @@ bool gbc_piece_link(int link)
 	return episodeNum == EPISODE_GBC && link >= 101 && link <= 120;
 }
 
+// Tyrian3D: whether the enemy dying (its link) takes another of the link along: in episode 7 only the pieces of one
+// GBC enemy (gbc_object), never a boss's pieces (gbc_piece_link) nor the others of its group.
+bool gbc_takes_along(int link, unsigned int dying, unsigned int other)
+{
+	if (episodeNum != EPISODE_GBC)
+		return true;
+	return !gbc_piece_link(link) && gbc_object[dying] != 0 && gbc_object[other] == gbc_object[dying];
+}
+
+// Tyrian3D: episode 7's ticks this many times as long as the others' (8/3 of a GBC frame at 59.73 a second, 44.65 ms,
+// over the PC's Normal 28.75: JE_main).
+#define GBC_PACE 1.553f
+
 // Tyrian3D: the GBC game's enemy table holds 17 (at $c192), and an enemy launched with it full doesn't come: in
 // episode 7 a launch waits for fewer than that alive (WARP's boss launches every few frames; on the GBC eight of its
 // orbs fly at once, here they filled the screen).
@@ -424,21 +444,34 @@ static bool gbc_shots_full(void)
 	return flying >= GBC_SHOT_MAX;
 }
 
-// Tyrian3D: episode 7's enemies fly the GBC game's paths, not the PC originals' their models face for (down the
-// screen, the way the originals fly them): in the sky one that moves turns from that heading to where it goes.
-// Not the pieces of one object (models drawn at their origin, or other enemies' sprites made with it at its
-// side), turning items, nor what stands on the ground.
+// Tyrian3D: episode 7's enemies fly the GBC game's paths, which go sideways and back up the screen too, while the
+// GBC's sprites always face down it, as the PC models do: in the sky one that moves sideways leans that way, at
+// most GBC_LEAN degrees, easing into it (gbc_lean_now), never turning round. Not the pieces of one object (models
+// drawn at their origin, or other enemies' sprites made with it at its side; a boss's pieces even apart), turning
+// items, nor what stands on the ground.
+#define GBC_LEAN 40.0f
+#define GBC_LEAN_EASE 0.08f  // (of the way there each frame drawn)
+static float gbc_lean[100];  // (by slot; NAN: just made)
+
 static bool gbc_faces_its_way(unsigned int i, const M3DAppearance *look)
 {
 	if (episodeNum != EPISODE_GBC || look->model < 0 || look->spin != 0 || m3d_models[look->model].keep_origin ||
-	    l3d_current_layer() == L3D_GROUND_ENEMY || (enemy[i].exc == 0 && enemy[i].eyc >= 0))
-		return false;  // (still, or straight down: as it is)
+	    l3d_current_layer() == L3D_GROUND_ENEMY || gbc_piece_link(enemy[i].linknum))
+		return false;
 	for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
 		if (j != i && enemyAvail[j] != 1 && enemy_group[i] != 0 && enemy_group[j] == enemy_group[i] &&
 		    enemy_group_link[j] == enemy_group_link[i] && enemy[j].egr[0] != enemy[i].egr[0] &&
 		    abs(enemy[j].ex - enemy[i].ex) < 40 && abs(enemy[j].ey - enemy[i].ey) < 40)
 			return false;  // (a piece of an object of several sprites)
 	return true;
+}
+
+static float gbc_lean_now(unsigned int i)
+{
+	const float down = fabsf((float)(enemy[i].eyc + enemy[i].fixedmovey)) + 2.0f;
+	const float want = SDL_clamp(-atan2f((float)enemy[i].exc, down) * 180.0f / (float)M_PI, -GBC_LEAN, GBC_LEAN);
+	gbc_lean[i] = isnan(gbc_lean[i]) ? want : gbc_lean[i] + (want - gbc_lean[i]) * GBC_LEAN_EASE;
+	return gbc_lean[i];
 }
 
 // Tyrian3D: shows the enemy as a 3D model instead of its sprite if one is mapped.
@@ -512,7 +545,7 @@ static bool draw_enemy_model(unsigned int i)
 	{
 	case M3D_YAW_FIXED:
 		if (gbc_faces_its_way(i, &look))
-			yaw += atan2f((float)enemy[i].exc, (float)-enemy[i].eyc) * 180.0f / (float)M_PI - 180.0f;
+			yaw += gbc_lean_now(i);
 		break;
 	case M3D_YAW_VELOCITY:
 		if (enemy[i].exc != 0 || enemy[i].eyc != 0)
@@ -729,7 +762,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201:
 		return true;
 	default:
 		return false;
@@ -2008,6 +2041,11 @@ start_level_first:
 	initialize_starfield();
 
 	JE_setNewGameSpeed();
+	// Tyrian3D: episode 7's levels at the GBC's pace: its translation (tools/gbc/script.py) makes a GBC frame 0.375
+	// ticks (its map's pixel every 4 frames the PC's pixel a tick), and the GBC shows 59.73 frames a second, so a
+	// tick lasts 8/3 of its frames, 44.6 ms (the PC's Normal: 28.75): its map, enemies, shots and script as fast as
+	// the GBC's (at 28.75 they went 1.55 times as fast).
+	nortsong_tick_pace = episodeNum == EPISODE_GBC ? GBC_PACE : 1.0f;
 
 	set_volume(tyrMusicVolume, fxVolume);
 
@@ -2183,7 +2221,7 @@ level_loop:
 	{
 		wait_at_tick_start = false;
 		video_wait_tick_3d();
-		setDelayContinued(frameCountMax);
+		setTickDelayContinued(frameCountMax);
 	}
 
 	//tempScreenSeg = game_screen; /* side-effect of game_screen */
@@ -2716,7 +2754,7 @@ level_loop:
 										if (
 										     (temp3 == b) ||
 										     (
-										       (temp != 255) && !gbc_piece_link(temp) &&
+										       (temp != 255) && gbc_takes_along(temp, b, temp3) &&
 										       (
 										         ((enemy[temp3].edlevel > 0) && (linknum == temp)) ||
 										         (
@@ -2783,7 +2821,7 @@ level_loop:
 								{
 									temp3 = enemy[temp2].linknum;
 									if ((temp2 == b) || (temp == 254) ||
-									    ((temp != 255) && !gbc_piece_link(temp) && ((temp == temp3) || (temp - 100 == temp3) ||
+									    ((temp != 255) && gbc_takes_along(temp, b, temp2) && ((temp == temp3) || (temp - 100 == temp3) ||
 									                       ((temp3 > 40) && (temp3 / 20 == temp / 20) && (temp3 <= temp)))))
 									{
 
@@ -5265,6 +5303,8 @@ Sint16 JE_newEnemy(int enemyOffset, Uint16 eDatI, Sint16 uniqueShapeTableI)
 			enemyAvail[i] = JE_makeEnemy(&enemy[i], eDatI, uniqueShapeTableI);
 			enemy_group[i] = 0;  // (Tyrian3D: a piece of no object, unless the caller says)
 			enemy_group_link[i] = 0;
+			gbc_object[i] = 0;
+			gbc_lean[i] = NAN;
 			return i + 1;
 		}
 	}
@@ -5587,6 +5627,28 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemyAvail[b-1] = JE_makeEnemy(&enemy[b-1], tempW, uniqueShapeTableI);
 	enemy_group[b-1] = (Uint32)eventRec[eventLoc-1].eventtime + 1;  // (Tyrian3D)
 	enemy_group_link[b-1] = (Uint8)eventRec[eventLoc-1].eventdat4;
+	if (episodeNum == EPISODE_GBC)
+	{
+		// (Tyrian3D: the GBC enemy it is a piece of: the event 201 just before that names it among its next ones, or
+		// its own event; a new one at each event's first, at an event again (a loop) or another 201's)
+		const int e = eventLoc - 1;
+		int head = e;
+		for (int k = e - 1; k >= 0 && k >= e - 16; --k)
+			if (eventRec[k].eventtype == 201)
+			{
+				if (k + eventRec[k].eventdat >= e && eventRec[k].eventtime == eventRec[e].eventtime)
+					head = k;
+				break;
+			}
+		if (enemyTypeOfs == 0 && (head == e || head != gbc_object_head || e <= gbc_object_event))
+			++gbc_objects;
+		gbc_object_head = head;
+		gbc_object_event = e;
+		gbc_object[b-1] = gbc_objects;
+	}
+	else
+		gbc_object[b-1] = 0;
+	gbc_lean[b-1] = NAN;
 
 	// When T2000 gives an X position of -200, what it actually wants is a random X position...
 	if (eventRec[eventLoc-1].eventdat2 == -200)
@@ -6434,6 +6496,7 @@ void JE_eventSystem(void)
 					enemy[b-1].ey = enemy[temp].ey;
 					enemy_group[b-1] = enemy_group[temp];  // (Tyrian3D: in its place)
 					enemy_group_link[b-1] = enemy_group_link[temp];
+					gbc_object[b-1] = gbc_object[temp];
 				}
 
 				enemyAvail[temp] = 1;
@@ -6660,6 +6723,9 @@ void JE_eventSystem(void)
 
 	case 99:
 		randomExplosions = (eventRec[eventLoc-1].eventdat == 1);
+		break;
+
+	case 201:  // Tyrian3D: the next d1 events make one enemy (episode 7: its pieces; JE_createNewEventEnemy)
 		break;
 
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)

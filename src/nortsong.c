@@ -56,20 +56,43 @@ static Uint64 target_start_ns = 0, target_ns = 0;
 float nortsong_time_scale = 1.0f;
 bool nortsong_skip_waits = false;
 
-void setDelay(int delay)  // FKA NortSong.frameCount
+// Tyrian3D: a level's ticks this many times as long (episode 7's: the GBC's pace, tyrian2.c GBC_PACE).
+float nortsong_tick_pace = 1.0f;
+
+static void set_delay_scaled(int delay, float scale)
 {
-	target = SDL_GetTicks() + delay * delayPeriod * nortsong_time_scale;
+	target = SDL_GetTicks() + delay * delayPeriod * nortsong_time_scale * scale;
 	target_start_ns = SDL_GetTicksNS();
-	target_ns = target_start_ns + (Uint64)(delay * delayPeriod * nortsong_time_scale * 1000000.0f);
+	target_ns = target_start_ns + (Uint64)(delay * delayPeriod * nortsong_time_scale * scale * 1000000.0f);
 }
 
-void setDelayContinued(int delay)
+void setDelay(int delay)  // FKA NortSong.frameCount
 {
-	const Uint64 now = SDL_GetTicksNS(), length = (Uint64)(delay * delayPeriod * nortsong_time_scale * 1000000.0f);
+	set_delay_scaled(delay, 1.0f);
+}
+
+void setTickDelay(int delay)
+{
+	set_delay_scaled(delay, nortsong_tick_pace);
+}
+
+static void set_delay_continued_scaled(int delay, float scale)
+{
+	const Uint64 now = SDL_GetTicksNS(), length = (Uint64)(delay * delayPeriod * nortsong_time_scale * scale * 1000000.0f);
 	// From the end of the last delay, unless that was a whole delay ago or more.
 	target_start_ns = target_ns != 0 && target_ns + length > now ? target_ns : now;
 	target_ns = target_start_ns + length;
 	target = (Uint32)(target_ns / 1000000);
+}
+
+void setDelayContinued(int delay)
+{
+	set_delay_continued_scaled(delay, 1.0f);
+}
+
+void setTickDelayContinued(int delay)
+{
+	set_delay_continued_scaled(delay, nortsong_tick_pace);
 }
 
 Sint64 getDelayLeftNS(void)
