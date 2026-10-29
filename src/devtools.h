@@ -33,6 +33,13 @@ bool dev_setup_game(int episode, int section);
 
 bool dev_godmode(void);
 
+// TYR3D_LOG_BALANCE: what a level costs and gives the player, a "balance: <what> <value> clock <tick>" line each:
+// an enemy that comes (spawn, its type) and one killed (kill, or rammed: its slot), an enemy shot fired (shot, the
+// enemy's type), the damage that hits the ship (damage, in god mode too; right after what dealt it: hit, an enemy
+// shot, or bump, a collision, the enemy's type), an item an enemy leaves (drop, or droplost with no free slot for it;
+// its value) and one picked up (pickup).
+void dev_balance(const char *what, int value);
+
 // Every tick of a level: TYR3D_LEVEL_TICKS=<n> ends levels (cleared) after n ticks, and
 // TYR3D_LEVEL_DIE=<n> destroys the ship after n ticks, for testing what comes after them.
 void dev_level_tick(void);

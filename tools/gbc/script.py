@@ -17,6 +17,11 @@ PC enemies (enemies.py found which); here each record becomes the PC events that
     0b n . . g         group g becomes group n                   -> 39
     02 . s .           scroll: a pixel every s+1 frames          -> 2
     00 d n             skip the next n records below difficulty d -> 66
+    0e a b c g         group's gun a every b frames (a ff: gun c's -> 31 (d6 1: its launches as they are)
+                       every b; b 0: none)
+    (each enemy made)  its type's hit points and gun's pace   -> 203 before it (tyrian2.c gbc_fight; the
+                       (the type table's bytes 1, 5, 6)          PC enemy drawn for it is often far tougher,
+                                                                 or fires where it never does)
 
 Scale: a GBC pixel is 1.5 PC pixels; a trigger at scrolled position p is the PC clock 1.5 p; with the
 GBC scroll of a pixel every 4 frames as the PC's 1 px a tick, a GBC frame is 0.375 ticks, so a speed
@@ -39,11 +44,16 @@ SKY, GROUND = 15, 6
 LINKS = range(1, 31)    # links for the GBC groups (above 40, links of a block of 20 die together)
 KEEP = 0x63
 OBJECT = 201            # (Tyrian3D's event: the next d1 events make one enemy)
+FIGHT = 203             # (Tyrian3D's event: the next enemy's hit points and fire, the GBC's)
 HOMING = 97             # 55's xaccel / yaccel: towards the ship (13 with 99: a step every 10 frames)
 
 
 def s8(v):
     return v - 256 if v > 127 else v
+
+
+def ticks(frames):
+    return max(1, round(frames * FRAME))
 
 
 def ev(t, type_, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0, ep=None):
@@ -81,12 +91,15 @@ class Translator:
     """The records' translation, record by record (translate(); the boss's stretch, boss.py): its links and the
     scroll speed new enemies drift with carried from one to the next. Arguments as translate()'s."""
 
-    def __init__(self, types, enemies_of, ground_of, start_speed=1, sizes=None, links=None, starts=None):
+    def __init__(self, types, enemies_of, ground_of, start_speed=1, sizes=None, links=None, starts=None, stats=None):
         self.types, self.enemies_of, self.ground_of = types, enemies_of, ground_of
         self.sizes = sizes or {}
         self.links = links or Links()
         self.speed = start_speed
         self.starts = starts or {}  # GBC type -> its start speed, the type table's bytes (vx, vy)
+        self.stats = stats or {}    # GBC type -> (hit points, gun, every how many frames it fires): bytes 1, 5, 6
+        self.guns = {}              # link -> the guns of the types made on it
+        self.pace = 1               # the level's enemies fire this many times less often (episode.py FIRE_PACE)
         self.uncarried = set()      # links of ground slots' enemies the GBC map doesn't carry (their 19s less the scroll)
         self.steered = {}           # link -> (x, y) steered towards the ship
         self.carried = {}           # link -> when the sky enemies the GBC map carries were last made on it
@@ -118,13 +131,21 @@ class Translator:
         link = links.get(g, t)
         ground = ground_of(pc)
         datas = [enemies_of(ep).get(m, {}) for m in ([p[0] for p in parts] if isinstance(parts, tuple) else [n])]
+        # (its hit points, a block's pieces' together, and how often it fires: the GBC's; tyrian2.c gbc_fight)
+        fight = []
+        if a in self.stats:
+            hp, gun, every = self.stats[a]
+            hp *= block[0] * block[1]
+            fight = [ev(t, FIGHT, hp if 0 < hp < 255 else 0, 0, min(127, ticks(every * self.pace)) if gun and every else 0)]
+            if link:
+                self.guns.setdefault(link, set()).add(gun)
 
         def start_y(m):
             # (the spawn event's own speed: the GBC start speed's y for the PC enemy's; on the ground, which the map
             # carries, less the scroll for one the GBC's doesn't)
             own = enemies_of(ep).get(m, {}).get('ymove', 0)
             return max(-128, min(127, sy - own - (0 if not ground or carried else speed)))
-        evs = []
+        evs = fight
         for j in range(rows):
             for i in range(cols):
                 x = SCALE * (b + 16 * i) - 12
@@ -220,11 +241,19 @@ class Translator:
             if not link or not (a or b):
                 return []
             return [ev(t, 27, SPEED_UNIT * s8(a) if a else -99, SPEED_UNIT * s8(b) if b else -99, 0, 0, 0, link)]
+        if cmd == 0x0e:
+            # (a group's gun: a, or with a ff the group's gun c, every b frames; its PC guns at that pace)
+            if not link or (a == 0xff and c not in self.guns.get(link, ())):
+                return []
+            if a != 0xff:
+                self.guns[link] = {a}
+            f = min(255, ticks(b * self.pace)) if b and (c if a == 0xff else a) else 0
+            return [ev(t, 31, f, f, f, 0, 1, link)]
         if cmd == 0x0b:
             if not link:
                 return []
             new = links.get(a, t)
-            for known in (self.steered, self.carried):
+            for known in (self.steered, self.carried, self.guns):
                 if link in known:
                     known[new] = known[link]
             if link in self.uncarried:

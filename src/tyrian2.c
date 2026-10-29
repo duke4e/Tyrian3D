@@ -463,6 +463,67 @@ static bool gbc_shots_full(void)
 	return flying >= GBC_SHOT_MAX;
 }
 
+// Tyrian3D dev: the enemy that fired each enemy shot (TYR3D_LOG_BALANCE's hits)
+static JE_word shot_from[ENEMY_SHOT_MAX];
+
+// Tyrian3D: episode 7's enemies as tough as the GBC's and firing as often (event 203, right before the event that
+// makes one, its event 201 for an object of several, or its look's events 202 for a boss's piece; head: that event).
+// The PC enemies they are drawn as are often far tougher (a big ship for a small GBC one, a wall that can't be shot
+// for one that can) and fire far more (a stream a tick for one that never fires): the user found Easy hard. d1: the
+// GBC enemy's hit points (Normal; 0 the PC enemy's own armour), on the GBC's difficulty scale (Easy half, Hard 1.5x:
+// the ROM's), shared among an object's PC parts by their armour (parts that can't be shot keep theirs, unless none
+// can); d3: how often its guns fire (ticks; 0 never, -1 the PC enemy's own).
+#define GBC_FIGHT 203
+static int gbc_shootable(int type)
+{
+	const int armor = type > 0 && type <= ENEMY_NUM ? enemyDat[type].armor : 0;
+	return armor > 0 && armor < 254 ? armor : 0;
+}
+
+// (one gun, as a GBC enemy has, every pace ticks (0: none): the first of its PC guns that fires by itself, or its
+// first; the magnets and launchers of 251 up as they are)
+static void gbc_fire(struct JE_SingleEnemyType *en, int pace)
+{
+	int gun = -1;
+	for (int j = 0; j < 3; ++j)
+		if (en->tur[j] > 0 && en->tur[j] < 251 && (gun < 0 || (en->freq[gun] == 0 && en->freq[j] > 0)))
+			gun = j;
+	for (int j = 0; j < 3; ++j)
+		if (en->tur[j] < 251)
+			en->freq[j] = j == gun ? pace : 0;
+}
+
+static void gbc_fight(struct JE_SingleEnemyType *en, int head)
+{
+	int k = head - 1;
+	while (k >= 0 && eventRec[k].eventtype == 202 && eventRec[k].eventtime == eventRec[head].eventtime)
+		--k;
+	if (k < 0 || eventRec[k].eventtype != GBC_FIGHT || eventRec[k].eventtime != eventRec[head].eventtime)
+		return;
+	const struct JE_EventRecType *f = &eventRec[k], *h = &eventRec[head];
+	const int own = gbc_shootable(en->enemytype);
+	int sum = 0;
+	if (h->eventtype == 201)
+		for (int j = head + 1; j <= head + h->eventdat && j < EVENT_MAXIMUM; ++j)
+			sum += gbc_shootable(eventRec[j].eventdat);
+	else if (h->eventtype == 12)
+		for (int part = 0; part < 4; ++part)
+			sum += gbc_shootable(h->eventdat + part);
+	else
+		sum = own;
+	if (f->eventdat > 0 && (own > 0 || sum == 0) && enemyDat[en->enemytype].armor != 0)  // (0: an item)
+	{
+		int hp = sum > 0 ? (f->eventdat * own + sum / 2) / sum : f->eventdat;
+		if (difficultyLevel <= DIFFICULTY_EASY)
+			hp = (hp + 1) / 2;
+		else if (difficultyLevel >= DIFFICULTY_HARD)  // (above Hard as the PC's armour grows, from Hard's 1.5x)
+			hp = hp * SDL_max(150, own > 0 ? en->armorleft * 100 / own + 30 : 150) / 100;
+		en->armorleft = SDL_clamp(hp, 1, 254);
+	}
+	if (f->eventdat3 >= 0)
+		gbc_fire(en, f->eventdat3);
+}
+
 // Tyrian3D: episode 7's enemies fly the GBC game's paths, which go sideways and back up the screen too, while the
 // GBC's sprites always face down it, as the PC models do: in the sky one that moves sideways leans that way, at
 // most GBC_LEAN degrees, easing into it (gbc_lean_now), never turning round. Not the pieces of one object (models
@@ -747,6 +808,10 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 	}
 	else
 		return;
+	// Tyrian3D dev: TYR3D_LOG_SPAWNS also says where an event's enemy is first shown coming.
+	if (added && !l3d_key_seen(key) && SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
+		printf("coming: event %u part %u first shown at %.0f,%.0f clock %u\n", (key - COMING_KEY) / 16, (key - COMING_KEY) / 4 % 4,
+		       x_now, y_now, (unsigned)curLoc);
 	if (added)
 	{
 		l3d_enemy_last_object(letter, what.graphic);
@@ -866,7 +931,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203:
 		return true;
 	default:
 		return false;
@@ -1175,6 +1240,14 @@ static void draw_coming_enemies(int enemy_offset)
 		if (ev->eventtype == 26)
 		{
 			adjust = ev->eventdat != 0;
+			continue;
+		}
+		if (ev->eventtype == 66 && initialDifficulty <= ev->eventdat)
+		{
+			// (the events it skips on this difficulty never come: shown, episode 7's Normal and Hard enemies came
+			// down on Easy and vanished where they'd have been made, the user's asteroids and planes "vanishing
+			// halfway down the screen")
+			e += ev->eventdat2;
 			continue;
 		}
 
@@ -1653,6 +1726,8 @@ enemy_still_exists:
 									goto draw_enemy_end;
 
 								enemyShotAvail[b] = !enemyShotAvail[b];
+								dev_balance("shot", enemy[i].enemytype);  // Tyrian3D dev
+								shot_from[b] = enemy[i].enemytype;
 
 								if (weapons[temp3].sound > 0)
 								{
@@ -1677,6 +1752,10 @@ enemy_still_exists:
 								enemyShot[b].sx = tempX + weapons[temp3].bx[tempPos] + tempMapXOfs;
 								enemyShot[b].sy = tempY + weapons[temp3].by[tempPos];
 								enemyShot[b].sdmg = weapons[temp3].attack[tempPos];
+								// Tyrian3D: episode 7's shots hurt as the GBC's do on its difficulty, a point less on Easy and one
+								// more on Hard (a gun's damage + the difficulty - 1, $054d), but at least one
+								if (episodeNum == EPISODE_GBC && enemyShot[b].sdmg > 0 && enemyShot[b].sdmg < 100)
+									enemyShot[b].sdmg = SDL_max(1, enemyShot[b].sdmg + difficultyLevel - DIFFICULTY_NORMAL);
 								enemyShot[b].tx = weapons[temp3].tx;
 								enemyShot[b].ty = weapons[temp3].ty;
 								enemyShot[b].duration = weapons[temp3].del[tempPos];
@@ -2908,6 +2987,7 @@ level_loop:
 											{
 												enemyAvail[temp3] = 1;
 												enemyKilled++;
+												dev_balance("kill", temp3);  // Tyrian3D dev
 											}
 
 											enemy[temp3].aniwhenfire = 0;
@@ -2963,6 +3043,7 @@ level_loop:
 												enemy_offset = 0;
 											}
 											b = JE_newEnemy(enemy_offset, tempW, 0);
+											dev_balance(b != 0 ? "drop" : "droplost", enemyDat[tempW].value);  // Tyrian3D dev
 											if (b != 0)
 											{
 												enemy_group[b-1] = enemy_group[temp2];  // (Tyrian3D: in its place)
@@ -3016,6 +3097,7 @@ level_loop:
 										{
 											enemyAvail[temp2] = 1;
 											enemyKilled++;
+											dev_balance("kill", temp2);  // Tyrian3D dev
 										}
 
 										if (enemyDat[enemy[temp2].enemytype].esize == 1)
@@ -3142,6 +3224,7 @@ draw_player_shot_loop_end:
 
 							if (player[i].invulnerable_ticks == 0)
 							{
+								dev_balance("hit", shot_from[z]);  // Tyrian3D dev
 								if ((temp = JE_playerDamage(temp, &player[i])) > 0)
 								{
 									player[i].x_velocity += (enemyShot[z].sxm * temp) / 2;
@@ -5718,6 +5801,7 @@ uint JE_makeEnemy(struct JE_SingleEnemyType *enemy, Uint16 eDatI, Sint16 uniqueS
 	if (!enemy->scoreitem)
 	{
 		totalEnemy++;  /*Destruction ratio*/
+		dev_balance("spawn", enemy->enemytype);  // Tyrian3D dev
 	}
 
 	/* indicates what to set ENEMYAVAIL to */
@@ -5753,7 +5837,7 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		// its own event; a new one at each event's first, at an event again (a loop) or another 201's)
 		const int e = eventLoc - 1;
 		int head = e;
-		for (int k = e - 1; k >= 0 && k >= e - 16; --k)
+		for (int k = e - 1; k >= 0 && k >= e - 32; --k)
 			if (eventRec[k].eventtype == 201)
 			{
 				if (k + eventRec[k].eventdat >= e && eventRec[k].eventtime == eventRec[e].eventtime)
@@ -5765,6 +5849,7 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		gbc_object_head = head;
 		gbc_object_event = e;
 		gbc_object[b-1] = gbc_objects;
+		gbc_fight(&enemy[b-1], head);
 	}
 	else
 		gbc_object[b-1] = 0;
@@ -6355,6 +6440,14 @@ void JE_eventSystem(void)
 		{
 			if (eventRec[eventLoc-1].eventdat4 == 99 || enemy[temp].linknum == eventRec[eventLoc-1].eventdat4)
 			{
+				// (Tyrian3D: in episode 7 with d6 1 a GBC group's gun: one of its PC guns, at d1's pace, gbc_fire)
+				if (episodeNum == EPISODE_GBC && eventRec[eventLoc-1].eventdat6 == 1)
+				{
+					gbc_fire(&enemy[temp], eventRec[eventLoc-1].eventdat);
+					for (temp2 = 0; temp2 < 3; temp2++)
+						enemy[temp].eshotwait[temp2] = 1;
+					continue;
+				}
 				enemy[temp].freq[1-1] = eventRec[eventLoc-1].eventdat ;
 				enemy[temp].freq[2-1] = eventRec[eventLoc-1].eventdat2;
 				enemy[temp].freq[3-1] = eventRec[eventLoc-1].eventdat3;
@@ -6871,6 +6964,9 @@ void JE_eventSystem(void)
 		break;
 
 	case 202:  // Tyrian3D: a part of the next enemy's look (episode 7's bosses: gbc_look; JE_createNewEventEnemy)
+		break;
+
+	case GBC_FIGHT:  // Tyrian3D: the next enemy's toughness and fire as the GBC's (episode 7: gbc_fight)
 		break;
 
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)

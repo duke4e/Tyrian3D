@@ -268,7 +268,7 @@ static bool background_layer(L3DLayerType type)
 // The level's water colour (linear), for the procedural water.
 static float water_rgb[3] = { 0.02f, 0.06f, 0.12f };
 static float tile_fade;  // (the palette's fade the tiles are dimmed by: dim_by_fade)
-static float filter_dim = 1.0f;  // (and the game's darkening filter: the tiles' colours have it, the water's and clouds' not)
+static float filter_dim = 1.0f;  // (and the game's darkening filter, for the water and the clouds: tile_filter_dim the tiles')
 
 static void set_glints(BTBHGPUSceneGeometryBatch *b, BTBHGPUTexture *mask)
 {
@@ -3140,19 +3140,19 @@ static void plane_footprint(const Camera3D *camera, float height, float rect[4])
 	rect[3] = align.cz + (rect[3] - align.cz) / k;
 }
 
-// Palette colours for this frame, with JE_filterScreen applied as a palette-index remap.
-// The palette as the frame shows it (the level's filters), from the given palette (rgb_palette's packing).
-static void frame_colors_of(const L3DFrame *frame, const Uint32 palette[256], Uint32 colors[256])
+// Palette colours with JE_filterScreen's hue and brightness (-99: none) applied as a palette-index remap,
+// from the given palette (rgb_palette's packing).
+static void filter_colors(int hue, int brightness, const Uint32 palette[256], Uint32 colors[256])
 {
 	Uint8 remap[256];
 	for (int i = 0; i < 256; ++i)
 	{
 		int index = i;
-		if (frame->filter_hue != -99)
-			index = (frame->filter_hue << 4) | (index & 0x0f);
-		if (frame->filter_brightness != -99)
+		if (hue != -99)
+			index = (hue << 4) | (index & 0x0f);
+		if (brightness != -99)
 		{
-			const int value = (index & 0x0f) + frame->filter_brightness;
+			const int value = (index & 0x0f) + brightness;
 			index = (index & 0xf0) | (value < 0 || value >= 0x1f ? 0 : (value >= 0x0f ? 0x0f : value));
 		}
 		remap[i] = (Uint8)index;
@@ -3160,6 +3160,30 @@ static void frame_colors_of(const L3DFrame *frame, const Uint32 palette[256], Ui
 
 	for (int i = 0; i < 256; ++i)
 		colors[i] = palette[remap[i]];
+}
+
+// The palette as the frame shows it (the level's filters), from the given palette.
+static void frame_colors_of(const L3DFrame *frame, const Uint32 palette[256], Uint32 colors[256])
+{
+	filter_colors(frame->filter_hue, frame->filter_brightness, palette, colors);
+}
+
+static float srgb_to_linear(Uint8 value);
+
+// The colours' brightness against others', in linear light.
+static double linear_ratio(const Uint32 colors[256], const Uint32 against[256])
+{
+	double now = 0, full = 0;
+	for (int i = 1; i < 256; ++i)
+	{
+		const Uint8 *a = (const Uint8 *)&colors[i], *b = (const Uint8 *)&against[i];
+		for (int k = 0; k < 3; ++k)
+		{
+			now += srgb_to_linear(a[k]);
+			full += srgb_to_linear(b[k]);
+		}
+	}
+	return full > 0 ? now / full : 1.0;
 }
 
 static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
@@ -3174,6 +3198,13 @@ static void frame_colors(const L3DFrame *frame, Uint32 colors[256])
  * distance, so the palette is (nearly) a uniform part of the full one.
  */
 static float tile_fade = 1.0f;  // (declared above, for set_glints)
+/*
+ * And under the game's brightness filter (the Flare special's flicker, stepping every tick; a level coming up from
+ * dark) the tiles, terrain and plants keep the frame's colours without it and are dimmed by tile_filter_dim instead
+ * (not brightened): coloured anew at every step, they showed at their own size all through it (the user: the
+ * Flare shows the old textures).
+ */
+static float tile_filter_dim = 1.0f;
 
 static bool uniform_fade(float *fade)
 {
@@ -3219,6 +3250,18 @@ static void dim_by_fade(BTBHGPUSceneGeometryBatch *b)
 		return;
 	// (the factor applies to linear colour; the palette's are sRGB)
 	const Uint8 k = (Uint8)lroundf(255.0f * powf(SDL_max(tile_fade, 0.0f), 2.2f));
+	b->albedo_red = (Uint8)(b->albedo_red * k / 255);
+	b->albedo_green = (Uint8)(b->albedo_green * k / 255);
+	b->albedo_blue = (Uint8)(b->albedo_blue * k / 255);
+}
+
+// The map's tiles, terrain and plants: by the palette's fade and the brightness filter (tile_filter_dim).
+static void dim_tiles(BTBHGPUSceneGeometryBatch *b)
+{
+	dim_by_fade(b);
+	if (tile_filter_dim >= 1.0f)
+		return;
+	const Uint8 k = (Uint8)lroundf(255.0f * SDL_max(tile_filter_dim, 0.0f));
 	b->albedo_red = (Uint8)(b->albedo_red * k / 255);
 	b->albedo_green = (Uint8)(b->albedo_green * k / 255);
 	b->albedo_blue = (Uint8)(b->albedo_blue * k / 255);
@@ -8186,7 +8229,8 @@ typedef struct
 	int scale;                    // hd's
 	int ring_rows;                // terrain_ring_rows()
 	int rows[TERRAIN_RING_ROWS];  // the map row each slot holds, or -1
-	bool hd_rows[TERRAIN_RING_ROWS];  // hd holds the slot's row in the ring's colours
+	bool hd_rows[TERRAIN_RING_ROWS];  // hd holds the slot's row
+	bool stale[TERRAIN_RING_ROWS], hd_stale[TERRAIN_RING_ROWS];  // in earlier colours than the ring's (texture, hd)
 	unsigned int generation;      // b3d_map_generation + 1 that the slots are of
 	Uint32 colors_hash;
 	bool ground_zero;
@@ -8248,7 +8292,7 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 		ring->generation = 0;
 	}
 	const Uint32 hash = hash_colors(colors);
-	if (ring->generation != b3d_map_generation + 1 || ring->colors_hash != hash || ring->ground_zero != ground_zero)
+	if (ring->generation != b3d_map_generation + 1)
 	{
 		for (int i = 0; i < ring->ring_rows; ++i)
 		{
@@ -8256,6 +8300,15 @@ static TerrainRing *terrain_ring(const B3DTerrain *t, int set, const Uint32 colo
 			ring->hd_rows[i] = false;
 		}
 		ring->generation = b3d_map_generation + 1;
+		ring->colors_hash = hash;
+		ring->ground_zero = ground_zero;
+	}
+	if (ring->colors_hash != hash || ring->ground_zero != ground_zero)
+	{
+		// (a row's HD one shows in the earlier colours till it is coloured anew, a few a frame: emptied, the rows
+		// showed at the tiles' size for a moment whenever a filter's hue came or went, the Flare's at its start and end)
+		for (int i = 0; i < ring->ring_rows; ++i)
+			ring->stale[i] = ring->hd_stale[i] = true;
 		ring->colors_hash = hash;
 		ring->ground_zero = ground_zero;
 	}
@@ -8369,16 +8422,20 @@ static void terrain_ring_row(TerrainRing *ring, const B3DTerrain *t, int set, in
 	if (map_row < 0)
 		return;
 	const Uint64 start = SDL_GetPerformanceCounter();
-	if (ring->rows[slot] != map_row)
+	if (ring->rows[slot] != map_row || ring->stale[slot])
 	{
+		if (ring->rows[slot] != map_row)
+			ring->hd_rows[slot] = false;
 		terrain_ring_row_made(ring, t, set, map_row, colors);
-		ring->hd_rows[slot] = false;
+		ring->stale[slot] = false;
 		++profile_rows;
 	}
-	if (ring->hd != NULL && !ring->hd_rows[slot] && hd_ready() && colors_stable >= HD_STABLE_FRAMES && hd_budget > 0)
+	if (ring->hd != NULL && (!ring->hd_rows[slot] || ring->hd_stale[slot]) && hd_ready() &&
+	    colors_stable >= HD_STABLE_FRAMES && hd_budget > 0)
 	{
 		terrain_ring_row_hd(ring, t, set, map_row, colors);
 		ring->hd_rows[slot] = true;
+		ring->hd_stale[slot] = false;
 		--hd_budget;
 	}
 	profile_rows_ticks += SDL_GetPerformanceCounter() - start;
@@ -9031,7 +9088,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->instance_count = key_count[key];
 		const bool hd = tile_pages[page].hd && hd_ready();
 		b->albedo_texture = hd ? tile_atlas_hd : tile_atlas;
-		dim_by_fade(b);
+		dim_tiles(b);
 		const float inset = tile_inset() / (hd ? hd_scale : 1);  // (half a pixel of the atlas texture)
 		b->uv_scale_x = (flipped ? -1.0f : 1.0f) * (B3D_TILE_W - 2 * inset) / B3D_ATLAS_W;
 		b->uv_scale_y = (B3D_TILE_H - 2 * inset) / atlas_h;
@@ -9096,7 +9153,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			b->first_instance = (*instance_count)++;
 			b->instance_count = 1;
 			b->albedo_texture = row->hd ? terrain_rings[row->set].hd : terrain_rings[row->set].texture;
-			dim_by_fade(b);
+			dim_tiles(b);
 			b->unlit_enabled = 1;
 			b->alpha_cutoff = 0.5f;
 			b->stencil_reference = SOLID_STENCIL;
@@ -9120,7 +9177,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->first_instance = (*instance_count)++;
 		b->instance_count = 1;
 		b->albedo_texture = row->hd ? terrain_rings[row->set].hd : terrain_rings[row->set].texture;
-		dim_by_fade(b);
+		dim_tiles(b);
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
 		if (terrain_rings[row->set].water != NULL)
@@ -9227,7 +9284,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->first_instance = first;
 		b->instance_count = (uint32_t)(*instance_count - first);
 		b->albedo_texture = white_texture;
-		dim_by_fade(b);  // (the plants' colours are the full palette's)
+		dim_tiles(b);  // (the plants' colours are the full palette's)
 		b->unlit_enabled = 1;
 		if (solid_place_count > 0)
 			not_on_solids(b);
@@ -11347,29 +11404,23 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 
 	Uint32 colors[256];
 	frame_colors(frame, colors);
-	// The colours the map's tiles are coloured with (and dimmed by tile_fade).
+	// The colours the map's tiles are coloured with (and dimmed by tile_fade and tile_filter_dim).
 	Uint32 tile_colors[256];
 	tile_fade = 1.0f;
 	// The game's darkening filter (a level comes up from dark by it): how much darker its colours are, in linear light.
 	filter_dim = 1.0f;
 	if (frame->filter_brightness != -99 && frame->filter_brightness < 0)
+		filter_dim = (float)SDL_min(linear_ratio(colors, rgb_palette), 1.0);
+	// The brightness filter: the tiles in the colours without it, dimmed by it (tile_filter_dim).
+	const bool fading = uniform_fade(&tile_fade);
+	filter_colors(frame->filter_hue, -99, fading ? palette_fade_full : rgb_palette, tile_colors);
+	tile_filter_dim = 1.0f;
+	if (frame->filter_brightness != -99)
 	{
-		double now = 0, full = 0;
-		for (int i = 1; i < 256; ++i)
-		{
-			const Uint8 *a = (const Uint8 *)&colors[i], *b = (const Uint8 *)&rgb_palette[i];
-			for (int k = 0; k < 3; ++k)
-			{
-				now += srgb_to_linear(a[k]);
-				full += srgb_to_linear(b[k]);
-			}
-		}
-		filter_dim = full > 0 ? (float)SDL_min(now / full, 1.0) : 1.0f;
+		Uint32 without[256];
+		filter_colors(frame->filter_hue, -99, rgb_palette, without);
+		tile_filter_dim = (float)SDL_min(linear_ratio(colors, without), 1.0);
 	}
-	if (uniform_fade(&tile_fade))
-		frame_colors_of(frame, palette_fade_full, tile_colors);
-	else
-		memcpy(tile_colors, colors, sizeof(tile_colors));
 	// The HD tiles are coloured when the colours have held (hd_tile_page, terrain_ring_row).
 	static Uint32 last_tile_colors_hash = 0;
 	const Uint32 tile_colors_hash = hash_colors(tile_colors);

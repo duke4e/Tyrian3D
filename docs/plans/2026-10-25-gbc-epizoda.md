@@ -114,6 +114,28 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   najbliži komad, događaj 202), a manje grupe dio koji izgleda cijelo (`boss_looks.json`, po oku; WARP-ovi
   mjehuri STARGATE-ova velika kugla). JUNGLE-ovi zeleni lovci uz tenk (tip 04, list H nije učitan) crtali su se
   kao četvrtina tenka: sad 2:760 (`enemy_overrides.json`).
+- Nestajanje, flare, pill (2026-10-29, korisnik: na 2. levelu asteroidi nestaju na pola ekrana, na SAVARI
+  nestaju veliki avioni; flare pokazuje stare teksture; upgrade pill diže prazno stražnje oružje). 3D pregled
+  nadolazećih neprijatelja crtao je i one koje događaj 66 na Easy/Normal preskače (GBC zapisi 21-24): sletjeli
+  bi i nestali gdje bi se stvorili. Sad ih preskače kao i igra. Flare (filtar svjetline koji treperi svaki
+  tick) mijenjao je boje tileova svaki tick, pa HD boje nikad nisu stigle: teren se sad crta u bojama bez
+  filtra i samo zatamnjuje, a stari redovi terena se ne brišu nego označe za ponovno bojanje. Power-up koji u
+  svom portu nema što dići (nema oružja ili je na punoj snazi) u epizodi 7 diže drugi port.
+- Pickupi (2026-10-29, korisnik: pickupa je malo): PC original daje predmet grupi neprijatelja (događaji 33,
+  45: arcade); GBC levelu se dodaju na vrijeme u istom omjeru prema trajanju levela. Grupa se sad bira po
+  veličini kao u originalu (koliko komada ubiti), predmet ide nakon toliko komada, a neuništivi i šefovi
+  (osim kad je šef cijeli level) ne nose predmete.
+- Balans (2026-10-29, korisnik: Easy je prilično težak; uzmi omjere iz PC originala): svaki level i njegov
+  original odigrani na Easy u Arcadeu (autopilot puca, god mode, `TYR3D_LOG_BALANCE`), šteta po 1000 tickova
+  i tko ju je nanio. Uzroci: PC neprijatelji koji glume GBC-ove imali su svoje oklope i puške (BUBBLES-ovi
+  mjehuri pucali su svaki tick, a GBC-ovi nikad; DELICORE-ovi zidovi se nisu mogli srušiti), a šefovi PC-ov
+  Easy (oklop x0.75). Sad svaki neprijatelj dobiva GBC-ove bodove života i ritam paljbe (događaj 203: tip
+  tablice bajtovi 1, 5, 6; jedna puška kao na GBC-u; naredba 0e postaje događaj 31), GBC-ova pravila težine
+  (Easy pola života, puške točku manje štete; Hard 1.5x i točku više), a levelima koji su i dalje iznad
+  originala neprijatelji pucaju rjeđe (`FIRE_PACE`: SAVARA 4x, JUNGLE 3.5x, DESERT 2.8x, AST.BONUS 2x, SPACE
+  ATK 1.8x). Ukupna šteta 24 levela 5919 -> 1723; omjer prema originalu npr. TYRIAN 1.7 -> 0.8, ASTEROID
+  2.0 -> 0.9, SAVARA 3.6 -> 1.4, JUNGLE 4.3 -> 1.2, BUBBLES 21 -> 1.6, CAMANIS 2.4 -> 0.5, SPACE ATK 5.9 ->
+  1.1. Kasniji leveli (originali iz epizode 4) i dalje su lakši od originala, kao na GBC-u.
 
 ## Otvoreno
 

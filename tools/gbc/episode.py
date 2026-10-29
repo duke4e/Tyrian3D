@@ -32,6 +32,14 @@ SCALE = 1.5           # PC pixels per GBC pixel
 ROWS = 300            # layer 1 rows
 LOOK_EVENTS = {1, 2, 3, 8, 9, 21, 28, 29, 42, 43, 44, 48, 64, 65, 72, 73}  # as episode 6's generate.py
 OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
+# Levels whose enemies fire less often than the GBC's (their guns' pace times this): with the GBC's hit points, fire
+# and Easy rules (script.py event 203) these still cost the ship well over their PC originals on Easy (the autopilot
+# in Arcade, TYR3D_LOG_BALANCE, damage a 1000 ticks: SAVARA 438 to SAVARA IV's 140, its boss's two pieces aiming
+# 6-point shots every 2 ticks; JUNGLE 345 to TORM's 133, its boss's; DESERT 87 to DESERTRUN's 34; AST.BONUS 71 to
+# ASTEROID?'s 33; SPACE ATK 154 to SQUADRON's 112). The factor brings their shots' damage down to what the original
+# leaves after the collisions, at most 4 times (2026-10-29, the user: Easy is quite hard; take the ratios of the PC
+# originals the GBC levels were made from).
+FIRE_PACE = {'SAVARA': 4, 'JUNGLE': 3.5, 'DESERT': 2.8, 'AST.BONUS': 2, 'SPACE ATK': 1.8}
 # Episode 7's own enemies (the GBC levels' that no PC level has; overrides name them ["gbc", name]): sheet W, shapeFile's
 # 37th (tools/content/gbc/build.py makes their records)
 NEW_ENEMIES = json.load(open(os.path.join(ROOT, 'tools', 'content', 'gbc', 'new_enemies.json')))
@@ -621,7 +629,10 @@ def enemies(spec, look):
     if 'types_at' not in d:
         raise SystemExit(f"L{spec['gbc']:02d}.json: no types_at (tools/gbc/enemies.py --tables)")
     starts = {t: (rom[ro(d['types_at'] + 10 * t + 3)], rom[ro(d['types_at'] + 10 * t + 4)]) for t in range(100)}
-    tr = script.Translator(types, enemies_of, lambda k_: ground.get(k_[:2], False), sizes=sizes, starts=starts)
+    stats = {t: tuple(rom[ro(d['types_at'] + 10 * t + k)] for k in (1, 5, 6)) for t in range(100)}
+    tr = script.Translator(types, enemies_of, lambda k_: ground.get(k_[:2], False), sizes=sizes, starts=starts,
+                           stats=stats)
+    tr.pace = FIRE_PACE.get(spec['name'], 1)
     events = script.translate(records, positions, types, enemies_of, None, clock=clock, translator=tr)
     placements = []
     gbc_boss = None
@@ -657,13 +668,30 @@ def enemies(spec, look):
     return events, placements, banks, gbc_boss
 
 
+DROP_REACH = 120  # an original's drop reaches the enemies of its link that came this many ticks before it
+GROUP_GAP = 90    # a GBC group: its link's enemies, each come at most this many ticks after the one before
+_enemy_data = {}
+
+
+def enemy_data(ep, n):
+    """A PC enemy's record (None for the episode's own)."""
+    if not isinstance(ep, int):
+        return None
+    if ep not in _enemy_data:
+        _enemy_data[ep] = sources.tyrdata.load_items(ep)['enemies']
+    return _enemy_data[ep].get(n)
+
+
 def with_drops(events, look, placements, pool=(), gbc_boss=None):
     """The pickups (the purple balls that power up the guns in Arcade, the guns of the arcade modes, coins): the
     original level's drops (events 33 and 45: what the enemies of a link leave when shot down) in its order and
-    at its pace, each given to the GBC group spawned nearest the same share of the way to the boss (after its
-    spawn, by its link). (The GBC game has none of its own: its script has no such command.) Not the
-    originals' data cubes (the GBC story's are the episode's own) nor their warp orbs (secret levels). An original with none (DESERTRUN): the
-    first level of its pool with some."""
+    at its pace, and as many: each reaches as many enemies as it did in the original (its link's, DROP_REACH),
+    given to the GBC groups that come nearest the same share of the way to the boss (after a group's last enemy,
+    by its link, so that the whole group carries it), as many as it takes. (The GBC game has none of its own: its
+    script has no such command. A drop given to one GBC enemy each left the arcade with a third of the
+    originals' purple balls: SAVARA V's waves of 17 planes, each leaving one.) Not the originals' data cubes (the
+    GBC story's are the episode's own) nor their warp orbs (secret levels); not to a group that can't be shot
+    down. An original with none (DESERTRUN): the first level of its pool with some."""
     def drops_of(src):
         # (and not the secret levels' warp orbs, value 10000 + the section they jump to: not this episode's)
         en = src.enemies
@@ -675,24 +703,62 @@ def with_drops(events, look, placements, pool=(), gbc_boss=None):
             break
         look = waves.Source(*m)
         orig = drops_of(look)
+    # (a GBC boss's loop that is the whole level, JUNGLE II's: over its groups, not its pieces, on links 101 and up)
+    whole = gbc_boss is not None and gbc_boss['start'] < 600
     spawns = [i for i, e in enumerate(events) if e['type'] in (6, 7, 10, 12, 15) and e.get('d4') and 'ep' in e
-              and e['ep'] != 'boss' and (gbc_boss is None or e['t'] < gbc_boss['start'])]
+              and e['ep'] != 'boss' and e['d4'] < 101 and (gbc_boss is None or whole or e['t'] < gbc_boss['start'])]
     if not orig or not spawns:
         return events
+
+    def pieces(e):
+        return 4 if e['type'] == 12 else 1
+
+    def reach(d):
+        return max(1, sum(pieces(e) for e in look.events if e['type'] in waves.SPAWNS and e['d4'] == d['d4']
+                          and d['t'] - DROP_REACH <= e['t'] <= d['t']))
+
+    def can_die(e):
+        data = [enemy_data(e['ep'], e['d1'] + k) for k in range(pieces(e))]
+        return any(d is None or d['armor'] < 254 for d in data)
+    # the GBC groups: [the indices of a link's spawns], each GROUP_GAP at most after the one before
+    groups, last = [], {}
+    for i in spawns:
+        g = last.get(events[i]['d4'])
+        if g is None or events[i]['t'] - events[g[-1]]['t'] > GROUP_GAP:
+            g = last[events[i]['d4']] = []
+            groups.append(g)
+        g.append(i)
+    groups = [g for g in groups if any(can_die(events[i]) for i in g)]
     b = look.boss()
-    span_o = b['start'] if b else max(e['t'] for e in look.events if e['t'] < 60000)
-    span_g = placements[0]['start'] if placements else gbc_boss['start'] if gbc_boss else max(events[i]['t'] for i in spawns)
+    end_o = max(e['t'] for e in look.events if e['t'] < 60000)
+    # (a boss block found at the start, as CAMANIS's and LAVA EXIT's, isn't where the level ends: every drop after
+    # it went to the GBC level's last groups, and most found none free)
+    span_o = b['start'] if b and b['start'] > end_o / 2 else end_o
+    span_g = (placements[0]['start'] if placements else gbc_boss['start'] if gbc_boss and not whole
+              else max(events[i]['t'] for i in spawns))
+    size = [sum(pieces(events[i]) for i in g) for g in groups]
     used, after = set(), {}
     for e in orig:
         want = min(1.0, e['t'] / max(1, span_o)) * span_g
-        free = [i for i in spawns if (events[i]['t'], events[i]['d4']) not in used]
-        if not free:
-            break
-        i = min(free, key=lambda i: (abs(events[i]['t'] - want), i))
-        used.add((events[i]['t'], events[i]['d4']))
-        # (533 and 534 are the game's own codes, a random special weapon: as they are, episode 5's numbers)
-        after.setdefault(i, []).append(dict(e, t=events[i]['t'], d4=events[i]['d4'],
-                                            ep=5 if e['d1'] in (533, 534) else look.episode))
+        need = reach(e)
+        while need > 0:
+            free = [k for k in range(len(groups)) if k not in used]
+            if not free:
+                break
+            # (the nearest, a group bigger than the drop needs as if a little further for each enemy too many; in it,
+            # after the enemy that makes up the number, so that those before carry it and not the rest: a gun given
+            # to all of a group of 17 gave 17)
+            k = min(free, key=lambda k: (abs(events[groups[k][-1]]['t'] - want) + GROUP_GAP / 3 * max(0, size[k] - need), k))
+            used.add(k)
+            n = 0
+            for i in groups[k]:
+                n += pieces(events[i])
+                if n >= need:
+                    break
+            need -= n
+            # (533 and 534 are the game's own codes, a random special weapon: as they are, episode 5's numbers)
+            after.setdefault(i, []).append(dict(e, t=events[i]['t'], d4=events[i]['d4'],
+                                                ep=5 if e['d1'] in (533, 534) else look.episode))
     out = []
     for i, e in enumerate(events):
         out.append(e)

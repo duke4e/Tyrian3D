@@ -6144,6 +6144,21 @@ const char *JE_getName(JE_byte pnum)
 	return miscText[47 + pnum];
 }
 
+// Tyrian3D: the port a weapon power-up (evalue -1 front, -2 rear) powers up. In episode 7 one that finds
+// nothing to power up in its port (no weapon there, or one at full power) goes to the other port if that
+// one can take it: the GBC's one list of weapons often leaves the rear port empty, and the two pills look
+// alike (the user saw them lost to the cash prize).
+static uint power_up_port(JE_integer evalue)
+{
+	const uint port = evalue == -1 ? FRONT_WEAPON : REAR_WEAPON, other = FRONT_WEAPON + REAR_WEAPON - port;
+	if (episodeNum != EPISODE_GBC || twoPlayerMode)
+		return port;
+	const PlayerItems *items = &player[0].items;
+	const bool can = items->weapon[port].id != 0 && items->weapon[port].power < 11,
+	           other_can = items->weapon[other].id != 0 && items->weapon[other].power < 11;
+	return !can && other_can ? other : port;
+}
+
 void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 {
 	char tempStr[256];
@@ -6161,6 +6176,8 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					p3d_pickup((this_player->x + 7 + enemy_screen_x + 6) / 2.0f, (this_player->y + 7 + enemy[z].ey + 7) / 2.0f,
 					           l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
 				int evalue = enemy[z].evalue;
+				if (enemy[z].scoreitem)
+					dev_balance("pickup", evalue);  // Tyrian3D dev
 				if (evalue > 29999)
 				{
 					if (evalue == 30000)  // spawn dragonwing in galaga mode, otherwise just a purple ball
@@ -6395,7 +6412,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 						cubeMax++;
 						soundQueue[3] = V_DATA_CUBE;
 					}
-					else if (evalue == -1)  // got front weapon powerup
+					else if ((evalue == -1 || evalue == -2) && power_up_port(evalue) == FRONT_WEAPON)  // got front weapon powerup
 					{
 						if (isNetworkGame)
 							snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(1), miscTextB[4-1], miscText[45-1]);
@@ -6408,7 +6425,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 						power_up_weapon(&player[0], FRONT_WEAPON);
 						soundQueue[7] = S_POWERUP;
 					}
-					else if (evalue == -2)  // got rear weapon powerup
+					else if (evalue == -1 || evalue == -2)  // got rear weapon powerup
 					{
 						if (isNetworkGame)
 							snprintf(tempStr, sizeof(tempStr), "%s %s %s", JE_getName(2), miscTextB[4-1], miscText[46-1]);
@@ -6466,6 +6483,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					if (armorleft > damageRate)
 						armorleft = damageRate;
 
+					dev_balance("bump", enemy[z].enemytype);  // Tyrian3D dev
 					JE_playerDamage(armorleft, this_player);
 
 					// player ship gets push-back from collision
@@ -6510,6 +6528,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 									enemy[temp2].linknum = 0;
 
 									enemyAvail[temp2] = 1;
+									dev_balance("rammed", temp2);  // Tyrian3D dev
 
 									if (enemyDat[enemy[temp2].enemytype].esize == 1)
 									{

@@ -336,7 +336,7 @@ skipped; the originals contain a few type 0 (all zero) at time 0 and one 108.
 | 27 | global reverse | link d4 (0 all; d3 80-89 newPL): d1 != -99 exrev, d2 != -99 eyrev, d3 1-16 colour filter |
 | 28 / 29 | top enemies under / over | `topEnemyOver` |
 | 30 | scroll speed (keep stop) | as 2, but explosions drift with d2 and stopBackgroundNum is kept |
-| 31 | fire override | link d4 (99 all): freq[0..2] = d1, d2, d3, fire next tick; launchers: launchfreq = d5 |
+| 31 | fire override | link d4 (99 all): freq[0..2] = d1, d2, d3, fire next tick; launchers: launchfreq = d5 (Tyrian3D: in episode 7 with d6 1 one gun each, a GBC group's, at d1's pace: the first of their guns that fires by itself, or their first, `gbc_fire`; launches as they are) |
 | 32 | top enemy at bottom | as 7, then ey = 190 (d5 ignored) |
 | 33 | drops | link d4: `enemydie = d1` (made on death). 512/513 not in 2P/arcade; 533: random special weapon chance by lives; 534 arcade/Super Tyrian substitutions |
 | 34 | music fade | |
@@ -388,6 +388,7 @@ skipped; the originals contain a few type 0 (all zero) at time 0 and one 108.
 | 85 | timed battle drops | as 33, timed battle mode only |
 | 99 | random explosions | d1 == 1 |
 | 200 | (Tyrian3D) side view | d1 1: the 3D view turned a quarter (the level scrolls left to right), controls turned with it, models on their side; d2: rocks along the edges (0 none, 1 asteroids, 2 crags); d3: the playfield reaches d3 x 10 pixels above the screen's top (enemies made there, shots and the ship go there, `l3d_field_ahead`); d1 0: from above again. Episode 6's side-scrolling levels |
+| 203 | (Tyrian3D) GBC toughness and fire | episode 7: the next enemy (the next event's, the next event 201's object, or after its look's events 202 a boss's piece) as tough and as quick to fire as the GBC's: d1 its GBC hit points (Normal; 0 the PC enemy's own armour), on the GBC's difficulty scale (Easy half, Hard 1.5x), shared among an object's parts by their armour (parts that can't be shot keep theirs unless none can); d3 how often it fires (ticks; 0 never, -1 its own guns): one gun, as a GBC enemy has (`gbc_fire`). `tyrian2.c` `gbc_fight` |
 
 ## 8. Notes for a level generator
 

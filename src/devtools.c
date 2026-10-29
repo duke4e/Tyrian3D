@@ -288,6 +288,15 @@ bool dev_godmode(void)
 	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL;
 }
 
+void dev_balance(const char *what, int value)
+{
+	static int on = -1;
+	if (on < 0)
+		on = SDL_getenv("TYR3D_LOG_BALANCE") != NULL;
+	if (on)
+		printf("balance: %s %d clock %u\n", what, value, (unsigned)curLoc);
+}
+
 bool dev_autopilot(void)
 {
 	return SDL_getenv("TYR3D_AUTOPILOT") != NULL;

@@ -584,7 +584,7 @@ class Boss:
         def fire(time, g):
             s = slots.get(g, [])
             st = state.get(g, {})
-            freq = [ticks(st[n]) if st.get(n) else 0 for n in s] + [0] * (3 - len(s))
+            freq = [min(255, ticks(st[n] * self.tr.pace)) if st.get(n) else 0 for n in s] + [0] * (3 - len(s))
             n = self.launches.get(g)
             launch = ticks(st[n]) if n and st.get(n) else 0
             return S.ev(time, 31, freq[0], freq[1], freq[2], min(127, launch), 0, self.link[g])
@@ -795,6 +795,10 @@ class Boss:
             with_map = cmd == 3 or (cmd >= 0x28 and cmd % 2 == 0)  # (not 21-24: script.py)
             ty = self.bd['types'].get(f"{u['type']:02x}", {})
             self.tr.steered[link] = (ty.get('vx') == 0x63, ty.get('vy') == 0x63)  # (its record steers it: a 13 stops it)
+            # (its hit points the GBC's on each difficulty, tyrian2.c gbc_fight; its guns its record's, the GBC's)
+            hp = ty.get('hp', 1)
+            if 0 < hp < 255:
+                evs.append(S.ev(time, S.FIGHT, hp, 0, -1))
             # (its parts of the whole body's look, LOOK events right before it: none, one of its group's that draws
             # nothing while the group's others draw theirs)
             if key in self.wholes:
@@ -819,7 +823,7 @@ class Boss:
                 tur.append(key)
             else:
                 tur.append(None)
-            freq.append(ticks(every) if n == own and every else 0)
+            freq.append(min(255, ticks(every * self.tr.pace)) if n == own and every else 0)
         tur += [None] * (3 - len(tur))
         freq += [0] * (3 - len(freq))
         launch, lf = None, 0

@@ -133,7 +133,10 @@ what stands on them can be played) and 64 pixels above the screen, where enemies
 their time (as far up as they fly down meanwhile, so from where the original makes them on they
 fly as there; those that don't come down start at the playfield's top). The 2D view then shows
 the 264 pixels round the ship. **Original** is the game 1:1 (`l3d_field_wide`, `TYR3D_PLAYFIELD`).
-What lies outside the playfield shows darkened, dimmed enemies coming or leaving included.
+What lies outside the playfield shows darkened, dimmed enemies coming or leaving included. The enemies still to come
+are shown coming before the game makes them (`tyrian2.c` `draw_coming_enemies`), not those an event 66 skips on the
+difficulty played (2026-10-29: shown, episode 7's Normal and Hard enemies came down on Easy and vanished where they'd
+have been made, ASTEROID's asteroids and SAVARA's planes; `TYR3D_LOG_SPAWNS` prints where each is first shown).
 
 ## Debug flight
 
@@ -402,14 +405,25 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
 * The other game modes (Arcade, two players, timed battle, Super Arcade) find their pickups as the PC
   levels give them, through drop events (33, and 45 for the arcade modes only: what the enemies of a
   link leave when shot down: purple balls, value 30000, power up the guns in Arcade and are cash in the
-  full game; 30000 + N and 31000 + N the front and rear guns; 533/534 a random special): the GBC game
-  has none of its own (its script has no such command), so `episode.py` (`with_drops`) gives each level
-  its original's drops in their order and at their pace, each to the GBC group spawned nearest the same
-  share of the way to the boss (the first level of its pool with some where the original has none:
-  DESERTRUN), but not the originals' data cubes (the GBC story's are the episode's) nor their warp orbs
-  (value 10000 + a section: the originals' secret levels). Episode 7 is in those modes' episode menus as
-  in the full game's. Checked with `TYR3D_MODE=arcade`, `two`, `timed:1` and `super:1` on TYRIAN,
-  JUNGLE and DELI CORE.
+  full game; 30000 + N and 31000 + N the front and rear guns; 533/534 the front and rear guns' power-ups,
+  in Arcade at times a random special): the GBC game has none of its own (its script has no such
+  command), so `episode.py` (`with_drops`) gives each level its original's drops in their order and at
+  their pace, and as many: a drop reaches every enemy of its link that came in the 120 ticks before it
+  (SAVARA V's waves of 17 planes leave 17 purple balls each), so it goes to as many GBC groups as that
+  takes, those that come nearest the same share of the way to the boss, after the enemy of the group that
+  makes up the number (2026-10-29, the user: the GBC levels' pickups are poor, Arcade above all: given to
+  one GBC enemy each, the levels had 419 purple balls where their originals have 1100; now 972, the guns,
+  power-ups and specials as the originals'; the rest where a level has too few enemies, WARP's 131). Not
+  to the pieces of a GBC boss (links 101 and up) nor to enemies that can't be shot down; JUNGLE II, whose
+  boss loop is the whole level, over its groups in the loop. A boss block found at its original's start
+  (CAMANIS, LAVA EXIT) doesn't count as where it ends (every drop after it went to the last groups). The
+  first level of its pool with drops where the original has none (DESERTRUN); not the originals' data
+  cubes (the GBC story's are the episode's) nor their warp orbs (value 10000 + a section: the originals'
+  secret levels). Episode 7 is in those modes' episode menus as in the full game's. Checked with
+  `TYR3D_MODE=arcade`, `two`, `timed:1` and `super:1` on TYRIAN, JUNGLE and DELI CORE. In episode 7 a gun's
+  power-up that finds nothing to power up in its port (no gun there, or one at full power) powers up the
+  other port's (`mainint.c` `power_up_port`; the user lost them to the cash prize: the GBC's one list of
+  guns often leaves the rear port empty, and the two pills look alike).
 * A boss that passes by in its original (its map going on once it is gone: ASTEROID2's tank) stops once
   it is in and fights; one whose pieces are drawn damaged from the start (dani < 0) doesn't count as on
   screen, so it gets no end when clear (its level ends at its 11).
@@ -431,6 +445,21 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   vanish by themselves). Only the pieces of one GBC enemy go together: a composite's parts (the events
   after an event 201, Tyrian3D's, which names how many: `script.py` `OBJECT`) and an event 12's four
   (`gbc_object`, tagged as an event makes them).
+* Episode 7's enemies are as tough as the GBC's and fire as often (`tyrian2.c` `gbc_fight`, event 203,
+  Tyrian3D's, before the event that makes one: `script.py` `FIGHT`, `boss.py` for a boss's pieces): the PC
+  enemy drawn for a GBC one is often far tougher (a big ship for a small GBC enemy, a wall that can't be shot
+  for one that can: DELICORE's) and fires far more (BUBBLES' bubbles a stream a tick, where the GBC's never
+  fire). Its hit points are the GBC type's (Normal: the type table's byte 1), on the GBC's difficulty scale
+  (Easy half, Hard 1.5x), shared among an object's PC parts by their armour; it fires one gun, as a GBC
+  enemy has (`gbc_fire`: the first of its PC guns that fires by itself, or its first), at the type's pace
+  (bytes 5 and 6), none where it has none, and a group given a gun (command 0e) gets an event 31 (d6 1: the
+  same, its launches as they are). Its enemies' shots hurt as the GBC's do on its difficulty, a point less on
+  Easy and one more on Hard (a gun's damage + the difficulty - 1, `$054d`), at least one. Where a level still
+  costs the ship well over its PC original, its enemies fire less often (`episode.py` `FIRE_PACE`: SAVARA's
+  boss aims 6-point shots every 2 ticks from two pieces, 4 times slower; JUNGLE, DESERT, AST.BONUS, SPACE
+  ATK). Measured with `TYR3D_LOG_BALANCE` (each level and its original on Easy in Arcade, the autopilot
+  firing in god mode: damage at the ship a 1000 ticks, which enemy dealt it, by shot or collision). (2026-10-29,
+  the user: Easy is quite hard; take the ratios of the PC originals the GBC levels were made from.)
 * `story.py` flies the GBC Full Game through (each level ended at once) and logs the story texts
   (plain ASCII in the ROM: `/` a new line, `|` a new page) and the speaker names it reads, in order,
   into `data/gbc/story.json`: Transon's greeting and Trent's escape before the first shop, one text
@@ -757,8 +786,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
 | `TYR3D_LAYER_PARALLAX=1` | Show the layers' planes unscaled (positions on different layers no longer line up as in the game) |
-| `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming |
+| `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming; and where the 3D view first shows an event's enemy coming (`coming:` lines: one shown and never made vanishes where it would have been) |
 | `TYR3D_LOG_MOVES=1` | Print every enemy each tick (clock, slot, enemy, place, speed and what carries it, steering, link): `tools/gbc/moves.py` sets episode 7's paths against the GBC's |
+| `TYR3D_LOG_BALANCE=1` | Print what a level costs and gives the player, a `balance: <what> <value> clock <tick>` line each (`devtools.c` `dev_balance`): an enemy that comes (`spawn`, its type), one killed or rammed (`kill`, `rammed`: its slot), an enemy shot fired (`shot`), the damage that hits the ship (`damage`, in god mode too; right after what dealt it: `hit`, an enemy shot, or `bump`, a collision, the enemy's type), an item an enemy leaves (`drop`, or `droplost` with no free slot for it: its value) and one picked up (`pickup`), to set a level against another (episode 7's against their originals) |
 | `TYR3D_AA=<0..3>` | Anti-aliasing: 0 off, 1 SMAA low, 2 SMAA high (default), 3 FXAA |
 | `TYR3D_LOG_CLOUDS=1` | Print which tiles of backgrounds 2 and 3 are shown as cloud puffs, and each cloud canvas's height and the ground under it |
 | `TYR3D_TERRAIN=0` | Leave out the terrain from assets (the ground flat or with per-tile relief, backgrounds 2 and 3 flat) |
@@ -1003,7 +1033,12 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 The 3D view's HD pictures are made from the game's data, so, like the data, they are not in the repository; the
 game loads them from `data/hd` (beside `data/tyrian2000`; `TYR3D_UPSCALE_DIR` overrides it): `tiles/<tileset>.hdt`
 (the background tiles at 4x), `sheets/<sheet>.hd` (the sprite sheets at 4x, for the HD volumes) and `hud_1p.png`,
-`hud_2p.png` (the HUD panel). Without them the game draws the original pixels. `pictures/pic_NN.png` and
+`hud_2p.png` (the HUD panel). Without them the game draws the original pixels. The HD tiles and terrain rows are
+coloured with the frame's colours a few a frame once those have held for two frames, the rows at the tiles' size
+meanwhile; under the game's brightness filter (the Flare special's flicker, stepping every tick; a level coming up
+from dark) they keep the colours without it and are dimmed instead (`render_gpu.c` `tile_filter_dim`, not brightened),
+and when the colours change a row keeps its HD colouring till it is coloured anew (2026-10-29, the user: the Flare
+showed the old textures, the tiles at their own size all through it). `pictures/pic_NN.png` and
 `pictures/tshp2.png` are the game's full-screen pictures drawn anew (by hand or an image generator, from
 `TYR3D_EXPORT_PICTURES`' pictures, in the same frame at any size; `tools/hd_pictures.py <dir>` puts them there, a
 picture with alpha laid on black): where the screen shows one of them much as the game loaded it (45 % of its own,
