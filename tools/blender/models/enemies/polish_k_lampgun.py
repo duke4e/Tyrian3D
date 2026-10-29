@@ -14,8 +14,9 @@ the screen (columns 1-3 and 21-23 of rows 0-10), the stubs of the machine's arms
 for its middle and its flanges: a salmon bracket where the claw block has its window (columns 9-15 of rows 15-26: a
 bar across at rows 16-17, two bars down from it to the roof's tip, a grey spine between them, dark red gaps), tan
 window frames where it has its flanges (columns 2-4 and 19-21 of rows 15-18 and 20-23, grey panes), the two small
-dark blue lamps by the roof (columns 4 and 19 of row 24). Enemy 706's launch type is 710 (K 171, a red bomb) but its
-launch frequency 0 (FLEET's events never set one): it launches nothing.
+dark blue lamps by the roof (columns 4 and 19 of row 24). Enemy 706's launch type is 710 (K 171, FLEET's small
+fireball, polish_fleet_fireball.py), its launch frequency 0 until FLEET's event 31 gives it one: from the clock 1672
+on it lets fall strings of them.
 Built from its families' parts: polish_pincer_boss.crossbar() (its 193 lamp, the legs ending at the sprite's top
 edge, no knee rings) mirrored up the screen (y -> 14 - y); polish_k_clawblock's roof and its block's prism (here
 without the window: polish_k_clawblock.block() cuts one) mirrored across y = 0; the bracket and the window frames
