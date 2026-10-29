@@ -720,7 +720,7 @@ bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y, int dx, int 
 		return false;
 	const void *sheet = shots2 ? (const void *)&spriteSheet12 : (const void *)&spriteSheet8;
 	const float height = l3d_layer_height(L3D_PLAYER);
-	M3DAppearance look;
+	M3DAppearance look = { 0 };
 	const bool model = m3d_shot_appearance(shots2, sprite, &look);
 	dev_log_sprites_store(shots2, sprite, model);  // (TYR3D_LOG_SPRITES)
 	if (model)
@@ -734,8 +734,14 @@ bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y, int dx, int 
 	else  // (its sprite with volume, flat, as a level's shots without a model: layer3d.c l3d_add_shot)
 		sim_objects[sim_object_count++] = (RGPUShowcaseObject){ M3D_VOLUME, x + 6.0f, y + 7.0f, height, 0, 0, 0, 0, -1,
 		                                                       sheet, (Uint16)sprite, false, V3D_STYLE_FLAT };
-	// Its glow in the sprite's brightest colour (l3d_add_glow).
-	sim_glow(x + 6.0f, y + 7.0f, height, 13.0f, 0.7f, l3d_sprite_glow_color(sheet, sprite, false), NULL);
+	// Its glow: the shot line's (glow=), else in the sprite's brightest colour (layer3d.c l3d_add_shot).
+	if (look.glow_size != 0)
+		sim_glow(x + 6.0f + look.glow_dx, y + 7.0f + look.glow_dy, height + look.height,
+		         look.glow_size < 0 ? -look.glow_size * 12.0f : look.glow_size, look.glow_strength,
+		         look.glow_has_rgb ? 0 : look.glow_color != 0 ? look.glow_color : l3d_sprite_glow_color(sheet, sprite, false),
+		         look.glow_rgb);
+	else
+		sim_glow(x + 6.0f, y + 7.0f, height, 13.0f, 0.7f, l3d_sprite_glow_color(sheet, sprite, false), NULL);
 	return true;
 }
 

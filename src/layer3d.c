@@ -662,8 +662,21 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 		return false;
 	float vx, vy;
 	l3d_key_last_object(key, &vx, &vy);
-	l3d_add_glow(sheet, sprite, x, y);
-	l3d_last_glow_velocity(vx, vy);
+	// Its glow: the shot line's (glow=, for a model that glows on its own), else the sprite's brightest colour.
+	if (look.glow_size != 0)
+	{
+		const float size = look.glow_size < 0 ? -look.glow_size * 12.0f : look.glow_size;
+		if (look.glow_has_rgb)
+			l3d_add_rgb_glow(x + 6.0f + look.glow_dx, y + 7.0f + look.glow_dy, size, look.glow_strength, look.glow_rgb, vx, vy);
+		else
+			l3d_add_color_glow(x + 6.0f + look.glow_dx, y + 7.0f + look.glow_dy, size, look.glow_strength,
+			                   look.glow_color != 0 ? look.glow_color : l3d_sprite_glow_color(sheet, sprite, false), vx, vy);
+	}
+	else
+	{
+		l3d_add_glow(sheet, sprite, x, y);
+		l3d_last_glow_velocity(vx, vy);
+	}
 	// Missiles leave smoke (with Effects; at the shots' height, the particles adding the terrain's room).
 	if (look.trail && settings3d.effects && (vx != 0 || vy != 0))
 		p3d_trail(x + 6.0f, y + 7.0f, vx, vy, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom, P3D_TRAIL_SMOKE, 0);
