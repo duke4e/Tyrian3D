@@ -54,6 +54,8 @@ typedef struct
 	float glow_dx, glow_dy;  // the glow this far from the sprite's centre (game pixels, y down the screen)
 	int layer;          // drawn at this layer's height (L3DLayerType + 1) whatever layer the game uses; 0 its own
 	bool trail;         // shots: a smoke trail behind it (missiles)
+	float at_dx, at_dy;  // shots: the model this far from the sprite's centre (game pixels, y down the screen)
+	float scale;        // shots: the model this many times its size (0: as built)
 } M3DAppearance;
 
 // Sheet letters for the enemies drawn from the coins and gems sheet and from the power-ups sheet

@@ -203,6 +203,19 @@ static bool parse_option(const char *token, M3DAppearance *a)
 		a->banking = strcmp(value, "off") != 0 && strcmp(value, "0") != 0;
 		return true;
 	}
+	if (key_length == 2 && strncmp(token, "at", 2) == 0)
+	{
+		// at=<dx>:<dy> (shots)
+		const char *colon = strchr(value, ':');
+		a->at_dx = option_float(value, 0.0f);
+		a->at_dy = colon != NULL ? option_float(colon + 1, 0.0f) : 0.0f;
+		return true;
+	}
+	if (key_length == 5 && strncmp(token, "scale", 5) == 0)
+	{
+		a->scale = SDL_max(option_float(value, 0.0f), 0.0f);
+		return true;
+	}
 	if (key_length == 4 && strncmp(token, "spin", 4) == 0)
 	{
 		a->spin = option_float(value, 0.0f);

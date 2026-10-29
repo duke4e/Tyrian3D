@@ -12470,8 +12470,9 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		const RGPUShowcaseObject *o = &show->objects[i];
 		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
 		placements[i] = showcase_placement(o, parent, SHOWCASE_X(o->x), SHOWCASE_Z(o->y), k);
+		const float scale = o->scale > 0 ? o->scale : 1.0f;
 		if (o->model != M3D_VOLUME)
-			add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
+			add_showcase_model(o->model, &placements[i], o->size * k * scale, k * scale, colors, &instance_count, &batch_count);
 	}
 	add_showcase_volumes(show, placements, SDL_min(show->object_count, MAX_SHOWCASE_OBJECTS), k, colors, &instance_count,
 	                     &batch_count);
@@ -13432,8 +13433,9 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 		const RGPUShowcaseObject *o = &show->objects[i];
 		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
 		placements[i] = showcase_placement(o, parent, PANE_X(o->x), PANE_Z(o->y), k);
+		const float scale = o->scale > 0 ? o->scale : 1.0f;
 		if (o->model != M3D_VOLUME)
-			add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
+			add_showcase_model(o->model, &placements[i], o->size * k * scale, k * scale, colors, &instance_count, &batch_count);
 	}
 	add_showcase_volumes(show, placements, SDL_min(show->object_count, MAX_PANE_OBJECTS), k, colors, &instance_count,
 	                     &batch_count);

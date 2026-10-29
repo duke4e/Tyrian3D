@@ -655,8 +655,11 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	if (m3d_shot_appearance(sheet == &spriteSheet12, sprite, &look))
 	{
 		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * l3d_frame_number + (float)(key & 63) * 47.0f, 360.0f) : 0.0f);
-		if (!l3d_add_object(look.model, x + 6.0f, y + 7.0f, look.height, yaw, 0.0f, 0))
+		const int index = l3d_frame.object_count;
+		if (!l3d_add_object(look.model, x + 6.0f + look.at_dx, y + 7.0f + look.at_dy, look.height, yaw, 0.0f, 0))
 			return false;
+		if (l3d_frame.object_count > index)  // (not dropped)
+			l3d_frame.objects[index].scale = look.scale;
 	}
 	else if (!l3d_add_volume(sheet, sprite, false, V3D_STYLE_FLAT, x + 6.0f, y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
 		return false;

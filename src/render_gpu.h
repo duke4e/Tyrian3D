@@ -75,6 +75,7 @@ typedef struct
 	Uint16 sprite;
 	bool large;
 	Uint8 style;
+	float scale;   // a model this many times its size (0: as built)
 } RGPUShowcaseObject;
 
 // Light round a point of a showcase's scene, as the levels' shots, items and engines glow (L3DGlow): drawn

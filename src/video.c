@@ -726,7 +726,9 @@ bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y, int dx, int 
 	if (model)
 	{
 		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * sim_frame + (float)(x * 7 + y * 13 & 63) * 47.0f, 360.0f) : 0.0f);
-		sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f, y + 7.0f, height + look.height, 0, yaw, 0, 0, -1 };
+		sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f + look.at_dx, y + 7.0f + look.at_dy,
+		                                                       height + look.height, 0, yaw, 0, 0, -1 };
+		sim_objects[sim_object_count - 1].scale = look.scale;
 		// Missiles leave smoke (with Effects), as in a level.
 		if (look.trail && settings3d.effects)
 			p3d_trail(x + 6.0f, y + 7.0f, (float)dx, (float)dy, height, P3D_TRAIL_SMOKE, 0);
