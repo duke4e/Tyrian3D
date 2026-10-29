@@ -50,6 +50,15 @@ bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, un
 // of the shield on the ship now (0-1, as the store's gauge shows it).
 bool shop_shield_page(void);
 float shop_shield_strength(void);
+// Tyrian3D: an item's own 3D model (models.cfg index), as the store's ship pad and the levels show it, or -1: part as
+// the store's upgrade menu numbers them (2 the ship, 3 and 4 the guns: their mounts on the illustration, 5 the shield:
+// none, 6 the generator: its mount, 7 and 8 the sidekicks); a special weapon's: its power-up's. The modern UI draws
+// its render as the item's icon (ui.h icon_model).
+int shop_item_model(int part, int item);
+int special_item_model(int id);
+// TYR3D_RENDER_ICONS: the models every item's icon is rendered from, once each, and the palette ramp each takes (-1:
+// its own colours); how many.
+int shop_icon_models(int *models, int *ramps, int max);
 void JE_scaleBitmap(SDL_Surface *dst, const SDL_Surface *src, int x1, int y1, int x2, int y2);
 void JE_initWeaponView(void);
 void JE_computeDots(void);

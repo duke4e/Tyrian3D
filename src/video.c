@@ -876,6 +876,23 @@ static void present_screen(SDL_Surface *src_surface)
 	}
 }
 
+// TYR3D_RENDER_ICONS=<dir>: the items' icons rendered from their models into <dir> (render_gpu.c rgpu_render_icons), once
+// the modern store shows its ship (so in the store's palette).
+static void render_icons_once(void)
+{
+	static bool done = false;
+	const char *dir = SDL_getenv("TYR3D_RENDER_ICONS");
+	if (done || dir == NULL || dir[0] == '\0' || ui_screen_scene() != UI_SCENE_SHIP)
+		return;
+	done = true;
+	static int models[256], ramps[256];
+	static RGPUIcon icons[256];
+	const int count = shop_icon_models(models, ramps, (int)COUNTOF(models));
+	for (int i = 0; i < count; ++i)
+		icons[i] = (RGPUIcon){ models[i], ramps[i] };
+	rgpu_render_icons(dir, icons, count);
+}
+
 static void present_screen_timed(SDL_Surface *src_surface)
 {
 	assert(SDL_BITSPERPIXEL(src_surface->format) == 8);
@@ -900,6 +917,7 @@ static void present_screen_timed(SDL_Surface *src_surface)
 	const bool modern = ui_screen_holds(src_surface);
 	if (modern && !ui_screen_over_level())
 	{
+		render_icons_once();
 		backdrop_valid = false;
 		// The store's ship or its weapon simulator, as models where the screen's layout shows them.
 		RGPUShowcase show = { .backdrop = sim_backdrop };

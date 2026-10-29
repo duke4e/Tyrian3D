@@ -16,6 +16,7 @@
 #include "mainint.h"
 #include "mouse.h"
 #include "player.h"
+#include "model_icons.h"
 #include "models3d.h"
 #include "palette.h"
 #include "particles3d.h"
@@ -140,6 +141,7 @@ static void forget_hd_sheets(void);
 static Uint32 hash_colors(const Uint32 colors[256]);
 static void forget_terrain(void);
 static void forget_ui_textures(void);
+static void forget_model_icons(void);
 static void forget_jukebox_scene(void);
 static void forget_destruct_scene(void);
 static bool present_destruct(void);
@@ -168,6 +170,8 @@ typedef struct
 	bool free;                // any four corners as given (the UI's shapes, ui.c), from the texture or not
 	BTBHGPUCanvasVertex corner[4];
 	bool picture;             // from the screen's picture, sharp where it is magnified (rgpu_ui_picture)
+	bool premultiplied;       // the texture's colours are multiplied by its alpha (and so are the quad's: the items'
+	                          // icons from their models, rgpu_ui_model_icon)
 } HudQuad;
 
 // As many as a frame needs (a help page's letters take two each, the letter and its shadow): the
@@ -1115,7 +1119,7 @@ static void hud_batches(int first, int last, BTBHGPUCanvasVertex *vertices, uint
 		v[3] = corners[0];
 		v[4] = corners[2];
 		v[5] = corners[3];
-		if (i > first && hud_quads[i - 1].texture == q->texture)
+		if (i > first && hud_quads[i - 1].texture == q->texture && hud_quads[i - 1].premultiplied == q->premultiplied)
 			batches[*batch_count - 1].vertex_count += 6;
 		else
 		{
@@ -1123,7 +1127,7 @@ static void hud_batches(int first, int last, BTBHGPUCanvasVertex *vertices, uint
 			b->first_vertex = *vertex_count;
 			b->vertex_count = 6;
 			b->texture = q->texture;
-			b->blend_mode = BTBH_GPU_CANVAS_BLEND_ALPHA;
+			b->blend_mode = q->premultiplied ? BTBH_GPU_CANVAS_BLEND_PREMULTIPLIED_ALPHA : BTBH_GPU_CANVAS_BLEND_ALPHA;
 		}
 		*vertex_count += 6;
 	}
@@ -1707,6 +1711,11 @@ void rgpu_ui_fade_since(int mark, float alpha)
 	for (int i = SDL_max(mark, 0); i < hud_quad_count; ++i)
 	{
 		HudQuad *q = &hud_quads[i];
+		for (int k = 0; k < (q->premultiplied ? 3 : 0); ++k)
+		{
+			q->left[k] *= alpha;
+			q->right[k] *= alpha;
+		}
 		q->left[3] *= alpha;
 		q->right[3] *= alpha;
 		q->below[3] *= alpha;
@@ -1778,6 +1787,7 @@ static void forget_ui_textures(void)
 		scene_blur[i] = NULL;
 	scene_capture = NULL;
 	scene_blur_valid = false;
+	forget_model_icons();
 }
 
 static Uint32 palette_hash(void)
@@ -13606,4 +13616,399 @@ void rgpu_present_ui(const RGPUShowcase *scene)
 	hd_picture = 0;
 	hd_face = -1;
 	hd_frame_shown = false;
+}
+
+/* --- The items' icons rendered from their 3D models (rgpu_ui_model_icon, rgpu_render_icons) ------ */
+
+/*
+ * The modern UI draws an item that has a 3D model of its own (ui.c item_icon: the store's cards and rows, the rogue run's
+ * cards; build_card: the title cards' ships) as a render of that model: assets/models/icons/<model>.png, made from the
+ * models (in git) by TYR3D_RENDER_ICONS (rgpu_render_icons, below), straight alpha. Each is resized to the size it is
+ * drawn at in the window's pixels on a thread of its own (model_icons.h: Mitchell-Netravali from the 512-pixel render),
+ * so that it is sharp at every UI scale, and drawn on those pixels, its colours multiplied by its alpha; it fades in as
+ * it is ready, a frame or two after it is first asked for (the sizes it was drawn at before stand in meanwhile).
+ * TYR3D_MODEL_ICONS=0 draws the sprites' pictures instead, as before (to compare).
+ */
+#define MODEL_ICON_TEXTURES 128
+#define MODEL_ICON_FILES 256
+#define MODEL_ICON_FADE 140.0f  // milliseconds
+static struct
+{
+	char name[32];            // the model's (models.cfg), "" a free slot
+	int size;                 // the window's pixels a side
+	BTBHGPUTexture *texture;
+	Uint64 used;              // the frame it was last drawn in (text_frames)
+	Uint64 ready;             // when it was made (SDL_GetTicks), 0 to show it at once
+} model_icons[MODEL_ICON_TEXTURES];
+// Which models have a render (looked for once each).
+static struct
+{
+	char name[32];
+	bool exists;
+} model_icon_files[MODEL_ICON_FILES];
+static int model_icon_file_count = 0;
+
+static void forget_model_icons(void)
+{
+	memset(model_icons, 0, sizeof(model_icons));  // (the window's textures)
+}
+
+static bool model_icons_on(void)
+{
+	static int on = -1;
+	if (on < 0)
+	{
+		const char *value = SDL_getenv("TYR3D_MODEL_ICONS");
+		on = value == NULL || strcmp(value, "0") != 0;
+	}
+	return on;
+}
+
+// The model's render (its path), if it has one.
+static bool model_icon_file(const char *name, char *path, size_t size)
+{
+	static char dir[1024] = "";
+	if (dir[0] == '\0')
+	{
+		char models[1024];
+		snprintf(dir, sizeof(dir), "%s/icons", tyr3d_resource_dir("TYR3D_MODEL_DIR", TYR3D_MODEL_DIR, "models", models, sizeof(models)));
+	}
+	snprintf(path, size, "%s/%s.png", dir, name);
+	for (int i = 0; i < model_icon_file_count; ++i)
+		if (strcmp(model_icon_files[i].name, name) == 0)
+			return model_icon_files[i].exists;
+	const bool exists = SDL_GetPathInfo(path, NULL);
+	if (model_icon_file_count < MODEL_ICON_FILES)
+	{
+		SDL_strlcpy(model_icon_files[model_icon_file_count].name, name, sizeof(model_icon_files[0].name));
+		model_icon_files[model_icon_file_count++].exists = exists;
+	}
+	return exists;
+}
+
+static void model_icon_missing(const char *name)
+{
+	for (int i = 0; i < model_icon_file_count; ++i)
+		if (strcmp(model_icon_files[i].name, name) == 0)
+			model_icon_files[i].exists = false;
+}
+
+// A slot for a new icon: a free one, else the one drawn longest ago (not in this frame), its texture released.
+static int model_icon_slot(void)
+{
+	int oldest = -1;
+	for (int i = 0; i < MODEL_ICON_TEXTURES; ++i)
+	{
+		if (model_icons[i].name[0] == '\0')
+			return i;
+		if (model_icons[i].used != text_frames && (oldest < 0 || model_icons[i].used < model_icons[oldest].used))
+			oldest = i;
+	}
+	if (oldest >= 0)
+	{
+		btbh_gpu_texture_destroy(model_icons[oldest].texture);
+		memset(&model_icons[oldest], 0, sizeof(model_icons[oldest]));
+	}
+	return oldest;
+}
+
+bool rgpu_ui_model_icon(int model, float x, float y, float w, float h, float alpha)
+{
+	if (!model_icons_on() || window == NULL || model < 0 || model >= m3d_model_count)
+		return false;
+	const char *name = m3d_models[model].name;
+	char path[1200];
+	if (name[0] == '\0' || !model_icon_file(name, path, sizeof(path)))
+		return false;
+	// The square in the middle of the box, on the window's pixels.
+	const float side = SDL_min(w, h);
+	const int size = SDL_clamp((int)lroundf(side * text_density), 4, 1024);
+	const float points = size / text_density;
+	const float qx = snap_to_pixel(x + (w - points) / 2), qy = snap_to_pixel(y + (h - points) / 2);
+	int shown = -1, other = -1;
+	for (int i = 0; i < MODEL_ICON_TEXTURES; ++i)
+		if (model_icons[i].texture != NULL && strcmp(model_icons[i].name, name) == 0)
+		{
+			if (model_icons[i].size == size)
+				shown = i;
+			else if (other < 0 || abs(model_icons[i].size - size) < abs(model_icons[other].size - size))
+				other = i;
+		}
+	Uint8 *pixels;
+	const Uint64 asked = SDL_GetPerformanceCounter();
+	if (shown < 0 && model_icon_take(path, size, &pixels))
+	{
+		if (pixels == NULL)
+		{
+			fprintf(stderr, "warning: model icon %s can't be read\n", path);
+			model_icon_missing(name);
+			return false;
+		}
+		const int slot = model_icon_slot();
+		BTBHGPUTextureReport report;
+		BTBHGPUTexture *texture = slot < 0 ? NULL
+		                        : btbh_gpu_window_texture_create_rgba8_ex(window, pixels, (uint32_t)size, (uint32_t)size, 0,
+		                                                                  BTBH_GPU_TEXTURE_FILTER_LINEAR, BTBH_GPU_TEXTURE_WRAP_CLAMP,
+		                                                                  BTBH_GPU_TEXTURE_COLOR_SPACE_LINEAR, &report);
+		SDL_free(pixels);
+		if (texture != NULL)
+		{
+			SDL_strlcpy(model_icons[slot].name, name, sizeof(model_icons[slot].name));
+			model_icons[slot].size = size;
+			model_icons[slot].texture = texture;
+			model_icons[slot].ready = other >= 0 ? 0 : SDL_GetTicks();
+			shown = slot;
+			static int profile = -1;  // (TYR3D_PROFILE: what making its texture took the main thread)
+			if (profile < 0)
+				profile = SDL_getenv("TYR3D_PROFILE") != NULL;
+			if (profile)
+				printf("model icon: %s at %d pixels, its texture made in %.3f ms\n", name, size,
+				       (SDL_GetPerformanceCounter() - asked) * 1000.0 / SDL_GetPerformanceFrequency());
+		}
+	}
+	const int i = shown >= 0 ? shown : other;
+	if (i < 0)
+		return true;  // (being made)
+	model_icons[i].used = text_frames;
+	float a = alpha;
+	if (i == shown && model_icons[i].ready != 0)
+		a *= SDL_clamp((SDL_GetTicks() - model_icons[i].ready) / MODEL_ICON_FADE, 0.0f, 1.0f);
+	HudQuad *q = hud_quad_add();
+	if (q != NULL)
+		*q = (HudQuad){ qx, qy, points, points, 0, 0, 1, 1, { a, a, a, a }, { a, a, a, a }, .texture = model_icons[i].texture,
+		                .premultiplied = true };
+	return true;
+}
+
+/*
+ * TYR3D_RENDER_ICONS=<dir>: the items' icons rendered from their models into <dir>/<model>.png. One three-quarter view for
+ * every model: turned ICON_YAW clockwise and its front tilted ICON_TILT up towards a camera that looks straight down, as
+ * the store's pad's does, so that it is lit as the pad's ship is (the sun from the upper left, the sky, its own shadows,
+ * the bloom). Each is rendered twice into the window's left square, over black and over grey: the difference is its alpha
+ * (glass shows through), over black its colours with the light round what glows; then it is framed by what shows of it,
+ * its longer side ICON_SIZE less the margins in every icon, and resized from three to four times that (Mitchell-
+ * Netravali). The picture: straight alpha, the colours as the canvas blends them (sRGB, rendered over black divided by
+ * the alpha, which is at least the brightest colour: the glow round a lamp is light over the well).
+ */
+#define ICON_SIZE 512
+#define ICON_MARGIN 0.06f   // round the model's longer side, of the icon's
+#define ICON_YAW 30.0f      // degrees, clockwise
+#define ICON_TILT 35.0f     // degrees: the camera 55 degrees above the model's horizon
+#define ICON_FOV 20.0f      // degrees across the fitted square: a gentle perspective
+#define ICON_RADIUS 50.0f   // the sphere round the model's bounds (world units), its middle that high + 4: in the shadows' reach
+#define ICON_GREY 191       // the second background (0.75 in linear light: below the bloom's threshold)
+
+static float icon_linear[256];
+
+// The window's left square (its height) of one of an icon's renders, over a background of grey: RGBA, rows from the top.
+static Uint8 *icon_render(const RGPUIcon *icon, const LoadedModel *loaded, Uint8 grey, int *side)
+{
+	BTBHGPUWindowReport frame;
+	if (!begin_frame(&frame))
+		return NULL;
+	const float W = (float)frame.logical_width, H = (float)frame.logical_height;
+	const float fx = (float)l3d_field_x(), fw = (float)l3d_field_w();
+	// The square fitted round the sphere: the camera fits the field's width at the sphere's middle into a square that
+	// many times larger than the window's left square, around it.
+	const float zoom = 0.47f * fw / ICON_RADIUS;
+	const float mid = -1 + H / W;
+	const float ndc_rect[4] = { mid - zoom * H / W, -zoom, mid + zoom * H / W, zoom };
+	const float height = ICON_RADIUS + 4;
+	const float tilt = rgpu_camera.tilt_degrees, fov = rgpu_camera.fov_degrees;
+	rgpu_camera.tilt_degrees = 0;
+	rgpu_camera.fov_degrees = ICON_FOV;
+	const Camera3D camera = fit_camera(height, 1.0f, ndc_rect, false, false);
+	rgpu_camera.tilt_degrees = tilt;
+	rgpu_camera.fov_degrees = fov;
+	shown_view.valid = false;
+
+	Uint32 palette[256];
+	for (int i = 0; i < 256; ++i)
+	{
+		const int c = icon->ramp >= 0 ? (icon->ramp << 4 | (i & 0x0f)) & 0xff : i;
+		palette[i] = pack_rgba(colors[c].r, colors[c].g, colors[c].b);
+	}
+	const float radius = sqrtf(loaded->half[0] * loaded->half[0] + loaded->half[1] * loaded->half[1] + loaded->half[2] * loaded->half[2]);
+	const Mat4 chain[] = { mat4_translation(fx + fw / 2, height, L3D_PLAYFIELD_H - fw / 2), mat4_rotation(0, -ICON_TILT),
+	                       mat4_rotation(1, -ICON_YAW) };
+	const Mat4 placement = mat4_chain((int)COUNTOF(chain), chain);
+	int instance_count = 0, batch_count = 0;
+	add_showcase_model(icon->model, &placement, ICON_RADIUS / radius * loaded->footprint, 1.0f, palette, &instance_count, &batch_count);
+	static Uint8 casts_shadow[MAX_BATCHES];
+	const bool shadows = shadows_enabled();
+	for (int i = 0; i < batch_count; ++i)
+		casts_shadow[i] = shadows;
+	BTBHGPUSceneLighting lighting;
+	scene_lighting(&lighting, &camera, shadows, false);
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, &frame, &render_w, &render_h);
+	render_w = frame.drawable_width;  // (the window's own pixels: not scaled up)
+	render_h = frame.drawable_height;
+	post.upscale_mode = BTBH_GPU_SCENE_UPSCALE_LINEAR;
+	post.anti_aliasing = 0;  // (made from three to four times its size; both renders alike)
+	BTBHGPUSceneReport scene_report;
+	if (batch_count == 0 ||
+	    btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        camera.view_projection.m, camera.right, camera.up, camera.position,
+	        &lighting, &post, instances, instance_count, instance_count, batches, NULL, casts_shadow, (uint32_t)batch_count,
+	        grey, grey, grey, 255, &scene_report) != BTBH_GPU_OK)
+	{
+		fprintf(stderr, "warning: icons: %s: the scene failed: %s\n", m3d_models[icon->model].name, batch_count == 0 ? "no model" : scene_report.message);
+		present_canvas(NULL, 0, false, true, &frame);
+		return NULL;
+	}
+	btbh_gpu_window_request_presented_frame_readback(window);
+	BTBHGPUCanvasPass pass;
+	memset(&pass, 0, sizeof(pass));
+	BTBHGPUCanvasReport report;
+	if (btbh_gpu_window_canvas_present(window, shader_paths[SH_CANVAS_VERT], shader_paths[SH_CANVAS_FRAG],
+	                                   shader_paths[SH_CANVAS_TEXTURED_FRAG], shader_format, NULL, 0, NULL, 0, &pass, 1, &report) != BTBH_GPU_OK)
+	{
+		fprintf(stderr, "warning: icons: canvas present failed: %s\n", report.message);
+		return NULL;
+	}
+	const size_t needed = (size_t)frame.drawable_width * frame.drawable_height * 4;
+	if (needed > readback_capacity)
+	{
+		free(readback_rgba);
+		readback_rgba = malloc(needed);
+		readback_capacity = readback_rgba != NULL ? needed : 0;
+	}
+	BTBHGPUCanvasReport readback;
+	if (readback_rgba == NULL ||
+	    btbh_gpu_window_readback_presented_frame(window, readback_rgba, (uint32_t)readback_capacity, &readback) != BTBH_GPU_OK)
+	{
+		fprintf(stderr, "warning: icons: no readback\n");
+		return NULL;
+	}
+	const int s = (int)SDL_min(readback.drawable_width, readback.drawable_height);
+	Uint8 *square = malloc((size_t)s * s * 4);
+	if (square == NULL)
+		return NULL;
+	for (int y = 0; y < s; ++y)
+		memcpy(square + (size_t)y * s * 4, readback_rgba + (size_t)y * readback.drawable_width * 4, (size_t)s * 4);
+	*side = s;
+	return square;
+}
+
+bool rgpu_render_icons(const char *dir, const RGPUIcon *icons, int count)
+{
+	if (window == NULL)
+		return false;
+	SDL_CreateDirectory(dir);
+	for (int i = 0; i < 256; ++i)
+	{
+		const float c = i / 255.0f;  // (the post's sRGB, inverted)
+		icon_linear[i] = powf((c + 0.055f) / 1.055f, 2.4f);
+	}
+	icon_linear[0] = 0;
+	sync_model_cache();
+	int written = 0;
+	for (int n = 0; n < count; ++n)
+	{
+		const RGPUIcon *icon = &icons[n];
+		const LoadedModel *loaded = icon->model >= 0 && icon->model < m3d_model_count ? get_model(icon->model) : NULL;
+		if (loaded == NULL || loaded->footprint <= 0)
+		{
+			fprintf(stderr, "warning: icons: model %d isn't there\n", icon->model);
+			continue;
+		}
+		const char *name = m3d_models[icon->model].name;
+		int side = 0, side_grey = 0;
+		Uint8 *black = icon_render(icon, loaded, 0, &side);
+		Uint8 *grey = black != NULL ? icon_render(icon, loaded, ICON_GREY, &side_grey) : NULL;
+		float *premultiplied = black != NULL && grey != NULL && side == side_grey ? malloc((size_t)side * side * 4 * sizeof(float)) : NULL;
+		float *resized = malloc((size_t)ICON_SIZE * ICON_SIZE * 4 * sizeof(float));
+		Uint8 *png = malloc((size_t)ICON_SIZE * ICON_SIZE * 4);
+		bool ok = premultiplied != NULL && resized != NULL && png != NULL;
+		int x0 = side, y0 = side, x1 = -1, y1 = -1;
+		if (ok)
+		{
+			// The backgrounds: the square's corners.
+			float under_black[3] = { 0, 0, 0 }, under_grey[3] = { 0, 0, 0 };
+			const int corners[4] = { 0, side - 1, (side - 1) * side, side * side - 1 };
+			for (int k = 0; k < 4; ++k)
+				for (int c = 0; c < 3; ++c)
+				{
+					under_black[c] += icon_linear[black[corners[k] * 4 + c]] / 4;
+					under_grey[c] += icon_linear[grey[corners[k] * 4 + c]] / 4;
+				}
+			const float range = (under_grey[0] - under_black[0]) + (under_grey[1] - under_black[1]) + (under_grey[2] - under_black[2]);
+			ok = range > 0.5f;
+			for (int p = 0; ok && p < side * side; ++p)
+			{
+				float difference = 0;
+				for (int c = 0; c < 3; ++c)
+				{
+					const float b = icon_linear[black[p * 4 + c]];
+					difference += icon_linear[grey[p * 4 + c]] - b;
+					premultiplied[p * 4 + c] = SDL_max(b - under_black[c], 0.0f);
+				}
+				const float a = SDL_clamp(1 - difference / range, 0.0f, 1.0f);
+				premultiplied[p * 4 + 3] = a;
+				if (a > 0.04f)
+				{
+					const int x = p % side, y = p / side;
+					x0 = SDL_min(x0, x);
+					x1 = SDL_max(x1, x);
+					y0 = SDL_min(y0, y);
+					y1 = SDL_max(y1, y);
+				}
+			}
+			if (!ok)
+				fprintf(stderr, "warning: icons: %s: the backgrounds aren't apart (%.3f)\n", name, range);
+		}
+		if (ok && x1 < 0)
+		{
+			fprintf(stderr, "warning: icons: %s: nothing shows\n", name);
+			ok = false;
+		}
+		if (ok)
+		{
+			if (x0 == 0 || y0 == 0 || x1 == side - 1 || y1 == side - 1)
+				fprintf(stderr, "warning: icons: %s: cut at the render's edge\n", name);
+			// Framed: its longer side ICON_SIZE less the margins, in the middle.
+			const double longer = SDL_max(x1 + 1 - x0, y1 + 1 - y0), span = longer / (1 - 2 * ICON_MARGIN);
+			const double mx = (x0 + x1 + 1) / 2.0, my = (y0 + y1 + 1) / 2.0;
+			ok = model_icon_resample(premultiplied, side, side, mx - span / 2, my - span / 2, mx + span / 2, my + span / 2, resized, ICON_SIZE);
+			for (int p = 0; ok && p < ICON_SIZE * ICON_SIZE; ++p)
+			{
+				float colour[3], brightest = 0;
+				for (int c = 0; c < 3; ++c)
+				{
+					const float v = SDL_clamp(resized[p * 4 + c], 0.0f, 1.0f);
+					colour[c] = SDL_max(1.055f * powf(v, 1 / 2.4f) - 0.055f, 0.0f);
+					brightest = SDL_max(brightest, colour[c]);
+				}
+				const float a = SDL_max(SDL_clamp(resized[p * 4 + 3], 0.0f, 1.0f), brightest);
+				for (int c = 0; c < 3; ++c)
+					png[p * 4 + c] = a > 0 ? (Uint8)lroundf(SDL_min(colour[c] / a, 1.0f) * 255) : 0;
+				png[p * 4 + 3] = (Uint8)lroundf(a * 255);
+			}
+			char path[1200];
+			snprintf(path, sizeof(path), "%s/%s.png", dir, name);
+			ok = ok && btbh_gpu_write_png_rgba8(path, ICON_SIZE, ICON_SIZE, png) == BTBH_GPU_OK;
+			if (ok)
+			{
+				++written;
+				printf("icons: %s: %dx%d of a %d square, written\n", name, x1 + 1 - x0, y1 + 1 - y0, side);
+			}
+			else
+				fprintf(stderr, "warning: icons: %s: not written\n", path);
+		}
+		free(black);
+		free(grey);
+		free(premultiplied);
+		free(resized);
+		free(png);
+	}
+	printf("icons: %d of %d written into %s\n", written, count, dir);
+	return written == count;
 }

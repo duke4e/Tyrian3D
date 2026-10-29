@@ -137,6 +137,18 @@ void rgpu_ui_image(Uint32 key, const Uint32 *rgba, int w, int h, float x, float 
 void rgpu_ui_sprite(const void *sheet, unsigned int sprite, bool large, float x, float y, float w, float h, float alpha);
 // A sprite of one of the game's sprite tables (OPTION_SHAPES...), fitted in a rectangle at its aspect.
 void rgpu_ui_table_sprite(unsigned int table, unsigned int sprite, float x, float y, float w, float h, float alpha);
+// An item's icon rendered from its 3D model (a models.cfg model index; assets/models/icons/<model>.png, see
+// rgpu_render_icons), square in the middle of a rectangle at the window's own pixels: false if the model has no such
+// render (the item's sprite stands in); true while it is being read too, before it fades in.
+bool rgpu_ui_model_icon(int model, float x, float y, float w, float h, float alpha);
+// TYR3D_RENDER_ICONS: renders those models' icons into <dir>/<model>.png, each a model (models.cfg index) and the
+// palette ramp its palette materials take (as models.cfg's color=sprite), or -1; true if all were written.
+typedef struct
+{
+	int model;
+	int ramp;
+} RGPUIcon;
+bool rgpu_render_icons(const char *dir, const RGPUIcon *icons, int count);
 // A part of the screen's picture (screen pixels) in a rectangle, sharp (whole steps, then smoothly).
 void rgpu_ui_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
 // Text in Oxanium (RGPU_FONT_*): the top of its capitals at y, cap height in points, shaded from top to

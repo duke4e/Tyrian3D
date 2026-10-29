@@ -822,8 +822,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SCREENS=fill\|integer` | With the modern UI: the old 320x200 screens fill the window (cut to its shape; on ultrawide its 16:9 middle over a blurred copy), or as Scaling Mode says |
 | `TYR3D_UI_SCALE=<percent>` | The modern UI's and the HUD's size (50-200; the setting has 75-150) |
 | `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
-| `TYR3D_MODEL_ICONS=0` | The modern UI's item icons as the sprites' pictures (the HD upscales), as before 2026-10-29, instead of the renders of the items' models (`assets/models/icons`), to compare |
-| `TYR3D_RENDER_ICONS=<dir>` | Once the modern store shows the ship, render the icon of every model an item's icon shows into `<dir>/<model>.png` (`render_gpu.c` `rgpu_render_icons`; `assets/models/icons` is what the UI reads; see Models), printing `icons: <model>: <w>x<h> of a <n> square, written` and how many |
+| `TYR3D_MODEL_ICONS=0` | The modern UI's item icons as the sprites' pictures (the HD upscales), as before 2026-10-29, instead of the renders of the items' models (`assets/models/icons`), to compare (with `TYR3D_PROFILE` each render's texture prints as it is made: `model icon: <model> at <n> pixels, its texture made in <ms> ms`, what it took the main thread) |
+| `TYR3D_RENDER_ICONS=<dir>` | Once the modern store shows the ship, render the icon of every model an item's icon shows into `<dir>/<model>.png` (`render_gpu.c` `rgpu_render_icons`; `assets/models/icons` is what the UI reads; see Models), printing every item and what its icon shows (`icons: <ship\|gun\|shield\|generator\|sidekick\|special\|data cube> <id> <name>: <model or "its sprite">`), then `icons: <model>: <w>x<h> of a <n> square, written` for each render and how many |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
@@ -955,12 +955,15 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   scene into the layout's pane (`rgpu_present_ui`). The items' icons are renders of each item's own 3D model where it has
   one (2026-10-29, the user: items were drawn from upscaled sprites while a model of them exists; `ui.h`
   `UIItem.icon_model`, from `game_menu.c` `shop_item_model`: the ship's model, a gun's or the generator's mount as the pad
-  shows it, a sidekick's; `special_item_model`: a special's power-up; the data cube's pick-up; `ui.c` `build_card`: a
+  shows it (the new content's guns, ports 48-53, the sidekick whose picture they show: the Phoenix Cannon the Phoenix
+  Device, ...), a sidekick's; `special_item_model`: a special's power-up; the data cube's pick-up; `ui.c` `build_card`: a
   title card's ship by its sprite): `assets/models/icons/<model>.png`, rendered by the game from the models
   (`TYR3D_RENDER_ICONS`, see Models), drawn by `render_gpu.c` `rgpu_ui_model_icon` at the size its well has in the window's
   pixels (resized from the 512-pixel render on a thread of their own, `model_icons.c`, Mitchell-Netravali; the texture made
   as it is ready, in a frame or two, and faded in), so they are sharp at every UI scale; colours multiplied by the alpha,
-  so glass and glows lie over the well. The shields and items without a render keep their pictures (`hd_icon`). The
+  so glass and glows lie over the well. The shields, the MegaMissile sidekick (blank sprites), the specials without a
+  power-up model (all but Repulsor, Pearl Wind, Soul of Zinglon, Attractor, Ice Beam and Flare) and items without a
+  render keep their pictures (`hd_icon`; `TYR3D_RENDER_ICONS` lists every item and what it shows). The
   scene draws one pass a frame (the pad's), so the icons are pictures, not live models; the item chosen turns on the pad.
   The simulator looks as a level does (2026-10-29, the user: the
   store's preview still used many old visuals; `video.c` `video_sim_*`, `render_gpu.c` `add_showcase_volumes`,
@@ -1122,7 +1125,7 @@ shows of it with the same margin round its longer side, and resized from three t
 2x gives a 1800-pixel square, about 15 s for all):
 
 ```bash
-TYR3D_START=1:4 TYR3D_SHOP=1 TYR3D_WINDOW_SIZE=1600x900 TYR3D_RENDER_ICONS=assets/models/icons TYR3D_EXIT_AFTER=300 build/game/tyrian3d
+TYR3D_START=1:4 TYR3D_SHOP=1 TYR3D_WINDOWED=1 TYR3D_WINDOW_SIZE=1600x900 TYR3D_RENDER_ICONS=assets/models/icons TYR3D_EXIT_AFTER=300 build/game/tyrian3d
 ```
 
 ## HD resources

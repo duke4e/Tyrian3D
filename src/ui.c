@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "episodes.h"
+#include "game_menu.h"
 #include "helptext.h"
 #include "joystick.h"
 #include "keyboard.h"
@@ -1416,9 +1417,19 @@ static void frame_box(Box b, float c)
 	band(in, ci, U(34), (Colour){ 0, 0, 0, 0.34f }, (Colour){ 0, 0, 0, 0.42f }, clear, clear);
 }
 
-// An item's icon (a sprite of the game) fitted in a well.
+// An item's own 3D model rendered (rgpu_ui_model_icon), square in a well, the same margin round every model; false if
+// it has no such render.
+static bool model_icon(int model, Box well, float alpha)
+{
+	const float side = SDL_min(well.w, well.h) * 0.94f;
+	return model >= 0 && rgpu_ui_model_icon(model, well.x + (well.w - side) / 2, well.y + (well.h - side) / 2, side, side, alpha);
+}
+
+// An item's icon fitted in a well: its own 3D model rendered, or a sprite of the game.
 static void item_icon(const UIItem *it, Box well, float alpha)
 {
+	if (model_icon(it->icon_model - 1, well, alpha * L.alpha))
+		return;
 	if (it->icon_sheet == NULL && it->icon_table > 0)
 	{
 		const Box in = inset(well, well.w * 0.1f);
@@ -3390,8 +3401,16 @@ static void build_card(const UIMenu *m)
 	{
 		const Box well = { cx - icon / 2, y, icon, icon };
 		panel(well, U(12), PANEL_WELL);
+		// (The ship's own 3D model rendered, else its sprite.)
+		const bool t2000 = c->icon_sheet == (const void *)&spriteSheetT2000;
+		int model = -1;
+		for (int id = 1; id <= SHIP_NUM && model < 0 && (t2000 || c->icon_sheet == (const void *)&spriteSheet9); ++id)
+			if (ships[id].shipgraphic == (unsigned int)c->icon_sprite + (t2000 ? 500u : 0u))
+				model = shop_item_model(2, id);
 		const float s = SDL_min(icon * 0.8f / 24.0f, icon * 0.8f / 28.0f);
-		rgpu_ui_sprite(c->icon_sheet, (unsigned int)c->icon_sprite, true, snap(cx - 12 * s), snap(y + (icon - 28 * s) / 2), 24 * s, 28 * s, L.alpha);
+		if (!model_icon(model, well, L.alpha))
+			rgpu_ui_sprite(c->icon_sheet, (unsigned int)c->icon_sprite, true, snap(cx - 12 * s), snap(y + (icon - 28 * s) / 2), 24 * s, 28 * s,
+			               L.alpha);
 		y += icon + U(26);
 	}
 	for (int i = 0; i < c->line_count; ++i)

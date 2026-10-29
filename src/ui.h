@@ -96,6 +96,8 @@ typedef struct
 	int icon_table;          // or of a sprite table (> 0: OPTION_SHAPES...)
 	int icon_sprite;
 	bool icon_large;         // a 2x2 sprite
+	int icon_model;          // the item's own 3D model (models.cfg index + 1), its render drawn instead where there is
+	                         // one (rgpu_ui_model_icon); 0 none
 	bool owned;              // what the ship has
 	bool chosen;             // what the ship has as chosen now (the store shows it on the ship)
 	bool unaffordable;       // more than the credits

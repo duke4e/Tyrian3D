@@ -27,6 +27,7 @@
 #include "keyboard.h"
 #include "loudness.h"
 #include "mainint.h"
+#include "models3d.h"
 #include "mouse.h"
 #include "musmast.h"
 #include "network.h"
@@ -290,11 +291,14 @@ static float shop_weapon_rate(int port, int power, int mode)
 	return shop_weapon_damage(weaponPort[port].op[SDL_clamp(mode, 0, 1)][SDL_clamp(power, 1, 11) - 1]);
 }
 
-// The item's icon as JE_drawItem draws it.
+static int data_cube_model(int *ramp);
+
+// The item's icon as JE_drawItem draws it, and its own 3D model (the modern UI draws its render instead).
 static void shop_item_icon(UIItem *it, int part, int item)
 {
 	if (item <= 0)
 		return;
+	it->icon_model = shop_item_model(part, item) + 1;
 	if (part == 2)
 	{
 		if (item > 90)
@@ -709,6 +713,7 @@ static void shop_publish(void)
 				{
 					it->icon_table = OPTION_SHAPES;
 					it->icon_sprite = 25;
+					it->icon_model = data_cube_model(NULL) + 1;
 					if (s->cube_player && s->cube_playing == x - 1)  // (the store's player: voiceover.h)
 						SDL_strlcpy(it->badge, s->cube_paused ? "PAUSED" : "PLAYING", sizeof(it->badge));
 				}
@@ -2662,6 +2667,97 @@ bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, un
 	}
 	}
 	return false;
+}
+
+#define ILLUSTRATION_PORTS 48  // the weapon ports the illustration's tables were written for (0-47)
+
+int shop_item_model(int part, int item)
+{
+	if (item <= 0)
+		return -1;
+	int model = -1;
+	switch (part)
+	{
+	case 2:
+		if (item <= SHIP_NUM)
+			model = m3d_ship_appearance((unsigned int)item).model;
+		break;
+	case 3:
+	case 4:
+		// (The gun's mount on the illustration, whichever port it is on: its picture's model. The new content's guns,
+		// after the original's 48 ports (assets/content/items.cfg; the tables' zeros after them aren't theirs), show a
+		// sidekick's picture in the store, tools/content/make_items.py: that sidekick's model.)
+		if (item < ILLUSTRATION_PORTS && illustration_weapon_sprites[item] >= 0)
+			model = m3d_mount_model(illustration_weapon_sprites[item]);
+		else if (item <= PORT_NUM && weaponPort[item].itemgraphic > 0)
+			for (int k = 1; k <= OPTION_NUM && model < 0; ++k)
+				if (options[k].itemgraphic == weaponPort[item].itemgraphic)
+					model = m3d_sidekick_appearance((unsigned int)k).model;
+		break;
+	case 6:
+		if (item < 7)
+			model = m3d_mount_model(item == 1 ? item + 15 : item + 14);  // (as ship_illustration_piece)
+		break;
+	case 7:
+	case 8:
+		if (item <= OPTION_NUM)
+			model = m3d_sidekick_appearance((unsigned int)item).model;
+		break;
+	default:
+		break;
+	}
+	return model >= 0 ? model : -1;
+}
+
+int special_item_model(int id)
+{
+	if (id <= 0 || id > SPECIAL_NUM || special[id].itemgraphic == 0)
+		return -1;
+	const int model = m3d_enemy_appearance(M3D_SHEET_POWERUPS, special[id].itemgraphic, true, L3D_SKY_ENEMY).model;
+	return model >= 0 ? model : -1;
+}
+
+// The data cube's pick-up (the coins sheet's sprite 159, models.cfg's datacube): its model, and the palette ramp its
+// colour takes (color=sprite: the sprite's own), or -1.
+static int data_cube_model(int *ramp)
+{
+	const M3DAppearance look = m3d_enemy_appearance(M3D_SHEET_COINS, 159, true, L3D_GROUND_ENEMY);
+	if (ramp != NULL)
+		*ramp = look.model >= 0 && look.recolor && spriteSheet11.data != NULL ? l3d_sprite_ramp(&spriteSheet11, 159, true) : -1;
+	return look.model >= 0 ? look.model : -1;
+}
+
+int shop_icon_models(int *models, int *ramps, int max)
+{
+	int count = 0;
+	// (Each item with a name, and its model or that its icon stays its sprite, listed as it goes.)
+	const int parts[][2] = { { 2, SHIP_NUM }, { 3, PORT_NUM }, { 5, SHIELD_NUM }, { 6, POWER_NUM }, { 7, OPTION_NUM } };
+	static const char *const kinds[] = { "ship", "gun", "shield", "generator", "sidekick", "special", "data cube" };
+	for (int kind = 0; kind < (int)COUNTOF(parts) + 2; ++kind)
+		for (int item = 1; item <= (kind < (int)COUNTOF(parts) ? parts[kind][1] : kind == (int)COUNTOF(parts) ? SPECIAL_NUM : 1); ++item)
+		{
+			int ramp = -1;
+			const int model = kind < (int)COUNTOF(parts) ? shop_item_model(parts[kind][0], item)
+			                : kind == (int)COUNTOF(parts) ? special_item_model(item) : data_cube_model(&ramp);
+			char name[48];
+			if (kind < (int)COUNTOF(parts))
+				shop_item_name(parts[kind][0], item, name, sizeof(name));
+			else
+				SDL_strlcpy(name, kind == (int)COUNTOF(parts) ? special[item].name : "", sizeof(name));
+			for (int k = (int)strlen(name) - 1; k >= 0 && name[k] == ' '; --k)
+				name[k] = '\0';
+			if (name[0] != '\0' || kind == (int)COUNTOF(parts) + 1)
+				printf("icons: %s %d %s: %s\n", kinds[kind], item, name, model >= 0 ? m3d_models[model].name : "its sprite");
+			bool known = model < 0;
+			for (int i = 0; i < count && !known; ++i)
+				known = models[i] == model;
+			if (!known && count < max)
+			{
+				models[count] = model;
+				ramps[count++] = ramp;
+			}
+		}
+	return count;
 }
 
 bool shop_shield_page(void)

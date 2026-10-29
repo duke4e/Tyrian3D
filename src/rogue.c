@@ -1009,6 +1009,10 @@ static void ui_card_icon(UIItem *it, const Card *card)
 		SDL_strlcpy(it->value2, card->kind == CARD_CASH ? "$" : "?", sizeof(it->value2));
 		return;
 	}
+	// (And its own 3D model: the modern UI draws its render instead of the sprite.)
+	const int part = kind == ITEM_SHIP ? 2 : kind == ITEM_FRONT ? 3 : kind == ITEM_REAR ? 4 : kind == ITEM_SHIELD ? 5
+	               : kind == ITEM_GENERATOR ? 6 : kind == ITEM_LEFT ? 7 : kind == ITEM_RIGHT ? 8 : 0;
+	it->icon_model = (part > 0 ? shop_item_model(part, id) : special_item_model(id)) + 1;
 	it->icon_large = true;
 	int graphic = 0;
 	switch (kind)
