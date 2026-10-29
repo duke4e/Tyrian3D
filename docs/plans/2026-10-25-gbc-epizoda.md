@@ -126,6 +126,13 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   strukturu: ASTEROID-ove rupe, DELICORE-ove zidove, SAVARA II otočiće) i hibrid s četvrtinama (sličan
   sadašnjem, ICE EXIT dobiva redove čahura). Nijedno nije jasno bolje, pa je ostao sadašnji autotile
   (Viterbi po parovima). Stepenice dolaze od malo dijagonalnih tileova u tilesetovima.
+  Riješeno 2026-10-29 (korisnik: teren ima čudnih spojeva): uzrok nije bio tileset nego filtar "tlo
+  stoji uz samo sebe", koji je izbacio sve kutove i rubove obala (SAVARA II je imao 16 od 58 tileova),
+  pa je svaki otok bio odsječen. Sad autotile ima i njih, nepoznati par košta po neskladu piksela na
+  spoju (dvije trave se spajaju, trava uz more ne), cijela mapa se rješava odjednom (belief
+  propagation, pa red po red), a materijali se računaju po površini koju tileovi pokrivaju u originalu
+  (CAMANIS i ICE EXIT opet imaju kaldrmu umjesto prugaste ploče). Loših spojeva u GBC redovima: 175
+  umjesto 3078; otoci zaobljeni s obalama, litice, slapovi i cijevi kao u PC originalima.
 - Svi šefovi provjereni na oko 2026-10-26 (PC skripte); 2026-10-27 GBC ponašanje (vidi gore).
 - GBC trgovina: ROM ima svoje nazive (oružja Pulse, Multi, Scatter, Sonic, Vulcan, Mega, Proton, Thunder,
   Fireball, Rail, Chip, Hotdog, L.Ball, Ninja, Banana, Fruit, Pretzel, IcePick, Laser, PowerS, Poison, Hyper,

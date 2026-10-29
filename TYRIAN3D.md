@@ -297,15 +297,23 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   their own, smaller tiles of the same looks, so the tiles are matched by material, not by pixels;
   its enemies are the PC sprites made small). The GBC map is scaled 1.5x (its 176 pixels are the 264
   the PC playfield shows) and cut into the PC tiles' quarters; each quarter's material (the tile
-  set's main colours, the GBC lightness range moved to the tile set's, the GBC grain blurred) picks a
-  tile with those quarters among the originals' ground tiles (not the objects standing on it, nor
+  set's main colours, k-means of the used tiles weighted by how much of the originals they cover, so a
+  rare tile can't make a material of its own: CAMANIS's dashed plate took its cobbled plateaus; the GBC
+  lightness range moved to the tile set's, the GBC grain blurred) picks a
+  tile with those quarters among the originals' ground tiles and their shores' corners and edges (used
+  twice or more: they never stand beside themselves, and without them every island was cut off square;
+  not the objects standing on the ground, nor
   the tiles `make_cleanground.py` learns as objects' tiles, `learn_object_tiles`: it erases every copy
   of those with a stand-in on it, and GBC DELIANI's pod tile as fill gave 2364; cached in
   `data/gbc/cache/object_tiles.json` while the ground log and `cleanground.json` stay as they were): the
   map is the choice that misses the plan least (a quarter off costs 1, the rarer tiles a little) and
-  pairs its tiles as the originals pair them (a pair beside or above each other that no original has
-  costs 4: edges join up, textures go on), found row by row (Viterbi along a row, given the rows below
-  and above it) over a few passes; the preview's log counts the pairs left that no original has.
+  pairs its tiles as the originals pair them or as their edges join (a pair beside or above each other
+  that no original has costs up to 4 by its edge's mismatch: the step in colour across it beyond the
+  steps just inside the tiles, 20 Lab costing the most; two grasses join, grass beside the sea doesn't),
+  found over the whole map (min-sum belief propagation, 60 rounds) and bettered row by row (Viterbi along
+  a row, given the rows below and above it) over a few passes (row by row alone can't change two rows
+  together, which a shore needs, and gave the plan up for strips); the log counts the pairs left that no
+  original has and those of them badly joined (over 12; 2026-10-29: 175 in the GBC maps' rows, from 3078).
   Space levels are the original's
   blank tile with the stars. The levels, in the GBC game's Full Game order (found by flying it
   through in the emulator) with its five Arcade-only levels after one of their look, go to

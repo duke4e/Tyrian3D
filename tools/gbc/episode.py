@@ -36,7 +36,13 @@ OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
 # 37th (tools/content/gbc/build.py makes their records)
 NEW_ENEMIES = json.load(open(os.path.join(ROOT, 'tools', 'content', 'gbc', 'new_enemies.json')))
 NEW_SHEET = 37
-PAIR_COST = 4.0       # autotile: a pair of tiles side by side or above each other that no original has, in quarters off the plan
+# autotile:
+CAND_SLACK, CAND_MAX = 4, 72  # a cell's candidates: the tiles at most this many quarters further off its plan than its nearest
+PRIOR_WEIGHT = 0.12   # a tile's cost per -log of its use against the most used one's (the originals' common tiles first)
+EDGE_TILES = 2        # the tiles used at least this often that never stand beside themselves (shores' corners and edges)
+PAIR_COST = 4.0       # a pair of tiles side by side or above each other that no original has, in quarters off the plan, ...
+EDGE_NORM = 20.0      # ... times its edge's mismatch (Lab) over this, at most 1
+BP_ITERATIONS = 60    # belief propagation over the map before it is bettered row by row
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
 
@@ -207,8 +213,9 @@ def autotile(spec, img, grids, letter):
     the used tiles' region means, weighted by use); a tile's signature is the materials of its n x n
     regions; the GBC map (spec 'match': its colours moved to the tile set's first), cut into the PC
     tiles' regions, gives each cell the signature it wants, and the cell takes a tile with the fewest
-    regions off it: the originals' common tiles (ground rather than the objects on it), paired with their
-    neighbours as the originals pair them (row by row, Viterbi, over a few passes: edges that join up)."""
+    regions off it: the originals' common tiles (ground and its shores rather than the objects on it), paired
+    with their neighbours as the originals pair them or as their edges join (over the whole map: belief
+    propagation, then row by row)."""
     from collections import Counter
     from scipy.cluster.vq import kmeans2
     n = spec.get('regions', 2)
@@ -234,14 +241,19 @@ def autotile(spec, img, grids, letter):
     # (and not the tiles of objects: tools/terrain/make_cleanground.py erases every copy of those, a stand-in
     # on it; GBC DELIANI's pod tile as fill made strips of 2364)
     objects = object_tiles(letter)
-    ground = [t for t, _ in use.most_common() if (selfish[t] >= 1 or use[t] >= 100) and t not in objects]
+    # (and the shores' corners and edges, which never stand beside themselves either: without them an island
+    # was cut off square, the sea straight beside the grass)
+    ground = [t for t, _ in use.most_common() if (use[t] >= EDGE_TILES or selfish[t] >= 1) and t not in objects]
     ids = ground[:mapsynth.LAYER_TILES[0]]  # (a layer's limit)
     rmean = {}
     for t in ids:
         im = tiles.get(t)
         rmean[t] = lab(regions(np.zeros((28, 24, 3)) if im is None else pal[im].astype(np.float64), n))
     k = spec.get('materials', 4)
-    sample = np.concatenate([rmean[t].reshape(-1, 3) for t in ids for _ in range(min(30, 1 + use[t] // 20))])
+    # (each tile as often as the originals have it, a few thousand in all: a rare one can't make a material of its own,
+    # CAMANIS's dashed plate taking its plateaus from the cobbles)
+    total = sum(use[t] for t in ids)
+    sample = np.concatenate([rmean[t].reshape(-1, 3) for t in ids for _ in range(max(1, round(3000 * use[t] / total)))])
     centres, _ = kmeans2(sample, k, minit='++', seed=spec.get('seed', 1))
 
     def material(v):
@@ -277,10 +289,9 @@ def autotile(spec, img, grids, letter):
             x0 = rw * c - 38
             xs = np.clip(np.arange(int(round(x0)), max(int(round(x0 + rw)), int(round(x0)) + 1)), 0, g.shape[1] - 1)
             grid[r, c] = material(g[ys][:, xs].reshape(-1, 3).mean(0))
-    # each cell's candidates: the tiles nearest its plan (and one quarter further); the map is then the
+    # each cell's candidates: the tiles nearest its plan (and a few quarters further); the map is then the
     # choice that misses the plan least and pairs its tiles as the originals pair them (beside and above
-    # each other: an edge that joins up, a texture that goes on), found row by row (the best row for the
-    # rows below and above it, Viterbi) over a few passes from a first pass that looks only below
+    # each other: an edge that joins up, a texture that goes on) or else as their edges join
     T = len(ids)
     idx = {t: i for i, t in enumerate(ids)}
     seen_h = np.zeros((T, T), bool)  # [left, right]
@@ -293,8 +304,21 @@ def autotile(spec, img, grids, letter):
         for b_ in cnt:
             if a_ in idx and b_ in idx:
                 seen_v[idx[a_], idx[b_]] = True
+    # (how badly an unseen pair's edge joins: the step in colour across it beyond the steps just inside either tile,
+    # per pixel along it; two grasses join, grass beside the sea doesn't)
+    tl = np.stack([lab(pal[tiles[t]].astype(np.float64)) if tiles.get(t) is not None else lab(np.zeros((28, 24, 3)))
+                   for t in ids])
+
+    def mismatch(a_edge, a_in, b_edge, b_in):
+        d = np.linalg.norm(a_edge[:, None] - b_edge[None, :], axis=-1)
+        g = (np.linalg.norm(a_edge - a_in, axis=-1)[:, None] + np.linalg.norm(b_edge - b_in, axis=-1)[None, :]) / 2
+        return np.maximum(0, d - g).mean(-1)
+    mis_h = mismatch(tl[:, :, -1], tl[:, :, -2], tl[:, :, 0], tl[:, :, 1])   # [left, right]
+    mis_v = mismatch(tl[:, 0], tl[:, 1], tl[:, -1], tl[:, -2])               # [below, above]
+    cost_h = np.where(seen_h, 0.0, np.minimum(1.0, mis_h / EDGE_NORM))
+    cost_v = np.where(seen_v, 0.0, np.minimum(1.0, mis_v / EDGE_NORM))
     prior = -np.log(np.array([use[t] for t in ids], np.float64) / max(use[t] for t in ids))
-    MISS, PAIR, PRIOR = 1.0, PAIR_COST, 0.12
+    MISS, PAIR, PRIOR = 1.0, PAIR_COST, PRIOR_WEIGHT
     cands, unary = [], []
     off = 0
     for r in range(ROWS):
@@ -304,29 +328,27 @@ def autotile(spec, img, grids, letter):
             miss = (sigs != want).sum(1)
             best = miss.min()
             off += best > 0
-            ci = np.nonzero(miss <= best + 2)[0]
-            if len(ci) > 48:
-                ci = ci[np.argsort(miss[ci] * 10 + prior[ci])[:48]]
+            ci = np.nonzero(miss <= best + CAND_SLACK)[0]
+            if len(ci) > CAND_MAX:
+                ci = ci[np.argsort(miss[ci] * 10 + prior[ci])[:CAND_MAX]]
             row_c.append(ci)
             row_u.append(MISS * miss[ci] + PRIOR * prior[ci])
         cands.append(row_c)
         unary.append(row_u)
-    choice = [[None] * 14 for _ in range(ROWS)]
-
-    def solve_row(r, use_above):
-        """The best row r for its neighbours below (and above): Viterbi along the row."""
+    def solve_row(r):
+        """The best row r for its neighbours below and above: Viterbi along the row."""
         costs = []
         for c in range(14):
             u = unary[r][c].copy()
             ci = cands[r][c]
-            if r + 1 < ROWS and choice[r + 1][c] is not None:
-                u += PAIR * ~seen_v[choice[r + 1][c], ci]
-            if use_above and r > 0 and choice[r - 1][c] is not None:
-                u += PAIR * ~seen_v[ci, choice[r - 1][c]]
+            if r + 1 < ROWS:
+                u += PAIR * cost_v[choice[r + 1][c], ci]
+            if r > 0:
+                u += PAIR * cost_v[ci, choice[r - 1][c]]
             costs.append(u)
         acc, back = costs[0], []
         for c in range(1, 14):
-            pair = PAIR * ~seen_h[np.ix_(cands[r][c - 1], cands[r][c])]  # (prev, cur)
+            pair = PAIR * cost_h[np.ix_(cands[r][c - 1], cands[r][c])]  # (prev, cur)
             tot = acc[:, None] + pair
             back.append(tot.argmin(0))
             acc = tot.min(0) + costs[c]
@@ -338,15 +360,40 @@ def autotile(spec, img, grids, letter):
         picks.reverse()
         for c in range(14):
             choice[r][c] = int(cands[r][c][picks[c]])
-    for r in range(ROWS - 1, -1, -1):
-        solve_row(r, False)
+    # the whole map at once: min-sum belief propagation over the grid, its best tiles then bettered row by row (row by
+    # row alone can't change two rows together, which a shore needs, and gave the plan up for strips)
+    U = np.full((ROWS, 14, T), 1e6, np.float32)
+    for r in range(ROWS):
+        for c in range(14):
+            U[r, c, cands[r][c]] = unary[r][c]
+    H = (PAIR * cost_h).astype(np.float32)   # [left, right]
+    V = (PAIR * cost_v).astype(np.float32)   # [below, above]
+    fl, fr, fb, fa = (np.zeros((ROWS, 14, T), np.float32) for _ in range(4))  # into a cell from its left, right, below, above
+    for _ in range(BP_ITERATIONS):
+        b = U + fl + fr + fb + fa
+        nl, nr, nb, na = (np.zeros_like(fl) for _ in range(4))
+        nl[:, 1:] = ((b - fr)[:, :-1, :, None] + H).min(2)
+        nr[:, :-1] = ((b - fl)[:, 1:, None, :] + H).min(3)
+        nb[:-1] = ((b - fa)[1:, :, :, None] + V).min(2)
+        na[1:] = ((b - fb)[:-1, :, None, :] + V).min(3)
+        for m, new in ((fl, nl), (fr, nr), (fb, nb), (fa, na)):
+            new -= new.min(-1, keepdims=True)
+            m *= 0.5
+            m += 0.5 * new
+    best = (U + fl + fr + fb + fa).argmin(-1)
+    choice = [[int(best[r, c]) for c in range(14)] for r in range(ROWS)]
     for _ in range(3):
         for r in list(range(ROWS)) + list(range(ROWS - 1, -1, -1)):
-            solve_row(r, True)
+            solve_row(r)
     layer1 = [[ids[choice[r][c]] for c in range(14)] for r in range(ROWS)]
-    bad = sum(not seen_h[choice[r][c - 1], choice[r][c]] for r in range(ROWS) for c in range(1, 14)) + \
-        sum(not seen_v[choice[r + 1][c], choice[r][c]] for r in range(ROWS - 1) for c in range(14))
-    print(f'  {bad} pairs of tiles the originals never put together')
+    pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(ROWS) for c in range(1, 14)] + \
+        [(seen_v, mis_v, choice[r + 1][c], choice[r][c]) for r in range(ROWS - 1) for c in range(14)]
+    bad = sum(not seen[a_, b_] for seen, _, a_, b_ in pairs)
+    badly = sum(not seen[a_, b_] and mis[a_, b_] > 12 for seen, mis, a_, b_ in pairs)
+    missed = sum(int((sigs[choice[r][c]] != grid[n * r:n * r + n, n * c:n * c + n].ravel()).sum())
+                 for r in range(ROWS) for c in range(14))
+    print(f'  {bad} pairs of tiles the originals never put together, {badly} of them badly joined; {missed} regions off '
+          f'the plan')
     print(spec['name'], letter, f'{n_rows} rows from GBC, {len(set(map(tuple, sigs)))} signatures, {off} cells off theirs')
     return layer1, n_rows
 
