@@ -136,6 +136,25 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
   ATK 1.8x). Ukupna šteta 24 levela 5919 -> 1723; omjer prema originalu npr. TYRIAN 1.7 -> 0.8, ASTEROID
   2.0 -> 0.9, SAVARA 3.6 -> 1.4, JUNGLE 4.3 -> 1.2, BUBBLES 21 -> 1.6, CAMANIS 2.4 -> 0.5, SPACE ATK 5.9 ->
   1.1. Kasniji leveli (originali iz epizode 4) i dalje su lakši od originala, kao na GBC-u.
+- Gornji slojevi (2026-10-29, korisnik: grafika je još gruba): GBC ima jednu mapu, pa su slojevi 2 i 3 bili
+  prazni, a PC originali na njima imaju oblake, stijene, led, brodove i palube koji daju dubinu. Sad se
+  slojevi 2 i 3 rade iznova iz originalovih (`episode.py` `upper_layers`, sintetizator epizode 6, jednako
+  puni kao u originalu) gdje original na njima ima više od jednog tilea punila ili natpisa na startu, i
+  idu brzinom koju u originalu najdulje drže prema sloju 1 (TYRIAN 2x i 3x), najviše koliko im mapa traje
+  do šefa. SAVARA uzima oblake SAVARE V. Postavke terena dobivaju kao originalovi (krute stijene gdje su
+  ondje kruti). Eksplozije u epizodi 7 i dalje plutaju sa slojem 1.
+  Ostalo nepopravljivo slojem 1: GBC TYRIAN ima tamne jame u polju kamenja, a PC tileset nema tamnog tla.
+- Feedback 2026-10-29 (korisnik, nakon igranja):
+  - Šefovi su jedno tijelo: GBC bodovi života dijelova koji se mogu pogoditi idu u jedan zajednički
+    spremnik (zbroj kroz korijen broja dijelova: TYRIAN 780 -> 260), svaki pogodak bilo kojeg dijela ide u
+    njega, a kad se isprazni svi dijelovi umiru zajedno; traka šefa ga pokazuje. Kretanje ostaje GBC-ovo.
+  - Epizoda 7 je brža: tick 1.25x PC-ovog (bio 1.55x, GBC-ov tempo), otprilike pola puta do PC-a.
+  - GBC tip s 0 bodova života na GBC-u umire na prvi pogodak; dosad je zadržavao PC oklop (JUNGLE-ov
+    neprijatelj za zabijanje 120, LAVA I 250). Sad ima 1. Blok čiji zbroj prelazi 255 više ne pada na PC oklop.
+  - Trgovina: GBC liste su kratke kao i PC-ove (3-5), ali stalno iz istih nekoliko; sad uz GBC-ove stvari
+    dolaze i stvari PC trgovine na istom mjestu napredovanja, najviše 6 po listi.
+  - GBC glazba: `music.py` nalazi petlju svake pjesme iz zapisa registara i reže je; leveli epizode 7
+    sviraju svoju GBC pjesmu, a kad dođe šef GBC pjesmu šefa (događaj 204). Trgovine i izbornici ostaju PC.
 
 ## Otvoreno
 

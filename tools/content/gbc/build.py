@@ -328,21 +328,28 @@ def gbc_offers():
     return {s["before"]: s["offer"] for s in json.load(open(path))["shops"]}
 
 
+SHOP_MAX = 6  # items a list at most (the game holds 10: itemAvail)
+
+
 def gbc_shop(offer, block):
-    """An original's shop block with the GBC shop's ships, front guns, generators, shields and sidekicks."""
-    def ids(table, names, first=()):
-        out = list(first)
-        for n in names:
-            if n in table and table[n] not in out:
-                out.append(table[n])
-        return " ".join(str(i) for i in out)
+    """An original's shop block with the GBC shop's ships, front guns, generators, shields and sidekicks, and that
+    block's own after them (the GBC's lists are as short as the PC's, 3 to 5, but draw from the same few each time:
+    the user, 2026-10-29, found the offer thin and much the same; the original's at this point of the episode brings
+    the PC's progression), at most SHOP_MAX a list."""
     lines = {line.split()[0]: line for line in block}
-    lines["Ship"] = " Ship   " + ids(GBC_SHIPS, offer["ship"])
-    lines["WeapF"] = " WeapF  " + ids(GBC_WEAPONS, offer["weapon"])
-    lines["Power"] = " Power  " + ids(GBC_ENGINES, offer["engine"])
-    lines["Shield"] = " Shield " + ids(GBC_SHIELDS, offer["shield"])
-    lines["Opt1"] = " Opt1   " + ids(GBC_SIDES, offer["sideA"], (0,))
-    lines["Opt2"] = " Opt2   " + ids(GBC_SIDES, offer["sideB"], (0,))
+
+    def ids(kind, table, names, first=()):
+        out = list(first)
+        for i in [table[n] for n in names if n in table] + [int(v) for v in lines[kind].split()[1:]]:
+            if i not in out and len(out) < SHOP_MAX:
+                out.append(i)
+        return f" {kind:<6} " + " ".join(str(i) for i in out)
+    lines["Ship"] = ids("Ship", GBC_SHIPS, offer["ship"])
+    lines["WeapF"] = ids("WeapF", GBC_WEAPONS, offer["weapon"])
+    lines["Power"] = ids("Power", GBC_ENGINES, offer["engine"])
+    lines["Shield"] = ids("Shield", GBC_SHIELDS, offer["shield"])
+    lines["Opt1"] = ids("Opt1", GBC_SIDES, offer["sideA"], (0,))
+    lines["Opt2"] = ids("Opt2", GBC_SIDES, offer["sideB"], (0,))
     return [lines[line.split()[0]] for line in block]
 
 
@@ -394,6 +401,7 @@ BOSS_TOP = 24            # the boss's highest piece's y when it stops (its top e
 BOSS_TIME = 2400         # ticks of fight at least before the level's 11 ends it anyway (an unkillable boss)
 BOSS_MAX = 6000          # ... and at most (a boss block that runs on: the final one's phases)
 BOSS_IN = 300            # the added end-when-clear this long after the boss is made or stops
+BOSS_CHECK = 12          # ... and from then on whether it is gone (event 70) every this many ticks
 BOSS_LEAD = 400          # the block's spawns from this long before its last boss bar
 LAYER_OF = {15: "sky", 18: None, 6: "ground", 10: "ground", 17: None, 56: None, 7: "top", 23: None, 32: None}
 
@@ -522,9 +530,20 @@ def boss_fight(level, events):
     # a boss, an end when clear ends the level at once: it ends at its 11)
     counted = any(data.setdefault(e["ep"], tyrdata.load_items(e["ep"])["enemies"]).get(e["d1"], {}).get("dani", 0) >= 0
                   for e in spawns if "ep" in e)
+    end = freeze + min(BOSS_MAX, max(BOSS_TIME, start + tpl["length"] - freeze + 300))
     if counted and not any(e["type"] == 36 and e["t"] >= freeze for e in placed):
         # (a while after it is made: one that comes in on its own, ASTEROID2's tank, must be in first)
         added.append(dict(t=max(freeze, first) + BOSS_IN, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    bars = sorted(links)[:3]
+    if counted and bars:
+        # (and once its bars' links are empty, the level ends with every enemy taken off, as the GBC's end once their
+        # boss is gone, boss.py's 70s: an end when clear waited for the rest too, and BUBBLES's bubble machines,
+        # standing on the stopped map, never stopped blowing: the user, 2026-10-29, killed its boss at once and the
+        # level never ended)
+        added += [dict(t=c, type=70, d1=end, d2=bars[0], d3=bars[1] if len(bars) > 1 else 0, d5=0, d6=0,
+                       d4=bars[2] if len(bars) > 2 else 0)
+                  for c in range(max(freeze, first) + BOSS_IN, end, BOSS_CHECK)]
+        added.append(dict(t=end, type=41, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     out = []
     for e in placed:
         if e["t"] > freeze and e["type"] == 53 and e["d1"] == 99:
@@ -532,11 +551,33 @@ def boss_fight(level, events):
         if e["type"] in (4, 83):
             continue  # (nor the map's restart once the screen is clear: the boss would scroll away)
         out.append(e)
-    end = freeze + min(BOSS_MAX, max(BOSS_TIME, start + tpl["length"] - freeze + 300))
     rest = [dict(e, t=min(65000, end)) if e["type"] == 11 else e for e in events]
     merged = rest + out + scroll + added
     merged.sort(key=lambda e: e["t"])  # (stable: same-time events keep their order)
     return compose.with_small_adjust(merged)
+
+
+def music(stages):
+    """The GBC songs (tools/gbc/music.py: each cut at its loop, in data/gbc/music/loops) into music/ beside the episode's
+    files, and music.txt: a line a level, by its number in the level file (its ]L line's), its song and the sample its
+    loop starts at, its boss song and its loop's (- where it has none); the game plays them in place of the PC songs
+    (src/loudness.c play_recorded_song, tyrian2.c gbc_music)."""
+    loops = os.path.join(ROOT, "data", "gbc", "music", "loops")
+    if not os.path.exists(os.path.join(loops, "loops.json")):
+        return
+    info = json.load(open(os.path.join(loops, "loops.json")))
+    os.makedirs(os.path.join(OUT, "music"), exist_ok=True)
+    lines, used = [], set()
+    for i, st in enumerate(stages, 1):
+        song, boss = info["levels"].get(str(st["gbc"]), [None, None])
+        if not song:
+            continue
+        used |= {song, boss} - {None}
+        lines.append(f"{i:02d} {song} {info['loops'][song]} " + (f"{boss} {info['loops'][boss]}" if boss else "- 0"))
+    for f in sorted(used):
+        shutil.copyfile(os.path.join(loops, f), os.path.join(OUT, "music", f))
+    with open(os.path.join(OUT, "music.txt"), "w") as out:
+        out.write("\n".join(lines) + "\n")
 
 
 def main():
@@ -597,6 +638,7 @@ def main():
         ending += sentences(c["text"], 58, marks=False) + [""]  # (a text window: 60 characters, no marks)
     tf.write_strings(os.path.join(OUT, "levels7.dat"), script(stages, levels, planets(), numbers, ending[:-1]))
     tf.write_strings(os.path.join(OUT, "cubetxt7.dat"), cubes + ["*"])
+    music(stages)
     print(f"{OUT}: {len(levels)} levels, {len(importer.enemy_map)} enemies and {len(importer.weapon_map)} guns brought in"
           + (f", {Importer.full} guns as episode 5's (no slot left)" if Importer.full else ""))
     return 0

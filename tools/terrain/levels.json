@@ -967,5 +967,35 @@
   },
   "level": "LAVA II (gbc)",
   "episode": 7
+ },
+ "96dd08e1bb1abc68": {
+  "background": 3,
+  "solid": true,
+  "level": "TYRIAN (gbc)",
+  "episode": 7
+ },
+ "0f19e99e74eb641f": {
+  "background": 2,
+  "solid": true,
+  "level": "DELIANI (gbc)",
+  "episode": 7
+ },
+ "f4890c387fcbb93f": {
+  "background": 3,
+  "solid": true,
+  "level": "TUNNEL (gbc)",
+  "episode": 7
+ },
+ "63676afb1670c87d": {
+  "background": 2,
+  "solid": true,
+  "level": "LAVA I (gbc)",
+  "episode": 7
+ },
+ "7dd1f5fb65ca8982": {
+  "background": 2,
+  "solid": true,
+  "level": "LAVA II (gbc)",
+  "episode": 7
  }
 }

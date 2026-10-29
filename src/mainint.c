@@ -6503,10 +6503,12 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 
 					b = z;
 
-					if (armorleft2 > armorleft)
+					// (Tyrian3D: a GBC boss's piece: its body takes it, and goes whole when it is gone)
+					const int body = gbc_pool_hit(z, armorleft);
+					if (body > 0 || (body < 0 && armorleft2 > armorleft))
 					{
 						// damage enemy
-						if (enemy[z].armorleft != 255)
+						if (body < 0 && enemy[z].armorleft != 255)
 							enemy[z].armorleft -= armorleft;
 						soundQueue[5] = S_ENEMY_HIT;
 					}
@@ -6518,7 +6520,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							if (enemyAvail[temp2] != 1)
 							{
 								temp3 = enemy[temp2].linknum;
-								if (temp2 == b ||
+								if (temp2 == b || gbc_pool_takes(b, temp2) ||
 									(temp != 255 && gbc_takes_along(temp, b, temp2) &&
 									 (temp == temp3 || temp - 100 == temp3 ||
 									  (temp3 > 40 && temp3 / 20 == temp / 20 && temp3 <= temp))))

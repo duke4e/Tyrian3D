@@ -135,8 +135,10 @@ class Translator:
         fight = []
         if a in self.stats:
             hp, gun, every = self.stats[a]
-            hp *= block[0] * block[1]
-            fight = [ev(t, FIGHT, hp if 0 < hp < 255 else 0, 0, min(127, ticks(every * self.pace)) if gun and every else 0)]
+            # (0 hit points: dead at the first hit, $2ca8; 255: never, the PC enemy's own armour; a block's pieces'
+            # together, which may pass 255)
+            hp = 0 if hp == 255 else max(1, hp) * block[0] * block[1]
+            fight = [ev(t, FIGHT, hp, 0, min(127, ticks(every * self.pace)) if gun and every else 0)]
             if link:
                 self.guns.setdefault(link, set()).add(gun)
 
@@ -265,8 +267,8 @@ class Translator:
             drift = [ev(t, 19, -99, -99, 0, 0, s or -99, l) for l, when in sorted(self.carried.items())
                      if s != self.speed and t - when < 900]
             self.speed = s
-            # (backgrounds 2 and 3 are empty: at layer 1's speed they last its length; at the usual
-            # 2x and 3x they run out of map at clock 8274 and 5516, which the GBC levels pass)
+            # (backgrounds 2 and 3 at layer 1's speed here; episode.py gives them their original's pace where it
+            # makes them)
             return [ev(t, 2, s, s, s)] + drift
         return []
 

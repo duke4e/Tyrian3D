@@ -4,7 +4,9 @@
 their side columns (TYR3D_SIDES_WRITE); the export is marked episode 7 (several GBC levels have an
 original's name, and their maps mustn't teach the tilesets as the originals' do: make_cleanground.py);
 each ground map gets its original's terrain settings, its surfaces' heights carried over by colour (the
-original map's classes, each one's mean colour with its height, as make_terrain.py's "materials"); then
+original map's classes, each one's mean colour with its height, as make_terrain.py's "materials"), and
+backgrounds 2 and 3 (made from an original's: tools/gbc/episode.py upper_layers) that original's (solids
+where its are); then
 the ground enemies' places are logged (tools/terrain/ground_log.sh) and the clean ground, terrain and
 vegetation are built. Maps of earlier versions of these levels are taken out, with their assets.
 
@@ -71,6 +73,14 @@ def original_map(settings, name):
     return None
 
 
+def original_upper(settings, name, background):
+    """The original level's settings for its background 2 or 3 (solids), None where it has none."""
+    for s in settings.values():
+        if s.get("level", "").strip() == name and s.get("background") == background and s.get("episode") != 7:
+            return {k: v for k, v in s.items() if k != "level"}
+    return None
+
+
 def carried_settings(settings, original, fallback):
     """The original's settings for a GBC map: its own keys but the ones tied to its map (tiles by shape,
     a ceiling over its background 2), its surfaces' heights as colours ("materials")."""
@@ -105,13 +115,19 @@ def refresh():
         if s.get("episode") != 7:
             continue
         name = s["level"][:-len(f" ({TAG})")]
+        if s.get("background"):
+            upper = original_upper(settings, stages[name].get("layers", stages[name]["pc"])[1], s["background"])
+            settings[h] = dict(upper or s, level=s["level"], episode=7)
+            built.append(h)
+            continue
         pc = stages[name]["pc"][1]
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
         settings[h] = dict(carried_settings(settings, original_map(settings, pc), fallback), level=s["level"], episode=7)
         built.append(h)
     json.dump(settings, open(SETTINGS, "w"), indent=1)
     subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
-    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + built, check=True)
+    ground = [h for h in built if not settings[h].get("background")]
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + ground, check=True)
     return 0
 
 
@@ -131,6 +147,14 @@ def main(names):
         maps = export_maps(found[name])
         ground = maps.get(1)
         print(f"{name}: maps {maps}")
+        for background, h in maps.items():
+            # (an upper layer as its original has it: solids where it has them; the original's own map, the same hash,
+            # stays the original's)
+            upper = background != 1 and original_upper(settings, st.get("layers", st["pc"])[1], background)
+            if upper and not (h in settings and settings[h].get("episode") != 7):
+                settings[h] = dict(upper, level=f"{name} ({TAG})", episode=7)
+                keep.add(h)
+                built.append(h)
         if ground is None or (ground in settings and settings[ground].get("episode") != 7):
             continue  # (a map an original has too, e.g. open space of one tile: the original's)
         pc = st["pc"][1]
@@ -154,9 +178,11 @@ def main(names):
     wait_for_game()
     subprocess.run([os.path.join(ROOT, "tools", "terrain", "ground_log.sh"), "60"] + secs, check=True,
                    stdout=subprocess.DEVNULL)
-    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_cleanground.py")] + built, check=True)
+    ground = [h for h in built if not settings[h].get("background")]
+    if ground:  # (the clean ground first: the terrain and the vegetation are made on it)
+        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_cleanground.py")] + ground, check=True)
     subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
-    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + built, check=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_vegetation.py")] + ground, check=True)
     return 0
 
 

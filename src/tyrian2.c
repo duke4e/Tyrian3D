@@ -42,6 +42,7 @@
 #include "keyboard.h"
 #include "lds_play.h"
 #include "loudness.h"
+#include "paths3d.h"
 #include "lvllib.h"
 #include "menus.h"
 #include "mainint.h"
@@ -434,9 +435,102 @@ bool gbc_takes_along(int link, unsigned int dying, unsigned int other)
 	return !gbc_piece_link(link) && gbc_object[dying] != 0 && gbc_object[other] == gbc_object[dying];
 }
 
-// Tyrian3D: episode 7's ticks this many times as long as the others' (8/3 of a GBC frame at 59.73 a second, 44.65 ms,
-// over the PC's Normal 28.75: JE_main).
-#define GBC_PACE 1.553f
+// Tyrian3D: a GBC boss's pieces (gbc_piece_link) are one body, as a PC boss is (the user, 2026-10-29: each piece had
+// a whole PC boss's hit points, and every one had to go): the GBC hit points of those that can be shot go into one pool
+// as they are made, the pool their sum over the root of their number (TYRIAN's nine of 50-100, 780: 260), every hit on
+// a piece (shot or rammed) is taken off it, and when it is gone all the pieces die together, the unshootable ones too.
+// They still move as the GBC moves them. The boss bar shows it. A piece made while none of the last body's lives
+// starts a new one.
+static struct { int sum, count, taken; } gbc_pool;
+static bool gbc_pooled[100];  // pieces of the body (cleared as any enemy is made: gbc_pool_forget)
+
+static void gbc_pool_forget(const struct JE_SingleEnemyType *e)
+{
+	gbc_pooled[e - enemy] = false;
+}
+
+static bool gbc_in_pool(unsigned int i)
+{
+	return episodeNum == EPISODE_GBC && gbc_pooled[i] && enemyAvail[i] != 1;
+}
+
+static int gbc_pool_full(void)
+{
+	return gbc_pool.count > 0 ? (int)(gbc_pool.sum / sqrtf((float)gbc_pool.count) + 0.5f) : 0;
+}
+
+// What the body has left (0: gone).
+static int gbc_pool_left(void)
+{
+	return SDL_max(0, gbc_pool_full() - gbc_pool.taken);
+}
+
+static void gbc_pool_join(unsigned int i)
+{
+	if (!gbc_piece_link(enemy[i].linknum))
+		return;
+	bool live = false;
+	for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+		live = live || (j != i && gbc_in_pool(j));
+	if (!live)
+		gbc_pool.sum = gbc_pool.count = gbc_pool.taken = 0;
+	gbc_pooled[i] = true;
+	if (enemy[i].armorleft < 255 && enemyDat[enemy[i].enemytype].armor != 0)
+	{
+		gbc_pool.sum += enemy[i].armorleft;
+		++gbc_pool.count;
+		enemy[i].armorleft = 254;  // (its own never runs out: the body's does)
+	}
+	if (!live && boss_bar[0].link_num == 0 && boss_bar[1].link_num == 0)
+		boss_bar[0].link_num = enemy[i].linknum;
+}
+
+// A hit of `damage` on enemy i (shot or rammed): -1 if it isn't a piece of a body, else what the body has left after it.
+int gbc_pool_hit(unsigned int i, int damage)
+{
+	if (!gbc_in_pool(i) || enemy[i].armorleft >= 255)
+		return -1;
+	gbc_pool.taken += damage;
+	return gbc_pool_left();
+}
+
+// Whether enemy other dies with dying: both pieces of a body that is gone.
+bool gbc_pool_takes(unsigned int dying, unsigned int other)
+{
+	return episodeNum == EPISODE_GBC && gbc_pooled[dying] && gbc_pooled[other] && enemyAvail[other] != 1 &&
+	       gbc_pool_left() == 0;
+}
+
+// Tyrian3D: episode 7's levels play the GBC's songs (tools/gbc/music.py; build.py writes music.txt: a line a level by
+// its number in the level file, its song and the sample its loop starts at, its boss song and its loop's, - for none):
+// its own from the start, its boss's from event 204. False where it has none (the PC song plays).
+#define GBC_SONG 204
+static bool gbc_music(bool boss)
+{
+	if (episodeNum != EPISODE_GBC)
+		return false;
+	char dir[1024], path[1200], song[2][64];
+	tyr3d_resource_dir("TYR3D_CONTENT_DIR", TYR3D_CONTENT_DIR, "content", dir, sizeof(dir));
+	snprintf(path, sizeof(path), "%s/episode7/music.txt", dir);
+	FILE *f = fopen(path, "r");
+	if (f == NULL)
+		return false;
+	int level;
+	unsigned long loop[2];
+	bool found = false;
+	while (!found && fscanf(f, "%d %63s %lu %63s %lu", &level, song[0], &loop[0], song[1], &loop[1]) == 5)
+		found = level == lvlFileNum;
+	fclose(f);
+	if (!found || strcmp(song[boss], "-") == 0)
+		return false;
+	snprintf(path, sizeof(path), "%s/episode7/music/%s", dir, song[boss]);
+	return play_recorded_song(path, loop[boss]);
+}
+
+// Tyrian3D: episode 7's ticks this many times as long as the others'. The GBC's own pace (8/3 of a GBC frame at 59.73
+// a second, 44.65 ms, over the PC's Normal 28.75: JE_main) was 1.553, which played too slow beside the PC episodes
+// (the user, 2026-10-29); 1.25 (35.9 ms) is about halfway, still calmer than the PC's.
+#define GBC_PACE 1.25f
 
 // Tyrian3D: the GBC game's enemy table holds 17 (at $c192), and an enemy launched with it full doesn't come: in
 // episode 7 a launch waits for fewer than that alive (WARP's boss launches every few frames; on the GBC eight of its
@@ -931,7 +1025,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204:
 		return true;
 	default:
 		return false;
@@ -2219,7 +2313,8 @@ start_level_first:
 	flashChange = 1;
 	displayTime = 0;
 
-	play_song(levelSong - 1);
+	if (!gbc_music(false))  // (Tyrian3D: episode 7's GBC song)
+		play_song(levelSong - 1);
 
 	JE_drawPortConfigButtons();
 
@@ -2467,7 +2562,8 @@ level_loop:
 	}
 	else if (!playing && firstGameOver)
 	{
-		play_song(levelSong - 1);
+		if (!gbc_music(false))  // (Tyrian3D)
+			play_song(levelSong - 1);
 	}
 
 	if (!endLevel) // draw HUD
@@ -2895,6 +2991,10 @@ level_loop:
 						}
 
 						int armorleft = enemy[b].armorleft;
+						// (Tyrian3D: a GBC boss's piece: its body's, gbc_pool_hit)
+						const bool pooled = gbc_in_pool(b) && armorleft < 255;
+						if (pooled)
+							armorleft = gbc_pool_left();
 
 						temp = enemy[b].linknum;
 						if (temp == 0)
@@ -2903,7 +3003,7 @@ level_loop:
 						if (enemy[b].armorleft < 255)
 						{
 							for (unsigned int i = 0; i < COUNTOF(boss_bar); i++)
-								if (temp == boss_bar[i].link_num)
+								if (temp == boss_bar[i].link_num || (pooled && gbc_piece_link(boss_bar[i].link_num)))
 									boss_bar[i].color = 6;
 
 							if (enemy[b].enemyground)
@@ -2928,7 +3028,10 @@ level_loop:
 							{
 								if (enemy[b].armorleft != 255)
 								{
-									enemy[b].armorleft -= damage;
+									if (pooled)
+										gbc_pool_hit(b, damage);
+									else
+										enemy[b].armorleft -= damage;
 									JE_setupExplosion(tempShotX, tempShotY, 0, 0, false, false);
 								}
 								else
@@ -2939,7 +3042,7 @@ level_loop:
 
 							soundQueue[5] = S_ENEMY_HIT;
 
-							if ((armorleft - damage <= enemy[b].edlevel) &&
+							if (!pooled && (armorleft - damage <= enemy[b].edlevel) &&  // (a body's pieces go whole)
 							    ((!enemy[b].edamaged) ^ (enemy[b].edani < 0)))
 							{
 
@@ -3009,6 +3112,8 @@ level_loop:
 						}
 						else
 						{
+							if (pooled)
+								gbc_pool_hit(b, damage);  // (the body gone: all its pieces go, gbc_pool_takes)
 
 							if ((temp == 254) && (superEnemy254Jump > 0))
 								JE_eventJump(superEnemy254Jump);
@@ -3018,7 +3123,7 @@ level_loop:
 								if (enemyAvail[temp2] != 1)
 								{
 									temp3 = enemy[temp2].linknum;
-									if ((temp2 == b) || (temp == 254) ||
+									if ((temp2 == b) || (temp == 254) || gbc_pool_takes(b, temp2) ||
 									    ((temp != 255) && gbc_takes_along(temp, b, temp2) && ((temp == temp3) || (temp - 100 == temp3) ||
 									                       ((temp3 > 40) && (temp3 / 20 == temp / 20) && (temp3 <= temp)))))
 									{
@@ -5676,6 +5781,7 @@ uint JE_makeEnemy(struct JE_SingleEnemyType *enemy, Uint16 eDatI, Sint16 uniqueS
 		enemy->egr[i] = enemyDat[eDatI].egraphic[i];
 	enemy->size = enemyDat[eDatI].esize;
 	enemy->linknum = 0;
+	gbc_pool_forget(enemy);  // (Tyrian3D)
 	enemy->edamaged = enemyDat[eDatI].dani < 0;
 	enemy->enemydie = enemyDat[eDatI].eenemydie;
 
@@ -5956,6 +6062,7 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemy[b-1].eyc += eventRec[eventLoc-1].eventdat3;
 	enemy[b-1].linknum = eventRec[eventLoc-1].eventdat4;
 	enemy[b-1].fixedmovey = eventRec[eventLoc-1].eventdat6;
+	gbc_pool_join(b - 1);  // (Tyrian3D: a GBC boss's piece joins its body)
 
 	// Tyrian3D: the forecast it takes the place of, if the 3D view showed it coming (enemy_shown).
 	{
@@ -6048,10 +6155,10 @@ void JE_eventSystem(void)
 		backMove = eventRec[eventLoc-1].eventdat;
 		backMove2 = eventRec[eventLoc-1].eventdat2;
 
-		if (backMove2 > 0)
+		if (backMove2 > 0 && episodeNum != EPISODE_GBC)
 			explodeMove = backMove2;
 		else
-			explodeMove = backMove;
+			explodeMove = backMove;  // (Tyrian3D: episode 7's with the ground, its background 2 the faster clouds)
 
 		backMove3 = eventRec[eventLoc-1].eventdat3;
 
@@ -6431,7 +6538,7 @@ void JE_eventSystem(void)
 
 		backMove = eventRec[eventLoc-1].eventdat;
 		backMove2 = eventRec[eventLoc-1].eventdat2;
-		explodeMove = backMove2;
+		explodeMove = episodeNum == EPISODE_GBC ? backMove : backMove2;  // (Tyrian3D: as event 2)
 		backMove3 = eventRec[eventLoc-1].eventdat3;
 		break;
 
@@ -6966,6 +7073,10 @@ void JE_eventSystem(void)
 	case 202:  // Tyrian3D: a part of the next enemy's look (episode 7's bosses: gbc_look; JE_createNewEventEnemy)
 		break;
 
+	case GBC_SONG:  // Tyrian3D: episode 7's boss song (gbc_music)
+		gbc_music(eventRec[eventLoc-1].eventdat == 1);
+		break;
+
 	case GBC_FIGHT:  // Tyrian3D: the next enemy's toughness and fire as the GBC's (episode 7: gbc_fight)
 		break;
 
@@ -7081,6 +7192,15 @@ void draw_boss_bar(void)
 			if (enemyAvail[e] != 1 && enemy[e].linknum == boss_bar[b].link_num)
 				if (enemy[e].armorleft < armor)
 					armor = enemy[e].armorleft;
+		}
+		// (Tyrian3D: a GBC boss's body, gbc_pool_hit: what it has left of its full pool, while any piece of it lives)
+		if (gbc_piece_link(boss_bar[b].link_num))
+		{
+			bool live = false;
+			for (unsigned int e = 0; e < COUNTOF(enemy); e++)
+				live = live || gbc_in_pool(e);
+			const int full = gbc_pool_full();
+			armor = live && full > 0 && gbc_pool_left() > 0 ? (unsigned int)SDL_max(1, gbc_pool_left() * 254 / full) : 0;
 		}
 
 		if (armor > 255 || armor == 0)  // boss dead?

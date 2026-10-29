@@ -94,7 +94,9 @@ screens over a level, in dark glass panels with brass rims, in Oxanium, at any w
 area (`src/ui.c`). The store: the ship as a large 3D model on a lit pad at the left (the weapon
 simulator in its place for the weapons, the generator and the sidekicks, with the weapon's power,
 its costs and the generator's output under it), the page at the right: the parts to upgrade as tabs,
-their choices as cards with an icon, short stats against the best on offer, the cost or that the
+their choices as cards with an icon (the item's own 3D model where it has one, rendered in a three-quarter view
+and lit as the pad's ship: the ships, the guns and generators as the pad's mounts, the sidekicks, the specials' power-ups, the
+data cube; the shields keep their pictures), short stats against the best on offer, the cost or that the
 ship has it, the credits and what is left after the change chosen, a note when a purchase is made;
 ship specs round the ship; options, load and save, the keyboard, joystick and mouse, the next
 level's map, the data cubes and their texts, and the store's questions (quit, save) as dialogs.
@@ -297,7 +299,15 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   `$4fea`, reads the level from `$d92f`), and writes each level's map (11 blocks of 16x16 a row,
   read upwards from the pointer the level's init routine sets at `$c449`), tiles, palettes, sprites
   and a gallery of what it shows to `data/gbc/levels`; `songs.py` and `apu.py` render its 25 songs
-  (played by the ROM's own driver, ticked alone, `$1a5f`) to `data/gbc/music`; `report.py` writes
+  (played by the ROM's own driver, ticked alone, `$1a5f`) to `data/gbc/music`; `music.py` finds each
+  one's loop in its register writes (the shortest period after which every frame's writes repeat to the end
+  of the log) and cuts it there, mono, its last 10 ms blended into the 10 ms before the loop's start, into
+  `data/gbc/music/loops` with which songs each level plays (its own; its boss song, the one its init starts
+  after it); `build.py` copies them beside the episode's files with `music.txt`, and episode 7's levels play
+  them in place of the PC songs (`tyrian2.c` `gbc_music`: its own from the start, its boss's from event
+  204 at the boss's arrival; `loudness.c` `play_recorded_song`: the WAV converted to the output's rate,
+  from the loop's start again at its end, faded out by `fade_song`, ended by `play_song` and `stop_song`;
+  the shops and menus keep the PC's songs); `report.py` writes
   the overview the user chose this episode from (`data/gbc/report/index.html`).
 * `episode.py` makes each GBC level a PC level of the original level it is a version of (TYRIAN,
   ASTEROID1, SAVARA IV, TORM, STARGATE, CAMANIS, FLEET, BRAINIAC, LAVA EXIT...: the GBC artists drew
@@ -322,7 +332,18 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   together, which a shore needs, and gave the plan up for strips); the log counts the pairs left that no
   original has and those of them badly joined (over 12; 2026-10-29: 175 in the GBC maps' rows, from 3078).
   Space levels are the original's
-  blank tile with the stars. The levels, in the GBC game's Full Game order (found by flying it
+  blank tile with the stars. Backgrounds 2 and 3 (the GBC has one map) are made anew from the original's
+  where it has more on them than one tile's filler or a sign at the start (`upper_layers`; SAVARA takes
+  SAVARA V's clouds): TYRIAN's clouds and rock outcrops, SAVARA V's clouds, CAMANIS's and ICE EXIT's ice,
+  FLEET's passing ships, BRAINIAC's, NOSE DRIP's and DELIANI's decks, LAVA's rock islands; episode 6's
+  synthesiser learns the stretch each fills, as full as the original's (the empty tile weighed until it is
+  within a sixth; one that runs into a dead end is made again from another seed, and what it can't continue,
+  BRAINIAC's background 3, is the original's as it is, as are FLEET's ships of many tiles: `as_they_are`), its top 12 rows left
+  empty (one that runs out repeats its top rows). They scroll at the pace each keeps longest against layer 1
+  in its original (TYRIAN 2x and 3x, ICE EXIT 1x, FLEET's ships 5x),
+  at most as fast as their 592 rows last until the boss (event 2's d2 and d3 from the GBC script's speed);
+  episode 7's explosions drift with layer 1 as they did, not with background 2 as the PC's (`tyrian2.c`
+  events 2 and 30). The levels, in the GBC game's Full Game order (found by flying it
   through in the emulator) with its five Arcade-only levels after one of their look, go to
   `data/gbc/episode7` as episode 6's level JSON, with `preview/` pictures (the GBC map beside the
   PC one).
@@ -402,8 +423,11 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   own speed up the screen while the map runs: IXMUCANE's, SAVARA IV's) keeps the original's scroll;
   any other stops the map once its body is on screen (its highest piece's top at y 24, from its
   pieces' spawns and speeds) and its drifting pieces stop (19 by link). Forced events (53) keep the
-  clock running for its script; the level ends when it is gone (36, added where its block has none),
-  or at its event 11, 2400 to 6000 ticks of fight later (an unkillable boss: as long as its block, the
+  clock running for its script; the level ends when it is gone (36, added where its block has none;
+  and once its bars' links are empty, checked every 12 ticks with event 70, every enemy taken off, as the
+  GBC's levels end once their boss is gone: an end when clear waited for the rest too, and BUBBLES's bubble
+  machines on the stopped map never stopped blowing, so a boss killed at once left the level running for
+  ever, 2026-10-29), or at its event 11, 2400 to 6000 ticks of fight later (an unkillable boss: as long as its block, the
   final one's phases); the block's map restarts (4, 83) are left out. All 24 bosses checked by eye.
 * WARP (STARGATE's look, black, its stars off) is open space with the stars on, as the GBC level is.
 * The other game modes (Arcade, two players, timed battle, Super Arcade) find their pickups as the PC
@@ -443,7 +467,8 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   shows 59.73 frames a second, so its levels' ticks last 8/3 of a GBC frame, 44.6 ms, where the PC's
   Normal is 28.75 (its Slower 43): map, enemies, shots and script as fast as on the GBC; at the PC's
   pace they all went 1.55 times as fast (the user: some enemies too fast and abrupt, the bosses too).
-  The player's ship and shots go by the same ticks. Menus and the shop keep the PC's pace.
+  That played too slow beside the PC episodes (the user, 2026-10-29), so the ticks last 1.25 times the
+  PC's (35.9 ms), about halfway. The player's ship and shots go by the same ticks. Menus and the shop keep the PC's pace.
 * Episode 7's enemies die alone, as the GBC's do (`gbc_takes_along`): a GBC group is one link, and the
   PC kills a link's enemies together, so shooting one took its group's others with it (they seemed to
   vanish by themselves). Only the pieces of one GBC enemy go together: a composite's parts (the events
@@ -486,7 +511,10 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   Phoenix), the one GBC weapon slot as the front gun (the nearest front gun by name and look: Scatter the
   Mega Pulse, Sonic the Sonic Impulse, Rail the Widget Beam, L.Ball the RetroBall, Arrow the Missile
   Launcher...), the engines as generators, the shields by strength, the sidekicks on both sides (the PC
-  has no shield, repair, magnet or cold sidekick: the nearest in use); the rear guns and armour stay the
+  has no shield, repair, magnet or cold sidekick: the nearest in use), and after them that original
+  block's own of each kind, at most 6 a list (`SHOP_MAX`; the GBC's lists are as short as the PC's, 3 to 5,
+  but draw from the same few each time, and the user found the offer thin and much the same: the original's
+  at that point of the episode brings the PC's progression); the rear guns and armour stay the
   originals' shops' (from episode 1's first to episode 4's, spread over the episode). The Arcade-only
   levels and FINALE take the offer before them.
 * `bosses.py`: each level is flown from its script's end and the boss's look taken (the largest cluster of
@@ -552,7 +580,12 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   pieces share a link of 101-120: in the PC an enemy shot down or rammed takes every enemy of its link with
   it, the GBC's pieces go one by one, each with its own hit points, so in episode 7 a piece on those links
   goes alone (`tyrian2.c` `gbc_piece_link`, also in `mainint.c`'s ramming; nor does it turn the others
-  damaged); the link still moves them all and the end waits for it. Pieces that can't be hurt in the group
+  damaged); the link still moves them all and the end waits for it. They are one body, though, as a PC boss is
+  (the user, 2026-10-29: each piece had a whole PC boss's hit points, and every one had to go): the GBC hit
+  points of those that can be shot go into one pool as they are made, the pool their sum over the root of
+  their number (TYRIAN's nine of 50-100, 780: 260), every hit on a piece, shot or rammed, comes off it, and
+  when it is gone all the pieces die together, the unshootable ones too; the boss bar shows it
+  (`tyrian2.c` `gbc_pool_join`, `gbc_pool_hit`, `gbc_pool_takes`, `draw_boss_bar`). Pieces that can't be hurt in the group
   the end waits for (CAMANIS's middle one: the GBC level can never end) get a link of their own that does
   what the group does, the end not waiting for them. A group's speeds are the GBC's own (`gbc_speeds`, as its
   mover changes them, `$2109`: every |c| frames a step of a unit, the counter starting at |c|, a negative c's
@@ -585,7 +618,9 @@ not teaching the tilesets), each ground map gets its original's terrain settings
 `tools/terrain/levels.json` (marked `"episode": 7`) with its surfaces' heights carried over by colour
 (the original map's classes, each one's mean colour with its height, as make_terrain.py's
 `"materials"`), then the ground enemies are logged and the clean ground, terrain and vegetation are
-built into `assets/terrain`. Maps an original has too (open space of one tile) stay the original's.
+built into `assets/terrain`; backgrounds 2 and 3 get their original's settings (solids where its are:
+TYRIAN's rocks, BRAINIAC's decks, NOSE DRIP's rock, LAVA's islands). Maps an original has too (open space
+of one tile) stay the original's.
 `tools/levels.py` lists episode 7's sections.
 
 The game finds those files in the content directory as it finds episode 6's (`src/file.c`) and lists
@@ -786,6 +821,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SCREENS=fill\|integer` | With the modern UI: the old 320x200 screens fill the window (cut to its shape; on ultrawide its 16:9 middle over a blurred copy), or as Scaling Mode says |
 | `TYR3D_UI_SCALE=<percent>` | The modern UI's and the HUD's size (50-200; the setting has 75-150) |
 | `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
+| `TYR3D_MODEL_ICONS=0` | The modern UI's item icons as the sprites' pictures (the HD upscales), as before 2026-10-29, instead of the renders of the items' models (`assets/models/icons`), to compare |
+| `TYR3D_RENDER_ICONS=<dir>` | Once the modern store shows the ship, render the icon of every model an item's icon shows into `<dir>/<model>.png` (`render_gpu.c` `rgpu_render_icons`; `assets/models/icons` is what the UI reads; see Models), printing `icons: <model>: <w>x<h> of a <n> square, written` and how many |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
@@ -914,7 +951,17 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   models or the weapon simulator's (its ship and shots over deep space of its own: stars drifting by in three
   layers and a faint nebula, `make_sim_space`, the pane a little larger than the original's box so the ship's
   model shows whole) drawn by the
-  scene into the layout's pane (`rgpu_present_ui`). The simulator looks as a level does (2026-10-29, the user: the
+  scene into the layout's pane (`rgpu_present_ui`). The items' icons are renders of each item's own 3D model where it has
+  one (2026-10-29, the user: items were drawn from upscaled sprites while a model of them exists; `ui.h`
+  `UIItem.icon_model`, from `game_menu.c` `shop_item_model`: the ship's model, a gun's or the generator's mount as the pad
+  shows it, a sidekick's; `special_item_model`: a special's power-up; the data cube's pick-up; `ui.c` `build_card`: a
+  title card's ship by its sprite): `assets/models/icons/<model>.png`, rendered by the game from the models
+  (`TYR3D_RENDER_ICONS`, see Models), drawn by `render_gpu.c` `rgpu_ui_model_icon` at the size its well has in the window's
+  pixels (resized from the 512-pixel render on a thread of their own, `model_icons.c`, Mitchell-Netravali; the texture made
+  as it is ready, in a frame or two, and faded in), so they are sharp at every UI scale; colours multiplied by the alpha,
+  so glass and glows lie over the well. The shields and items without a render keep their pictures (`hd_icon`). The
+  scene draws one pass a frame (the pad's), so the icons are pictures, not live models; the item chosen turns on the pad.
+  The simulator looks as a level does (2026-10-29, the user: the
   store's preview still used many old visuals; `video.c` `video_sim_*`, `render_gpu.c` `add_showcase_volumes`,
   `add_showcase_glows`, `add_showcase_particles`, `add_showcase_lights`): the shots without a model are their
   sprites with volume, flat, from the 4x sheets (they were the screen's pixels laid over the pane, cut at the
@@ -1047,6 +1094,20 @@ tools/capture_run.sh /tmp/viewer 30 30 TYR3D_VIEWER=ships
 
 (or run the game with `TYR3D_VIEWER=ships` and look; `TYR3D_VIEWER_ROLL=90` shows the side.)
 
+The modern UI's item icons are renders of the models (`assets/models/icons/<model>.png`, 512 pixels, straight alpha;
+see the store in How it works): every model an item's icon shows (the ships, the guns' and generators' mounts, the
+sidekicks, the specials' power-ups, the data cube in its first frame's ramp; `game_menu.c` `shop_icon_models`), in one
+three-quarter view (turned 30 degrees clockwise, its front tilted 35 degrees up towards a camera looking straight down at
+it, as the pad's), lit as the store's pad (the sun from the upper left, the sky, its own shadows, the bloom), rendered by
+the game twice into the window, over black and over grey (the difference is the alpha, glass and all), framed by what
+shows of it with the same margin round its longer side, and resized from three to four times its size (`render_gpu.c`
+`rgpu_render_icons`). Made again when a model changes (the store in the store's palette; a window of 1600x900 points at
+2x gives a 1800-pixel square, about 15 s for all):
+
+```bash
+TYR3D_START=1:4 TYR3D_SHOP=1 TYR3D_WINDOW_SIZE=1600x900 TYR3D_RENDER_ICONS=assets/models/icons TYR3D_EXIT_AFTER=300 build/game/tyrian3d
+```
+
 ## HD resources
 
 The 3D view's HD pictures are made from the game's data, so, like the data, they are not in the repository; the
@@ -1091,7 +1152,8 @@ cube without a face (a message, a guide): a hologram of a data cube in amber (`t
 show them, the ships, the HUD's small ship and bomb, the specials, the data cube icons, the planets of its map, each in
 its screen's palette) through `tools/upscale_sprites.py` with 4x-BigFArt-Detail; where one is there
 the UI draws it instead of the sprite's pixels (`render_gpu.c` `hd_icon`: the store's cards and its map's planets, and
-the rogue run's map, its planets drawn anew over the map's in their own palette's colours). `upscale/` is only the work folder
+the rogue run's map, its planets drawn anew over the map's in their own palette's colours; an item with a 3D model of its own
+shows a render of the model instead, `assets/models/icons`, see Models). `upscale/` is only the work folder
 (atlases to upscale, the upscaled atlases, pictures to look at) and can be deleted; `export/maps` (`tools/export_maps.sh`)
 is the HD tiles' input. To make everything again (the upscales take 3-4 hours on the GPU):
 

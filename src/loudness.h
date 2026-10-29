@@ -46,6 +46,9 @@ void play_song(unsigned int song_num);
 void restart_song(void);
 void stop_song(void);
 void fade_song(void);
+// Tyrian3D: a recorded song (a WAV file) in place of the Loudness music, from loop_start (a sample of the file) again
+// at its end; play_song, stop_song and fade_song end it. False if it can't be read.
+bool play_recorded_song(const char *path, size_t loop_start);
 
 void set_volume(Uint8 musicVolume, Uint8 sampleVolume);
 

@@ -14,6 +14,8 @@ import argparse
 import json
 import os
 import sys
+from collections import Counter
+from fractions import Fraction
 
 import numpy as np
 from PIL import Image
@@ -53,6 +55,11 @@ EDGE_NORM = 20.0      # ... times its edge's mismatch (Lab) over this, at most 1
 BP_ITERATIONS = 60    # belief propagation over the map before it is bettered row by row
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
+# backgrounds 2 and 3 (the GBC has one map; the PC originals' upper layers, made anew: upper_layers):
+UPPER_SHAPE = ((600, 14), (600, 15))  # their rows and columns
+UPPER_ROOM = (600 - 8 - 1) * 28  # pixels one scrolls from its start (row 592 at the screen's top) until it stops at row 1
+UPPER_BLANK = 12      # rows left empty at the top: one that runs out repeats its top rows
+UPPER_TRIES = 5       # attempts at an upper layer as full as its original
 
 # The original levels whose enemies the GBC ones are first sought among (enemies.py: pool)
 SAVARAS = [(1, 'SAVARA'), (1, 'SAVARA V'), (4, 'SAVARA IV'), (3, 'SAVARA Y')]
@@ -68,13 +75,16 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 # its script; theirs are the originals' or a related one's.)
 # The episode in the GBC game's Full Game order (found by playing it through in the emulator), with the
 # levels only its Arcade mode has (arcade) after one of their look. gbc: the GBC level (data/gbc/levels/Lnn_*); pc: the original level it
-# is a version of (its tiles, look, song).
+# is a version of (its tiles, look, song); layers: the original whose backgrounds 2 and 3 its own follow (else pc's:
+# upper_layers); as_they_are: those of them taken as the original has them (FLEET's ships of many tiles came out of
+# the synthesiser one in 150 rows, of seven); fills: how full those made are, where not as the original's (TYRIAN's
+# clouds as full as its, 0.38, hid half the playfield in 3D, and over the boss fight, where the map stands).
 LEVELS = [
-    dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
+    dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), fills={2: 0.15}, maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
          boss=(1, 'ASSASSIN')),
     dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')], boss=(1, 'ASTEROID2')),
     dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(4, 'ICE EXIT')),
-    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), pool=SAVARAS, boss=(1, 'SAVARA V')),
+    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V')),
     dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA')),
     dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
     dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE')),
@@ -90,7 +100,7 @@ LEVELS = [
     dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], boss=(1, 'ASTEROID2'),
          gbc_boss=False),
     dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH')),
-    dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), pool=[(3, 'FLEET')]),
+    dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), as_they_are=(3,), pool=[(3, 'FLEET')]),
     dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI')),
     dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE')),
     dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS),
@@ -766,6 +776,89 @@ def with_drops(events, look, placements, pool=(), gbc_boss=None):
     return out
 
 
+def fill(grid):
+    """The share of a map's cells that aren't empty (tile 0)."""
+    return sum(1 for row in grid for t in row if t) / max(1, len(grid) * len(grid[0]))
+
+
+def as_it_is(m, rows, columns):
+    """An original's upper layer as it is, rows x columns, its top rows left empty (UPPER_BLANK)."""
+    grid = [list(row[:columns]) + [0] * (columns - len(row)) for row in m[-rows:]]
+    return [[0] * columns for _ in range(UPPER_BLANK)] + grid[UPPER_BLANK:]
+
+
+def layer_ratios(src):
+    """How fast an original's backgrounds 2 and 3 scroll against layer 1: for each the ratio it keeps longest while
+    both move (1 where it never moves with layer 1: BRAINIAC's background 2 stands while the level runs)."""
+    scroll = sorted((e for e in src.events if e['type'] in (2, 30) and e['t'] < 60000), key=lambda e: e['t'])
+    out = []
+    for k in ('d2', 'd3'):
+        held = Counter()
+        for a, b in zip(scroll, scroll[1:] + [None]):
+            if a['d1'] > 0 and a[k] > 0:
+                held[Fraction(a[k], a['d1'])] += (b['t'] if b else a['t'] + 1000) - a['t']
+        out.append(held.most_common(1)[0][0] if held else Fraction(1))
+    return out
+
+
+def upper_layers(spec, letter):
+    """Backgrounds 2 and 3 made anew from the original's (spec's layers, else its pc; the GBC has one map): each that
+    is more than one tile's filler or a sign at the start (3 tiles or more, 100 placed, over 30 rows) by the
+    synthesiser from the stretch it fills (SAVARA V's clouds only round its start: here all along), its top rows left
+    empty; None for one that isn't. With how fast each scrolls against layer 1 (layer_ratios)."""
+    ep, name = spec.get('layers', spec['pc'])
+    src = [l for l in sources.original_levels() if l['episode'] == ep and l['name'] == name and l['shapes'] == letter][0]
+    out = []
+    for k, (rows, columns) in ((1, UPPER_SHAPE[0]), (2, UPPER_SHAPE[1])):
+        m = src['maps'][k]
+        filled = [y for y, row in enumerate(m) if any(row)]
+        tiles = Counter(t for row in m for t in row if t)
+        if len(tiles) < 3 or sum(tiles.values()) < 100 or filled[-1] - filled[0] < 30:
+            out.append(None)
+            continue
+        if k + 1 in spec.get('as_they_are', ()):
+            print(f"  background {k + 1} from {name}'s as it is")
+            out.append(as_it_is(m, rows, columns))
+            continue
+        stretch = m[filled[0]:filled[-1] + 1]
+        want = spec.get('fills', {}).get(k + 1, fill(stretch))
+        model = mapsynth.Model([stretch], max_tiles=mapsynth.LAYER_TILES[k] - 1)
+        # (as full as the original's stretch: the synthesiser left to itself grows TYRIAN's clouds to half the sky,
+        # so the empty tile weighs more or less until it is within a sixth of it; one that runs into a dead end, the
+        # rest a row copied up, is made again from another seed)
+        weight, seed, best = 1.0, spec.get('seed', 1) + k, None
+        for _ in range(UPPER_TRIES):
+            grid, stats = mapsynth.generate(model, rows, columns, seed, bias=lambda t, x, y, w=weight: w if t == 0 else 1.0)
+            if stats.get('gave up'):
+                seed += 1000
+                continue
+            got = fill(grid)
+            if best is None or abs(got - want) < abs(fill(best[0]) - want):
+                best = grid, stats
+            if abs(got - want) <= want / 6:
+                break
+            weight *= (got / want) ** 2
+        if best is None:
+            # (what the synthesiser can't continue, BRAINIAC's background 3: the original's as it is)
+            grid, stats = as_it_is(m, rows, columns), {'the original': 1}
+        else:
+            grid, stats = best
+            for y in range(UPPER_BLANK):
+                grid[y] = [0] * columns
+        print(f"  background {k + 1} from {name}'s: {fill(grid):.2f} full (wanted {want:.2f}), {dict(stats)}")
+        out.append(grid)
+    return out, layer_ratios(waves.Source(ep, name))
+
+
+def layer1_pixels(events, until):
+    """How far layer 1 scrolls (pixels) before the clock until, by the events' speeds (event 2)."""
+    speed, at, px = 1, 0, 0
+    for e in sorted((e for e in events if e['type'] == 2 and e['t'] < until), key=lambda e: e['t']):
+        px += speed * (e['t'] - at)
+        speed, at = e['d1'], e['t']
+    return px + speed * max(0, until - at)
+
+
 def make_level(spec):
     rows_gbc, img = gbc_level(spec['gbc'])
     gbc_map = rows_gbc['map']
@@ -780,7 +873,8 @@ def make_level(spec):
     pal = preview.palette()
     ids = sorted(model.count)
     layer1, n_rows = space(spec, img, grids, letter) if spec.get('space') else autotile(spec, img, grids, letter)
-    maps = [layer1, [[0] * 14 for _ in range(600)], [[0] * 15 for _ in range(600)]]
+    upper, ratios = upper_layers(spec, letter)
+    maps = [layer1] + [grid or [[0] * columns for _ in range(rows)] for grid, (rows, columns) in zip(upper, UPPER_SHAPE)]
     # events: the original's look at the start, no random enemies, the GBC script's enemies (with the
     # original's boss in place of the GBC one), the end
     look = waves.Source(ep, pcname)
@@ -808,10 +902,27 @@ def make_level(spec):
         end = max(8100, placements[0]['end'] + 600)
     if not gbc_boss:
         events.append(dict(t=min(end, 65000), type=11, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
+    # the GBC boss song once the boss comes (tyrian2.c event 204: tools/gbc/music.py)
+    boss_at = gbc_boss['start'] if gbc_boss else placements[0]['start'] if placements else None
+    if boss_at is not None:
+        # (before the first event of its time: a difficulty's skip, 66, counts the events after it at its own)
+        at = next((k for k, e in enumerate(events) if e['t'] >= boss_at), len(events))
+        events.insert(at, dict(t=boss_at, type=204, d1=1, d2=0, d3=0, d5=0, d6=0, d4=0))
+    # backgrounds 2 and 3 at their original's pace against layer 1 (as fast as their map lasts until the boss: a
+    # PC boss's block brings its original's speeds; an empty one at layer 1's)
+    px = layer1_pixels(events, placements[0]['start'] if placements else end)
+    pace = [min(r, Fraction(UPPER_ROOM, max(1, px))) if grid else 1 for r, grid in zip(ratios, upper)]
+    for e in events:
+        if e['type'] == 2 and e['d1'] > 0:
+            e['d2'], e['d3'] = (max(1, int(e['d1'] * p)) for p in pace)
+    if any(upper):
+        print(f"  backgrounds 2, 3 at {[float(p) for p in pace]} x layer 1 (originals' {[float(r) for r in ratios]}; "
+              f"layer 1 {px} px before the boss)")
     # (a GBC boss ends the level itself: boss.py)
     level = dict(name=spec['name'], song=level_song(ep, pcname), shapes=letter, maps=maps, events=events,
                  placements=placements, banks=banks, terrain=None, gbc=spec['gbc'], pc=[ep, pcname],
-                 gbc_rows=len(gbc_map), pc_rows=n_rows, arcade=spec.get('arcade', False), gbc_boss=gbc_boss)
+                 gbc_rows=len(gbc_map), pc_rows=n_rows, arcade=spec.get('arcade', False), gbc_boss=gbc_boss,
+                 upper=dict(source=list(spec.get('layers', spec['pc'])), pace=[float(p) for p in pace]))
     # preview: the GBC map at 1.5x beside the PC map's playfield columns (2..12)
     pcimg = preview.picture([layer1[ROWS - n_rows:]], letter)
     g = Image.fromarray(img).resize((264, int(img.shape[0] * SCALE)), Image.NEAREST)

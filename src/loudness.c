@@ -91,6 +91,13 @@ static int voiceFadeSamples = 1323;
 #define VOICE_DUCK_ONE (1 << 16)  // Q16 gain on the music
 static Sint32 voiceDuck = VOICE_DUCK_ONE, voiceDuckLow = 32845, voiceDuckStep = 4;  // (-6 dB)
 
+// Tyrian3D: a recorded song (play_recorded_song: episode 7's GBC songs, tools/gbc/music.py) in place of the Loudness
+// music: mono samples at the output's rate, from its loop's start again at its end; faded out by fade_song.
+static Sint16 *recordedSamples = NULL;
+static size_t recordedCount = 0, recordedPos = 0, recordedLoop = 0;
+static int recordedFade = 0, recordedFadeLength = 1;  // samples of the fade-out to go (0: none)
+static char recordedPath[1024];
+
 static void audioCallback(void *userdata, Uint8 *stream, int size);
 static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
 
@@ -200,7 +207,24 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	Sint16 *const samples = (Sint16 *)stream;
 	const int samplesCount = size / sizeof (Sint16);
 
-	if (!music_disabled && !music_stopped)
+	if (!music_disabled && !music_stopped && recordedSamples != NULL)
+	{
+		// Tyrian3D: the recorded song
+		for (int i = 0; i < samplesCount; ++i)
+		{
+			if (recordedPos >= recordedCount)
+				recordedPos = recordedLoop < recordedCount ? recordedLoop : recordedCount;
+			Sint32 sample = recordedPos < recordedCount ? recordedSamples[recordedPos++] : 0;
+			if (recordedFade > 0)
+			{
+				sample = sample * recordedFade / recordedFadeLength;
+				if (--recordedFade == 0)
+					recordedCount = recordedPos = 0;  // (faded out: silent until another song)
+			}
+			samples[i] = (Sint16)sample;
+		}
+	}
+	else if (!music_disabled && !music_stopped)
 	{
 		Sint16 *remaining = samples;
 		int remainingCount = samplesCount;
@@ -260,7 +284,7 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	}
 
 	Sint32 musicVolumeFactor = volumeFactorTable[musicVolume];
-	if (!music_midi_active())
+	if (!music_midi_active() && recordedSamples == NULL)
 		musicVolumeFactor *= 2;  // OPL emulator is too quiet
 
 	if (samples_disabled && !music_disabled)
@@ -446,6 +470,64 @@ void deinit_audio(void)
 	lds_free();
 }
 
+// Tyrian3D: the recorded song ended (the stream locked); its samples to free once unlocked.
+static Sint16 *end_recorded_song(void)
+{
+	Sint16 *old = recordedSamples;
+	recordedSamples = NULL;
+	recordedCount = recordedPos = recordedLoop = 0;
+	recordedFade = 0;
+	recordedPath[0] = '\0';
+	return old;
+}
+
+bool play_recorded_song(const char *path, size_t loop_start)
+{
+	if (audio_disabled)
+		return false;
+	if (recordedSamples != NULL && recordedCount > 0 && strcmp(path, recordedPath) == 0)
+	{
+		SDL_LockAudioStream(audioStream);  // (playing already: on as it is)
+		music_stopped = false;
+		SDL_UnlockAudioStream(audioStream);
+		return true;
+	}
+	SDL_AudioSpec spec;
+	Uint8 *wav = NULL, *pcm = NULL;
+	Uint32 length = 0;
+	int pcm_length = 0;
+	if (!SDL_LoadWAV(path, &spec, &wav, &length))
+		return false;
+	const SDL_AudioSpec out = { .format = SDL_AUDIO_S16, .channels = 1, .freq = audioSampleRate };
+	const bool ok = SDL_ConvertAudioSamples(&spec, wav, (int)length, &out, &pcm, &pcm_length);
+	const double scale = (double)audioSampleRate / spec.freq;
+	SDL_free(wav);
+	if (!ok)
+		return false;
+	SDL_LockAudioStream(audioStream);
+	Sint16 *old = end_recorded_song();
+	recordedSamples = (Sint16 *)pcm;
+	recordedCount = (size_t)pcm_length / sizeof(Sint16);
+	recordedLoop = (size_t)(loop_start * scale);
+	SDL_strlcpy(recordedPath, path, sizeof(recordedPath));
+	music_stopped = false;
+	song_playing = 0;
+	SDL_UnlockAudioStream(audioStream);
+	SDL_free(old);
+	return true;
+}
+
+// The recorded song ended, if one plays (before a Loudness song, or none).
+static void stop_recorded_song(void)
+{
+	if (recordedSamples == NULL)
+		return;
+	SDL_LockAudioStream(audioStream);
+	Sint16 *old = end_recorded_song();
+	SDL_UnlockAudioStream(audioStream);
+	SDL_free(old);
+}
+
 void load_music(void)  // FKA NortSong.loadSong
 {
 	if (music_file == NULL)
@@ -498,7 +580,10 @@ void play_song(unsigned int song_num)  // FKA NortSong.playSong
 	if (audio_disabled)
 		return;
 
-	if (song_num != song_playing)
+	const bool recorded = recordedSamples != NULL;  // (Tyrian3D: one played in place of the song loaded)
+	stop_recorded_song();
+
+	if (song_num != song_playing || recorded)
 	{
 		SDL_LockAudioStream(audioStream);
 
@@ -527,6 +612,8 @@ void restart_song(void)  // FKA Player.selectSong(1)
 
 	lds_rewind();
 	music_midi_reset();
+	recordedPos = 0;  // (Tyrian3D: a recorded song from its start)
+	recordedFade = 0;
 
 	music_stopped = false;
 
@@ -542,8 +629,10 @@ void stop_song(void)  // FKA Player.selectSong(0)
 
 	music_stopped = true;
 	music_midi_reset();
+	Sint16 *old = end_recorded_song();  // (Tyrian3D)
 
 	SDL_UnlockAudioStream(audioStream);
+	SDL_free(old);
 }
 
 void fade_song(void)  // FKA Player.selectSong($C001)
@@ -554,6 +643,8 @@ void fade_song(void)  // FKA Player.selectSong($C001)
 	SDL_LockAudioStream(audioStream);
 
 	lds_fade(1);
+	if (recordedSamples != NULL && recordedFade == 0)  // (Tyrian3D: a recorded song over a second)
+		recordedFade = recordedFadeLength = audioSampleRate;
 
 	SDL_UnlockAudioStream(audioStream);
 }
