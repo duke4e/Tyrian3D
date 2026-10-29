@@ -257,6 +257,7 @@ void setupMenu(void)
 		MENU_ITEM_VOICES,  // Tyrian3D: the cubes and story texts read aloud (voiceover.h)
 		MENU_ITEM_CUBE_AUTOPLAY,  // Tyrian3D: the store reads its cubes aloud as it opens
 		MENU_ITEM_POINTER,  // Tyrian3D: the modern pointer's size
+		MENU_ITEM_SSAO,  // Tyrian3D: the 3D view's ambient occlusion (render_gpu.c scene_ssao)
 	} MenuItemId;
 
 	typedef enum
@@ -322,6 +323,7 @@ void setupMenu(void)
 				{ MENU_ITEM_VIEW_3D, "View:", "Play in 3D or on the original screen.", getTwoItemsCount, getViewPickerItem },
 				{ MENU_ITEM_MODELS, "Objects:", "Ships and enemies in 3D, or flat sprites.", getTwoItemsCount, getModelsPickerItem },
 				{ MENU_ITEM_SHADOWS, "Shadows:", "Shadows of ships and enemies.", getTwoItemsCount, getOnOffPickerItem },
+				{ MENU_ITEM_SSAO, "Ambient Occlusion:", "Soft shading where things meet and in hollows.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_EFFECTS, "Effects:", "Explosion particles and glowing shots.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_CAMERA, "Camera:", "How the 3D camera looks at the playfield.", getCameraPickerItemsCount, getCameraPickerItem },
 				{ MENU_ITEM_MOUSE, "Mouse:", "The ship moves as far as the mouse, or as in the original.", getTwoItemsCount, getMousePickerItem },
@@ -380,8 +382,8 @@ void setupMenu(void)
 	const int xMenuItemValue = xMenuItemName + wMenuItemName;
 	const int wMenuItemValue = 95;
 	const int wMenuItem = wMenuItemName + wMenuItemValue;
-	const int yMenuItems = 37;
-	int dyMenuItems = 21;  // (closer on the long 3D page)
+	int yMenuItems = 37;
+	int dyMenuItems = 21;  // (higher up and closer on the long 3D page)
 	const int hMenuItem = 13;
 
 	for (; ; )
@@ -409,7 +411,8 @@ void setupMenu(void)
 				tab_index = (int)t;
 
 		const Menu *menu = &menus[currentMenu];
-		dyMenuItems = currentMenu == MENU_3D ? 17 : 21;
+		yMenuItems = currentMenu == MENU_3D ? 33 : 37;
+		dyMenuItems = currentMenu == MENU_3D ? 16 : 21;
 
 		// Draw header.
 		draw_font_hv_shadow(VGAScreen, xCenter, yMenuHeader, menu->header, large_font, centered, 15, -3, false, 2);
@@ -473,6 +476,7 @@ void setupMenu(void)
 			case MENU_ITEM_VIEW_3D:
 			case MENU_ITEM_MODELS:
 			case MENU_ITEM_SHADOWS:
+			case MENU_ITEM_SSAO:
 			case MENU_ITEM_EFFECTS:
 			case MENU_ITEM_CAMERA:
 			case MENU_ITEM_MUSIC_SYNTH:
@@ -500,6 +504,7 @@ void setupMenu(void)
 					menuItem->id == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
 					menuItem->id == MENU_ITEM_MODELS ? !settings3d.models :
 					menuItem->id == MENU_ITEM_SHADOWS ? !settings3d.shadows :
+					menuItem->id == MENU_ITEM_SSAO ? !settings3d.ssao :
 					menuItem->id == MENU_ITEM_EFFECTS ? !settings3d.effects : (size_t)settings3d.camera;
 				const char *value = menuItem->getPickerItem(choice, buffer, sizeof(buffer));
 				draw_font_hv_shadow(VGAScreen, xMenuItemValue, y, value, normal_font, left_aligned, 15, -3 + (selected ? 2 : 0) + (disabled ? -4 : 0), false, 2);
@@ -912,6 +917,7 @@ void setupMenu(void)
 				case MENU_ITEM_VIEW_3D:
 				case MENU_ITEM_MODELS:
 				case MENU_ITEM_SHADOWS:
+				case MENU_ITEM_SSAO:
 				case MENU_ITEM_EFFECTS:
 				case MENU_ITEM_CAMERA:
 				case MENU_ITEM_MUSIC_SYNTH:
@@ -942,6 +948,7 @@ void setupMenu(void)
 						selectedMenuItemId == MENU_ITEM_VIEW_3D ? !settings3d.view_3d :
 						selectedMenuItemId == MENU_ITEM_MODELS ? !settings3d.models :
 						selectedMenuItemId == MENU_ITEM_SHADOWS ? !settings3d.shadows :
+						selectedMenuItemId == MENU_ITEM_SSAO ? !settings3d.ssao :
 						selectedMenuItemId == MENU_ITEM_EFFECTS ? !settings3d.effects : (size_t)settings3d.camera;
 					break;
 				}
@@ -1172,6 +1179,10 @@ void setupMenu(void)
 				case MENU_ITEM_SHADOWS:
 					settings3d.shadows = pickerSelectedIndex == 0;
 					settings3d_changed(S3D_SHADOWS);
+					break;
+				case MENU_ITEM_SSAO:
+					settings3d.ssao = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_SSAO);
 					break;
 				case MENU_ITEM_EFFECTS:
 					settings3d.effects = pickerSelectedIndex == 0;

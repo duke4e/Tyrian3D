@@ -1925,26 +1925,27 @@ void JE_doInGameSetup(void)
  */
 enum
 {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC, OPT_MENUS,
-	OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_SOUNDFONT, OPT_DONE,
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC,
+	OPT_MENUS, OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_SOUNDFONT, OPT_DONE,
 	OPT_COUNT
 };
 
 // The graphics page's rows.
 static const int graphics_page[] = {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_EFFECTS, OPT_CAMERA, OPT_HUD, OPT_PLAYFIELD, OPT_MENUS, OPT_SCREENS, OPT_UI_SCALE,
-	OPT_DETAIL, OPT_DONE,
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_CAMERA, OPT_HUD, OPT_PLAYFIELD, OPT_MENUS, OPT_SCREENS,
+	OPT_UI_SCALE, OPT_DETAIL, OPT_DONE,
 };
 
 static const char *const option_names[OPT_COUNT] = {
-	"View", "Objects", "Shadows", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus", "Screens", "UI Scale",
-	"Detail Level", "SoundFont", "Done",
+	"View", "Objects", "Shadows", "Ambient Occlusion", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus",
+	"Screens", "UI Scale", "Detail Level", "SoundFont", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
 	"Play in 3D or on the original screen.",
 	"Ships and enemies in 3D, or flat sprites.",
 	"Shadows of ships and enemies.",
+	"Soft shading where things meet and in hollows.",
 	"Explosion particles and glowing shots.",
 	"How the 3D camera looks at the playfield.",
 	"The ship moves as far as the mouse, or as in the original.",
@@ -1978,6 +1979,7 @@ static const char *option_value(int option)
 	case OPT_VIEW:    return settings3d.view_3d ? "3D" : "Original 2D";
 	case OPT_OBJECTS: return settings3d.models ? "3D" : "Flat sprites";
 	case OPT_SHADOWS: return settings3d.shadows ? "On" : "Off";
+	case OPT_SSAO:    return settings3d.ssao ? "On" : "Off";
 	case OPT_EFFECTS: return settings3d.effects ? "On" : "Off";
 	case OPT_CAMERA:  return settings3d_camera_name(settings3d.camera);
 	case OPT_MOUSE:   return settings3d.mouse_direct ? "Direct" : "Original";
@@ -2022,6 +2024,10 @@ static void option_turn(int option, int step)
 	case OPT_SHADOWS:
 		settings3d.shadows = !settings3d.shadows;
 		settings3d_changed(S3D_SHADOWS);
+		break;
+	case OPT_SSAO:
+		settings3d.ssao = !settings3d.ssao;
+		settings3d_changed(S3D_SSAO);
 		break;
 	case OPT_EFFECTS:
 		settings3d.effects = !settings3d.effects;
@@ -2109,8 +2115,8 @@ static void level_crumb(char *out, size_t size)
 static void ingame_options_3d(void)
 {
 	enum { ROWS = (int)COUNTOF(graphics_page) };
-	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 12 rows in the box)
-	const int xName = 10, wName = 80, xValue = xName + wName, wValue = 120;
+	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 13 rows in the box)
+	const int xName = 10, wName = 132, xValue = xName + wName, wValue = 120;  // (Tyrian3D: room for "Ambient Occlusion")
 	int selected = 0;
 
 	for (bool done = false; !done; )

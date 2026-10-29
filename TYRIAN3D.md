@@ -64,7 +64,7 @@ The original controls are unchanged. These are added:
 The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
-sprites), shadows, effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather, the view shaking at big blasts near the ship), a camera preset (Standard,
+sprites), shadows, ambient occlusion (soft shading where things meet and in the hollows), effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather, the view shaking at big blasts near the ship), a camera preset (Standard,
 Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
@@ -746,7 +746,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEMO_IDLE_MS` | Title-screen idle time before the demo starts (default 30000) |
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
-| `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level); `TYR3D_PROFILE=gpu` also the GPU's time for each 3D frame (`3d gpu:` median, mean and most of the last 300, from its submission to its completion, each frame waited for first, which slows the game a little). For A/B costs: a debug flight paused on one frame (`TYR3D_DEBUG=1 TYR3D_DEBUG_SEEK=<tick>`, `` TYR3D_TEST_KEYS=90:` ``) presents the same scene again and again |
+| `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level); `TYR3D_PROFILE=gpu` also the GPU's time for each 3D frame (`3d gpu:` median, mean and most of the last 300, from its submission to its completion, each frame waited for first, which slows the game a little) and for each frame the modern UI draws (`ui gpu:`: the store with its pad's or simulator's scene, Destruct, the jukebox, the menus). For A/B costs: a debug flight paused on one frame (`TYR3D_DEBUG=1 TYR3D_DEBUG_SEEK=<tick>`, `` TYR3D_TEST_KEYS=90:` ``) presents the same scene again and again |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
@@ -811,6 +811,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
 | `TYR3D_SHADOW_SOFTNESS=<n>` | The sun's apparent size for the shadows' penumbrae (default 1; 0 sharp, only the hardware's 2x2 filtering; for tuning) |
+| `TYR3D_SSAO=0\|1` | The ambient occlusion off or on for the run (default: the setting, 3D → Ambient Occlusion, `ssao` in `[tyrian3d]`) |
+| `TYR3D_SSAO_TUNE=<radius>,<intensity>,<power>,<bias>` | Tune the ambient occlusion (defaults 14, 3.5, 1, 0.05; the radius and the bias in game pixels: how far round a point it looks for what hides it, how far over a surface a point must stand to count) |
+| `TYR3D_SSAO_DEBUG=1\|2` | 1: the scene shows the ambient occlusion alone, in grey (the see-through surfaces still drawn over it); 2: every other scene is drawn without it, to see before and after in one run (Destruct and the jukebox don't repeat frame for frame) |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |
 | `TYR3D_WINDOW_SIZE=<w>x<h>` | With `TYR3D_WINDOWED`: the window's size, for checking other aspect ratios |
 | `TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>` | Tune the sun's glints on water (defaults 1, 0.5, 140, 3) |
@@ -1075,6 +1078,32 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   acne and the old blocky self-shadowing of the terrain's relief is gone). See-through layers (clouds, weather:
   `unlit_enabled` 3) take four plain taps, lit models look the shadow up only where the sun reaches them. On a
   busy level the GPU spends about 0.1-0.4 ms a frame more than with the old 3x3 filter (TORM's grass the most).
+- **Ambient occlusion** (`render_gpu.c` `scene_ssao`; the renderer's `production_ssao.frag.hlsl`,
+  `production_ssao_denoise.frag.hlsl`, `production_ssao_resolve.frag.hlsl`; 2026-10-29, the user: SSAO could make the
+  game prettier still, depth above all). The 3D setting Ambient Occlusion (on by default): where things meet and in the
+  hollows the light is shaded softly (under what stands on the ground, at the foot of walls and cliffs, in the
+  canyons and the terrain's dips, in the models' own creases), worked out from the opaque surfaces' depth and normals
+  once they are drawn (and the radiance cascades composed) and laid over them before the see-through ones, so clouds,
+  weather, smoke, glows and particles keep their light. At half the render resolution: four directions round each
+  point, turned by a 4x4 pattern, four steps along each out to 14 game pixels; each step that stands higher over the
+  surface's plane than those before raises the horizon (HBAO), counting less with its distance, and only what stands
+  within the radius counts, so the ship and the flying enemies leave no halo on the ground far below them. A
+  depth-aware 5x5 pass evens the pattern out (each pixel takes all 16 of its turns once, so the shading keeps still as
+  the map scrolls and the view shakes), and a depth-aware upsample from the four texels round each pixel lays it over
+  the scene where it darkens (most of the screen is left alone). It darkens all of a surface's light but its glow, the
+  pixel art's too (the renderer's contact mode; exp(-3.5 times the occlusion), so deep corners don't go black). How
+  each surface takes part is its batch's `ssao_mode`, which the model shader writes as the length of its normal: the
+  terrain, the solids, tiles in relief, palms and trees, models, volumetric sprites and debris take it and cast it;
+  the backgrounds' flat planes and flat tiles take it but cast none (planes 2 to 12 pixels apart, they would darken
+  what lies round each other's edges: background 2's flat pieces over the ground); the grass takes it only (its blades
+  darkened all of it in a grain); the sprites' layers, the stars, deep space, clouds, weather, gulls, particles and glows
+  neither, and procedural water never takes it. The store's box and pane have it too (their floor takes it, the
+  simulator's deep space not; the radius in the box's pixels), as do the jukebox and Destruct; the icons' renders
+  (`TYR3D_RENDER_ICONS`) don't. On a busy level the GPU spends about
+  0.1-0.35 ms a frame more (paused scenes at 1920x1080: TORM's grass +0.34, TYRIAN's canyons +0.29, ASSASSIN +0.29,
+  SAVARA's boss +0.15, DELIANI +0.09, deep space +0.03); the store's pad +0.27, the jukebox +0.29, Destruct +0.15.
+  Without the radiance cascades (Effects off, the store, the jukebox, Destruct) the scene then also writes its normals
+  and emission for it (the ambient targets, which only the cascades read, stay in tile memory).
 - **Volumetric sprites** (`src/volume3d.c`). The default appearance: a sprite's silhouette is
   inflated into a rounded relief and textured with the sprite's own pixels. The sun's shading is
   baked into the mesh, scaled so that faces pointing up keep exactly the sprite's colours: every

@@ -1,7 +1,7 @@
 /*
  * Tyrian3D: the player's 3D settings (plan M4.3), set in the setup menu ("3D...") and kept in
  * the [tyrian3d] section of opentyrian.cfg. Environment variables (TYR3D_2D, TYR3D_NO_MODELS,
- * TYR3D_SHADOWS, TYR3D_TILT, TYR3D_VOICES, ...) override them for a run.
+ * TYR3D_SHADOWS, TYR3D_SSAO, TYR3D_TILT, TYR3D_VOICES, ...) override them for a run.
  */
 #ifndef SETTINGS3D_H
 #define SETTINGS3D_H
@@ -15,6 +15,7 @@ typedef struct
 	bool view_3d;   // the 3D view (else the original 2D screen); F3 toggles it
 	bool models;    // models and generated volume (else flat sprites); F4 toggles it
 	bool shadows;
+	bool ssao;      // screen-space ambient occlusion: contact darkening under what stands, in hollows (render_gpu.c)
 	bool effects;   // particles and the glow of shots
 	int camera;     // a camera preset (settings3d_camera_name)
 	bool music_midi;  // the music through a SoundFont as MIDI (else the emulated OPL chip)
@@ -56,7 +57,7 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER, S3D_SSAO } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

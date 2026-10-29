@@ -8272,6 +8272,7 @@ static void add_composed_batches(const L3DFrame *frame, const bool *composed, co
 		b->uv_offset_y = i * COMPOSED_SIZE / texture_h;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		b->ssao_mode = BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY;
 		if (glints)
 			set_glints(b, composed_water);
 	}
@@ -9161,6 +9162,7 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->uv_offset_y = (oy + inset) / atlas_h;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		b->ssao_mode = relief ? BTBH_GPU_SCENE_SSAO_FULL : BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY;
 		set_glints(b, tile_water);
 	}
 	*instance_count = next;
@@ -9351,6 +9353,8 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		b->albedo_texture = white_texture;
 		dim_tiles(b);  // (the plants' colours are the full palette's)
 		b->unlit_enabled = 1;
+		// (The grass's blades, small and many, would darken it all in a grain: they take the ambient occlusion only.)
+		b->ssao_mode = kind == B3D_GRASS ? BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY : BTBH_GPU_SCENE_SSAO_FULL;
 		if (solid_place_count > 0)
 			not_on_solids(b);
 	}
@@ -11487,6 +11491,50 @@ static void scene_post(BTBHGPUScenePost *post, const BTBHGPUWindowReport *window
 	post->anti_aliasing = (Uint8)anti_aliasing;
 }
 
+/*
+ * Screen-space ambient occlusion (the 3D setting Ambient Occlusion: [tyrian3d] ssao, TYR3D_SSAO=0/1): contact shading
+ * where things meet and in the hollows, worked out by the renderer from the opaque surfaces' depth and normals and laid
+ * over them before the see-through ones are drawn (production_ssao*.frag.hlsl), so clouds, smoke and glows keep their
+ * light. It darkens all of a surface's light but its glow, the pixel art's too (the contact mode), from what stands within
+ * SSAO_RADIUS world units of it (unit: world units per game pixel; a level's 1). How each batch takes part is its
+ * ssao_mode: flat layers take it but cast none (they would darken what lies round their edges, planes apart), painted
+ * sprites and deep space neither, procedural water never takes it.
+ * TYR3D_SSAO_TUNE=<radius>,<intensity>,<power>,<bias> (game pixels) and TYR3D_SSAO_DEBUG=1 (the occlusion alone, grey)
+ * for tuning; TYR3D_SSAO_DEBUG=2 leaves it out of every other scene drawn (before and after in one run).
+ */
+#define SSAO_RADIUS 14.0f
+#define SSAO_INTENSITY 3.5f
+#define SSAO_POWER 1.0f
+#define SSAO_BIAS 0.05f
+
+static void scene_ssao(BTBHGPUScenePost *post, float unit)
+{
+	if (!settings3d.ssao)
+		return;
+	static float tune[4] = { -1, -1, -1, -1 };
+	static int debug = -1;
+	if (debug < 0)
+	{
+		tune[0] = SSAO_RADIUS, tune[1] = SSAO_INTENSITY, tune[2] = SSAO_POWER, tune[3] = SSAO_BIAS;
+		if (SDL_getenv("TYR3D_SSAO_TUNE") != NULL)
+			sscanf(SDL_getenv("TYR3D_SSAO_TUNE"), "%f,%f,%f,%f", &tune[0], &tune[1], &tune[2], &tune[3]);
+		for (int i = 0; i < 4; ++i)
+			tune[i] = SDL_max(tune[i], 0.0f);
+		debug = SDL_getenv("TYR3D_SSAO_DEBUG") != NULL ? SDL_clamp(SDL_atoi(SDL_getenv("TYR3D_SSAO_DEBUG")), 0, 2) : 0;
+	}
+	// (TYR3D_SSAO_DEBUG=2: every other scene drawn without it, to compare in one run.)
+	static Uint32 scenes = 0;
+	if (debug == 2 && (scenes++ & 1) != 0)
+		return;
+	post->ssao_enabled = 1;
+	post->ssao_contact = 1;
+	post->ssao_radius = SDL_max(tune[0] * unit, 0.0001f);
+	post->ssao_intensity = SDL_max(tune[1], 0.0001f);
+	post->ssao_power = SDL_max(tune[2], 0.0001f);
+	post->ssao_bias = SDL_max(tune[3] * unit, 0.0001f);
+	post->ssao_debug_view = debug == 1;
+}
+
 // The fork's radiance cascades (holographic): light from everything that glows spreads over the
 // playfield and bounces off the ground and the models, on top of the scene's own lighting (the
 // fork's additive mode; the pixel art takes the light rather than giving it, see present_3d).
@@ -11739,8 +11787,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	if (menu.on && menu.modern)
 	{
 		const Uint64 key = ((Uint64)l3d_frame_number << 24) ^ ((Uint64)settings3d.shadows << 1) ^ ((Uint64)settings3d.effects << 2) ^
-		                   ((Uint64)settings3d.models << 3) ^ ((Uint64)settings3d.camera << 4) ^ ((Uint64)settings3d.hud_modern << 9) ^
-		                   ((Uint64)(int)logical_w << 10) ^ ((Uint64)(int)logical_h << 40);
+		                   ((Uint64)settings3d.models << 3) ^ ((Uint64)settings3d.camera << 4) ^ ((Uint64)settings3d.ssao << 8) ^
+		                   ((Uint64)settings3d.hud_modern << 9) ^ ((Uint64)(int)logical_w << 10) ^ ((Uint64)(int)logical_h << 40);
 		if (scene_blur_targets(logical_w, logical_h))
 		{
 			blur_scene = !scene_blur_valid || key != scene_blur_key;
@@ -11872,12 +11920,14 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		b->uv_offset_y = (float)(slot * ATLAS_SLOT_H) / ATLAS_H;
 		b->unlit_enabled = 1;
 		b->alpha_cutoff = 0.5f;
+		b->ssao_mode = background_layer(frame->layers[l].type) ? BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY : BTBH_GPU_SCENE_SSAO_NONE;
 		if (background_layer(frame->layers[l].type))
 			set_glints(b, layer_water);
 	}
 
 	add_composed_batches(frame, composed, &camera, heights, colors, new_frame, &instance_count, &batch_count);
 	add_background_batches(frame, composed, &camera, heights, tile_colors, &instance_count, &batch_count);
+	const int first_star_batch = batch_count;
 	add_star_batch(frame, composed, &camera, heights, colors, &instance_count, &batch_count);
 	// (Deep space lies far under all that casts shadows: none falls on it.)
 	const int first_space_batch = batch_count;
@@ -11936,6 +11986,12 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			if (batches[i].unlit_enabled != 0)
 				batches[i].rc_receiver = 1;
 
+	// The ambient occlusion: none in the stars and deep space, the clouds, weather and gulls (painted, see-through), the
+	// particles and glows.
+	for (int i = first_star_batch; i < batch_count; ++i)
+		if (i < first_object_batch || i >= first_particle_batch)
+			batches[i].ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &shown_view.camera, shadows, true);  // (the steady view: the shadows don't shake)
 	// On spotlight levels the ship carries a lamp: a spot light up the screen through the cone the
@@ -11991,6 +12047,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
+	scene_ssao(&post, 1.0f);
 	add_radiance_cascades(&post);
 
 	BTBHGPUSceneReport scene_report;
@@ -12402,6 +12459,7 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		b->uv_scale_x = (float)p->w / SCREEN_W;
 		b->uv_scale_y = (float)p->h / SCREEN_H;
 		b->unlit_enabled = 1;
+		b->ssao_mode = BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY;
 	}
 
 	const int first_model_batch = batch_count;
@@ -12438,7 +12496,10 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		add_showcase_glows(show, ox, oz, k, colors, &instance_count, &batch_count);
 	}
 	for (int i = first_light_batch; i < batch_count; ++i)
+	{
 		casts_shadow[i] = 0;
+		batches[i].ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+	}
 
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &camera, shadows, false);
@@ -12447,6 +12508,7 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
+	scene_ssao(&post, k);
 
 	BTBHGPUSceneReport scene_report;
 	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
@@ -12501,6 +12563,8 @@ static int jukebox_key(const J3DItem *it)
 {
 	return (it->shape * 3 + it->look) * J3D_TEXTURES + (it->textured < J3D_TEXTURES ? it->textured : 0);
 }
+
+#define JUKEBOX_SSAO_UNIT 0.15f  // (the jukebox's world units per game pixel, for the ambient occlusion: scene_ssao)
 
 // The jukebox's scene over the whole window, under its panel (whose glass shows it blurred). True if
 // it was drawn.
@@ -12627,6 +12691,7 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, frame, &render_w, &render_h);
+	scene_ssao(&post, JUKEBOX_SSAO_UNIT);
 	post.bloom_intensity = settings3d.effects ? js->bloom : 0;
 	post.bloom_threshold = js->bloom_threshold;
 	post.bloom_knee = 0.25f;
@@ -12914,6 +12979,7 @@ static bool present_destruct(void)
 		{
 			b->albedo_texture = destruct_sky;
 			b->unlit_enabled = 1;
+			b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
 		}
 	}
 	// The planet, lit by the sun.
@@ -12926,6 +12992,7 @@ static bool present_destruct(void)
 		{
 			b->albedo_texture = destruct_planet;
 			b->roughness = 0.95f;
+			b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
 		}
 	}
 	// The land behind, the ridge.
@@ -13187,6 +13254,7 @@ static bool present_destruct(void)
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &frame, &render_w, &render_h);
+	scene_ssao(&post, 1.0f);
 	post.exposure = ui_screen_fade();
 
 	// The panels' glass: the scene blurred, made again each frame.
@@ -13354,6 +13422,7 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 		b->uv_scale_x = floor_u;
 		b->uv_scale_y = floor_v;
 		b->unlit_enabled = 1;
+		b->ssao_mode = floor_is_space ? BTBH_GPU_SCENE_SSAO_NONE : BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY;
 	}
 	const int first_model_batch = batch_count;
 	enum { MAX_PANE_OBJECTS = 160 };
@@ -13390,7 +13459,10 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 		add_showcase_glows(show, ox, oz, k, colors, &instance_count, &batch_count);
 	}
 	for (int i = first_light_batch; i < batch_count; ++i)
+	{
 		casts_shadow[i] = 0;
+		batches[i].ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+	}
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &camera, shadows, false);
 	if (settings3d.effects)
@@ -13398,6 +13470,7 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, window_frame, &render_w, &render_h);
+	scene_ssao(&post, k);
 	BTBHGPUSceneReport scene_report;
 	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
 	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
@@ -13524,7 +13597,45 @@ static void add_pane_overlay(const RGPUShowcase *show, const float rect[4], cons
 	                .texture = pane_overlay };
 }
 
+static void present_ui(const RGPUShowcase *scene);
+
+/*
+ * TYR3D_PROFILE=gpu: as for the 3D frames (gpu_profiled_present_3d), the GPU's time for each frame of the screens the
+ * modern UI draws (the store with its pad's or simulator's scene, Destruct, the jukebox, the menus), every 300 frames
+ * ("ui gpu:").
+ */
 void rgpu_present_ui(const RGPUShowcase *scene)
+{
+	if (!gpu_profile())
+	{
+		present_ui(scene);
+		return;
+	}
+	static double frame_ms[300];
+	static int frame_count = 0;
+	BTBHGPUFrameTelemetrySample samples[16];
+	(void)btbh_gpu_window_finish_frame_telemetry(window, samples, 16);  // (the GPU idle before this frame)
+	present_ui(scene);
+	const Uint32 n = btbh_gpu_window_finish_frame_telemetry(window, samples, 16);
+	Uint32 last = 0;
+	for (Uint32 i = 1; i < n; ++i)
+		if (samples[i].frame_serial > samples[last].frame_serial)
+			last = i;
+	if (n > 0)
+		frame_ms[frame_count++] = samples[last].fence_completion_milliseconds;
+	if (frame_count == (int)COUNTOF(frame_ms))
+	{
+		double sum = 0;
+		for (int i = 0; i < frame_count; ++i)
+			sum += frame_ms[i];
+		qsort(frame_ms, (size_t)frame_count, sizeof(frame_ms[0]), compare_doubles);
+		printf("ui gpu: median %.3f ms/frame, mean %.3f, at most %.3f (%d frames)\n", frame_ms[frame_count / 2],
+		       sum / frame_count, frame_ms[frame_count - 1], frame_count);
+		frame_count = 0;
+	}
+}
+
+static void present_ui(const RGPUShowcase *scene)
 {
 	// Destruct in 3D (destruct3d.h): its field, its units and shots, its screens over them.
 	if (ui_published_is(UI_SCREEN_DESTRUCT) && destruct3d_active() && present_destruct())
