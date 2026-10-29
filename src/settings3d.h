@@ -27,6 +27,8 @@ typedef struct
 	char soundfont[64];   // the SoundFont the music plays through, by name (music_midi_use; "" the default)
 	bool voices;          // the data cubes and story texts read aloud (voiceover.h)
 	int voice_volume;     // their volume, 0-255 (as the music's and the samples')
+	bool cube_autoplay;   // the store reads its data cubes aloud one after another as it opens (voiceover.h)
+	int pointer_size;     // the modern pointer's size, window points (settings3d_pointer_*)
 	char jukebox_look[16];  // the jukebox's visuals' look, by name (jukebox3d.h; "" the first)
 } Settings3D;
 
@@ -40,6 +42,12 @@ int settings3d_ui_scale_count(void);
 int settings3d_ui_scale_value(int i);
 int settings3d_ui_scale_index(int percent);
 
+// The pointer size's choices (window points): count, the i-th, its name, and which one a value is (nearest).
+int settings3d_pointer_count(void);
+int settings3d_pointer_value(int i);
+const char *settings3d_pointer_name(int i);
+int settings3d_pointer_index(int points);
+
 // Reads the settings from their section (NULL: defaults), then the environment's overrides.
 void settings3d_load(const ConfigSection *section);
 void settings3d_save(ConfigSection *section);
@@ -48,7 +56,7 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

@@ -45,6 +45,7 @@ static struct
 	int player_cubes[VOICEOVER_PLAYER_CUBES];
 	Uint32 player_hashes[VOICEOVER_PLAYER_CUBES];
 	char player_titles[VOICEOVER_PLAYER_CUBES][48];
+	bool autoplay;   // the store's cubes were started one after another for this visit (settings3d.cube_autoplay)
 } vo = { .player_index = -1 };
 
 Uint32 voiceover_hash(Uint32 hash, const char *line)
@@ -186,6 +187,8 @@ static void start(const Voice *v)
 	vo.paused = false;
 }
 
+static void autoplay_next(void);
+
 void voiceover_update(void)
 {
 	if (!vo.playing)
@@ -198,6 +201,7 @@ void voiceover_update(void)
 		vo.playing = false;
 		if (vo.debug)
 			printf("voices: %s ended\n", vo.name);
+		autoplay_next();
 	}
 }
 
@@ -315,6 +319,8 @@ void voiceover_settings_changed(void)
 	voice_channel_volume((Uint8)SDL_clamp(settings3d.voice_volume, 0, 255));
 }
 
+static void autoplay_from(int i);
+
 void voiceover_player_cubes(int episode, int count, const int *cubes, const Uint32 *hashes, const char *const *titles)
 {
 	vo.player_episode = episode;
@@ -327,6 +333,22 @@ void voiceover_player_cubes(int episode, int count, const int *cubes, const Uint
 	}
 	if (vo.player_index >= vo.player_count)
 		vo.player_index = -1;
+
+	// Autoplay: as the store opens, its cubes are read one after another (settings3d.cube_autoplay).
+	if (!vo.autoplay && vo.player_count > 0 && settings3d.cube_autoplay && settings3d.voices && voiceover_installed() &&
+	    !vo.playing && reader_cube == 0)
+	{
+		vo.autoplay = true;
+		if (vo.debug)
+			printf("voices: autoplay the store's %d cubes\n", vo.player_count);
+		autoplay_from(0);
+	}
+}
+
+void voiceover_store_closed(void)
+{
+	voiceover_stop();
+	vo.autoplay = false;
 }
 
 // Plays the store's cube i (as its reader would).
@@ -336,6 +358,25 @@ static void player_play(int i)
 		return;
 	cube_start(vo.player_episode, vo.player_cubes[i], vo.player_hashes[i]);
 	vo.player_index = i;
+}
+
+// Autoplay: the store's cubes from i on, the first one that has a voice.
+static void autoplay_from(int i)
+{
+	for (; i < vo.player_count; ++i)
+	{
+		player_play(i);
+		if (vo.playing)
+			return;
+	}
+}
+
+// Autoplay: the store's next cube once one ends, unless the player is reading a cube (its reader open) or
+// autoplay is off.
+static void autoplay_next(void)
+{
+	if (vo.autoplay && settings3d.cube_autoplay && settings3d.voices && reader_cube == 0 && vo.player_index >= 0)
+		autoplay_from(vo.player_index + 1);
 }
 
 void voiceover_player_toggle(void)

@@ -51,4 +51,8 @@ void voiceover_player_step(int step);
 // has played (0-1); false if there are no cubes or no voices.
 bool voiceover_player_state(int *index, int *count, bool *paused, float *progress, const char **title);
 
+// The store closed: the voice stops, and its next visit's cubes autoplay again (settings3d.cube_autoplay: as the
+// store opens its cubes are read one after another, unless a cube's reader is open when one ends).
+void voiceover_store_closed(void);
+
 #endif /* VOICEOVER_H */

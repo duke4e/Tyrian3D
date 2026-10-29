@@ -2526,7 +2526,7 @@ void JE_itemScreen(void)
 
 	} while (!(quit || gameLoaded || jumpSection));
 
-	voiceover_stop();  // Tyrian3D
+	voiceover_store_closed();  // Tyrian3D
 
 #ifdef WITH_NETWORK
 	if (!quit && isNetworkGame)

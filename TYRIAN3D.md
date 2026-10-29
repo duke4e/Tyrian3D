@@ -123,7 +123,9 @@ click only selects; `shop_one_click`), but a part's choices, where the first cli
 ship ("BUY" over its cost) and the next buys it, the volumes, the map's planets and the saved games.
 Upgrade Ship lists the ship's parts as rows, as the original does (Up and Down go through them; each shows
 what the ship has there and its icon, the part's name above it); a part's page is its choices alone, its
-name the title. The pointer is a smooth one sized in window points.
+name the title. The pointer is a smooth one sized in window points, as Graphics → **Pointer Size** says
+(Small 24, Medium 30, Large 36, the default, Huge 44, times the UI Scale; `pointer_size` in `[tyrian3d]`); a level's
+crosshair keeps the small size.
 The original screens stay for Menus: Classic and the 2D view.
 
 **Playfield** (3D page and the in-game 3D options, from the next level): **Wide** (the default in
@@ -1185,7 +1187,9 @@ pauses, `[` and `]` go to the previous or next cube, wrapping round) plays the s
 shop, and a cube opened in the reader plays from its start; the Data list marks the cube playing ("PLAYING",
 "PAUSED"). Sound →
 **Voices** in Setup is its volume (Left/Right) and on/off (Enter), kept as `voices` and `voice_volume` in
-`[tyrian3d]`; "No voices installed" when there are none.
+`[tyrian3d]`; "No voices installed" when there are none. With Sound → **Cube Autoplay** (on by default,
+`cube_autoplay`) the store reads its cubes aloud one after another as it opens, each once a visit; a cube
+opened in the reader plays at once, and when a voice ends while a reader is open the autoplay stops there.
 
 The voices go in `data/voices` (outside git; `TYR3D_VOICES_DIR`): `e<episode>/<cube>.wav` (the cube's
 number in its episode's `cubetxt` file), `story/e<episode>_<n>.wav` and `manifest.txt`, which lists each

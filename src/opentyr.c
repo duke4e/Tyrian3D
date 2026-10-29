@@ -196,6 +196,17 @@ static const char *getUiScalePickerItem(size_t i, char *buffer, size_t bufferSiz
 	return buffer;
 }
 
+static size_t getPointerPickerItemsCount(void)
+{
+	return (size_t)settings3d_pointer_count();
+}
+
+static const char *getPointerPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return settings3d_pointer_name((int)i);
+}
+
 static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
 {
 	(void)buffer, (void)bufferSize;
@@ -244,6 +255,8 @@ void setupMenu(void)
 		MENU_ITEM_UI_SCALE,
 		MENU_ITEM_SOUNDFONT,
 		MENU_ITEM_VOICES,  // Tyrian3D: the cubes and story texts read aloud (voiceover.h)
+		MENU_ITEM_CUBE_AUTOPLAY,  // Tyrian3D: the store reads its cubes aloud as it opens
+		MENU_ITEM_POINTER,  // Tyrian3D: the modern pointer's size
 	} MenuItemId;
 
 	typedef enum
@@ -298,6 +311,7 @@ void setupMenu(void)
 				{ MENU_ITEM_MENUS, "Menus:", "Menus in the new style over the 3D view, or the original screens.", getTwoItemsCount, getMenusPickerItem },
 				{ MENU_ITEM_SCREENS, "Screens:", "The game's other screens fill the window's height, or in whole steps (Scaling Mode).", getTwoItemsCount, getScreensPickerItem },
 				{ MENU_ITEM_UI_SCALE, "UI Scale:", "The size of the new menus and the HUD.", getUiScalePickerItemsCount, getUiScalePickerItem },
+				{ MENU_ITEM_POINTER, "Pointer Size:", "The size of the mouse pointer.", getPointerPickerItemsCount, getPointerPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
 				{ -1 }
 			},
@@ -323,6 +337,7 @@ void setupMenu(void)
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_VOICES, "Voices", "Cubes and story texts read aloud: left/right the volume, Enter on or off." },
+				{ MENU_ITEM_CUBE_AUTOPLAY, "Cube Autoplay:", "In the store, its data cubes are read aloud one after another.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_MUSIC_SYNTH, "Music:", "The music as MIDI through a SoundFont, or on the AdLib chip.", getTwoItemsCount, getMusicPickerItem },
 				{ MENU_ITEM_SOUNDFONT, "SoundFont:", "The instruments the music plays on: the SoundFonts in data/soundfonts.", getSoundFontPickerItemsCount, getSoundFontPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
@@ -467,6 +482,8 @@ void setupMenu(void)
 			case MENU_ITEM_MENUS:
 			case MENU_ITEM_SCREENS:
 			case MENU_ITEM_UI_SCALE:
+			case MENU_ITEM_POINTER:
+			case MENU_ITEM_CUBE_AUTOPLAY:
 			case MENU_ITEM_SOUNDFONT:
 			{
 				const size_t choice =
@@ -474,6 +491,8 @@ void setupMenu(void)
 					menuItem->id == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 					menuItem->id == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 					menuItem->id == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
+					menuItem->id == MENU_ITEM_POINTER ? (size_t)settings3d_pointer_index(settings3d.pointer_size) :
+					menuItem->id == MENU_ITEM_CUBE_AUTOPLAY ? !settings3d.cube_autoplay :
 					menuItem->id == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 					menuItem->id == MENU_ITEM_HUD ? !settings3d.hud_modern :
 					menuItem->id == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -902,6 +921,8 @@ void setupMenu(void)
 				case MENU_ITEM_MENUS:
 				case MENU_ITEM_SCREENS:
 				case MENU_ITEM_UI_SCALE:
+				case MENU_ITEM_POINTER:
+				case MENU_ITEM_CUBE_AUTOPLAY:
 				case MENU_ITEM_SOUNDFONT:
 				{
 					JE_playSampleNum(S_CLICK);
@@ -912,6 +933,8 @@ void setupMenu(void)
 						selectedMenuItemId == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 						selectedMenuItemId == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 						selectedMenuItemId == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
+						selectedMenuItemId == MENU_ITEM_POINTER ? (size_t)settings3d_pointer_index(settings3d.pointer_size) :
+						selectedMenuItemId == MENU_ITEM_CUBE_AUTOPLAY ? !settings3d.cube_autoplay :
 						selectedMenuItemId == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 						selectedMenuItemId == MENU_ITEM_HUD ? !settings3d.hud_modern :
 						selectedMenuItemId == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -1187,6 +1210,14 @@ void setupMenu(void)
 				case MENU_ITEM_UI_SCALE:
 					settings3d.ui_scale = settings3d_ui_scale_value((int)pickerSelectedIndex);
 					settings3d_changed(S3D_UI_SCALE);
+					break;
+				case MENU_ITEM_POINTER:
+					settings3d.pointer_size = settings3d_pointer_value((int)pickerSelectedIndex);
+					settings3d_changed(S3D_POINTER);
+					break;
+				case MENU_ITEM_CUBE_AUTOPLAY:
+					settings3d.cube_autoplay = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_VOICES);
 					break;
 				case MENU_ITEM_SOUNDFONT:
 					if (music_midi_soundfont_count() > 0 && music_midi_use(music_midi_soundfont_name((int)pickerSelectedIndex)))

@@ -21,6 +21,7 @@
 #include "keyboard.h"
 #include "nortvars.h"
 #include "palette.h"
+#include "settings3d.h"
 #include "sprite.h"
 #include "ui.h"
 #include "video.h"
@@ -256,7 +257,8 @@ static SDL_Cursor *crosshair_cursor(void)
 {
 	static SDL_Cursor *cursor = NULL;
 	static int made_size = 0;
-	const int size = SDL_max((int)lroundf(ui_pointer_points() * 1.15f), 17) | 1;  // (odd: a middle pixel)
+	// (the original pointer's size whatever Pointer Size says: it is aimed with in a level)
+	const int size = SDL_max((int)lroundf(24.0f * settings3d.ui_scale / 100.0f * 1.15f), 17) | 1;  // (odd: a middle pixel)
 	if (cursor != NULL && made_size == size)
 		return cursor;
 	SDL_Surface *images[2] = { NULL, NULL };

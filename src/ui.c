@@ -4984,7 +4984,7 @@ void ui_build_hud(const UIView *view)
 
 float ui_pointer_points(void)
 {
-	return 24.0f * settings3d.ui_scale / 100.0f;
+	return (float)settings3d.pointer_size * settings3d.ui_scale / 100.0f;
 }
 
 // The pointer's outline in a 24 x 24 box (the arrow: its tip at the top left).
@@ -5092,8 +5092,8 @@ void ui_build_pointer(const UIView *view, float x, float y, int shape)
 {
 	// The system's pointer's own picture (hd_pointer_cursor, mouse.c), at the window's pixels.
 	const float pixel = view->pixel > 0 ? view->pixel : 1;
-	const int size = SDL_clamp((int)lroundf(ui_pointer_points() / pixel), 8, 128);
-	static Uint32 rgba[128 * 128];
+	const int size = SDL_clamp((int)lroundf(ui_pointer_points() / pixel), 8, 192);
+	static Uint32 rgba[192 * 192];
 	static int made_shape = -1, made_size = 0, hot_x = 0, hot_y = 0;
 	if (made_shape != shape || made_size != size)
 	{

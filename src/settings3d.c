@@ -17,17 +17,46 @@
 
 Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
                           .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
-                          .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255 };
+                          .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
+                          .cube_autoplay = true, .pointer_size = 36 };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
 static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .effects = true, .camera = 0, .music_midi = true,
                              .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
-                             .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255 };
+                             .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
+                             .cube_autoplay = true, .pointer_size = 36 };
 static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_effects, overridden_music, overridden_mouse, overridden_hud,
             overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale, overridden_voices;
 
 static const int ui_scales[] = { 75, 90, 100, 115, 130, 150 };
+
+// The pointer's sizes (window points; the original arrow is about 24).
+static const struct { int points; const char *name; } pointers[] = { { 24, "Small" }, { 30, "Medium" }, { 36, "Large" }, { 44, "Huge" } };
+
+int settings3d_pointer_count(void)
+{
+	return (int)COUNTOF(pointers);
+}
+
+int settings3d_pointer_value(int i)
+{
+	return pointers[SDL_clamp(i, 0, (int)COUNTOF(pointers) - 1)].points;
+}
+
+const char *settings3d_pointer_name(int i)
+{
+	return pointers[SDL_clamp(i, 0, (int)COUNTOF(pointers) - 1)].name;
+}
+
+int settings3d_pointer_index(int points)
+{
+	int best = 0;
+	for (int i = 1; i < (int)COUNTOF(pointers); ++i)
+		if (SDL_abs(pointers[i].points - points) < SDL_abs(pointers[best].points - points))
+			best = i;
+	return best;
+}
 
 int settings3d_ui_scale_count(void)
 {
@@ -101,6 +130,10 @@ void settings3d_load(const ConfigSection *section)
 		if (config_get_string_option(section, "soundfont", &soundfont))
 			SDL_strlcpy(chosen.soundfont, soundfont, sizeof(chosen.soundfont));
 		config_get_bool_option(section, "voices", &chosen.voices);
+		config_get_bool_option(section, "cube_autoplay", &chosen.cube_autoplay);
+		const char *pointer;
+		if (config_get_string_option(section, "pointer_size", &pointer))
+			chosen.pointer_size = settings3d_pointer_value(settings3d_pointer_index(SDL_atoi(pointer)));
 		const char *jukebox_look;
 		if (config_get_string_option(section, "jukebox_look", &jukebox_look))
 			SDL_strlcpy(chosen.jukebox_look, jukebox_look, sizeof(chosen.jukebox_look));
@@ -209,11 +242,15 @@ void settings3d_changed(Settings3DField field)
 	case S3D_VOICES:
 		chosen.voices = settings3d.voices;
 		chosen.voice_volume = settings3d.voice_volume;
+		chosen.cube_autoplay = settings3d.cube_autoplay;
 		overridden_voices = false;
 		voiceover_settings_changed();
 		break;
 	case S3D_JUKEBOX:
 		SDL_strlcpy(chosen.jukebox_look, settings3d.jukebox_look, sizeof(chosen.jukebox_look));
+		break;
+	case S3D_POINTER:
+		chosen.pointer_size = settings3d.pointer_size;
 		break;
 	}
 }
@@ -239,6 +276,9 @@ void settings3d_save(ConfigSection *section)
 	config_set_bool_option(section, "voices", overridden_voices ? chosen.voices : settings3d.voices, NO_YES);
 	snprintf(percent, sizeof(percent), "%d", settings3d.voice_volume);
 	config_set_string_option(section, "voice_volume", percent);
+	config_set_bool_option(section, "cube_autoplay", settings3d.cube_autoplay, NO_YES);
+	snprintf(percent, sizeof(percent), "%d", settings3d.pointer_size);
+	config_set_string_option(section, "pointer_size", percent);
 	config_set_string_option(section, "jukebox_look", settings3d.jukebox_look);
 }
 
