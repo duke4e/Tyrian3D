@@ -46,6 +46,10 @@ void draw_ship_illustration(void);
 typedef enum { ILLUSTRATION_SHIP, ILLUSTRATION_GENERATOR, ILLUSTRATION_FRONT, ILLUSTRATION_REAR } IllustrationPart;
 bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, unsigned int *table, int *sprite_id,
                              int *x, int *y);
+// Tyrian3D: the store shows the shields' choices (the 3D view shows the shield round the ship's model), and the strength
+// of the shield on the ship now (0-1, as the store's gauge shows it).
+bool shop_shield_page(void);
+float shop_shield_strength(void);
 void JE_scaleBitmap(SDL_Surface *dst, const SDL_Surface *src, int x1, int y1, int x2, int y2);
 void JE_initWeaponView(void);
 void JE_computeDots(void);

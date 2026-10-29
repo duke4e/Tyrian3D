@@ -8,12 +8,16 @@
 #include "episodes.h"
 #include "joystick.h"
 #include "layer3d.h"
+#include "lvlmast.h"
+#include "models3d.h"
 #include "mtrand.h"
 #include "palette.h"
 #include "params.h"
 #include "player.h"
+#include "sprite.h"
 #include "varz.h"
 #include "video.h"
+#include "volume3d.h"
 
 #include <SDL3/SDL.h>
 
@@ -295,6 +299,337 @@ void dev_balance(const char *what, int value)
 		on = SDL_getenv("TYR3D_LOG_BALANCE") != NULL;
 	if (on)
 		printf("balance: %s %d clock %u\n", what, value, (unsigned)curLoc);
+}
+
+/*
+ * TYR3D_LOG_SPRITES: what the 3D view draws from a sprite (an HD volume from the 4x sheets, the sprite's own volume,
+ * flat for shots, or the flat sprite) rather than as a model, with a model of the same thing where models.cfg has one.
+ * Each look once, as it is first drawn so ("sprites: look ..."); a summary for each level as it ends and for the run
+ * ("sprites: level ...", "sprites: run ..."). The objects are told apart by their keys (layer3d.h L3D_KEY_*, tyrian2.c's
+ * coming enemies and stand-ins).
+ */
+enum { SPRITES_ENEMY, SPRITES_ITEM, SPRITES_COMING, SPRITES_SHOT, SPRITES_ENEMY_SHOT, SPRITES_DEPARTED, SPRITES_PLAYER,
+       SPRITES_SIDEKICK, SPRITES_STORE, SPRITES_OTHER, SPRITES_KINDS };
+static const char *const sprites_kind_names[SPRITES_KINDS] = { "enemy", "item", "coming", "shot", "enemyshot", "departed",
+                                                               "player", "sidekick", "store", "other" };
+
+typedef struct
+{
+	Uint32 frames;
+	Uint32 models[SPRITES_KINDS], sprites[SPRITES_KINDS];  // objects drawn, over the frames
+	Uint32 looks[SPRITES_KINDS], related[SPRITES_KINDS];   // looks first drawn as sprites, and of those with a model near
+} SpritesCount;
+
+static SpritesCount sprites_level, sprites_run;
+static char sprites_level_name[24] = "";
+
+bool dev_log_sprites_on(void)
+{
+	static int on = -1;
+	if (on < 0)
+		on = SDL_getenv("TYR3D_LOG_SPRITES") != NULL;
+	return on != 0;
+}
+
+// The sheet's name as models.cfg writes it (a shape file's letter small, its symbols as x<hex>), and its letter for
+// m3d_enemy_appearance (0: not an enemy sheet).
+static const char *sprites_sheet_name(const void *sheet, char *letter, char name[8])
+{
+	*letter = 0;
+	if (sheet == &spriteSheet8)
+		return "shots";
+	if (sheet == &spriteSheet12)
+		return "shots2";
+	if (sheet == &spriteSheet9)
+		return "ships";
+	if (sheet == &spriteSheetT2000)
+		return "ships_t2000";
+	if (sheet == &explosionSpriteSheet)
+		return "explosions";
+	if (sheet == &spriteSheet11)
+	{
+		*letter = M3D_SHEET_COINS;
+		return "coins";
+	}
+	if (sheet == &spriteSheet10)
+	{
+		*letter = M3D_SHEET_POWERUPS;
+		return "powerups";
+	}
+	for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
+		if (sheet == &enemySpriteSheets[k] && enemySpriteSheetIds[k] > 0 && enemySpriteSheetIds[k] <= COUNTOF(shapeFile))
+		{
+			*letter = shapeFile[enemySpriteSheetIds[k] - 1];
+			const char c = (char)SDL_tolower((unsigned char)*letter);
+			if (SDL_isalnum((unsigned char)c))
+				snprintf(name, 8, "%c", c);
+			else
+				snprintf(name, 8, "x%02x", (unsigned char)c);
+			return name;
+		}
+	return "?";
+}
+
+// The model of models.cfg's "sprite" line for exactly this sheet and first sprite, or -1.
+static int sprites_rule_model(char letter, unsigned int sprite)
+{
+	letter = (char)SDL_tolower((unsigned char)letter);
+	for (int i = 0; i < m3d_sprite_rule_count(); ++i)
+	{
+		char sheet;
+		unsigned int first;
+		M3DAppearance look;
+		m3d_sprite_rule(i, &sheet, &first, &look);
+		if (sheet == letter && first == sprite)
+			return look.model;
+	}
+	return -1;
+}
+
+// A model of the same thing (hint: what it is), or -1: its own sprite or shot line, which the path that drew it went
+// without; for an enemy or item, a sprite line for another frame of its animation, or a frame line of one. (Sprites next
+// to it on its sheet are often other things: left to a look at the log.)
+static int sprites_related(int kind, char letter, const void *sheet, unsigned int first, const JE_word *frames, int frame_count,
+                           char *hint, size_t hint_size)
+{
+	if (kind == SPRITES_SHOT || kind == SPRITES_ENEMY_SHOT || kind == SPRITES_DEPARTED || kind == SPRITES_STORE)
+	{
+		if (sheet != &spriteSheet8 && sheet != &spriteSheet12)
+			return -1;
+		const bool shots2 = sheet == &spriteSheet12;
+		M3DAppearance look;
+		if (m3d_shot_appearance(shots2, first, &look))
+		{
+			snprintf(hint, hint_size, "its own shot line (%s), not drawn", m3d_models[look.model].name);
+			return look.model;
+		}
+		return -1;
+	}
+	if (letter == 0)
+		return -1;
+	const M3DAppearance own = m3d_enemy_appearance(letter, first, false, L3D_SKY_ENEMY);
+	if (own.model >= 0)
+	{
+		snprintf(hint, hint_size, "its own sprite line (%s), not drawn", m3d_models[own.model].name);
+		return own.model;
+	}
+	for (int f = 0; f < frame_count; ++f)
+	{
+		if (frames[f] == first || frames[f] == 0 || frames[f] == 999)
+			continue;
+		int model = sprites_rule_model(letter, frames[f]);
+		if (model >= 0)
+		{
+			snprintf(hint, hint_size, "its frame %u's sprite line (%s)", frames[f], m3d_models[model].name);
+			return model;
+		}
+		model = m3d_frame_model(letter, frames[f], -1);
+		if (model >= 0)
+		{
+			snprintf(hint, hint_size, "its frame %u's frame line (%s)", frames[f], m3d_models[model].name);
+			return model;
+		}
+	}
+	return -1;
+}
+
+static void sprites_print_count(const char *what, const char *name, const SpritesCount *c)
+{
+	Uint32 models = 0, sprites = 0, looks = 0, related = 0;
+	for (int k = 0; k < SPRITES_KINDS; ++k)
+	{
+		models += c->models[k];
+		sprites += c->sprites[k];
+		looks += c->looks[k];
+		related += c->related[k];
+	}
+	printf("sprites: %s %s: %u frames; objects drawn as models %u, from sprites %u (%.1f %%); looks from sprites %u, "
+	       "%u of them with a model near;", what, name, c->frames, models, sprites,
+	       models + sprites > 0 ? 100.0 * sprites / (models + sprites) : 0.0, looks, related);
+	for (int k = 0; k < SPRITES_KINDS; ++k)
+		if (c->sprites[k] > 0 || c->looks[k] > 0)
+			printf(" %s %u/%u looks %u near %u;", sprites_kind_names[k], c->sprites[k], c->models[k] + c->sprites[k], c->looks[k],
+			       c->related[k]);
+	printf("\n");
+}
+
+static void sprites_level_over(void)
+{
+	if (sprites_level.frames > 0)
+		sprites_print_count("level", sprites_level_name, &sprites_level);
+	memset(&sprites_level, 0, sizeof(sprites_level));
+}
+
+static void sprites_at_exit(void)
+{
+	sprites_level_over();
+	sprites_print_count("run", "total", &sprites_run);
+	fflush(stdout);
+}
+
+// Whether a look was seen before (and now is): its kind, sheet (by name: the enemies' sheets' slots take other sheets
+// from level to level) and first sprite.
+static bool sprites_seen(int kind, const char *sheet_name, unsigned int first, bool large)
+{
+	enum { LOOKS = 4096 };
+	typedef struct { char sheet[12]; Uint16 first; Uint8 kind, large; } Seen;
+	static Seen seen[LOOKS];
+	static int count = 0;
+	for (int i = 0; i < count; ++i)
+		if (seen[i].first == first && seen[i].kind == kind && seen[i].large == large && strcmp(seen[i].sheet, sheet_name) == 0)
+			return true;
+	if (count < LOOKS)
+	{
+		seen[count] = (Seen){ "", (Uint16)first, (Uint8)kind, (Uint8)large };
+		SDL_strlcpy(seen[count++].sheet, sheet_name, sizeof(seen[0].sheet));
+	}
+	return false;
+}
+
+// One look drawn from a sprite (first drawn now): what, where, and a model near it.
+static void sprites_note(int kind, const void *sheet, unsigned int sprite, unsigned int first, const JE_word *frames,
+                         int frame_count, bool large, int style, const char *layer, float x, float y)
+{
+	char letter, name[8], hint[96] = "";
+	const char *sheet_name = sprites_sheet_name(sheet, &letter, name);
+	if (sprites_seen(kind, sheet_name, first, large))
+		return;
+	const int related = sprites_related(kind, letter, sheet, first, frames, frame_count, hint, sizeof(hint));
+	++sprites_level.looks[kind];
+	++sprites_run.looks[kind];
+	if (related >= 0)
+	{
+		++sprites_level.related[kind];
+		++sprites_run.related[kind];
+	}
+	printf("sprites: look %s sheet %s sprite %u first %u %s %s layer %s at %.0f,%.0f episode %d level %s clock %u -> %s\n",
+	       sprites_kind_names[kind], sheet_name, sprite, first, large ? "2x2" : "1x1",
+	       style < 0 ? "sprite" : style == V3D_STYLE_FLAT ? "flat" : "volume",
+	       layer, x, y, episodeNum, sprites_level_name, (unsigned)curLoc, related >= 0 ? hint : "no model");
+}
+
+void dev_log_sprites_frame(void)
+{
+	if (!dev_log_sprites_on())
+		return;
+	static bool registered = false;
+	if (!registered)
+	{
+		registered = true;
+		atexit(sprites_at_exit);
+	}
+	char name[24];
+	snprintf(name, sizeof(name), "%d:%.10s", episodeNum, levelName);
+	for (char *c = name + strlen(name); c > name && c[-1] == ' '; --c)
+		c[-1] = '\0';
+	if (strcmp(name, sprites_level_name) != 0)
+	{
+		sprites_level_over();
+		SDL_strlcpy(sprites_level_name, name, sizeof(sprites_level_name));
+	}
+	++sprites_level.frames;
+	++sprites_run.frames;
+
+	for (int o = 0; o < l3d_frame.object_count; ++o)
+	{
+		const L3DObject *object = &l3d_frame.objects[o];
+		const Uint32 key = object->key;
+		int kind = key >= 0x70000u ? SPRITES_OTHER          // (tyrian2.c's stand-ins: models)
+		         : key >= 0x60000u ? SPRITES_DEPARTED       // (layer3d.c L3D_KEY_DEPARTED)
+		         : key >= 0x50000u ? SPRITES_COMING         // (tyrian2.c COMING_KEY)
+		         : key >= L3D_KEY_ENEMY_SHOT ? SPRITES_ENEMY_SHOT
+		         : key >= L3D_KEY_SHOT ? SPRITES_SHOT
+		         : key >= L3D_KEY_SIDEKICK ? SPRITES_SIDEKICK
+		         : key >= L3D_KEY_PLAYER ? SPRITES_PLAYER
+		         : key >= L3D_KEY_ENEMY ? SPRITES_ENEMY
+		         : SPRITES_OTHER;
+		if ((kind == SPRITES_ENEMY || kind == SPRITES_COMING) &&
+		    (object->model == L3D_VOLUME ? object->sheet == &spriteSheet10 || object->sheet == &spriteSheet11
+		                                 : object->enemy_sheet == M3D_SHEET_COINS || object->enemy_sheet == M3D_SHEET_POWERUPS))
+			kind = kind == SPRITES_ENEMY ? SPRITES_ITEM : kind;
+		if (object->model != L3D_VOLUME)
+		{
+			++sprites_level.models[kind];
+			++sprites_run.models[kind];
+			continue;
+		}
+		if (l3d_sprite_glow_color(object->sheet, object->sprite, object->large) == 0)
+			continue;  // (a blank sprite: nothing shows, as the TYRIAN boss's parts once destroyed)
+		++sprites_level.sprites[kind];
+		++sprites_run.sprites[kind];
+
+		// The enemy's animation (its slot by its key), to name it by its first sprite as models.cfg does.
+		unsigned int first = object->sprite;
+		const JE_word *frames = NULL;
+		int frame_count = 0;
+		if (kind == SPRITES_ENEMY || kind == SPRITES_ITEM)
+		{
+			const unsigned int slot = (key - L3D_KEY_ENEMY) & 0xff;
+			if (slot < COUNTOF(enemy) && (const void *)enemy[slot].sprite2s == object->sheet)
+			{
+				first = enemy[slot].egr[0];
+				frames = enemy[slot].egr;
+				frame_count = SDL_clamp((int)enemy[slot].ani, 1, (int)COUNTOF(enemy[slot].egr));
+			}
+		}
+		sprites_note(kind, object->sheet, object->sprite, first, frames, frame_count, object->large, object->style,
+		             l3d_layer_name(object->layer), object->x, object->y);
+	}
+
+	// Enemies in sight that left no object (keyed by their slot) three frames running, as the same enemy: drawn as their
+	// flat sprites (models.cfg "sprite", a sheet with no letter). (One made after the enemies are drawn, a drop, leaves
+	// none in its first frame.) Not episode 7's bosses' pieces, whose groups' other pieces draw their parts.
+	if (episodeNum == EPISODE_GBC)
+		return;
+	static bool keyed[COUNTOF(enemy)];
+	static Uint8 unkeyed[COUNTOF(enemy)];  // frames running
+	static const void *was_sheet[COUNTOF(enemy)];
+	static JE_word was_first[COUNTOF(enemy)];
+	memset(keyed, 0, sizeof(keyed));
+	for (int o = 0; o < l3d_frame.object_count; ++o)
+	{
+		const Uint32 key = l3d_frame.objects[o].key;
+		if (key >= L3D_KEY_ENEMY && key < L3D_KEY_PLAYER && (key & 0xff) < COUNTOF(enemy))
+			keyed[key & 0xff] = true;
+	}
+	for (unsigned int i = 0; i < COUNTOF(enemy); ++i)
+	{
+		const struct JE_SingleEnemyType *e = &enemy[i];
+		const bool same = enemyAvail[i] != 1 && was_sheet[i] == (const void *)e->sprite2s && was_first[i] == e->egr[0];
+		was_sheet[i] = enemyAvail[i] != 1 ? (const void *)e->sprite2s : NULL;
+		was_first[i] = e->egr[0];
+		unkeyed[i] = !keyed[i] && same ? (Uint8)SDL_min(unkeyed[i] + 1, 250) : !keyed[i] && enemyAvail[i] != 1;
+		// (Where the game draws it: by its layer's offset as it was drawn, mapoffset.)
+		if (enemyAvail[i] == 1 || unkeyed[i] < 3 || e->sprite2s == NULL || e->enemycycle == 0 || e->egr[e->enemycycle - 1] == 999 ||
+		    e->egr[e->enemycycle - 1] == 0 || e->ey < -12 || e->ey > 180 || e->ex + (int)e->mapoffset < -16 ||
+		    e->ex + (int)e->mapoffset > 300)
+			continue;
+		const int kind = e->sprite2s == &spriteSheet10 || e->sprite2s == &spriteSheet11 ? SPRITES_ITEM : SPRITES_ENEMY;
+		if (l3d_sprite_glow_color(e->sprite2s, e->egr[e->enemycycle - 1], e->size == 1) == 0)
+			continue;  // (blank)
+		++sprites_level.sprites[kind];
+		++sprites_run.sprites[kind];
+		sprites_note(kind, e->sprite2s, e->egr[e->enemycycle - 1], e->egr[0], e->egr, SDL_clamp((int)e->ani, 1, 20), e->size == 1,
+		             -1, "?", e->ex + (int)e->mapoffset + 6.0f, e->ey + 7.0f);
+	}
+}
+
+// The store's weapon simulator: a shot drawn from its sprite (shots2: the second sheet) or as a model.
+void dev_log_sprites_store(bool shots2, unsigned int sprite, bool model)
+{
+	if (!dev_log_sprites_on())
+		return;
+	SDL_strlcpy(sprites_level_name, "store", sizeof(sprites_level_name));
+	if (model)
+	{
+		++sprites_level.models[SPRITES_STORE];
+		++sprites_run.models[SPRITES_STORE];
+		return;
+	}
+	++sprites_level.sprites[SPRITES_STORE];
+	++sprites_run.sprites[SPRITES_STORE];
+	sprites_note(SPRITES_STORE, shots2 ? (const void *)&spriteSheet12 : (const void *)&spriteSheet8, sprite, sprite, NULL, 0,
+	             false, V3D_STYLE_FLAT, "store", 0, 0);
 }
 
 bool dev_autopilot(void)

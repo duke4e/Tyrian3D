@@ -186,7 +186,9 @@ rules from the original data (`tools/content/tyrdata.py` reads it), so the rules
 | 37 Guided Option | Guided Bombs power 4 | orbiting satellite |
 
 No shop sells them yet (that comes with the new episode and the rogue mode); the debug flight's
-loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them.
+loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them. The new sidekicks look as the ones they copy, in 3D too
+(`models.cfg` `sidekick 33`-`37`: the Single Shot's, Dual Shot's, Vulcan Shot's, Single Shot's and Satellite Marlo's
+models; until 2026-10-29 the Beno's disc of the original's empty slots).
 
 ## Rogue mode
 
@@ -789,6 +791,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |
 | `TYR3D_LAYER_PARALLAX=1` | Show the layers' planes unscaled (positions on different layers no longer line up as in the game) |
 | `TYR3D_LOG_SPAWNS=1` | Print each enemy an event makes, and whether the 3D view showed it coming; and where the 3D view first shows an event's enemy coming (`coming:` lines: one shown and never made vanishes where it would have been) |
+| `TYR3D_LOG_SPRITES=1` | Print what the 3D view draws from sprites (an HD volume from the 4x sheets, the sprite's own volume, a flat shot, or the flat sprite) rather than as a model, to find what still lacks a model (`devtools.c` `dev_log_sprites_frame`, every captured frame; the store's weapon simulator too): each look once, as it is first drawn so, `sprites: look <kind> sheet <sheet> sprite <frame> first <first sprite> <1x1\|2x2> <volume\|flat\|sprite> layer <layer> at <x>,<y> episode <n> level <name> clock <tick> -> <a model of the same thing, or "no model">` (kinds by the objects' keys: enemy, item (coins and power-ups sheets), coming (shown before it is made), shot, enemyshot, departed (flown off the screen's top), player, sidekick, store; sheets as `models.cfg` names them; `sprite`: an enemy in sight that left no 3D object three frames running; blank sprites left out; the model near: its own sprite or shot line, which the path that drew it went without, or a sprite or frame line of another frame of its animation), and for each level as it ends and for the run, how many objects were drawn either way (`sprites: level <episode>:<name>: ...`, `sprites: run total: ...`). Shots without a model (lasers, pulses, the energy shots) are flat volumes by design, as the levels draw them |
 | `TYR3D_LOG_MOVES=1` | Print every enemy each tick (clock, slot, enemy, place, speed and what carries it, steering, link): `tools/gbc/moves.py` sets episode 7's paths against the GBC's |
 | `TYR3D_LOG_BALANCE=1` | Print what a level costs and gives the player, a `balance: <what> <value> clock <tick>` line each (`devtools.c` `dev_balance`): an enemy that comes (`spawn`, its type), one killed or rammed (`kill`, `rammed`: its slot), an enemy shot fired (`shot`), the damage that hits the ship (`damage`, in god mode too; right after what dealt it: `hit`, an enemy shot, or `bump`, a collision, the enemy's type), an item an enemy leaves (`drop`, or `droplost` with no free slot for it: its value) and one picked up (`pickup`), to set a level against another (episode 7's against their originals) |
 | `TYR3D_AA=<0..3>` | Anti-aliasing: 0 off, 1 SMAA low, 2 SMAA high (default), 3 FXAA |
@@ -863,7 +866,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   (SAVARA, DIG SITE, REEF) a few flocks of gulls fly in a loose V each, their own heading and height,
   beating their wings and gliding by turns, their shadows on the water; Effects only.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
-  enemies into 64 extra rows above the screen.
+  enemies into 64 extra rows above the screen. A shot the game drops as it leaves the screen's top flies on in the 3D
+  view (`layer3d.c` `l3d_shot_departed`) as it was drawn: its model, a missile with its smoke, or its sprite's volume
+  (2026-10-29; until then always the sprite's volume, so a missile turned flat at the screen's top edge).
 - **Rendering** (`src/render_gpu.c`). Layers become textured planes at increasing heights, each
   scaled about the point below the camera so that a position on any layer is seen where the game
   draws it (a turret's shots and explosion stay on the turret); objects scale with their plane. What
@@ -908,8 +913,20 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   the mouse on each) and the 3D view draws its own layout over the picture blurred, with the ship's
   models or the weapon simulator's (its ship and shots over deep space of its own: stars drifting by in three
   layers and a faint nebula, `make_sim_space`, the pane a little larger than the original's box so the ship's
-  model shows whole; shots without models from the screen) drawn by the
-  scene into the layout's pane (`rgpu_present_ui`). Screens that animate on their own while shown (ship
+  model shows whole) drawn by the
+  scene into the layout's pane (`rgpu_present_ui`). The simulator looks as a level does (2026-10-29, the user: the
+  store's preview still used many old visuals; `video.c` `video_sim_*`, `render_gpu.c` `add_showcase_volumes`,
+  `add_showcase_glows`, `add_showcase_particles`, `add_showcase_lights`): the shots without a model are their
+  sprites with volume, flat, from the 4x sheets (they were the screen's pixels laid over the pane, cut at the
+  original's box), every shot glows in its sprite's brightest colour and the strongest light the ship (point
+  lights), the missiles leave their smoke (the particles are the simulator's while it shows), the ship's engines
+  glow and flame, and its sidekicks show where the simulator fires their shots from (the original draws none),
+  with their glows; its logic and what it fires are the original's (no targets: it has none). The ship's scene
+  shows the sidekicks' glows and its own model's engines (not the illustration's big ship), and in the modern store,
+  on the shields' page, the shield round the ship as a level shows it, as strong as the shield (`video.c`
+  `showcase_glows`: the original's arc over its illustration, which the modern store's pad hasn't; the classic store
+  keeps the arc). The classic store in the 3D view draws the same simulator over its box's picture. Screens that
+  animate on their own while shown (ship
   specs, a level's end) are published with `hold` and shown so until released. The screens over a level
   are drawn over the 3D scene (`rgpu_present_3d_menu` with `modern`); their glass shows the scene copied
   once it is drawn and made smaller in halves by the canvas (`scene_blur`), again only when the scene

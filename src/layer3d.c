@@ -5,6 +5,7 @@
 
 #include "backgrnd.h"
 #include "debugmode.h"
+#include "devtools.h"
 
 #include "models3d.h"
 #include "particles3d.h"
@@ -422,6 +423,7 @@ void l3d_frame_end(void)
 	phase_kind = PHASE_NONE;
 	l3d_capturing = false;
 	frame_ready = true;
+	dev_log_sprites_frame();  // (TYR3D_LOG_SPRITES)
 }
 
 bool l3d_take_frame(void)
@@ -711,6 +713,13 @@ void l3d_draw_departed_shots(void)
 			departed[i].live = false;
 			continue;
 		}
+		// As it was drawn on the screen: its model (a missile flies on as one, its smoke behind it), or its sprite with
+		// volume (models off: the volume, as ever).
+		if (m3d_enabled)
+		{
+			l3d_add_shot(departed[i].sheet, departed[i].sprite, (int)departed[i].x, (int)departed[i].y, L3D_KEY_DEPARTED + (Uint32)i);
+			continue;
+		}
 		if (l3d_add_volume(departed[i].sheet, departed[i].sprite, false, V3D_STYLE_FLAT, departed[i].x + 6.0f,
 		                   departed[i].y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
 		{
@@ -935,6 +944,11 @@ void l3d_add_sprite_glow(const void *sheet, unsigned int sprite, bool large, flo
 Uint8 l3d_sprite_ramp(const void *sheet, unsigned int sprite, bool large)
 {
 	return sprite_colors(sheet, sprite, large).ramp;
+}
+
+Uint8 l3d_sprite_glow_color(const void *sheet, unsigned int sprite, bool large)
+{
+	return sprite_colors(sheet, sprite, large).glow;
 }
 
 void l3d_add_effect(L3DEffect effect, int param)

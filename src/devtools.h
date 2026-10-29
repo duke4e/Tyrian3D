@@ -40,6 +40,15 @@ bool dev_godmode(void);
 // its value) and one picked up (pickup).
 void dev_balance(const char *what, int value);
 
+// TYR3D_LOG_SPRITES: what the 3D view draws from sprites (HD volumes, the sprites' own volumes, flat shots) rather
+// than as models, each look once as it is first drawn so ("sprites: look <kind> sheet <sheet> sprite <n> first <first
+// sprite> ... -> <a model of the same thing, or "no model">"), and for each level and the run how many objects
+// were drawn either way ("sprites: level ...", "sprites: run ..."). dev_log_sprites_frame: the frame captured
+// (layer3d.c l3d_frame_end); dev_log_sprites_store: a shot of the store's weapon simulator.
+bool dev_log_sprites_on(void);
+void dev_log_sprites_frame(void);
+void dev_log_sprites_store(bool shots2, unsigned int sprite, bool model);
+
 // Every tick of a level: TYR3D_LEVEL_TICKS=<n> ends levels (cleared) after n ticks, and
 // TYR3D_LEVEL_DIE=<n> destroys the ship after n ticks, for testing what comes after them.
 void dev_level_tick(void);

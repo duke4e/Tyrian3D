@@ -30,12 +30,14 @@
 #include "mouse.h"
 #include "nortsong.h"
 #include "palette.h"
+#include "particles3d.h"
 #include "player.h"
 #include "render_gpu.h"
 #include "settings3d.h"
 #include "sprite.h"
 #include "ui.h"
 #include "video_scale.h"
+#include "volume3d.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -587,6 +589,66 @@ static int showcase_objects(RGPUShowcaseObject *objects)
 	return count;
 }
 
+static void sim_engine(float x, float y, float height, float scale, float yaw, RGPUShowcaseGlow *glows, int *count, int max);
+
+// What glows round the illustration's models (showcase_objects, as it places them), as a level shows the same (with the
+// Effects setting): the ship's engines and their flame behind its own model (not the illustration's big ship), the
+// sidekicks' glows, and (shield: the modern store) on the shields' page the shield round the ship, as a level shows it
+// when it takes a hit, as strong as the shield is (the original's arc over the illustration, which the modern store's
+// pad hasn't; the classic store keeps the arc).
+static int showcase_glows(RGPUShowcaseGlow *glows, int max, bool shield)
+{
+	if (!settings3d.effects || (twoPlayerMode && ui_modern()))
+		return 0;
+	const float t = SDL_GetTicks() / 1000.0f;
+	const float yaw = 16.0f * sinf(t * 0.55f), bob = sinf(t * 1.3f);
+	int count = 0;
+	unsigned int table;
+	int sprite_id, x, y;
+	const PlayerItems *items = &player[0].items;
+	float cx = 80, cy = 86, height = 24.0f + 1.7f * bob, reach = 70.0f;  // (the ship's model, 70 screen pixels)
+	const bool big = ship_illustration_piece(ILLUSTRATION_SHIP, items, &table, &sprite_id, &x, &y) &&
+	                 m3d_illustration_model(sprite_id) >= 0;
+	if (big)
+	{
+		cx = x + get_sprite_width(table, sprite_id) / 2.0f;
+		cy = y + get_sprite_height(table, sprite_id) / 2.0f;
+		height = 10.0f + 1.7f * bob;
+		reach = SDL_max(get_sprite_width(table, sprite_id), get_sprite_height(table, sprite_id));
+	}
+	else
+		sim_engine(cx, cy, height, 70.0f / 24.0f, yaw, glows, &count, max);
+	if (shield && shop_shield_page() && count + 2 <= max)
+	{
+		// (A level's: 34 and 20 pixels round a 24 pixel ship; slowly breathing.)
+		static const Uint8 shield[3] = { 110, 180, 255 }, rim[3] = { 190, 225, 255 };
+		const float k = reach / 24.0f, g = (0.45f + 0.55f * shop_shield_strength()) * (0.85f + 0.15f * sinf(t * 2.2f));
+		glows[count] = (RGPUShowcaseGlow){ cx, cy + 2 * k, height, 34.0f * k, 0.32f * g, 0, { 0, 0, 0 } };
+		memcpy(glows[count++].rgb, shield, 3);
+		glows[count] = (RGPUShowcaseGlow){ cx, cy + 2 * k, height, 20.0f * k, 0.28f * g * g, 0, { 0, 0, 0 } };
+		memcpy(glows[count++].rgb, rim, 3);
+	}
+	for (int i = 0; i < 2 && count < max; ++i)
+	{
+		const JE_byte id = items->sidekick[i];
+		if (id == 0)
+			continue;
+		const M3DAppearance look = m3d_sidekick_appearance(id);
+		if (look.model < 0 || look.glow_size == 0)
+			continue;
+		const bool large = options[id].tr == 1 || options[id].tr == 2;
+		const float k = 22.0f / (large ? 24 : 12);  // (the model 22 screen pixels across)
+		const float size = (look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size) * k;
+		const Uint8 color = look.glow_has_rgb ? 0 : look.glow_color != 0 ? look.glow_color
+		                  : (Uint8)(l3d_sprite_ramp(large ? (const void *)&spriteSheet10 : (const void *)&spriteSheet9,
+		                                            options[id].gr[0], large) << 4 | 11);
+		glows[count] = (RGPUShowcaseGlow){ (i == 0 ? 15 : 141) + look.glow_dx * k, 97 + look.glow_dy * k,
+		                                   16.0f + 1.2f * sinf(t * 1.1f + i * 2.0f), size, look.glow_strength, color, { 0, 0, 0 } };
+		memcpy(glows[count++].rgb, look.glow_rgb, 3);
+	}
+	return count;
+}
+
 static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
 {
 	static Uint8 backdrop_pixels[320 * 200];
@@ -594,44 +656,86 @@ static void present_showcase(SDL_Surface *screen, const SDL_Rect *dst_rect)
 		memcpy(backdrop_pixels + y * 320, (const Uint8 *)showcase_surface->pixels + y * showcase_surface->pitch, 320);
 	RGPUShowcaseObject objects[6];
 	const int count = showcase_objects(objects);
+	RGPUShowcaseGlow glows[16];
 	RGPUShowcase show = { .pane = showcase_pane, .backdrop = backdrop_pixels, .transparent = showcase_illustrated,
-	                      .objects = objects, .object_count = count };
+	                      .objects = objects, .object_count = count, .glows = glows,
+	                      .glow_count = showcase_glows(glows, (int)COUNTOF(glows), false) };
 	show.fade[3] = store_fade();
 	rgpu_present_showcase(screen, &show, dst_rect);
 }
 
 /*
- * The store's weapon simulator (JE_weaponViewFrame) in the 3D view: its box as it is once the
- * stars are drawn each frame, and the ship and the shots that have models, drawn as models
- * instead of their sprites (video_sim_ship, video_sim_shot).
+ * The store's weapon simulator (JE_weaponViewFrame) in the 3D view, as a level's 3D view shows the same things: its box
+ * as it is once the stars are drawn each frame; the ship, its sidekicks (where the simulator fires their shots from,
+ * which the original doesn't draw) and the shots as models, the shots without one as their sprites with volume (flat,
+ * HD), instead of their sprites (video_sim_ship, video_sim_shot); the shots' glows, the ship's engines' glow and flame,
+ * the sidekicks' glows; the missiles' smoke (the particles, particles3d.h, are the simulator's while it shows: cleared as
+ * it opens, a level clears them as it loads). The simulator's logic and what it fires are the original's.
  */
 #define SIM_OBJECTS 128
+#define SIM_GLOWS 192
 
 static const SDL_Rect sim_pane = { 8, 8, 136, 175 };
 static Uint8 sim_backdrop[320 * 200];
 static bool sim_valid = false;
 static RGPUShowcaseObject sim_objects[SIM_OBJECTS];
 static int sim_object_count = 0;
+static RGPUShowcaseGlow sim_glows[SIM_GLOWS];
+static int sim_glow_count = 0;
 static Uint32 sim_frame = 0;
+
+// A glow in the simulator (screen pixels; color a palette index, or 0 and rgb).
+static void sim_glow(float x, float y, float height, float size, float strength, Uint8 color, const Uint8 *rgb)
+{
+	if (sim_glow_count == SIM_GLOWS || (color == 0 && rgb == NULL) || strength <= 0)
+		return;
+	RGPUShowcaseGlow *g = &sim_glows[sim_glow_count++];
+	*g = (RGPUShowcaseGlow){ x, y, height, size, strength, color, { 0, 0, 0 } };
+	if (color == 0)
+		memcpy(g->rgb, rgb, 3);
+}
 
 void video_sim_begin(void)
 {
 	sim_valid = l3d_enabled && m3d_enabled;
 	sim_object_count = 0;
+	sim_glow_count = 0;
 	++sim_frame;
-	if (sim_valid)
-		for (int y = 0; y < 200; ++y)
-			memcpy(sim_backdrop + y * 320, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+	if (!sim_valid)
+		return;
+	for (int y = 0; y < 200; ++y)
+		memcpy(sim_backdrop + y * 320, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
+	// (A simulator opened anew starts with no particles: what a level left, or an earlier simulator's.)
+	static Uint32 last_ticks = 0;
+	const Uint32 now = (Uint32)SDL_GetTicks();
+	if (now - last_ticks > 500)
+		p3d_clear();
+	last_ticks = now;
+	p3d_update(0);
 }
 
-bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y)
+bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y, int dx, int dy)
 {
-	M3DAppearance look;
-	if (!sim_valid || sim_object_count == SIM_OBJECTS || !m3d_shot_appearance(shots2, sprite, &look))
+	if (!sim_valid || sim_object_count == SIM_OBJECTS)
 		return false;
-	const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * sim_frame + (float)(x * 7 + y * 13 & 63) * 47.0f, 360.0f) : 0.0f);
-	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f, y + 7.0f,
-	                                                       l3d_layer_height(L3D_PLAYER) + look.height, 0, yaw, 0, 0, -1 };
+	const void *sheet = shots2 ? (const void *)&spriteSheet12 : (const void *)&spriteSheet8;
+	const float height = l3d_layer_height(L3D_PLAYER);
+	M3DAppearance look;
+	const bool model = m3d_shot_appearance(shots2, sprite, &look);
+	dev_log_sprites_store(shots2, sprite, model);  // (TYR3D_LOG_SPRITES)
+	if (model)
+	{
+		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * sim_frame + (float)(x * 7 + y * 13 & 63) * 47.0f, 360.0f) : 0.0f);
+		sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, x + 6.0f, y + 7.0f, height + look.height, 0, yaw, 0, 0, -1 };
+		// Missiles leave smoke (with Effects), as in a level.
+		if (look.trail && settings3d.effects)
+			p3d_trail(x + 6.0f, y + 7.0f, (float)dx, (float)dy, height, P3D_TRAIL_SMOKE, 0);
+	}
+	else  // (its sprite with volume, flat, as a level's shots without a model: layer3d.c l3d_add_shot)
+		sim_objects[sim_object_count++] = (RGPUShowcaseObject){ M3D_VOLUME, x + 6.0f, y + 7.0f, height, 0, 0, 0, 0, -1,
+		                                                       sheet, (Uint16)sprite, false, V3D_STYLE_FLAT };
+	// Its glow in the sprite's brightest colour (l3d_add_glow).
+	sim_glow(x + 6.0f, y + 7.0f, height, 13.0f, 0.7f, l3d_sprite_glow_color(sheet, sprite, false), NULL);
 	return true;
 }
 
@@ -647,12 +751,70 @@ void video_sim_shots_drawn(void)
 		memcpy(sim_shots + y * 320, (const Uint8 *)VGAScreen->pixels + y * VGAScreen->pitch, 320);
 }
 
+// The engines' glow behind a ship and the flame trailing from them, as a level shows them (mainint.c): at x, y the
+// ship's middle, scale times a ship's size in a level, turned yaw degrees (screen pixels).
+static void sim_engine(float x, float y, float height, float scale, float yaw, RGPUShowcaseGlow *glows, int *count, int max)
+{
+	static const Uint8 engine[3] = { 255, 150, 64 };
+	static const Uint8 flame[5][3] = { { 255, 226, 168 }, { 255, 176, 84 }, { 255, 120, 40 }, { 226, 70, 22 }, { 170, 40, 16 } };
+	static const float flame_size[5] = { 8.0f, 7.0f, 6.0f, 5.0f, 4.0f };
+	static const float flame_strength[5] = { 0.56f, 0.46f, 0.36f, 0.26f, 0.16f };
+	static Uint32 flicker = 0x2545f491u;
+	const float s = sinf(yaw * (float)M_PI / 180.0f), c = cosf(yaw * (float)M_PI / 180.0f);
+	for (int i = -1; i < 5 && *count < max; ++i)
+	{
+		flicker = flicker * 1664525u + 1013904223u;
+		const float wobble = i < 0 ? 1.0f : 0.85f + 0.3f * (float)(flicker >> 8) / 16777216.0f;
+		const float back = (12.0f + (i < 0 ? 0.0f : (2.5f + 2.2f * i) * wobble)) * scale;  // (behind the middle)
+		RGPUShowcaseGlow *g = &glows[(*count)++];
+		*g = (RGPUShowcaseGlow){ x - s * back, y + c * back, height, (i < 0 ? 10.0f : flame_size[i]) * scale,
+		                         i < 0 ? 0.45f : flame_strength[i] * wobble, 0, { 0, 0, 0 } };
+		memcpy(g->rgb, i < 0 ? engine : flame[i], 3);
+	}
+}
+
 bool video_sim_ship(int x, int y)
 {
-	const int model = player_ship_model();
-	if (!sim_valid || model < 0 || sim_object_count == SIM_OBJECTS)
+	if (!sim_valid)
 		return false;
-	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ model, (float)x, (float)y, l3d_layer_height(L3D_PLAYER), 0, 0, 0, 0, -1 };
+	const float height = l3d_layer_height(L3D_PLAYER);
+
+	// The sidekicks where the simulator fires their shots from (JE_weaponViewFrame), as a level shows them: their models,
+	// centred where their sprites would be, turning as they do, with their glows.
+	for (int i = 0; i < 2 && sim_object_count < SIM_OBJECTS; ++i)
+	{
+		const JE_byte id = player[0].items.sidekick[i];
+		const JE_OptionType *option = &options[id];
+		if (id == 0 || option->option == 0)
+			continue;
+		const M3DAppearance look = m3d_sidekick_appearance(id);
+		const bool large = option->tr == 1 || option->tr == 2;
+		const float sx = player[0].sidekick[i].x + 6.0f, sy = player[0].sidekick[i].y + (large ? 14.0f : 7.0f);
+		float yaw = look.yaw;
+		if (look.spin != 0)
+			yaw += fmodf(look.spin * sim_frame + i * 90.0f, 360.0f);
+		if (look.model >= 0)
+			sim_objects[sim_object_count++] = (RGPUShowcaseObject){ look.model, sx, sy, height + look.height, 0, yaw, 0, 0, -1 };
+		else if (look.model == M3D_VOLUME)
+			sim_objects[sim_object_count++] = (RGPUShowcaseObject){ M3D_VOLUME, sx, sy, height + look.height, 0, 0, 0, 0, -1,
+			                                                       large ? (const void *)&spriteSheet10 : (const void *)&spriteSheet9,
+			                                                       option->gr[0], large, V3D_STYLE_RAISED };
+		if (look.model >= 0 && look.glow_size != 0)
+		{
+			const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
+			const Uint8 color = look.glow_has_rgb ? 0 : look.glow_color != 0 ? look.glow_color
+			                  : (Uint8)(l3d_sprite_ramp(large ? (const void *)&spriteSheet10 : (const void *)&spriteSheet9,
+			                                            option->gr[0], large) << 4 | 11);
+			sim_glow(sx + look.glow_dx, sy + look.glow_dy, height + look.height, size, look.glow_strength, color, look.glow_rgb);
+		}
+	}
+
+	const int model = player_ship_model();
+	if (model < 0 || sim_object_count == SIM_OBJECTS)
+		return false;
+	sim_objects[sim_object_count++] = (RGPUShowcaseObject){ model, (float)x, (float)y, height, 0, 0, 0, 0, -1 };
+	if (settings3d.effects)
+		sim_engine((float)x, (float)y, height, 1.0f, 0.0f, sim_glows, &sim_glow_count, SIM_GLOWS);
 	return true;
 }
 
@@ -672,7 +834,8 @@ static bool sim_holds(const SDL_Surface *screen)
 static void present_sim(SDL_Surface *screen, const SDL_Rect *dst_rect)
 {
 	RGPUShowcase show = { .pane = sim_pane, .backdrop = sim_backdrop, .transparent = sim_backdrop,
-	                      .objects = sim_objects, .object_count = sim_object_count };
+	                      .objects = sim_objects, .object_count = sim_object_count,
+	                      .glows = sim_glows, .glow_count = sim_glow_count, .particles = true };
 	show.fade[3] = store_fade();
 	rgpu_present_showcase(screen, &show, dst_rect);
 }
@@ -747,8 +910,11 @@ static void present_screen_timed(SDL_Surface *src_surface)
 		case UI_SCENE_SHIP:
 			if (m3d_enabled)
 			{
+				static RGPUShowcaseGlow glows[16];
 				show.objects = objects;
 				show.object_count = showcase_objects(objects);
+				show.glows = glows;
+				show.glow_count = showcase_glows(glows, (int)COUNTOF(glows), true);
 				show.backdrop = NULL;
 				scene = &show;
 			}
@@ -758,6 +924,9 @@ static void present_screen_timed(SDL_Surface *src_surface)
 			{
 				show.objects = sim_objects;
 				show.object_count = sim_object_count;
+				show.glows = sim_glows;
+				show.glow_count = sim_glow_count;
+				show.particles = true;
 				show.transparent = sim_shots;
 				scene = &show;
 			}

@@ -68,7 +68,25 @@ typedef struct
 	float size;    // footprint, screen pixels, centred on its bounds (0: its own size in screen pixels, at its origin)
 	float yaw, pitch, roll;  // degrees
 	int parent;    // an earlier object it rides on (turns with it), or -1
+	// model M3D_VOLUME (models3d.h): a sprite with volume, as the 3D view draws what has no model (an HD volume from
+	// the 4x sheets where there is one): sheet a Sprite2_array, style a V3DStyle (flat: shots), large a 2x2 sprite; at
+	// the sprite's own size, centred on x, y (size and parent unused).
+	const void *sheet;
+	Uint16 sprite;
+	bool large;
+	Uint8 style;
 } RGPUShowcaseObject;
+
+// Light round a point of a showcase's scene, as the levels' shots, items and engines glow (L3DGlow): drawn
+// additively, and the strongest light what is near them.
+typedef struct
+{
+	float x, y;            // screen pixels, as the objects
+	float height;          // above the picture, screen pixels
+	float size, strength;  // diameter in screen pixels; how much of its colour is added at its middle
+	Uint8 color;           // a palette index, or 0: rgb
+	Uint8 rgb[3];          // sRGB
+} RGPUShowcaseGlow;
 
 typedef struct
 {
@@ -78,6 +96,10 @@ typedef struct
 	const RGPUShowcaseObject *objects;
 	int object_count;
 	float fade[4];             // a colour over everything (RGBA 0-1)
+	const RGPUShowcaseGlow *glows;  // with the Effects setting
+	int glow_count;
+	bool particles;            // the particles (particles3d.h) are the scene's, in screen pixels (the weapon simulator's
+	                           // missiles' smoke), drawn as the levels draw theirs (with the Effects setting)
 } RGPUShowcase;
 
 void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, const SDL_Rect *dst);

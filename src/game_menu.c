@@ -2664,6 +2664,16 @@ bool ship_illustration_piece(IllustrationPart part, const PlayerItems *items, un
 	return false;
 }
 
+bool shop_shield_page(void)
+{
+	return curMenu == MENU_UPGRADE_SUB && curSel[MENU_UPGRADES] == 5;
+}
+
+float shop_shield_strength(void)
+{
+	return SDL_clamp(shields[player[0].items.shield].mpwr / 14.0f, 0.0f, 1.0f);  // (as shop_publish's gauge)
+}
+
 void draw_ship_illustration(void)
 {
 	video_showcase_begin();  // Tyrian3D: the 3D view shows the ship as a model over the box

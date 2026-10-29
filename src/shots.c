@@ -102,7 +102,8 @@ void simulate_player_shots(void)
 					if (anim_frame > 1000)
 						anim_frame = anim_frame % 1000;
 					// Tyrian3D: in the 3D view, shots with models are drawn as models.
-					if (video_sim_shot(anim_frame > 500, anim_frame > 500 ? anim_frame - 500 : anim_frame, tempShotX + 1, tempShotY))
+					if (video_sim_shot(anim_frame > 500, anim_frame > 500 ? anim_frame - 500 : anim_frame, tempShotX + 1, tempShotY,
+					                   shot->shotXM <= 100 ? shot->shotXM : 0, shot->shotYM > 100 ? shot->shotYM - 120 : shot->shotYM))
 						;
 					else if (anim_frame > 500)
 						blit_sprite2(VGAScreen, tempShotX+1, tempShotY, spriteSheet12, anim_frame - 500);

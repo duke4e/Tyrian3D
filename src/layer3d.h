@@ -356,6 +356,8 @@ void l3d_add_sprite_glow(const void *sheet, unsigned int sprite, bool large, flo
 // The palette ramp (index >> 4) of a sprite's main colour: the most used, not counting dark
 // outlines (large: a 2x2 sprite).
 Uint8 l3d_sprite_ramp(const void *sheet, unsigned int sprite, bool large);
+// The palette index a sprite glows in (l3d_add_glow's: its brightest pixel, coloured if it can be), or 0.
+Uint8 l3d_sprite_glow_color(const void *sheet, unsigned int sprite, bool large);
 
 // Records a recolouring filter applied to everything drawn so far in the frame.
 void l3d_add_effect(L3DEffect effect, int param);

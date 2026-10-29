@@ -11951,6 +11951,215 @@ static void add_showcase_model(int model_index, const Mat4 *placement, float foo
 	}
 }
 
+/*
+ * What a showcase's scene shows besides models, as a level's 3D view shows it (the weapon simulator's shots without a
+ * model, their glows and the missiles' smoke; the store's ship's engines and shield): placed by the screen's pixels,
+ * world x = ox + px * k, z = oz + py * k, heights times k (k world units per screen pixel).
+ */
+// The sprites with volume (RGPUShowcaseObject.model M3D_VOLUME) at their placements, as add_volume_batches draws them:
+// their HD volumes where the 4x sheets have them, unlit, shaded by the mesh; those showing the same sprite share a batch.
+static void add_showcase_volumes(const RGPUShowcase *show, const Mat4 *placements, int count, float k, const Uint32 colors[256],
+                                 int *instance_count, int *batch_count)
+{
+	const Uint32 colors_hash = hash_colors(colors);
+	float tint[3];
+	hd_tint(colors, tint);
+	const Mat4 scaling = mat4_scaling(k);
+	static bool done[160];
+	count = SDL_min(count, (int)COUNTOF(done));
+	memset(done, 0, sizeof(done));
+	for (int i = 0; i < count; ++i)
+	{
+		const RGPUShowcaseObject *o = &show->objects[i];
+		if (done[i] || o->model != M3D_VOLUME || o->sheet == NULL || *batch_count >= MAX_BATCHES)
+			continue;
+		VolumeSheet *entry = get_volume_sheet(o->sheet, colors, colors_hash);
+		HDSheet *hd = get_hd_sheet(o->sheet);
+		BTBHGPUCustomMesh *mesh = hd != NULL ? get_hd_mesh(hd, o->sprite, o->large, o->style, 0) : NULL;
+		if (mesh == NULL)
+		{
+			hd = NULL;
+			mesh = entry != NULL ? get_volume_mesh(entry, o->sprite, o->large, o->style, 0) : NULL;
+		}
+		const int first = *instance_count;
+		for (int j = i; j < count; ++j)
+		{
+			const RGPUShowcaseObject *p = &show->objects[j];
+			if (done[j] || p->model != M3D_VOLUME || p->sheet != o->sheet || p->sprite != o->sprite || p->large != o->large ||
+			    p->style != o->style)
+				continue;
+			done[j] = true;
+			if (mesh == NULL || *instance_count >= MAX_INSTANCES)
+				continue;
+			const Mat4 world = mat4_mul(&placements[j], &scaling);
+			float *instance = instances + *instance_count * 24;
+			write_instance_world(instance, &world, 1.0f);
+			if (hd != NULL)
+				memcpy(instance + 16, tint, sizeof(tint));
+			++*instance_count;
+		}
+		if (*instance_count == first)
+			continue;
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = mesh;
+		b->first_instance = first;
+		b->instance_count = *instance_count - first;
+		b->albedo_texture = hd != NULL ? hd->texture : entry->texture;
+		b->unlit_enabled = 1;
+		b->alpha_cutoff = hd != NULL ? 0.1f : 0.5f;
+	}
+}
+
+// The glows (RGPUShowcaseGlow), as add_glow_batch draws a level's: soft dots added to what is behind them, facing the
+// camera.
+static void add_showcase_glows(const RGPUShowcase *show, float ox, float oz, float k, const Uint32 colors[256],
+                               int *instance_count, int *batch_count)
+{
+	const int first = *instance_count;
+	for (int g = 0; g < show->glow_count && *instance_count < MAX_INSTANCES; ++g)
+	{
+		const RGPUShowcaseGlow *glow = &show->glows[g];
+		Mat4 transform = mat4_identity();
+		transform.m[0] = transform.m[5] = transform.m[10] = glow->size * k;
+		transform.m[12] = ox + glow->x * k;
+		transform.m[13] = glow->height * k + 0.5f;
+		transform.m[14] = oz + glow->y * k;
+		float *instance = instances + *instance_count * 24;
+		write_instance_world(instance, &transform, 1.0f);
+		const Uint8 *c = glow->color != 0 ? (const Uint8 *)&colors[glow->color] : glow->rgb;
+		for (int i = 0; i < 3; ++i)
+			instance[16 + i] = srgb_to_linear(c[i]) * glow->strength;
+		instance[19] = 1.0f;
+		++*instance_count;
+	}
+	if (*instance_count == first || *batch_count >= MAX_BATCHES)
+		return;
+	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+	init_batch(b);
+	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+	b->custom_mesh = billboard_mesh;
+	b->first_instance = first;
+	b->instance_count = *instance_count - first;
+	b->albedo_texture = particle_texture;
+	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+	b->unlit_enabled = 1;
+	b->transparency_enabled = 1;
+	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+}
+
+// The particles (particles3d.h) in screen pixels, as add_particle_batches draws a level's in open space: smoke (pale,
+// thin) blended, sparks and fire added; turned each its own way.
+static void add_showcase_particles(float ox, float oz, float k, int *instance_count, int *batch_count)
+{
+	for (int kind = 0; kind < P3D_KIND_COUNT && *batch_count < MAX_BATCHES; ++kind)
+	{
+		if (kind == P3D_DEBRIS || kind == P3D_SCORCH || kind == P3D_RING)
+			continue;  // (nothing bursts in the simulator)
+		const int first = *instance_count;
+		for (int i = 0; i < p3d_particle_count && *instance_count < MAX_INSTANCES; ++i)
+		{
+			const P3DParticle *p = &p3d_particles[i];
+			if (p->kind != kind || p->age < 0)
+				continue;
+			float t = SDL_clamp(p->age / p->life, 0.0f, 1.0f);
+			if (kind == P3D_FIRE)
+				t *= t;
+			Mat4 transform = mat4_identity();
+			const float size = p->size * k;
+			transform.m[0] = transform.m[5] = transform.m[10] = size;
+			if (kind != P3D_GLOW)
+			{
+				const float angle = p->life * 2.39996f + p->age * 0.02f;
+				transform.m[0] = cosf(angle) * size;
+				transform.m[1] = sinf(angle) * size;
+				transform.m[4] = -sinf(angle) * size;
+				transform.m[5] = cosf(angle) * size;
+			}
+			transform.m[12] = ox + p->x * k;
+			transform.m[13] = SDL_max(0.0f, p->height) * k;
+			transform.m[14] = oz + p->y * k;
+			float *instance = instances + *instance_count * 24;
+			write_instance_world(instance, &transform, 1.0f);
+			for (int c = 0; c < 3; ++c)
+				instance[16 + c] = srgb_to_linear((Uint8)(p->color[c] + (p->end_color[c] - p->color[c]) * t));
+			instance[19] = (p->color[3] + (p->end_color[3] - p->color[3]) * t) / 255.0f;
+			if (kind == P3D_SMOKE)
+			{
+				static const float pale[3] = { 0.36f, 0.39f, 0.46f };
+				for (int c = 0; c < 3; ++c)
+					instance[16 + c] = instance[16 + c] * 0.25f + pale[c] * 0.75f;
+				instance[19] *= 0.4f;
+			}
+			++*instance_count;
+		}
+		if (*instance_count == first)
+			continue;
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = billboard_mesh;
+		b->first_instance = first;
+		b->instance_count = *instance_count - first;
+		b->albedo_texture = kind == P3D_GLOW ? particle_texture : fire_texture;
+		b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		b->unlit_enabled = 1;
+		b->transparency_enabled = 1;
+		b->blend_mode = kind == P3D_SMOKE ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		if (kind != P3D_SMOKE)
+			b->depth_compare = BTBH_GPU_SCENE_DEPTH_ALWAYS;
+	}
+}
+
+// The strongest glows light what is near them, as a level's shots do (add_explosion_lights; TYR3D_GLOW_LIGHTS=0 none):
+// a little above the picture under them, reaching round them.
+static void add_showcase_lights(BTBHGPUSceneLighting *lighting, const RGPUShowcase *show, float ox, float oz, float k,
+                                const Uint32 colors[256])
+{
+	static int glow_lights = -1;
+	if (glow_lights < 0)
+		glow_lights = SDL_getenv("TYR3D_GLOW_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_GLOW_LIGHTS")) != 0;
+	if (!glow_lights)
+		return;
+	int chosen[BTBH_GPU_SCENE_POINT_LIGHTS];
+	int count = 0;
+	for (int g = 0; g < show->glow_count; ++g)
+	{
+		const RGPUShowcaseGlow *glow = &show->glows[g];
+		if (glow->strength <= 0.05f || glow->size <= 1.0f)
+			continue;
+		const float importance = glow->strength * glow->size;
+		int at = count < BTBH_GPU_SCENE_POINT_LIGHTS ? count : BTBH_GPU_SCENE_POINT_LIGHTS - 1;
+		if (count == BTBH_GPU_SCENE_POINT_LIGHTS && importance <= show->glows[chosen[at]].strength * show->glows[chosen[at]].size)
+			continue;
+		while (at > 0 && show->glows[chosen[at - 1]].strength * show->glows[chosen[at - 1]].size < importance)
+		{
+			chosen[at] = chosen[at - 1];
+			--at;
+		}
+		chosen[at] = g;
+		if (count < BTBH_GPU_SCENE_POINT_LIGHTS)
+			++count;
+	}
+	for (int n = 0; n < count; ++n)
+	{
+		const RGPUShowcaseGlow *glow = &show->glows[chosen[n]];
+		const float height = glow->height * k * GLOW_LIGHT_LOW;
+		float *out = lighting->point_lights[n];
+		out[0] = ox + glow->x * k;
+		out[1] = height;
+		out[2] = oz + glow->y * k;
+		out[3] = height + glow->size * k * GLOW_LIGHT_REACH;
+		const Uint8 *c = glow->color != 0 ? (const Uint8 *)&colors[glow->color] : glow->rgb;
+		const float peak = SDL_max(SDL_max(c[0], c[1]), SDL_max(c[2], 1));
+		for (int i = 0; i < 3; ++i)
+			out[4 + i] = c[i] / peak;
+		out[7] = glow->strength * GLOW_LIGHT_ENERGY;
+	}
+	lighting->point_light_count = (uint32_t)count;
+}
+
 void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, const SDL_Rect *dst)
 {
 	BTBHGPUWindowReport window_frame;
@@ -12039,8 +12248,12 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		const RGPUShowcaseObject *o = &show->objects[i];
 		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
 		placements[i] = showcase_placement(o, parent, SHOWCASE_X(o->x), SHOWCASE_Z(o->y), k);
-		add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
+		if (o->model != M3D_VOLUME)
+			add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
 	}
+	add_showcase_volumes(show, placements, SDL_min(show->object_count, MAX_SHOWCASE_OBJECTS), k, colors, &instance_count,
+	                     &batch_count);
+	const float ox = SHOWCASE_X(0), oz = SHOWCASE_Z(0);
 #undef SHOWCASE_X
 #undef SHOWCASE_Z
 
@@ -12052,9 +12265,21 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 		if (shadows && batches[i].unlit_enabled == 1)
 			batches[i].unlit_enabled = 2;
 	}
+	// The glows and particles last, as a level's: they neither cast nor take shadows.
+	const int first_light_batch = batch_count;
+	if (settings3d.effects)
+	{
+		if (show->particles)
+			add_showcase_particles(ox, oz, k, &instance_count, &batch_count);
+		add_showcase_glows(show, ox, oz, k, colors, &instance_count, &batch_count);
+	}
+	for (int i = first_light_batch; i < batch_count; ++i)
+		casts_shadow[i] = 0;
 
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &camera, shadows, false);
+	if (settings3d.effects)
+		add_showcase_lights(&lighting, show, ox, oz, k, colors);
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
@@ -12973,8 +13198,12 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 		const RGPUShowcaseObject *o = &show->objects[i];
 		const Mat4 *parent = o->parent >= 0 && o->parent < i ? &placements[o->parent] : NULL;
 		placements[i] = showcase_placement(o, parent, PANE_X(o->x), PANE_Z(o->y), k);
-		add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
+		if (o->model != M3D_VOLUME)
+			add_showcase_model(o->model, &placements[i], o->size * k, k, colors, &instance_count, &batch_count);
 	}
+	add_showcase_volumes(show, placements, SDL_min(show->object_count, MAX_PANE_OBJECTS), k, colors, &instance_count,
+	                     &batch_count);
+	const float ox = PANE_X(0), oz = PANE_Z(0);
 #undef PANE_X
 #undef PANE_Z
 
@@ -12987,8 +13216,20 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 		if (shadows && batches[i].unlit_enabled == 1 && !(i < first_model_batch && floor_is_space))
 			batches[i].unlit_enabled = 2;
 	}
+	// The glows and particles last, as a level's: they neither cast nor take shadows.
+	const int first_light_batch = batch_count;
+	if (settings3d.effects)
+	{
+		if (show->particles)
+			add_showcase_particles(ox, oz, k, &instance_count, &batch_count);
+		add_showcase_glows(show, ox, oz, k, colors, &instance_count, &batch_count);
+	}
+	for (int i = first_light_batch; i < batch_count; ++i)
+		casts_shadow[i] = 0;
 	BTBHGPUSceneLighting lighting;
 	scene_lighting(&lighting, &camera, shadows, false);
+	if (settings3d.effects)
+		add_showcase_lights(&lighting, show, ox, oz, k, colors);
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, window_frame, &render_w, &render_h);

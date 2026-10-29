@@ -93,11 +93,12 @@ void video_backdrop_shade_reset(int mark);
 void video_showcase_begin(void);
 SDL_Surface *video_showcase_backdrop(void);
 void video_showcase_end(void);
-// The store's weapon simulator: begun each frame once its stars are drawn; the ship and the shots
-// that have models are drawn as models instead of sprites (true: don't draw the sprite).
+// The store's weapon simulator: begun each frame once its stars are drawn; the ship (with its sidekicks) and the
+// shots are drawn as a level's 3D view draws them, models or sprites with volume, instead of their sprites (true: don't
+// draw the sprite). A shot: its sprite (shots2: of the second sheet) drawn at x, y, moving dx, dy a frame.
 void video_sim_begin(void);
-bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y);
-// The simulator's shots are drawn (the modern UI's scene takes those without models from the box now).
+bool video_sim_shot(bool shots2, unsigned int sprite, int x, int y, int dx, int dy);
+// The simulator's shots are drawn (the modern UI's scene takes those not drawn in 3D from the box now).
 void video_sim_shots_drawn(void);
 bool video_sim_ship(int x, int y);
 // Tyrian3D: a level's start (on), as its panel fades in on black, until it plays (off). With the
