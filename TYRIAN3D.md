@@ -746,7 +746,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEMO_IDLE_MS` | Title-screen idle time before the demo starts (default 30000) |
 | `TYR3D_DUMP_DIR`, `TYR3D_DUMP_EVERY`, `TYR3D_EXIT_AFTER`, `TYR3D_DUMP_LAYERS` | Frame dumps for automated checks (see `tools/capture_run.sh`) |
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
-| `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level) |
+| `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level); `TYR3D_PROFILE=gpu` also the GPU's time for each 3D frame (`3d gpu:` median, mean and most of the last 300, from its submission to its completion, each frame waited for first, which slows the game a little). For A/B costs: a debug flight paused on one frame (`TYR3D_DEBUG=1 TYR3D_DEBUG_SEEK=<tick>`, `` TYR3D_TEST_KEYS=90:` ``) presents the same scene again and again |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
 | `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
@@ -810,6 +810,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEBUG_TILES=1` | Tint the map tiles by background: background 2 magenta, background 3 cyan (for checking which map a tile belongs to) |
 | `TYR3D_LIGHTING=<sun>,<sky>` | Override the models' light: the sun's energy and the share of the sky's light (for tuning; defaults 4, 0.3) |
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
+| `TYR3D_SHADOW_SOFTNESS=<n>` | The sun's apparent size for the shadows' penumbrae (default 1; 0 sharp, only the hardware's 2x2 filtering; for tuning) |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |
 | `TYR3D_WINDOW_SIZE=<w>x<h>` | With `TYR3D_WINDOWED`: the window's size, for checking other aspect ratios |
 | `TYR3D_GLINTS=<scale>,<strength>,<sharpness>,<tilt>` | Tune the sun's glints on water (defaults 1, 0.5, 140, 3) |
@@ -1055,6 +1056,22 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   ship is shown as a model, as its sprite with generated volume, or as the flat sprite. For the
   first two the game records a 3D object instead of drawing the sprite; objects are depth-tested
   against the layers and lit by a sun and ambient light.
+- **Shadows** (`render_gpu.c` `shadow_view_projection`; the renderer's `production_model.frag.hlsl`
+  `primary_directional_visibility`). The sun's shadow map is an orthographic view along its light over what the
+  window shows of the ground and of what stands over it (12 below the ground to 110 game pixels above it, no
+  further than 160 game pixels above the playfield and 120 beside and below it; beyond that nothing is shadowed),
+  fitted in the light's own plane with the world's x across it: about 4.7 million square texels in the region's
+  shape (2560x1792 with the Standard and Steep cameras, 2816x1792 overhead; Destruct keeps 2048x2048), up to 1.5
+  times as fine as the square map round the view's bounding circle before. Its texel's size is quantized and its
+  corner lies on whole texels, from the steady view (not the shaking one), so the shadows' edges keep their place.
+  Soft shadows (percentage-closer soft shadows): five gathered depths round each point find how far above it its
+  blockers stand (only those whose penumbra can reach it count, so terrain bumps and grass don't make it pay for
+  a filter), the penumbra widens by 0.035 world units for each unit of that (`TYR3D_SHADOW_SOFTNESS` scales it):
+  a turret's shadow is sharp at its foot, a ship's on the ground about 3 units soft; it is filtered by 4 to 32
+  comparison taps (each a hardware 2x2 filter) against the receiver's own plane (from its face, so slopes take no
+  acne and the old blocky self-shadowing of the terrain's relief is gone). See-through layers (clouds, weather:
+  `unlit_enabled` 3) take four plain taps, lit models look the shadow up only where the sun reaches them. On a
+  busy level the GPU spends about 0.1-0.4 ms a frame more than with the old 3x3 filter (TORM's grass the most).
 - **Volumetric sprites** (`src/volume3d.c`). The default appearance: a sprite's silhouette is
   inflated into a rounded relief and textured with the sprite's own pixels. The sun's shading is
   baked into the mesh, scaled so that faces pointing up keep exactly the sprite's colours: every

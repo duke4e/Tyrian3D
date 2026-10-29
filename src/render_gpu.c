@@ -4288,10 +4288,49 @@ static void debug_status_quads(float window_w, float window_h)
 
 static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst);
 
+/*
+ * TYR3D_PROFILE=gpu: the GPU's time for each 3D frame, from its submission to its completion, the frames
+ * before it waited for first so that none overlaps it (which slows the game down a little); rgpu_present_3d
+ * prints the median and the mean every 300 frames.
+ */
+static double gpu_frame_ms[1024];
+static int gpu_frame_count = 0;
+
+static bool gpu_profile(void)
+{
+	static int on = -1;
+	if (on < 0)
+	{
+		on = SDL_getenv("TYR3D_PROFILE") != NULL && SDL_strcasecmp(SDL_getenv("TYR3D_PROFILE"), "gpu") == 0;
+		if (on)
+			btbh_gpu_window_set_frame_telemetry_enabled(window, 1);
+	}
+	return on;
+}
+
+static void gpu_profiled_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
+{
+	if (!gpu_profile())
+	{
+		present_3d(hud, frame, dst);
+		return;
+	}
+	BTBHGPUFrameTelemetrySample samples[16];
+	(void)btbh_gpu_window_finish_frame_telemetry(window, samples, 16);  // (the GPU idle before this frame)
+	present_3d(hud, frame, dst);
+	const Uint32 n = btbh_gpu_window_finish_frame_telemetry(window, samples, 16);
+	Uint32 last = 0;
+	for (Uint32 i = 1; i < n; ++i)
+		if (samples[i].frame_serial > samples[last].frame_serial)
+			last = i;
+	if (n > 0 && gpu_frame_count < (int)COUNTOF(gpu_frame_ms))
+		gpu_frame_ms[gpu_frame_count++] = samples[last].fence_completion_milliseconds;
+}
+
 void rgpu_present_3d_ahead(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst, float ticks)
 {
 	ahead = ticks;
-	present_3d(hud, frame, dst);
+	gpu_profiled_present_3d(hud, frame, dst);
 	ahead = 0;
 }
 
@@ -4378,13 +4417,19 @@ static Uint64 profile_rows_ticks = 0;  // (TYR3D_PROFILE: time making terrain ro
 static int profile_rows = 0;
 static Uint64 profile_lift_ticks = 0;  // (and finding where objects stand: setup_stand, compute_object_lifts)
 
+static int compare_doubles(const void *a, const void *b)
+{
+	const double x = *(const double *)a, y = *(const double *)b;
+	return x < y ? -1 : x > y;
+}
+
 void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Rect *dst)
 {
 	static Uint64 total_ticks = 0, most_ticks = 0;
 	static int frames = 0;
 	const Uint64 start = SDL_GetPerformanceCounter();
 
-	present_3d(hud, frame, dst);
+	gpu_profiled_present_3d(hud, frame, dst);
 
 	const Uint64 spent = SDL_GetPerformanceCounter() - start;
 	total_ticks += spent;
@@ -4397,6 +4442,16 @@ void rgpu_present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_Re
 			       (double)most_ticks * 1000.0 / SDL_GetPerformanceFrequency(), frame->layer_count, profile_rows,
 			       (double)profile_rows_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames,
 			       (double)profile_lift_ticks * 1000.0 / SDL_GetPerformanceFrequency() / frames);
+		if (gpu_profile() && gpu_frame_count > 0)
+		{
+			double sum = 0;
+			for (int i = 0; i < gpu_frame_count; ++i)
+				sum += gpu_frame_ms[i];
+			qsort(gpu_frame_ms, (size_t)gpu_frame_count, sizeof(gpu_frame_ms[0]), compare_doubles);
+			printf("3d gpu: median %.3f ms/frame, mean %.3f, at most %.3f (%d frames)\n", gpu_frame_ms[gpu_frame_count / 2],
+			       sum / gpu_frame_count, gpu_frame_ms[gpu_frame_count - 1], gpu_frame_count);
+		}
+		gpu_frame_count = 0;
 		profile_rows = 0;
 		profile_rows_ticks = 0;
 		profile_lift_ticks = 0;
@@ -11155,33 +11210,97 @@ static bool shadows_enabled(void)
 	return settings3d.shadows;
 }
 
-// The sun's shadow map covers the ground the window shows around the playfield (an orthographic
-// view along the sun's light; further away nothing is shadowed).
+/*
+ * The sun's shadow map: an orthographic view along the sun's light over what the window shows of all that
+ * takes shadows (the ground and what stands over it, SHADOW_BOTTOM to SHADOW_TOP high, no further than the
+ * reach round the playfield; beyond it nothing is shadowed), fitted to that in the light's own plane, the
+ * world's x across the map, its texels square: the map has SHADOW_MAP_TEXELS in the region's shape (sides in
+ * steps of SHADOW_MAP_STEP, so it is made anew only when the view itself changes: the camera, the window).
+ * Its texel's size is quantized and its corner lies on whole texels, so the shadows' edges keep their place
+ * while the view moves (shaking) or the box changes. The penumbrae are the renderer's (soft, wider the
+ * further a blocker stands above what it shadows: production_model.frag.hlsl).
+ */
+#define SHADOW_MAP_TEXELS (3072.0f * 1536.0f)
+#define SHADOW_MAP_STEP 256
 #define SHADOW_REACH_UP 160.0f    // game pixels above the playfield's top edge
 #define SHADOW_REACH_SIDE 120.0f  // and beside it
+#define SHADOW_BOTTOM (-12.0f)    // world units: the lowest that takes shadows (the terrain's hollows)
+#define SHADOW_TOP 110.0f         // game pixels: the highest (the top layers and what stands on them)
+#define SHADOW_CASTERS 320.0f     // and what casts them, up to this high
 
-static void shadow_view_projection(const Camera3D *camera, float out[16])
+// The window's corners seen on the horizontal plane at the given height, clipped to a rectangle {x0, z0,
+// x1, z1} (rays that miss the plane reach the rectangle's far edge); the polygon's points (x, z).
+static int view_on_plane(const Camera3D *camera, float height, const float rect[4], float out[8][2])
 {
-	float rect[4];
-	plane_footprint_world(camera, 0.0f, -BACKGROUND_AHEAD, rect);
-	rect[0] = SDL_max(rect[0], l3d_field_x() - SHADOW_REACH_SIDE);
-	rect[2] = SDL_min(rect[2], l3d_field_x() + l3d_field_w() + SHADOW_REACH_SIDE);
-	rect[1] = SDL_max(rect[1], -SHADOW_REACH_UP);
-	rect[3] = SDL_min(rect[3], L3D_PLAYFIELD_H + SHADOW_REACH_SIDE);
-	const float centre[3] = { (rect[0] + rect[2]) / 2, 0.0f, (rect[1] + rect[3]) / 2 };
-	const float radius = 0.5f * sqrtf((rect[2] - rect[0]) * (rect[2] - rect[0]) + (rect[3] - rect[1]) * (rect[3] - rect[1]));
+	float points[8][2];
+	int n = 0;
+	static const float corners[4][2] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+	for (int corner = 0; corner < 4; ++corner)
+	{
+		float slope[2], ray[3];
+		ndc_slopes(camera, corners[corner], slope);
+		for (int i = 0; i < 3; ++i)
+			ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
+		float s;
+		if (ray[1] < -1e-6f && height < camera->position[1])
+			s = (height - camera->position[1]) / ray[1];
+		else if (ray[2] < -1e-6f)
+			s = (rect[1] - camera->position[2]) / ray[2];
+		else
+			continue;
+		points[n][0] = camera->position[0] + ray[0] * s;
+		points[n][1] = SDL_max(camera->position[2] + ray[2] * s, rect[1]);
+		++n;
+	}
+	// Clipped to each of the rectangle's edges in turn (Sutherland-Hodgman).
+	for (int edge = 0; edge < 4; ++edge)
+	{
+		const int axis = edge & 1;               // x, z, x, z
+		const float limit = rect[edge];
+		const float sign = edge < 2 ? 1.0f : -1.0f;  // inside: >= the near edges, <= the far ones
+		float kept[8][2];
+		int m = 0;
+		for (int i = 0; i < n && m < 7; ++i)
+		{
+			const float *a = points[i], *b = points[(i + 1) % n];
+			const bool in_a = (a[axis] - limit) * sign >= 0, in_b = (b[axis] - limit) * sign >= 0;
+			if (in_a)
+			{
+				kept[m][0] = a[0];
+				kept[m][1] = a[1];
+				++m;
+			}
+			if (in_a != in_b)
+			{
+				const float t = (limit - a[axis]) / (b[axis] - a[axis]);
+				kept[m][0] = a[0] + (b[0] - a[0]) * t;
+				kept[m][1] = a[1] + (b[1] - a[1]) * t;
+				++m;
+			}
+		}
+		memcpy(points, kept, sizeof(kept[0]) * (size_t)m);
+		n = m;
+	}
+	memcpy(out, points, sizeof(points[0]) * (size_t)n);
+	return n;
+}
 
+static void shadow_view_projection(const Camera3D *camera, float out[16], int size[2])
+{
 	const float length = sqrtf(sun_direction[0] * sun_direction[0] + sun_direction[1] * sun_direction[1] +
 	                           sun_direction[2] * sun_direction[2]);
 	const float forward[3] = { sun_direction[0] / length, sun_direction[1] / length, sun_direction[2] / length };
-	// right = normalize(hint x forward), up = forward x right, with the hint pointing up the screen.
-	const float hint[3] = { 0.0f, 0.0f, -1.0f };
-	float right[3] = {
-		hint[1] * forward[2] - hint[2] * forward[1],
-		hint[2] * forward[0] - hint[0] * forward[2],
-		hint[0] * forward[1] - hint[1] * forward[0],
-	};
-	const float right_length = sqrtf(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+	// right: the world's x across the light; up = forward x right (the handedness the culling expects).
+	float right[3] = { 1.0f - forward[0] * forward[0], -forward[0] * forward[1], -forward[0] * forward[2] };
+	float right_length = sqrtf(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+	if (right_length < 1e-3f)
+	{
+		// (A light along x: the world's z across it instead.)
+		right[0] = -forward[2] * forward[0];
+		right[1] = -forward[2] * forward[1];
+		right[2] = 1.0f - forward[2] * forward[2];
+		right_length = sqrtf(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
+	}
 	for (int i = 0; i < 3; ++i)
 		right[i] /= right_length;
 	const float up[3] = {
@@ -11190,38 +11309,64 @@ static void shadow_view_projection(const Camera3D *camera, float out[16])
 		forward[0] * right[1] - forward[1] * right[0],
 	};
 
-	const float depth = 400.0f;  // from the eye to the centre, along the light
-	float eye[3];
-	for (int i = 0; i < 3; ++i)
-		eye[i] = centre[i] - forward[i] * depth;
+	// What takes shadows, in the light's frame: its extent across (u, v) and along the light; what casts them
+	// stands further towards the light, up to SHADOW_CASTERS high.
+	const float reach[4] = { l3d_field_x() - SHADOW_REACH_SIDE, -SHADOW_REACH_UP, l3d_field_x() + l3d_field_w() + SHADOW_REACH_SIDE,
+	                         L3D_PLAYFIELD_H + SHADOW_REACH_SIDE };
+	const float heights[2] = { SHADOW_BOTTOM, SHADOW_TOP * rgpu_camera.height_scale };
+	const float rise = -forward[1] > 0.05f ? 1.0f / -forward[1] : 20.0f;  // along the light per unit of height
+	float lo[2] = { INFINITY, INFINITY }, hi[2] = { -INFINITY, -INFINITY }, nearest = INFINITY, furthest = -INFINITY;
+	for (int h = 0; h < 2; ++h)
+	{
+		float points[8][2];
+		const int n = view_on_plane(camera, heights[h], reach, points);
+		for (int i = 0; i < n; ++i)
+		{
+			const float p[3] = { points[i][0], heights[h], points[i][1] };
+			const float u = right[0] * p[0] + right[1] * p[1] + right[2] * p[2];
+			const float v = up[0] * p[0] + up[1] * p[1] + up[2] * p[2];
+			const float d = forward[0] * p[0] + forward[1] * p[1] + forward[2] * p[2];
+			lo[0] = SDL_min(lo[0], u);
+			hi[0] = SDL_max(hi[0], u);
+			lo[1] = SDL_min(lo[1], v);
+			hi[1] = SDL_max(hi[1], v);
+			nearest = SDL_min(nearest, d - (SHADOW_CASTERS * rgpu_camera.height_scale - heights[h]) * rise);
+			furthest = SDL_max(furthest, d);
+		}
+	}
+	if (!(lo[0] < hi[0]) || !(lo[1] < hi[1]))
+	{
+		// (Nothing of it in view: the reach itself.)
+		lo[0] = reach[0], hi[0] = reach[2], lo[1] = reach[1], hi[1] = reach[3];
+		nearest = -1000.0f, furthest = 1000.0f;
+	}
 
-	Mat4 view = mat4_identity();
-	float dots[3] = { 0, 0, 0 };
+	// The map in the region's shape (and a margin round it); square texels fitting it, their size quantized; the
+	// box's corner on whole texels.
+	const float margin = 4.0f;
+	const float extent[2] = { hi[0] - lo[0] + 2 * margin, hi[1] - lo[1] + 2 * margin };
+	const float aspect = SDL_clamp(extent[0] / extent[1], 0.25f, 4.0f);
+	size[0] = SDL_clamp((int)(sqrtf(SHADOW_MAP_TEXELS * aspect) / SHADOW_MAP_STEP + 0.5f), 2, 32) * SHADOW_MAP_STEP;
+	size[1] = SDL_clamp((int)(SHADOW_MAP_TEXELS / size[0] / SHADOW_MAP_STEP + 0.5f), 2, 32) * SHADOW_MAP_STEP;
+	float texel = SDL_max(extent[0] / size[0], extent[1] / size[1]);
+	texel = ceilf(texel * 512.0f) / 512.0f;
+	const float u0 = floorf(((lo[0] + hi[0]) / 2 - texel * size[0] / 2) / texel) * texel;
+	const float v0 = floorf(((lo[1] + hi[1]) / 2 - texel * size[1] / 2) / texel) * texel;
+	const float near_plane = nearest - 8.0f, far_plane = furthest + 8.0f;
+
+	// NDC x = 2 (u - u0) / (W texel) - 1, y likewise, depth = (d - near) / (far - near); column-major.
+	const float su = 2.0f / (size[0] * texel), sv = 2.0f / (size[1] * texel), sd = 1.0f / (far_plane - near_plane);
+	memset(out, 0, sizeof(float) * 16);
 	for (int i = 0; i < 3; ++i)
 	{
-		view.m[i * 4 + 0] = right[i];
-		view.m[i * 4 + 1] = up[i];
-		view.m[i * 4 + 2] = forward[i];
-		view.m[i * 4 + 3] = 0;
-		dots[0] += right[i] * eye[i];
-		dots[1] += up[i] * eye[i];
-		dots[2] += forward[i] * eye[i];
+		out[i * 4 + 0] = right[i] * su;
+		out[i * 4 + 1] = up[i] * sv;
+		out[i * 4 + 2] = forward[i] * sd;
 	}
-	view.m[12] = -dots[0];
-	view.m[13] = -dots[1];
-	view.m[14] = -dots[2];
-	view.m[15] = 1;
-
-	const float near_plane = 0.0f, far_plane = 2 * depth;
-	Mat4 projection = { { 0 } };
-	projection.m[0] = 1.0f / radius;
-	projection.m[5] = 1.0f / radius;
-	projection.m[10] = 1.0f / (far_plane - near_plane);
-	projection.m[14] = -near_plane / (far_plane - near_plane);
-	projection.m[15] = 1.0f;
-
-	const Mat4 result = mat4_mul(&projection, &view);
-	memcpy(out, result.m, sizeof(result.m));
+	out[12] = -u0 * su - 1.0f;
+	out[13] = -v0 * sv - 1.0f;
+	out[14] = -near_plane * sd;
+	out[15] = 1.0f;
 }
 
 // The sun and the sky: models are lit by them; layers and volumetric sprites are unlit. The sun is
@@ -11273,9 +11418,16 @@ static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camer
 		lighting->irradiance_sh[i] *= sky_fill;
 	if (shadows)
 	{
+		int size[2];
+		shadow_view_projection(camera, lighting->directional_shadow_view_projection, size);
+		btbh_gpu_window_scene_set_directional_shadow_size(window, (uint32_t)size[0], (uint32_t)size[1]);
 		lighting->directional_shadow_enabled = 1;
-		lighting->directional_shadow_softness = 1.0f;
-		shadow_view_projection(camera, lighting->directional_shadow_view_projection);
+		// The sun's apparent size, how soft its shadows grow with the height of what casts them (1: the
+		// renderer's BTBH_SUN_PENUMBRA; TYR3D_SHADOW_SOFTNESS=<n> for tuning, 0 sharp).
+		static float softness = -1;
+		if (softness < 0)
+			softness = SDL_getenv("TYR3D_SHADOW_SOFTNESS") != NULL ? SDL_max(0.0f, (float)SDL_atof(SDL_getenv("TYR3D_SHADOW_SOFTNESS"))) : 1.0f;
+		lighting->directional_shadow_softness = softness;
 	}
 }
 
@@ -11735,14 +11887,16 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	log_clipping(frame);  // TYR3D_LOG_CLIP
 
 	// Shadows: objects (models and volumetric sprites) cast the sun's shadow; the unlit surfaces
-	// (layers, background tiles, volumetric sprites) darken in it, lit models are shaded by it.
+	// (layers, background tiles, volumetric sprites) darken in it, lit models are shaded by it. The
+	// see-through ones (clouds, weather), drawn over one another many times, through the plain filter
+	// (unlit_enabled 3): the soft one's search would cost too much there.
 	static Uint8 casts_shadow[MAX_BATCHES];
 	const bool shadows = shadows_enabled();
 	for (int i = 0; i < batch_count; ++i)
 	{
 		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]);
 		if (shadows && batches[i].unlit_enabled == 1 && (i < first_space_batch || i >= end_space_batch))
-			batches[i].unlit_enabled = 2;
+			batches[i].unlit_enabled = batches[i].transparency_enabled ? 3 : 2;
 	}
 
 	// Particles last: they neither cast nor receive shadows.
@@ -11773,7 +11927,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 				batches[i].rc_receiver = 1;
 
 	BTBHGPUSceneLighting lighting;
-	scene_lighting(&lighting, &camera, shadows, true);
+	scene_lighting(&lighting, &shown_view.camera, shadows, true);  // (the steady view: the shadows don't shake)
 	// On spotlight levels the ship carries a lamp: a spot light up the screen through the cone the
 	// game leaves lit (the darkness itself is the overlay, build_spotlight), lighting the models in it.
 	if (starShowVGASpecialCode == 2 && processorType >= 2)
@@ -12997,6 +13151,7 @@ static bool present_destruct(void)
 		lighting.irradiance_sh[i] *= 0.25f;
 	if (shadows)
 	{
+		btbh_gpu_window_scene_set_directional_shadow_size(window, 2048, 2048);  // (its box is square)
 		lighting.directional_shadow_enabled = 1;
 		lighting.directional_shadow_softness = 1.0f;
 		destruct_shadow(sun, lighting.directional_shadow_view_projection);
