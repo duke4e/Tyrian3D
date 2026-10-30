@@ -25,7 +25,8 @@ polished (2026-10-22, round 34; nothing replaced). Both come from ground enemies
   fins (columns 4 and 8, ramp 6) and its nozzle at the top, where its exhaust burns: 19 a dark red spark (0x73), 38 a
   red flame (0x78 in a 0x74 sheath), 57 and 76 hotter (0x79 / 0x7a in red tongues either side, 0x71-0x76) with the
   nozzle's mouth glowing grey-white (0x0c, 0x0e). Its animation 19 19 38 38 57 57 76 76 57 57 38 38: the exhaust
-  flickering. P 95, 114, 133 and 152 are the same picture again (unused); no enemy but 458 shows 19 38 57 76. Built in
+  flickering. P 95, 114, 133 and 152 are the same picture with the casing in ramp 2 (green; thought unused, but
+  ASTEROID? shows them, the sweep of every level found it on 2026-10-30): slot_rocket_green and its frames. Built in
   the white dart's family (polish_launched_darts.py: a turned body painted by its normals, cruciform fins with rounded
   rims, its fin()): the warhead an ogive with a dark seam where it meets the casing, the casing a shade wider, the tail
   narrower, four fins (the two the sprite draws flat either side, two smaller ones upright above and below, not to hide
@@ -135,8 +136,10 @@ ROCKET_FLAMES = {
 }
 
 
-def rocket(name, frame):
-    m = {key: plain(f"rocket_{key}", index, metallic=0.3 if key not in ("dark",) else 0.1,
+def rocket(name, frame, casing=0):
+    """casing: added to the casing's palette indices (0x10: the green twin, ramp 2 for ramp 1)."""
+    m = {key: plain(f"rocket_{key}", index + (casing if key.startswith("casing") else 0),
+                    metallic=0.3 if key not in ("dark",) else 0.1,
                     roughness=0.34 if key != "dark" else 0.5) for key, index in ROCKET.items()}
     length, radius, (core_i, core_g), (sheath_i, sheath_g), mouth = ROCKET_FLAMES[frame]
     core = lit(f"rocket{frame}_core", core_i, core_g, roughness=0.3)
@@ -193,6 +196,12 @@ MODELS = [
     ("slot_rocket_38", "enemy_P", 38, False, lambda name: rocket(name, 38)),
     ("slot_rocket_57", "enemy_P", 57, False, lambda name: rocket(name, 57)),
     ("slot_rocket_76", "enemy_P", 76, False, lambda name: rocket(name, 76)),
+    # The green twin (P 95 and its frames 114 133 152: the same pixels with the casing in ramp 2), found by the sweep
+    # of every level (2026-10-30: ASTEROID?).
+    ("slot_rocket_green", "enemy_P", 95, False, lambda name: rocket(name, 19, casing=0x10)),
+    ("slot_rocket_green_114", "enemy_P", 114, False, lambda name: rocket(name, 38, casing=0x10)),
+    ("slot_rocket_green_133", "enemy_P", 133, False, lambda name: rocket(name, 57, casing=0x10)),
+    ("slot_rocket_green_152", "enemy_P", 152, False, lambda name: rocket(name, 76, casing=0x10)),
 ]
 
 
