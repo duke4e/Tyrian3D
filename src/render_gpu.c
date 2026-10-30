@@ -9998,6 +9998,40 @@ static float srgb_to_linear(Uint8 value)
 	return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
 }
 
+// The game's stars this frame (add_star_batch): their instances, which the planet hides (add_planet_batch); the
+// planet this frame, if shown, which hides the deep stars made after it (add_deep_star_batch).
+static int star_instances_first = 0, star_instances_count = 0;
+static bool planet_shown = false;
+static float planet_centre[3], planet_radius;
+
+// The stars lie over deep space, but the planet far under them is nearer than the stars would be: those
+// seen over its disc (the camera's ray through them reaching the sphere) aren't drawn (2:15 and others
+// showed the game's pixel crosses and the deep stars on its face).
+static void hide_stars_over_planet(const Camera3D *camera, int first, int count)
+{
+	const float *centre = planet_centre, radius = planet_radius;
+	for (int s = 0; s < count && planet_shown; ++s)
+	{
+		float *instance = instances + (first + s) * 24;
+		float d[3], o[3];
+		for (int c = 0; c < 3; ++c)
+		{
+			d[c] = instance[12 + c] - camera->position[c];
+			o[c] = centre[c] - camera->position[c];
+		}
+		const float dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+		const float t = (o[0] * d[0] + o[1] * d[1] + o[2] * d[2]) / SDL_max(dd, 1e-6f);
+		if (t <= 1.0f)
+			continue;  // (the sphere's middle nearer than the star)
+		float miss = 0;
+		for (int c = 0; c < 3; ++c)
+			miss += (o[c] - t * d[c]) * (o[c] - t * d[c]);
+		if (miss < radius * radius)
+			for (int c = 0; c < 12; ++c)
+				instance[c] = 0;  // (a point: nothing drawn)
+	}
+}
+
 /*
  * Deep space (M8, procedural stars): while the game's starfield is on, more stars lie in a few
  * layers far below the ground and scroll with the game's stars, so space shows depth as the level
@@ -10092,6 +10126,7 @@ static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, c
 	}
 	if (*instance_count == first)
 		return;
+	hide_stars_over_planet(camera, first, *instance_count - first);
 
 	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
 	init_batch(b);
@@ -10458,6 +10493,7 @@ static BTBHGPUCustomMesh *create_world_mesh(void)
 static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
                              int *instance_count, int *batch_count)
 {
+	planet_shown = false;
 	if (!frame->space || !settings3d.effects || *batch_count + 2 > MAX_BATCHES || stars_covered() ||
 	    *instance_count + 2 > MAX_INSTANCES)
 		return;
@@ -10527,6 +10563,10 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 	transform.m[12] = cx;
 	transform.m[13] = height;
 	transform.m[14] = cz;
+	planet_shown = true;
+	memcpy(planet_centre, &transform.m[12], sizeof(planet_centre));
+	planet_radius = radius;
+	hide_stars_over_planet(camera, star_instances_first, star_instances_count);
 	const int first = *instance_count;
 	float *instance = instances + *instance_count * 24;
 	write_instance_world(instance, &transform, 1.0f);
@@ -10579,7 +10619,7 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 #define METEOR_PERIOD 4.5f   // seconds: each slot's turn comes round
 #define METEOR_LIFE 0.7f     // seconds a meteor flies
 #define METEOR_DEPTH 500.0f  // game pixels below the game's stars
-#define METEOR_GLOWS 32      // along its tail
+#define METEOR_GLOWS 64      // along its tail, overlapping (32 smaller ones read as a row of dots)
 
 static void add_meteor_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights, int *instance_count,
                              int *batch_count)
@@ -10613,18 +10653,21 @@ static void add_meteor_batch(const L3DFrame *frame, const Camera3D *camera, cons
 		const float hx = x0 + dx * travel * age, hz = z0 + dz * travel * age;
 		const float tail = travel * 0.45f * SDL_min(1.0f, age * 3);
 		const float fade = SDL_min(1.0f, (1 - age) * 4) * SDL_min(1.0f, age * 8);
+		const float spacing = tail / (METEOR_GLOWS - 1);
 		for (int g = 0; g < METEOR_GLOWS && *instance_count < MAX_INSTANCES; ++g)
 		{
 			const float k = (float)g / (METEOR_GLOWS - 1);  // 0 the head, 1 the tail's end
 			Mat4 transform = mat4_identity();
-			const float size = (g == 0 ? 14.0f : 9.0f * (1 - k * 0.75f)) * rgpu_camera.height_scale;
+			const float dot = 9.0f * (1 - k * 0.75f) * rgpu_camera.height_scale;  // (the tail's glows' own size)
+			const float size = g == 0 ? 14.0f * rgpu_camera.height_scale : SDL_max(dot, spacing * 2.5f);
 			transform.m[0] = transform.m[5] = transform.m[10] = size;
 			transform.m[12] = hx - dx * tail * k;
 			transform.m[13] = height;
 			transform.m[14] = hz - dz * tail * k;
 			float *instance = instances + *instance_count * 24;
 			write_instance_world(instance, &transform, 1.0f);
-			const float a = fade * (g == 0 ? 1.0f : 0.45f * (1 - k) * (1 - k));
+			// (Twice as many glows, wider where they'd part: dimmer each, so the tail is about as bright.)
+			const float a = fade * (g == 0 ? 1.0f : 0.45f * (1 - k) * (1 - k) * 0.5f * sqrtf(dot / size));
 			instance[16] = 0.75f * a;
 			instance[17] = 0.85f * a;
 			instance[18] = 1.0f * a;
@@ -10746,6 +10789,7 @@ static void add_bird_batch(const L3DFrame *frame, const Camera3D *camera, const 
 static void add_star_batch(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
                            const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
+	star_instances_count = 0;
 	if (frame->star_count == 0 || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
 	for (int i = 0; i < frame->background_count; ++i)
@@ -10785,6 +10829,8 @@ static void add_star_batch(const L3DFrame *frame, const bool *composed, const Ca
 	b->instance_count = count;
 	b->albedo_texture = white_texture;
 	b->unlit_enabled = 1;
+	star_instances_first = *instance_count;
+	star_instances_count = count;
 	*instance_count += count;
 }
 
