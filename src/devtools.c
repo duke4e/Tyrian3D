@@ -321,6 +321,7 @@ typedef struct
 	Uint32 frames;
 	Uint32 models[SPRITES_KINDS], sprites[SPRITES_KINDS];  // objects drawn, over the frames
 	Uint32 looks[SPRITES_KINDS], related[SPRITES_KINDS];   // looks first drawn as sprites, and of those with a model near
+	Uint32 overlay_frames;                                  // frames with the game's drawing over the playfield
 } SpritesCount;
 
 static SpritesCount sprites_level, sprites_run;
@@ -447,8 +448,8 @@ static void sprites_print_count(const char *what, const char *name, const Sprite
 		related += c->related[k];
 	}
 	printf("sprites: %s %s: %u frames; objects drawn as models %u, from sprites %u (%.1f %%); looks from sprites %u, "
-	       "%u of them with a model near;", what, name, c->frames, models, sprites,
-	       models + sprites > 0 ? 100.0 * sprites / (models + sprites) : 0.0, looks, related);
+	       "%u of them with a model near; overlay in %u frames;", what, name, c->frames, models, sprites,
+	       models + sprites > 0 ? 100.0 * sprites / (models + sprites) : 0.0, looks, related, c->overlay_frames);
 	for (int k = 0; k < SPRITES_KINDS; ++k)
 		if (c->sprites[k] > 0 || c->looks[k] > 0)
 			printf(" %s %u/%u looks %u near %u;", sprites_kind_names[k], c->sprites[k], c->models[k] + c->sprites[k], c->looks[k],
@@ -532,6 +533,37 @@ void dev_log_sprites_frame(void)
 	}
 	++sprites_level.frames;
 	++sprites_run.frames;
+
+	// The game's own drawing over the playfield (the overlay layer: pixels the 3D view shows flat, at the screen's
+	// size, as text, bars or brightened bands): where and how much, at most once a second while it shows.
+	{
+		static Uint32 last_told = 0;
+		int count = 0, x0 = L3D_WIDTH, y0 = L3D_ROWS, x1 = -1, y1 = -1;
+		for (int l = 0; l < l3d_frame.layer_count; ++l)
+		{
+			const L3DLayer *layer = &l3d_frame.layers[l];
+			if (layer->type != L3D_OVERLAY)
+				continue;
+			for (int y = SDL_max(layer->min_y, L3D_OVERSCAN); y < SDL_min(layer->max_y, L3D_OVERSCAN + L3D_PLAYFIELD_H); ++y)
+				for (int x = l3d_field_x(); x < l3d_field_x() + l3d_field_w(); ++x)
+					if (layer->cover[y * L3D_WIDTH + x])
+					{
+						++count;
+						x0 = SDL_min(x0, x), x1 = SDL_max(x1, x), y0 = SDL_min(y0, y), y1 = SDL_max(y1, y);
+					}
+		}
+		if (count > 0)
+		{
+			++sprites_level.overlay_frames;
+			++sprites_run.overlay_frames;
+			if (l3d_frame_number - last_told >= 60 || last_told == 0)
+			{
+				last_told = l3d_frame_number;
+				printf("sprites: overlay %d px at %d,%d-%d,%d episode %d level %s clock %u frame %ld\n", count, x0, y0 - L3D_OVERSCAN, x1,
+				       y1 - L3D_OVERSCAN, episodeNum, sprites_level_name, (unsigned)curLoc, frame);
+			}
+		}
+	}
 
 	for (int o = 0; o < l3d_frame.object_count; ++o)
 	{
