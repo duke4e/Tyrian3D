@@ -3,6 +3,7 @@
  */
 #include "ui.h"
 
+#include "backgrnd.h"
 #include "config.h"
 #include "episodes.h"
 #include "game_menu.h"
@@ -4415,6 +4416,8 @@ static struct
 	Box ship_box[2];
 	int shot_count;
 	float shot_x[ENEMY_SHOT_MAX], shot_y[ENEMY_SHOT_MAX];
+	int boss_count;  // the pieces of the bosses the boss bars show (their middles, in the window)
+	float boss_x[32], boss_y[32];
 	float dt;  // seconds since the HUD was made last
 } under;
 
@@ -4426,8 +4429,22 @@ static void hud_find_under(const UIView *view)
 	last = now;
 	under.ships = 0;
 	under.shot_count = 0;
+	under.boss_count = 0;
 	if (view->menu_over)
 		return;
+	for (int i = 0; i < 100 && under.boss_count < (int)SDL_arraysize(under.boss_x); ++i)
+	{
+		if (enemyAvail[i] == 1 || enemy[i].linknum == 0 ||
+		    (enemy[i].linknum != boss_bar[0].link_num && enemy[i].linknum != boss_bar[1].link_num))
+			continue;
+		float wx, wy;
+		if (rgpu_playfield_to_window(enemy[i].ex + 6.0f + mapXOfs, enemy[i].ey + 7.0f, &wx, &wy))
+		{
+			under.boss_x[under.boss_count] = wx;
+			under.boss_y[under.boss_count] = wy;
+			++under.boss_count;
+		}
+	}
 	for (int k = 0; k < (twoPlayerMode && !galagaMode ? 2 : 1); ++k)
 	{
 		const Player *p = &player[k];
@@ -4461,12 +4478,25 @@ static void hud_find_under(const UIView *view)
 	}
 }
 
-// Quads from mark on fade as what flies under their box (window points) says, eased in *shown.
+// Quads from mark on fade as what flies under their box (window points) says, eased in *shown; with bosses, a boss
+// under it fades it part of the way (the boss bar sits over the bosses at the top of the screen).
+#define HUD_OVER_BOSS 0.5f
+
+static void hud_fade_over(int mark, Box b, float *shown, bool bosses);
+
 static void hud_fade(int mark, Box b, float *shown)
+{
+	hud_fade_over(mark, b, shown, false);
+}
+
+static void hud_fade_over(int mark, Box b, float *shown, bool bosses)
 {
 	const Box g = inset(b, -U(18));
 	bool covered = false;
 	float target = 1.0f;
+	for (int i = 0; i < under.boss_count && bosses; ++i)
+		if (inside(g, under.boss_x[i], under.boss_y[i]))
+			target = HUD_OVER_BOSS;
 	for (int k = 0; k < under.ships && !covered; ++k)
 	{
 		const Box s = under.ship_box[k];
@@ -4941,7 +4971,7 @@ void ui_build_hud(const UIView *view)
 					x += bar_w + U(40);
 				}
 			}
-			hud_fade(mark, b, &fades[3]);
+			hud_fade_over(mark, b, &fades[3], bars > 0);
 		}
 	}
 
