@@ -310,9 +310,10 @@ extern float l3d_pointer_lead[2];
 #define L3D_KEY_ENEMY_SHOT 0x40000u
 
 // A shot's sprite (1x1, drawn at x, y as blit_sprite2 draws it) as a flat volumetric sprite with
-// its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index). False when the 3D
-// view isn't capturing or shows flat sprites: then draw the sprite as usual.
-bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key);
+// its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index; vx, vy: how far it
+// moved this tick, game pixels, for the frame it is first seen in). False when the 3D view isn't
+// capturing or shows flat sprites: then draw the sprite as usual.
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float vx, float vy, Uint32 key);
 
 // A shot the game dropped because it left the screen at the top: the 3D view, which sees further,
 // lets it fly on (vx, vy: game pixels a tick) until it is far away. l3d_draw_departed_shots adds

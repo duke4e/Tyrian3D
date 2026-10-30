@@ -646,15 +646,19 @@ bool l3d_key_seen(Uint32 key)
 	return false;
 }
 
-bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 key)
+#define MAX_DEPARTED 96  // shots flying on past the top of the screen (l3d_shot_departed)
+#define L3D_KEY_DEPARTED 0x60000u
+
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float step_x, float step_y, Uint32 key)
 {
 	if (!l3d_capturing || !m3d_enabled)
 		return false;
 	// A model of its own (models.cfg "shot" lines), or the sprite with volume.
 	M3DAppearance look = { 0 };
+	float yaw = 0.0f;
 	if (m3d_shot_appearance(sheet == &spriteSheet12, sprite, &look))
 	{
-		const float yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * l3d_frame_number + (float)(key & 63) * 47.0f, 360.0f) : 0.0f);
+		yaw = look.yaw + (look.spin != 0 ? fmodf(look.spin * l3d_frame_number + (float)(key & 63) * 47.0f, 360.0f) : 0.0f);
 		const int index = l3d_frame.object_count;
 		if (!l3d_add_object(look.model, x + 6.0f + look.at_dx, y + 7.0f + look.at_dy, look.height, yaw, 0.0f, 0))
 			return false;
@@ -663,8 +667,24 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	}
 	else if (!l3d_add_volume(sheet, sprite, false, V3D_STYLE_FLAT, x + 6.0f, y + 7.0f, 0.0f, 0.0f, 0.0f, 0))
 		return false;
+	// It moves on as it moved since the last frame; in the frame it is first seen in, by its own step (else a new
+	// shot stands still until the next tick, and a Laser's beam opens a gap above the ship between ticks).
+	const bool jump = fabsf(step_x) > MOTION_MAX_STEP || fabsf(step_y) > MOTION_MAX_STEP;
 	float vx, vy;
-	l3d_key_last_object(key, &vx, &vy);
+	l3d_key_last_object(key, NULL, NULL);
+	l3d_new_object_velocity(jump ? 0.0f : step_x, jump ? 0.0f : step_y, &vx, &vy);
+	// A beam's segment (beam; beams run up or down the screen): in the frame it is fired, a copy of it stays where it
+	// was fired (moving only sideways, with the gun), so that between ticks the beam, moving on, still reaches the gun.
+	if (look.beam && last_key_new && key - L3D_KEY_DEPARTED >= MAX_DEPARTED)
+	{
+		const int index = l3d_frame.object_count;
+		if (l3d_add_object(look.model, x + 6.0f + look.at_dx, y + 7.0f + look.at_dy, look.height, yaw, 0.0f, 0) &&
+		    l3d_frame.object_count > index)
+		{
+			l3d_frame.objects[index].scale = look.scale;
+			l3d_frame.objects[index].vx = vx;
+		}
+	}
 	// Its glow: the shot line's (glow=, for a model that glows on its own), else the sprite's brightest colour.
 	if (look.glow_size != 0)
 	{
@@ -686,9 +706,7 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, Uint32 k
 	return true;
 }
 
-#define MAX_DEPARTED 96
 #define DEPARTED_FAR (-280)  // game pixels: where they are gone for good
-#define L3D_KEY_DEPARTED 0x60000u
 
 static struct
 {
@@ -733,7 +751,8 @@ void l3d_draw_departed_shots(void)
 		// volume (models off: the volume, as ever).
 		if (m3d_enabled)
 		{
-			l3d_add_shot(departed[i].sheet, departed[i].sprite, (int)departed[i].x, (int)departed[i].y, L3D_KEY_DEPARTED + (Uint32)i);
+			l3d_add_shot(departed[i].sheet, departed[i].sprite, (int)departed[i].x, (int)departed[i].y, departed[i].vx,
+			             departed[i].vy, L3D_KEY_DEPARTED + (Uint32)i);
 			continue;
 		}
 		if (l3d_add_volume(departed[i].sheet, departed[i].sprite, false, V3D_STYLE_FLAT, departed[i].x + 6.0f,

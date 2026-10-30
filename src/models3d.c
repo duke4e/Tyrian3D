@@ -141,6 +141,11 @@ static bool parse_option(const char *token, M3DAppearance *a)
 		a->trail = true;
 		return true;
 	}
+	if (strcmp(token, "beam") == 0)
+	{
+		a->beam = true;
+		return true;
+	}
 	if (strcmp(token, "glow") == 0)
 	{
 		a->glow_size = -DEFAULT_GLOW_SIZE;  // negative: relative to the sprite's width

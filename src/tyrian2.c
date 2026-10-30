@@ -3353,7 +3353,8 @@ draw_player_shot_loop_end:
 						if (enemyShot[z].sgr >= 500)
 						{
 							const unsigned int sprite = enemyShot[z].sgr + enemyShot[z].animate - 500;
-							if (!l3d_add_shot(&spriteSheet12, sprite, enemyShot[z].sx, enemyShot[z].sy, L3D_KEY_ENEMY_SHOT + z))
+							if (!l3d_add_shot(&spriteSheet12, sprite, enemyShot[z].sx, enemyShot[z].sy, enemyShot[z].sxm,
+							                  enemyShot[z].sym, L3D_KEY_ENEMY_SHOT + z))
 							{
 								blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet12, sprite);
 								l3d_add_glow(&spriteSheet12, sprite, enemyShot[z].sx, enemyShot[z].sy);
@@ -3362,7 +3363,8 @@ draw_player_shot_loop_end:
 						else
 						{
 							const unsigned int sprite = enemyShot[z].sgr + enemyShot[z].animate;
-							if (!l3d_add_shot(&spriteSheet8, sprite, enemyShot[z].sx, enemyShot[z].sy, L3D_KEY_ENEMY_SHOT + z))
+							if (!l3d_add_shot(&spriteSheet8, sprite, enemyShot[z].sx, enemyShot[z].sy, enemyShot[z].sxm,
+							                  enemyShot[z].sym, L3D_KEY_ENEMY_SHOT + z))
 							{
 								blit_sprite2(VGAScreen, enemyShot[z].sx, enemyShot[z].sy, spriteSheet8, sprite);
 								l3d_add_glow(&spriteSheet8, sprite, enemyShot[z].sx, enemyShot[z].sy);

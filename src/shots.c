@@ -177,6 +177,7 @@ bool player_shot_move_and_draw(
 	shotAvail[shot_id]--;
 	if (shot_id != MAX_PWEAPON - 1)
 	{
+		const JE_integer start_x = shot->shotX, start_y = shot->shotY;  // (Tyrian3D: its step this tick)
 		shot->shotXM += shot->shotXC;
 		shot->shotX += shot->shotXM;
 		JE_integer tmp_shotXM = shot->shotXM;
@@ -304,7 +305,8 @@ bool player_shot_move_and_draw(
 			// Tyrian3D: in 3D a flat volume with its glow and a real shadow, moving on between ticks.
 			if (sprite_frame > 500)
 			{
-				if (!l3d_add_shot(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty, L3D_KEY_SHOT + shot_id))
+				if (!l3d_add_shot(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty, shot->shotX - start_x,
+				                  shot->shotY - start_y, L3D_KEY_SHOT + shot_id))
 				{
 					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet12, sprite_frame - 500);
@@ -314,7 +316,8 @@ bool player_shot_move_and_draw(
 			}
 			else
 			{
-				if (!l3d_add_shot(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty, L3D_KEY_SHOT + shot_id))
+				if (!l3d_add_shot(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty, shot->shotX - start_x,
+				                  shot->shotY - start_y, L3D_KEY_SHOT + shot_id))
 				{
 					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet8, sprite_frame);
