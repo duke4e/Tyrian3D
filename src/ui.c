@@ -4407,7 +4407,7 @@ void ui_build_screen(const UIView *view)
  * HUD_UNDER, quickly, and comes back more slowly once they have left; near it, it fades part of the
  * way. Timed in seconds, so it is the same at any frame rate.
  */
-#define HUD_UNDER 0.33f
+#define HUD_UNDER 0.18f  // (0.33 left the bars drawn plainly over the ship: two players' panels sit where they fly)
 #define HUD_FIRE 3
 static struct
 {
