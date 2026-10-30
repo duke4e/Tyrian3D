@@ -2,7 +2,7 @@
 models.cfg: yaw=0), polished (2026-10-18). One script, as they share one body and stand in the same
 walls and grids:
 
-- block_red (M 1): a red candy block (the sprite's ramp 4).
+- block_red (M 1): a red candy block (the sprite's ramp 4), a low ridge round a panel on its top.
 - block_x (M 53): a purple-grey block (ramp 5) with a red brush-stroke X raised on its top (ramp 7): a
   falling stroke that starts with a little hook at the upper left and ends in a flick at the lower
   right, and a rising one, thin at its upper right end, that swells as it comes down and curls round
@@ -506,6 +506,16 @@ def emblem_chevrons(top, mats):
                sink=0.05)
 
 
+def emblem_panel(top, mats):
+    """A low ridge in the block's own colour round a panel on its top (columns 5-19, rows 4.5-14.5), its corners
+    mitred: the plain red blocks read as smooth pillows in the game's light (2026-10-30), a little more than the
+    sprite, which draws them plain."""
+    ridge = mats["ridge"]
+    path = [at(12.0, 4.5), at(19.0, 4.5), at(19.0, 14.5), at(5.0, 14.5), at(5.0, 4.5), at(12.0, 4.5)]
+    ribbon("panel", path, ridge, top, lambda t: 0.5, lambda t: 0.42, shape=soft, smooth=False, across=11, sink=0.05,
+           round_start=True, round_end=True)
+
+
 def bezel_ring(name, centre, outline, profile, mats, top):
     """A ring round the closed outline [(x, y) relative to centre, counter-clockwise]: profile
     [(offset out from the outline, height above the top, material key)] from its inside to its
@@ -607,7 +617,7 @@ def emblem_gem(top, mats):
 
 # The blocks: name -> (sprite, the body's palette index, its outline's, the emblem).
 BLOCKS = {
-    "block_red": (1, 0x47, 0x01, None),
+    "block_red": (1, 0x47, 0x01, emblem_panel),
     "block_x": (53, 0x57, 0x50, emblem_x),
     "block_dollar": (15, 0x27, 0x20, emblem_dollar),
     "block_gem": (17, 0xf9, 0xf2, emblem_gem),
@@ -635,7 +645,7 @@ def emblem_materials(name, shell):
                                    emission_strength=0.45),
                 "table": k.material("gem_table", palette=0x9e, metallic=0.1, roughness=0.06, emission=glow[0x9e],
                                     emission_strength=0.55)}
-    if name == "block_chevron":
+    if name in ("block_chevron", "block_red"):
         return {"ridge": shell}
     if name == "block_question":
         return {"mark": k.material("question_mark", palette=0x3a, metallic=0.05, roughness=0.24)}
