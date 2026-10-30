@@ -2694,6 +2694,10 @@ int shop_item_model(int part, int item)
 				if (options[k].itemgraphic == weaponPort[item].itemgraphic)
 					model = m3d_sidekick_appearance((unsigned int)k).model;
 		break;
+	case 5:
+		if (item <= SHIELD_NUM)
+			model = m3d_shield_model((unsigned int)item);
+		break;
 	case 6:
 		if (item < 7)
 			model = m3d_mount_model(item == 1 ? item + 15 : item + 14);  // (as ship_illustration_piece)

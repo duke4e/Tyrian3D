@@ -83,6 +83,8 @@ static int ship_rule_count;
 static ShipRule ship_rules[32];
 static int sidekick_rule_count;
 static ShipRule sidekick_rules[64];
+static int shield_rule_count;
+static ShipRule shield_rules[32];  // shield <id> <model>: the store's shields (their item icons)
 
 // The store's illustration of the ship: models by the big ship's picture (option shapes) and by
 // the gun's or generator's picture (weapon shapes); -1 none.
@@ -331,6 +333,17 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 			WARN("unknown model '%s'", tokens[2]);
 		else
 			(tokens[0][0] == 'i' ? illustration_models : mount_models)[picture] = model;
+		return;
+	}
+
+	// shield <id> <model>: the model of a shield (the store's item; its icon).
+	if (strcmp(tokens[0], "shield") == 0 && count >= 3)
+	{
+		ShipRule rule = { .ship = (unsigned int)atoi(tokens[1]), .appearance = { .model = M3D_SPRITE } };
+		if (!parse_kind(tokens[2], &rule.appearance.model))
+			WARN("unknown model '%s'", tokens[2]);
+		else if (shield_rule_count < (int)COUNTOF(shield_rules))
+			shield_rules[shield_rule_count++] = rule;
 		return;
 	}
 
@@ -622,6 +635,14 @@ M3DAppearance m3d_ship_appearance(unsigned int ship_id)
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id)
 {
 	return find_rule(sidekick_rules, sidekick_rule_count, sidekick_id);
+}
+
+int m3d_shield_model(unsigned int shield_id)
+{
+	for (int i = 0; m3d_enabled && i < shield_rule_count; ++i)
+		if (shield_rules[i].ship == shield_id)
+			return shield_rules[i].appearance.model;
+	return -1;
 }
 
 int m3d_illustration_model(int option_sprite)

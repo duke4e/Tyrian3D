@@ -85,6 +85,8 @@ M3DAppearance m3d_enemy_appearance(char sheet, unsigned int first_sprite, bool l
 
 // Appearance of a player ship (ship id as in the shop, 1-based, or M3D_SHIP_DRAGONWING).
 M3DAppearance m3d_ship_appearance(unsigned int ship_id);
+// A shield's model (models.cfg "shield <id> <model>": the store's item, its icon), or -1.
+int m3d_shield_model(unsigned int shield_id);
 // Appearance of a sidekick (option id as in the shop, 1-based).
 M3DAppearance m3d_sidekick_appearance(unsigned int sidekick_id);
 
