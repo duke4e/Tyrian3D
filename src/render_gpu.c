@@ -2907,8 +2907,9 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
  * what is outside it (enemies coming, leaving) shows dimmed. Black quads put first among the
  * HUD's, under its gauges and texts; not over the classic panel (clip_x, the panel's left edge).
  */
-#define OUTSIDE_SHADE 0.65f   // opacity of the black outside the playfield
-#define OUTSIDE_EDGE 0.022f   // the soft edge's width, of the window's height
+#define OUTSIDE_SHADE 0.5f    // opacity of the black outside the playfield
+#define OUTSIDE_EDGE 0.15f    // the soft edge's width, of the window's height (wide: with 0.65 over 0.022 of it,
+                              // uniform ground (sea, ice, snow) read as a lit table top over a dark void)
 
 static int shade_quads(HudQuad *out, int max, float (*pts)[3], int n, float clip_x)
 {
@@ -11447,6 +11448,8 @@ static void shadow_view_projection(const Camera3D *camera, float out[16], int si
 	out[15] = 1.0f;
 }
 
+#define LIGHT_CEILING 1.0f  // the luminance the point lights ease out under (scene_lighting)
+
 // The sun and the sky: models are lit by them; layers and volumetric sprites are unlit. The sun is
 // strong against the sky, as in the sprites' own shading: lit from the upper left, with clear
 // highlights and shadows.
@@ -11471,6 +11474,13 @@ static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camer
 	lighting->directional_red = 1.0f;
 	lighting->directional_green = 0.98f;
 	lighting->directional_blue = 0.94f;
+	// The shots' and explosions' lights ease out under this luminance (TYR3D_LIGHT_CEILING; 0 none): a stream of
+	// shots over pale ice or snow lit it white (3:10's ground, 8 % of the screen pure white).
+	static float light_ceiling = -1.0f;
+	if (light_ceiling < 0.0f)
+		light_ceiling = SDL_getenv("TYR3D_LIGHT_CEILING") != NULL ? SDL_max((float)SDL_atof(SDL_getenv("TYR3D_LIGHT_CEILING")), 0.0f)
+		                                                          : LIGHT_CEILING;
+	lighting->point_light_ceiling = light_ceiling;
 	// A level's own sunlight, by its climate (b3d_weather): cold over the ice, the lava's glow, desert sun.
 	if (level && settings3d.effects)
 	{

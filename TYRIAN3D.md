@@ -804,6 +804,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_RC_INTENSITY=<0-2>` | How much light they add (default 1) |
 | `TYR3D_LOG_RC=1` | Print the radiance cascades' state now and then |
 | `TYR3D_GLOW_LIGHTS=0` | Shots and other glows don't light their surroundings |
+| `TYR3D_LIGHT_CEILING=<luminance>` | The point lights' ceiling (default 1.0, 0 none): the light the explosions and glows add to a surface eases out towards the room it has left under this luminance (at least a fifth of it), so dark ground still flashes bright while pale ice or snow under a stream of shots doesn't burn white (`BTBHGPUSceneLighting.point_light_ceiling`) |
 | `TYR3D_POINT_LIGHTS=<n>` | At most n point lights in a frame (default 12, 0-32): the explosions' and the glows' lights, the most important first, lights close together merged into one (`render_gpu.c` `add_explosion_lights`); every lit pixel adds up every light, so their number is the cost |
 | `TYR3D_LOG_LIGHTS=1` | Print the point lights of each frame |
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
