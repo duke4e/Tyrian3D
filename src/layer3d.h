@@ -311,9 +311,10 @@ extern float l3d_pointer_lead[2];
 
 // A shot's sprite (1x1, drawn at x, y as blit_sprite2 draws it) as a flat volumetric sprite with
 // its glow, which moves on between ticks (key: the shot's L3D_KEY_* + index; vx, vy: how far it
-// moved this tick, game pixels, for the frame it is first seen in). False when the 3D view isn't
-// capturing or shows flat sprites: then draw the sprite as usual.
-bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float vx, float vy, Uint32 key);
+// moved this tick, game pixels, for the frame it is first seen in; at_gun: it is fired at the gun
+// every tick, so a beam line keeps a copy there: the player's shots that follow the ship, enemies').
+// False when the 3D view isn't capturing or shows flat sprites: then draw the sprite as usual.
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float vx, float vy, bool at_gun, Uint32 key);
 // A big shot drawn from the option shapes (shape `shape`, its top left at x, y, as blit_sprite_blend draws it) as
 // its model (models.cfg "shot options" lines); false when it has none: then draw the shape as usual.
 bool l3d_add_option_shot(unsigned int shape, int x, int y, float vx, float vy, Uint32 key);

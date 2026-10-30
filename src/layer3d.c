@@ -678,7 +678,7 @@ bool l3d_add_option_shot(unsigned int shape, int x, int y, float step_x, float s
 #define MAX_DEPARTED 96  // shots flying on past the top of the screen (l3d_shot_departed)
 #define L3D_KEY_DEPARTED 0x60000u
 
-bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float step_x, float step_y, Uint32 key)
+bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float step_x, float step_y, bool at_gun, Uint32 key)
 {
 	if (!l3d_capturing || !m3d_enabled)
 		return false;
@@ -704,7 +704,7 @@ bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float st
 	l3d_new_object_velocity(jump ? 0.0f : step_x, jump ? 0.0f : step_y, &vx, &vy);
 	// A beam's segment (beam; beams run up or down the screen): in the frame it is fired, a copy of it stays where it
 	// was fired (moving only sideways, with the gun), so that between ticks the beam, moving on, still reaches the gun.
-	if (look.beam && last_key_new && key - L3D_KEY_DEPARTED >= MAX_DEPARTED)
+	if (look.beam && at_gun && last_key_new && key - L3D_KEY_DEPARTED >= MAX_DEPARTED)
 	{
 		const int index = l3d_frame.object_count;
 		if (l3d_add_object(look.model, x + 6.0f + look.at_dx, y + 7.0f + look.at_dy, look.height, yaw, 0.0f, 0) &&
@@ -781,7 +781,7 @@ void l3d_draw_departed_shots(void)
 		if (m3d_enabled)
 		{
 			l3d_add_shot(departed[i].sheet, departed[i].sprite, (int)departed[i].x, (int)departed[i].y, departed[i].vx,
-			             departed[i].vy, L3D_KEY_DEPARTED + (Uint32)i);
+			             departed[i].vy, false, L3D_KEY_DEPARTED + (Uint32)i);
 			continue;
 		}
 		if (l3d_add_volume(departed[i].sheet, departed[i].sprite, false, V3D_STYLE_FLAT, departed[i].x + 6.0f,

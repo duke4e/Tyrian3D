@@ -309,7 +309,7 @@ bool player_shot_move_and_draw(
 			if (sprite_frame > 500)
 			{
 				if (!l3d_add_shot(&spriteSheet12, sprite_frame - 500, *out_shotx + 1, *out_shoty, shot->shotX - start_x,
-				                  shot->shotY - start_y, L3D_KEY_SHOT + shot_id))
+				                  shot->shotY - start_y, tmp_shotXM == 101, L3D_KEY_SHOT + shot_id))
 				{
 					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet12, sprite_frame - 500);
@@ -320,7 +320,7 @@ bool player_shot_move_and_draw(
 			else
 			{
 				if (!l3d_add_shot(&spriteSheet8, sprite_frame, *out_shotx + 1, *out_shoty, shot->shotX - start_x,
-				                  shot->shotY - start_y, L3D_KEY_SHOT + shot_id))
+				                  shot->shotY - start_y, tmp_shotXM == 101, L3D_KEY_SHOT + shot_id))
 				{
 					if (background2 && *out_shoty + shadowYDist < 190 && tmp_shotXM < 100)
 						blit_sprite2_darken(VGAScreen, *out_shotx+1, *out_shoty + shadowYDist, spriteSheet8, sprite_frame);
