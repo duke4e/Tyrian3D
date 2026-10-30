@@ -803,6 +803,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_RC_INTENSITY=<0-2>` | How much light they add (default 1) |
 | `TYR3D_LOG_RC=1` | Print the radiance cascades' state now and then |
 | `TYR3D_GLOW_LIGHTS=0` | Shots and other glows don't light their surroundings |
+| `TYR3D_POINT_LIGHTS=<n>` | At most n point lights in a frame (default 12, 0-32): the explosions' and the glows' lights, the most important first, lights close together merged into one (`render_gpu.c` `add_explosion_lights`); every lit pixel adds up every light, so their number is the cost |
 | `TYR3D_LOG_LIGHTS=1` | Print the point lights of each frame |
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
 | `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses), scroll speed changes, warp orbs and data cubes picked up |
