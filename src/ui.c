@@ -4835,9 +4835,11 @@ void ui_build_hud(const UIView *view)
 		}
 		if (special_on)
 		{
-			// The special weapon, and its ready light (the game's beside its icon): lit when it can fire.
-			rgpu_ui_sprite(&spriteSheet10, special[p->items.special].itemgraphic, true, b.x + U(20), y, icon * 24 / 28.0f, icon,
-			               L.alpha * (special_ready ? 1.0f : 0.55f));
+			// The special weapon, and its ready light (the game's beside its icon): lit when it can fire. (Some specials
+			// have no icon: the Lightning specials' item graphic is 0.)
+			if (special[p->items.special].itemgraphic > 0)
+				rgpu_ui_sprite(&spriteSheet10, special[p->items.special].itemgraphic, true, b.x + U(20), y, icon * 24 / 28.0f,
+				               icon, L.alpha * (special_ready ? 1.0f : 0.55f));
 			const float name_x = b.x + U(24) + icon;
 			text(FONT_SEMIBOLD, special_name, name_x, y + (icon - cap_l) / 2, cap_l, special_ready ? C_CREAM : C_DIM, ALIGN_LEFT);
 			const float lamp = SDL_max(U(12), L.px * 4);

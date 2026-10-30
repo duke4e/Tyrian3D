@@ -4078,7 +4078,7 @@ void JE_inGameDisplays(void)
 	l3d_hud_sprites_draw(VGAScreen);
 
 	/*Special Weapon?*/
-	if (player[0].items.special > 0)
+	if (player[0].items.special > 0 && special[player[0].items.special].itemgraphic > 0)  // (Tyrian3D: some have no icon)
 		blit_sprite2x2(VGAScreen, 25, 1, spriteSheet10, special[player[0].items.special].itemgraphic);
 
 	/*Lives Left*/
