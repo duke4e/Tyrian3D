@@ -8590,6 +8590,39 @@ static bool terrain_row_hd(const TerrainRing *ring, int map_row)
 	return true;
 }
 
+// The near-black pixels the tiles draw where the sea meets walls and piers (the pixel art's shadow and spray at the
+// waterline) taken into the water, up to SHORE_PIXELS of them from it: they stood as a ragged fringe of black and
+// blue blobs between the procedural water and the walls (SAVARA IV).
+#define SHORE_PIXELS 3
+#define SHORE_DARK 56  // their channels at most this bright
+
+static void water_over_shore_pixels(Uint32 *water, const Uint32 *rgba, int pitch, int w, int h)
+{
+	static Uint8 wet[(15 + 2 * 32) * B3D_TILE_W * B3D_TILE_H];
+	if ((size_t)pitch * h > sizeof(wet))
+		return;
+	static const Uint8 wet_rgba[4] = { 0, 0, 255, 255 };
+	Uint32 wet_color;
+	memcpy(&wet_color, wet_rgba, 4);
+	for (int pass = 0; pass < SHORE_PIXELS; ++pass)
+	{
+		for (int i = 0; i < pitch * h; ++i)
+			wet[i] = ((const Uint8 *)&water[i])[2] != 0;
+		for (int y = 0; y < h; ++y)
+			for (int x = 0; x < w; ++x)
+			{
+				const int i = y * pitch + x;
+				if (wet[i])
+					continue;
+				const Uint8 *c = (const Uint8 *)&rgba[i];
+				if (c[3] == 0 || c[0] > SHORE_DARK || c[1] > SHORE_DARK || c[2] > SHORE_DARK)
+					continue;
+				if ((x > 0 && wet[i - 1]) || (x + 1 < w && wet[i + 1]) || (y > 0 && wet[i - pitch]) || (y + 1 < h && wet[i + pitch]))
+					water[i] = wet_color;
+			}
+	}
+}
+
 static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
 {
 	const int slot = map_row % ring->ring_rows;
@@ -8623,6 +8656,8 @@ static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int se
 					*wet = water_color;
 			}
 	}
+	if (ring->water != NULL)
+		water_over_shore_pixels(water, rgba, ring->width, columns * B3D_TILE_W, B3D_TILE_H);
 	erase_painted_enemies(rgba, ring->width, t, set, map_row, colors);
 	bleed_into_clear(rgba, ring->width, 0, B3D_TILE_H);
 	btbh_gpu_texture_update_rgba8(ring->texture, (const uint8_t *)rgba, 0, (Uint32)(slot * B3D_TILE_H), (Uint32)ring->width,
