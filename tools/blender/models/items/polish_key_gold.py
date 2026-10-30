@@ -77,11 +77,12 @@ BOW_ROUND = 1.2
 
 
 def materials():
-    pal = k.level_palette()
     return {
-        "gold": k.material("key_gold", palette=0x1a, metallic=0.85, roughness=0.24, emission=pal[0x16],
-                           emission_strength=0.1),
-        "dark": k.material("key_gold_dark", palette=0x14, metallic=0.75, roughness=0.35),
+        # (A fixed gold, not ramp 1 of the level's palette: in SOH JIN's palette ramp 1 is olive and khaki, and the
+        # keys read olive on the tan ground, hard to see; 2026-10-30.)
+        "gold": k.material("key_gold", color=(236, 182, 64), metallic=0.7, roughness=0.22, emission=(210, 140, 40),
+                           emission_strength=0.18),
+        "dark": k.material("key_gold_dark", color=(120, 74, 22), metallic=0.75, roughness=0.35),
     }
 
 
