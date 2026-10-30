@@ -115,7 +115,7 @@ static void debris(float x, float y, float height, int count)
 		p->vheight = random_range(1.5f, 3.5f);
 		p->gravity = 0.22f;
 		p->drag = 0.97f;
-		p->size = random_range(2.0f, 3.6f);
+		p->size = random_range(1.4f, 2.8f);  // (2-3.6: brown cubes all round a large explosion)
 		p->life = random_range(40, 60);
 		p->turn = random_range(0, 2 * (float)M_PI);
 		p->spin = random_range(-0.35f, 0.35f);
@@ -150,7 +150,7 @@ static void shards(float x, float y, float height, int count)
 		p->vheight = random_range(-0.5f, 1.5f);
 		p->gravity = 0.1f;
 		p->drag = 0.96f;
-		p->size = random_range(2.2f, 3.8f);
+		p->size = random_range(1.5f, 2.9f);
 		p->life = random_range(50, 75);
 		p->turn = random_range(0, 2 * (float)M_PI);
 		p->spin = random_range(-0.45f, 0.45f);

@@ -11109,7 +11109,8 @@ static void add_debris_batch(int *instance_count, int *batch_count)
 		const float size = p->size * (t > 0.8f ? (1 - t) / 0.2f : 1.0f);
 		// Its shape (its life is its own random number): a flake or a lump.
 		const float u = p->life * 0.618034f - floorf(p->life * 0.618034f);
-		const float sx = size * (0.7f + 0.6f * u), sy = size * (0.35f + 0.4f * (1 - u)), sz = size * (0.8f + 0.3f * u);
+		// (Flat and uneven, so they read as shards and flakes rather than cubes.)
+		const float sx = size * (0.6f + 0.8f * u), sy = size * (0.18f + 0.3f * (1 - u)), sz = size * (0.55f + 0.5f * (1 - u));
 		const float age = SDL_max(0.0f, SDL_min(ahead, p->age + ahead));
 		// (Down on water it has sunk.)
 		if (p->height + p->vheight * age <= 0 && ground_water_at(p->x + p->vx * age, p->y + (p->vy + explodeMove) * age))
