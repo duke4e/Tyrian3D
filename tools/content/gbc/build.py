@@ -561,7 +561,8 @@ def music(stages):
     """The GBC songs (tools/gbc/music.py: each cut at its loop, in data/gbc/music/loops) into music/ beside the episode's
     files, and music.txt: a line a level, by its number in the level file (its ]L line's), its song and the sample its
     loop starts at, its boss song and its loop's (- where it has none); the game plays them in place of the PC songs
-    (src/loudness.c play_recorded_song, tyrian2.c gbc_music)."""
+    (src/loudness.c play_recorded_song, tyrian2.c gbc_music), as MIDI through the SoundFont where the music plays as
+    MIDI (each song's .mid beside it)."""
     loops = os.path.join(ROOT, "data", "gbc", "music", "loops")
     if not os.path.exists(os.path.join(loops, "loops.json")):
         return
@@ -576,6 +577,9 @@ def music(stages):
         lines.append(f"{i:02d} {song} {info['loops'][song]} " + (f"{boss} {info['loops'][boss]}" if boss else "- 0"))
     for f in sorted(used):
         shutil.copyfile(os.path.join(loops, f), os.path.join(OUT, "music", f))
+        midi = f[:-4] + ".mid"  # (its MIDI, tools/gbc/midi.py: played while the music plays as MIDI)
+        if os.path.exists(os.path.join(loops, midi)):
+            shutil.copyfile(os.path.join(loops, midi), os.path.join(OUT, "music", midi))
     with open(os.path.join(OUT, "music.txt"), "w") as out:
         out.write("\n".join(lines) + "\n")
 

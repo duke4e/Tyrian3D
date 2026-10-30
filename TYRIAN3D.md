@@ -307,7 +307,19 @@ the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and
   them in place of the PC songs (`tyrian2.c` `gbc_music`: its own from the start, its boss's from event
   204 at the boss's arrival; `loudness.c` `play_recorded_song`: the WAV converted to the output's rate,
   from the loop's start again at its end, faded out by `fade_song`, ended by `play_song` and `stop_song`;
-  the shops and menus keep the PC's songs); `report.py` writes
+  the shops and menus keep the PC's songs). Where the music plays through the SoundFont (Sound → Music: MIDI), each
+  plays as MIDI instead: `midi.py` reads the notes from the same register writes (the driver writes a note's frequency
+  only as it starts it: a trigger is a note on, its frequency the pitch; it ends at the channel's next trigger, its
+  length or its envelope running out or its DAC off; the envelope's volume is the velocity, a swell or a slow fade the
+  expression), each of a channel's instruments a part of its own with a General MIDI program by its role, from the
+  ones the PC songs use most (the wave channel low: synth bass 38; a pulse low: synth bass 39; held or slow: saw lead
+  81, square 80 at 50 % duty; short: synth brass 62; swelling: synth strings 50; quiet: polysynth 90; `SONG_PROGRAMS`
+  for a song's own), the noise channel's hits drums by their pitch and length (hats, snares, kick); CC 111 marks the
+  loop's start; `music_midi.c` `music_midi_song_*` plays the file on the synth the PC's translation uses (a SoundFont
+  chosen in the options starts it again on the new one; Music switched between MIDI and AdLib, the other form from its
+  start: `loudness.c` `follow_recorded_song`). The level's song no longer comes back over the boss's (`tyrian2.c`
+  restarted the PC song whenever the Loudness player stood still, as it always does under a recorded song, so the
+  boss songs were never heard, 2026-10-30); `report.py` writes
   the overview the user chose this episode from (`data/gbc/report/index.html`).
 * `episode.py` makes each GBC level a PC level of the original level it is a version of (TYRIAN,
   ASTEROID1, SAVARA IV, TORM, STARGATE, CAMANIS, FLEET, BRAINIAC, LAVA EXIT...: the GBC artists drew

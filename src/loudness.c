@@ -92,11 +92,18 @@ static int voiceFadeSamples = 1323;
 static Sint32 voiceDuck = VOICE_DUCK_ONE, voiceDuckLow = 32845, voiceDuckStep = 4;  // (-6 dB)
 
 // Tyrian3D: a recorded song (play_recorded_song: episode 7's GBC songs, tools/gbc/music.py) in place of the Loudness
-// music: mono samples at the output's rate, from its loop's start again at its end; faded out by fade_song.
+// music: mono samples at the output's rate, from its loop's start again at its end, or, while the music plays as MIDI,
+// its MIDI file through the SoundFont (music_midi_song_*); faded out by fade_song.
 static Sint16 *recordedSamples = NULL;
 static size_t recordedCount = 0, recordedPos = 0, recordedLoop = 0;
+static bool recordedMidi = false;    // its MIDI file plays
+static bool recordedHasMidi = false; // it has one (follow_recorded_song)
+static size_t recordedLoopStart = 0; // (as play_recorded_song had it)
+static bool recordedSilent = false;  // faded out: silent until another song
 static int recordedFade = 0, recordedFadeLength = 1;  // samples of the fade-out to go (0: none)
 static char recordedPath[1024];
+static Sint16 *endedSamples = NULL;  // the song ended, to free once the stream is unlocked
+static MidiSong *endedMidi = NULL;
 
 static void audioCallback(void *userdata, Uint8 *stream, int size);
 static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
@@ -207,19 +214,29 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	Sint16 *const samples = (Sint16 *)stream;
 	const int samplesCount = size / sizeof (Sint16);
 
-	if (!music_disabled && !music_stopped && recordedSamples != NULL)
+	if (!music_disabled && !music_stopped && (recordedSamples != NULL || recordedMidi))
 	{
 		// Tyrian3D: the recorded song
+		if (recordedMidi && music_midi_active() && !recordedSilent)
+			music_midi_song_render(samples, samplesCount);
 		for (int i = 0; i < samplesCount; ++i)
 		{
-			if (recordedPos >= recordedCount)
-				recordedPos = recordedLoop < recordedCount ? recordedLoop : recordedCount;
-			Sint32 sample = recordedPos < recordedCount ? recordedSamples[recordedPos++] : 0;
+			Sint32 sample = 0;
+			if (recordedSilent || (recordedMidi && !music_midi_active()))
+				sample = 0;
+			else if (recordedMidi)
+				sample = samples[i];
+			else
+			{
+				if (recordedPos >= recordedCount)
+					recordedPos = recordedLoop < recordedCount ? recordedLoop : recordedCount;
+				sample = recordedPos < recordedCount ? recordedSamples[recordedPos++] : 0;
+			}
 			if (recordedFade > 0)
 			{
 				sample = sample * recordedFade / recordedFadeLength;
 				if (--recordedFade == 0)
-					recordedCount = recordedPos = 0;  // (faded out: silent until another song)
+					recordedSilent = true;
 			}
 			samples[i] = (Sint16)sample;
 		}
@@ -284,7 +301,7 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	}
 
 	Sint32 musicVolumeFactor = volumeFactorTable[musicVolume];
-	if (!music_midi_active() && recordedSamples == NULL)
+	if (!music_midi_active() && recordedSamples == NULL && !recordedMidi)
 		musicVolumeFactor *= 2;  // OPL emulator is too quiet
 
 	if (samples_disabled && !music_disabled)
@@ -470,26 +487,71 @@ void deinit_audio(void)
 	lds_free();
 }
 
-// Tyrian3D: the recorded song ended (the stream locked); its samples to free once unlocked.
-static Sint16 *end_recorded_song(void)
+// Tyrian3D: the recorded song ended (the stream locked); free_ended_song frees it once unlocked.
+static void end_recorded_song(void)
 {
-	Sint16 *old = recordedSamples;
+	SDL_free(endedSamples);
+	endedSamples = recordedSamples;
 	recordedSamples = NULL;
+	if (recordedMidi)
+		endedMidi = music_midi_song_play(NULL);
+	recordedMidi = recordedSilent = false;
 	recordedCount = recordedPos = recordedLoop = 0;
 	recordedFade = 0;
 	recordedPath[0] = '\0';
-	return old;
+}
+
+static void free_ended_song(void)
+{
+	SDL_free(endedSamples);
+	endedSamples = NULL;
+	music_midi_song_free(endedMidi);
+	endedMidi = NULL;
+}
+
+// The MIDI file beside a recorded song (its name's .wav as .mid), if there is one.
+static bool midi_beside(const char *path, char *midi, size_t size)
+{
+	const size_t n = strlen(path);
+	if (n < 4 || n >= size || SDL_strcasecmp(path + n - 4, ".wav") != 0)
+		return false;
+	memcpy(midi, path, n - 4);
+	SDL_strlcpy(midi + n - 4, ".mid", size - (n - 4));
+	return SDL_GetPathInfo(midi, NULL);
 }
 
 bool play_recorded_song(const char *path, size_t loop_start)
 {
 	if (audio_disabled)
 		return false;
-	if (recordedSamples != NULL && recordedCount > 0 && strcmp(path, recordedPath) == 0)
+	char midi_path[1024];
+	bool has_midi = midi_beside(path, midi_path, sizeof(midi_path));
+	MidiSong *midi = NULL;
+	if ((recordedSamples != NULL || recordedMidi) && !recordedSilent && strcmp(path, recordedPath) == 0 &&
+	    recordedMidi == (has_midi && music_midi_active()))
 	{
 		SDL_LockAudioStream(audioStream);  // (playing already: on as it is)
 		music_stopped = false;
 		SDL_UnlockAudioStream(audioStream);
+		return true;
+	}
+	if (has_midi && music_midi_active())
+	{
+		midi = music_midi_song_load(midi_path);
+		has_midi = midi != NULL;
+	}
+	if (midi != NULL)
+	{
+		SDL_LockAudioStream(audioStream);
+		end_recorded_song();
+		recordedMidi = recordedHasMidi = true;
+		recordedLoopStart = loop_start;
+		music_midi_song_play(midi);
+		SDL_strlcpy(recordedPath, path, sizeof(recordedPath));
+		music_stopped = false;
+		song_playing = 0;
+		SDL_UnlockAudioStream(audioStream);
+		free_ended_song();
 		return true;
 	}
 	SDL_AudioSpec spec;
@@ -505,27 +567,38 @@ bool play_recorded_song(const char *path, size_t loop_start)
 	if (!ok)
 		return false;
 	SDL_LockAudioStream(audioStream);
-	Sint16 *old = end_recorded_song();
+	end_recorded_song();
 	recordedSamples = (Sint16 *)pcm;
 	recordedCount = (size_t)pcm_length / sizeof(Sint16);
 	recordedLoop = (size_t)(loop_start * scale);
+	recordedHasMidi = has_midi;
+	recordedLoopStart = loop_start;
 	SDL_strlcpy(recordedPath, path, sizeof(recordedPath));
 	music_stopped = false;
 	song_playing = 0;
 	SDL_UnlockAudioStream(audioStream);
-	SDL_free(old);
+	free_ended_song();
 	return true;
+}
+
+void follow_recorded_song(void)
+{
+	if (recordedPath[0] == '\0' || recordedSilent || !recordedHasMidi || recordedMidi == music_midi_active())
+		return;
+	char path[sizeof(recordedPath)];
+	SDL_strlcpy(path, recordedPath, sizeof(path));
+	play_recorded_song(path, recordedLoopStart);
 }
 
 // The recorded song ended, if one plays (before a Loudness song, or none).
 static void stop_recorded_song(void)
 {
-	if (recordedSamples == NULL)
+	if (recordedSamples == NULL && !recordedMidi)
 		return;
 	SDL_LockAudioStream(audioStream);
-	Sint16 *old = end_recorded_song();
+	end_recorded_song();
 	SDL_UnlockAudioStream(audioStream);
-	SDL_free(old);
+	free_ended_song();
 }
 
 void load_music(void)  // FKA NortSong.loadSong
@@ -580,7 +653,7 @@ void play_song(unsigned int song_num)  // FKA NortSong.playSong
 	if (audio_disabled)
 		return;
 
-	const bool recorded = recordedSamples != NULL;  // (Tyrian3D: one played in place of the song loaded)
+	const bool recorded = recordedSamples != NULL || recordedMidi;  // (Tyrian3D: one played in place of the song loaded)
 	stop_recorded_song();
 
 	if (song_num != song_playing || recorded)
@@ -614,6 +687,9 @@ void restart_song(void)  // FKA Player.selectSong(1)
 	music_midi_reset();
 	recordedPos = 0;  // (Tyrian3D: a recorded song from its start)
 	recordedFade = 0;
+	recordedSilent = false;
+	if (recordedMidi)
+		music_midi_song_rewind();
 
 	music_stopped = false;
 
@@ -629,10 +705,10 @@ void stop_song(void)  // FKA Player.selectSong(0)
 
 	music_stopped = true;
 	music_midi_reset();
-	Sint16 *old = end_recorded_song();  // (Tyrian3D)
+	end_recorded_song();  // (Tyrian3D)
 
 	SDL_UnlockAudioStream(audioStream);
-	SDL_free(old);
+	free_ended_song();
 }
 
 void fade_song(void)  // FKA Player.selectSong($C001)
@@ -643,7 +719,7 @@ void fade_song(void)  // FKA Player.selectSong($C001)
 	SDL_LockAudioStream(audioStream);
 
 	lds_fade(1);
-	if (recordedSamples != NULL && recordedFade == 0)  // (Tyrian3D: a recorded song over a second)
+	if ((recordedSamples != NULL || recordedMidi) && recordedFade == 0 && !recordedSilent)  // (Tyrian3D: a recorded song over a second)
 		recordedFade = recordedFadeLength = audioSampleRate;
 
 	SDL_UnlockAudioStream(audioStream);

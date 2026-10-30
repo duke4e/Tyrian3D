@@ -505,8 +505,11 @@ bool gbc_pool_takes(unsigned int dying, unsigned int other)
 // its number in the level file, its song and the sample its loop starts at, its boss song and its loop's, - for none):
 // its own from the start, its boss's from event 204. False where it has none (the PC song plays).
 #define GBC_SONG 204
+static bool gbc_song_plays = false;  // (one of them plays: it loops on its own; a boss without one keeps the level's)
 static bool gbc_music(bool boss)
 {
+	if (!boss)
+		gbc_song_plays = false;
 	if (episodeNum != EPISODE_GBC)
 		return false;
 	char dir[1024], path[1200], song[2][64];
@@ -524,7 +527,10 @@ static bool gbc_music(bool boss)
 	if (!found || strcmp(song[boss], "-") == 0)
 		return false;
 	snprintf(path, sizeof(path), "%s/episode7/music/%s", dir, song[boss]);
-	return play_recorded_song(path, loop[boss]);
+	printf("music: %s%s\n", song[boss], boss ? " (boss)" : "");
+	const bool plays = play_recorded_song(path, loop[boss]);  // (one that can't be read: the one before plays on)
+	gbc_song_plays |= plays;
+	return plays;
 }
 
 // Tyrian3D: episode 7's ticks this many times as long as the others'. The GBC's own pace (8/3 of a GBC frame at 59.73
@@ -2560,10 +2566,13 @@ level_loop:
 		play_song(9);
 		musicFade = false;
 	}
-	else if (!playing && firstGameOver)
+	else if (!playing && firstGameOver && !gbc_song_plays)  // (Tyrian3D: not over episode 7's, which never stop)
 	{
-		if (!gbc_music(false))  // (Tyrian3D)
-			play_song(levelSong - 1);
+		play_song(levelSong - 1);
+	}
+	else if (gbc_song_plays)
+	{
+		follow_recorded_song();  // (Tyrian3D: the music gone between MIDI and the chip in the options)
 	}
 
 	if (!endLevel) // draw HUD

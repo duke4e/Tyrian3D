@@ -47,8 +47,12 @@ void restart_song(void);
 void stop_song(void);
 void fade_song(void);
 // Tyrian3D: a recorded song (a WAV file) in place of the Loudness music, from loop_start (a sample of the file) again
-// at its end; play_song, stop_song and fade_song end it. False if it can't be read.
+// at its end, or the MIDI file beside it (its name's .mid) through the SoundFont while the music plays as MIDI;
+// play_song, stop_song and fade_song end it. False if it can't be read.
 bool play_recorded_song(const char *path, size_t loop_start);
+// Tyrian3D: the recorded song in the form the music plays in now, from its start, where the music went between
+// MIDI and the chip since it began (its MIDI file through the SoundFont, or its samples).
+void follow_recorded_song(void);
 
 void set_volume(Uint8 musicVolume, Uint8 sampleVolume);
 

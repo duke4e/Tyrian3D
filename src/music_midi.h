@@ -92,4 +92,22 @@ void music_midi_render(Sint16 *samples, int count);
 // A new song, a rewind or a stop: all notes off, translation from a silent chip.
 void music_midi_reset(void);
 
+// --- Songs from MIDI files -------------------------------------------------------------------
+
+// Tyrian3D: a song from a MIDI file played through the synth in place of the translated chip (episode 7's GBC songs as
+// tools/gbc/midi.py writes them): from its start, then round from its CC 111 (the loop's start) to its last message.
+#define MIDI_LOOP_CONTROLLER 111
+typedef struct MidiSong MidiSong;
+
+// NULL if it can't be read.
+MidiSong *music_midi_song_load(const char *path);
+void music_midi_song_free(MidiSong *song);
+// With the audio stream locked: the song the synth plays from now on, from its start (NULL: none, the chip's
+// translation again); returns the one before, to free once unlocked.
+MidiSong *music_midi_song_play(MidiSong *song);
+// With the audio stream locked: from its start again.
+void music_midi_song_rewind(void);
+// From the audio callback: renders it (silence with none).
+void music_midi_song_render(Sint16 *samples, int count);
+
 #endif /* MUSIC_MIDI_H */

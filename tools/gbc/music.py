@@ -21,6 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gb as G  # noqa: E402
+import midi  # noqa: E402
 
 MUSIC = os.path.join(G.ROOT, 'data', 'gbc', 'music')
 OUT = os.path.join(MUSIC, 'loops')
@@ -101,8 +102,11 @@ def main():
             start, cut = 0, audio
         write_wav(os.path.join(OUT, f), cut)
         loops[f] = start
+        data, parts = midi.transcribe(f, events, start / RATE, len(cut) / RATE)
+        with open(os.path.join(OUT, base + '.mid'), 'wb') as out:
+            out.write(data)
         print(f"{f}: {'loop at %.1f s, %.1f s long' % (start / RATE, (len(cut) - start) / RATE) if found else 'no loop: whole'}"
-              f" ({len(cut) / RATE:.1f} s)")
+              f" ({len(cut) / RATE:.1f} s); MIDI: " + ', '.join(f"{c}:{role} {n}" for c, role, n in parts))
     json.dump(dict(loops=loops, levels={str(k): v for k, v in sorted(level_songs().items())}),
               open(os.path.join(OUT, 'loops.json'), 'w'), indent=1)
 

@@ -155,6 +155,10 @@ mapiranje na ono što ima PC varijanta", pa se epizoda slaže od PC asseta, ne o
     dolaze i stvari PC trgovine na istom mjestu napredovanja, najviše 6 po listi.
   - GBC glazba: `music.py` nalazi petlju svake pjesme iz zapisa registara i reže je; leveli epizode 7
     sviraju svoju GBC pjesmu, a kad dođe šef GBC pjesmu šefa (događaj 204). Trgovine i izbornici ostaju PC.
+  - GBC glazba kroz SoundFont (korisnik: pustiti je i kroz soundfont): `midi.py` čita note iz istih zapisa
+    registara (svaki okidač je nota, frekvencija visina, envelope glasnoća) i piše MIDI; dijelovi dobivaju
+    GM programe po ulozi, iz palete PC pjesama (bas 38/39, lead 81/80, kratke 62, swell 50, tihe 90, šum kao
+    bubnjevi). Kad glazba ide kao MIDI, epizoda 7 svira `.mid` kroz isti synth (`music_midi_song_*`), inače WAV.
 
 ## Otvoreno
 

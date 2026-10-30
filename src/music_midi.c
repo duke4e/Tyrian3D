@@ -23,6 +23,8 @@
 #pragma clang diagnostic ignored "-Wimplicit-fallthrough"
 #endif
 #include "tsf.h"
+#define TML_IMPLEMENTATION
+#include "tml.h"
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
@@ -337,6 +339,17 @@ static bool enabled = true;
 static MidiTranslator live;
 static Uint32 live_update = 0;
 
+// A song from a MIDI file (music_midi_song_*) the synth plays in place of the translation.
+struct MidiSong
+{
+	tml_message *messages, *loop;  // (loop: its CC 111's, else its first)
+	unsigned int end;              // its last message's time (ms)
+};
+
+static MidiSong *song_now = NULL;
+static tml_message *song_next = NULL;
+static double song_ms = 0;
+
 static void live_event(void *user, Uint32 update, Uint8 status, int data1, int data2)
 {
 	(void)user;
@@ -508,6 +521,8 @@ bool music_midi_use(const char *name)
 	midi_translator_reset(&live);  // (the notes sounding now start again on it)
 	live.event = live_event;
 	opl_write_hook = midi_opl_write;
+	if (song_now != NULL)
+		music_midi_song_play(song_now);  // (a MIDI file's song from its start on it, its programs set again)
 	loudness_unlock();
 	if (old != NULL)
 		tsf_close(old);
@@ -558,4 +573,118 @@ void music_midi_reset(void)
 	tsf_note_off_all(synth);
 	midi_translator_reset(&live);
 	midi_opl_clear();
+}
+
+// --- Songs from MIDI files ------------------------------------------------------------------
+
+MidiSong *music_midi_song_load(const char *path)
+{
+	tml_message *messages = tml_load_filename(path);
+	if (messages == NULL)
+		return NULL;
+	MidiSong *song = SDL_calloc(1, sizeof(*song));
+	song->messages = song->loop = messages;
+	for (tml_message *m = messages; m != NULL; m = m->next)
+	{
+		if (m->type == TML_CONTROL_CHANGE && m->control == MIDI_LOOP_CONTROLLER)
+			song->loop = m;
+		song->end = m->time;
+	}
+	return song;
+}
+
+void music_midi_song_free(MidiSong *song)
+{
+	if (song == NULL)
+		return;
+	tml_free(song->messages);
+	SDL_free(song);
+}
+
+// Every channel as the translator expects it: no notes, controllers reset, program 0.
+static void clear_channels(void)
+{
+	tsf_note_off_all(synth);
+	for (int ch = 0; ch < 16; ++ch)
+		tsf_channel_midi_control(synth, ch, 121, 0);
+	prepare_channels();
+}
+
+MidiSong *music_midi_song_play(MidiSong *song)
+{
+	MidiSong *old = song_now;
+	if (synth != NULL && (song != NULL || old != NULL))
+	{
+		clear_channels();
+		midi_translator_reset(&live);
+	}
+	song_now = song;
+	song_next = song != NULL ? song->messages : NULL;
+	song_ms = 0;
+	return old;
+}
+
+void music_midi_song_rewind(void)
+{
+	if (song_now != NULL)
+		music_midi_song_play(song_now);
+}
+
+static void song_message(const tml_message *m)
+{
+	switch (m->type)
+	{
+	case TML_NOTE_ON:
+		if (m->velocity > 0)
+			tsf_channel_note_on(synth, m->channel, m->key, m->velocity / 127.0f);
+		else
+			tsf_channel_note_off(synth, m->channel, m->key);
+		break;
+	case TML_NOTE_OFF:
+		tsf_channel_note_off(synth, m->channel, m->key);
+		break;
+	case TML_CONTROL_CHANGE:
+		tsf_channel_midi_control(synth, m->channel, m->control, m->control_value);
+		break;
+	case TML_PROGRAM_CHANGE:
+		tsf_channel_set_presetnumber(synth, m->channel, m->program, m->channel == MIDI_DRUM_CHANNEL);
+		break;
+	case TML_PITCH_BEND:
+		tsf_channel_set_pitchwheel(synth, m->channel, m->pitch_bend);
+		break;
+	}
+}
+
+void music_midi_song_render(Sint16 *samples, int count)
+{
+	if (synth == NULL || song_now == NULL)
+	{
+		memset(samples, 0, (size_t)count * sizeof(*samples));
+		return;
+	}
+	const double ms_per_sample = 1000.0 / output_rate;
+	while (count > 0)
+	{
+		while (song_next != NULL && song_next->time <= song_ms)
+		{
+			song_message(song_next);
+			song_next = song_next->next;
+		}
+		if (song_next == NULL)
+		{
+			if (song_now->loop->time >= song_now->end)
+			{
+				tsf_render_short(synth, samples, count, 0);  // (no loop: the notes ring out)
+				return;
+			}
+			song_next = song_now->loop;  // round from the loop's start
+			song_ms = song_next->time;
+			continue;
+		}
+		const int n = SDL_clamp((int)ceil((song_next->time - song_ms) / ms_per_sample), 1, count);
+		tsf_render_short(synth, samples, n, 0);
+		samples += n;
+		count -= n;
+		song_ms += n * ms_per_sample;
+	}
 }
