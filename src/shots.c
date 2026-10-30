@@ -290,7 +290,10 @@ bool player_shot_move_and_draw(
 
 		if (*out_is_special)
 		{
-			blit_sprite_blend(VGAScreen, *out_shotx+1, *out_shoty, OPTION_SHAPES, sprite_frame - 60001);
+			// (Tyrian3D: in 3D its model where models.cfg has one; blended into the screen, it showed flat and at its size)
+			if (!l3d_add_option_shot(sprite_frame - 60001, *out_shotx + 1, *out_shoty, shot->shotX - start_x,
+			                         shot->shotY - start_y, L3D_KEY_SHOT + shot_id))
+				blit_sprite_blend(VGAScreen, *out_shotx+1, *out_shoty, OPTION_SHAPES, sprite_frame - 60001);
 
 			*out_special_radiusw = sprite(OPTION_SHAPES, sprite_frame - 60001)->width / 2;
 			*out_special_radiush = sprite(OPTION_SHAPES, sprite_frame - 60001)->height / 2;

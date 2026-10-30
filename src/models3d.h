@@ -108,6 +108,9 @@ int m3d_standin_model(char sheet, unsigned int sprite);
 // A shot's model (models.cfg "shot" lines), for sprite `sprite` of the shots sheet (shots2: the
 // second one); false if it has none (it shows as a volume).
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);
+// The model of a big shot drawn from the option shapes ("shot options <shape>" lines: the Xega Ball, the Plasma
+// Storm), or false.
+bool m3d_option_shot_appearance(unsigned int shape, M3DAppearance *appearance);
 int m3d_sprite_rule_count(void);
 // The model of that name in models.cfg, or -1.
 int m3d_find_model(const char *name);

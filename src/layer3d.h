@@ -314,6 +314,9 @@ extern float l3d_pointer_lead[2];
 // moved this tick, game pixels, for the frame it is first seen in). False when the 3D view isn't
 // capturing or shows flat sprites: then draw the sprite as usual.
 bool l3d_add_shot(const void *sheet, unsigned int sprite, int x, int y, float vx, float vy, Uint32 key);
+// A big shot drawn from the option shapes (shape `shape`, its top left at x, y, as blit_sprite_blend draws it) as
+// its model (models.cfg "shot options" lines); false when it has none: then draw the shape as usual.
+bool l3d_add_option_shot(unsigned int shape, int x, int y, float vx, float vy, Uint32 key);
 
 // A shot the game dropped because it left the screen at the top: the 3D view, which sees further,
 // lets it fly on (vx, vy: game pixels a tick) until it is far away. l3d_draw_departed_shots adds

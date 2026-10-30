@@ -71,10 +71,10 @@ static struct
 } wreck_models[512], standin_models[64];
 static int wreck_model_count = 0, standin_model_count = 0;
 
-// shot <shots|shots2> <sprite> <appearance> [options]: the player's and enemies' shots.
+// shot <shots|shots2|options> <sprite> <appearance> [options]: the player's and enemies' shots.
 static struct
 {
-	Uint8 sheet;  // 0 shots, 1 shots2
+	Uint8 sheet;  // 0 shots, 1 shots2, 2 the option shapes (big shots drawn blended)
 	unsigned int sprite;
 	M3DAppearance appearance;
 } shot_rules[1024];
@@ -401,9 +401,9 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 			WARN("too many shot rules");
 			return;
 		}
-		if (strcmp(tokens[1], "shots") != 0 && strcmp(tokens[1], "shots2") != 0)
+		if (strcmp(tokens[1], "shots") != 0 && strcmp(tokens[1], "shots2") != 0 && strcmp(tokens[1], "options") != 0)
 		{
-			WARN("unknown shot sheet '%s' (shots or shots2)", tokens[1]);
+			WARN("unknown shot sheet '%s' (shots, shots2 or options)", tokens[1]);
 			return;
 		}
 		M3DAppearance a = { .model = M3D_SPRITE, .yaw_mode = M3D_YAW_FIXED, .yaw = 0.0f };
@@ -415,7 +415,7 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		for (int i = 4; i < count; ++i)
 			if (!parse_option(tokens[i], &a))
 				WARN("unknown option '%s'", tokens[i]);
-		shot_rules[shot_rule_count].sheet = strcmp(tokens[1], "shots2") == 0;
+		shot_rules[shot_rule_count].sheet = strcmp(tokens[1], "shots2") == 0 ? 1 : strcmp(tokens[1], "options") == 0 ? 2 : 0;
 		shot_rules[shot_rule_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
 		shot_rules[shot_rule_count].appearance = a;
 		++shot_rule_count;
@@ -634,17 +634,27 @@ int m3d_mount_model(int weapon_sprite)
 	return m3d_enabled && weapon_sprite >= 0 && weapon_sprite < ILLUSTRATION_PICTURES ? mount_models[weapon_sprite] : -1;
 }
 
-bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance)
+static bool shot_appearance(Uint8 sheet, unsigned int sprite, M3DAppearance *appearance)
 {
 	if (!m3d_enabled)
 		return false;
 	for (int i = 0; i < shot_rule_count; ++i)
-		if (shot_rules[i].sheet == shots2 && shot_rules[i].sprite == sprite)
+		if (shot_rules[i].sheet == sheet && shot_rules[i].sprite == sprite)
 		{
 			*appearance = shot_rules[i].appearance;
 			return appearance->model >= 0;
 		}
 	return false;
+}
+
+bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance)
+{
+	return shot_appearance(shots2 ? 1 : 0, sprite, appearance);
+}
+
+bool m3d_option_shot_appearance(unsigned int shape, M3DAppearance *appearance)
+{
+	return shot_appearance(2, shape, appearance);
 }
 
 int m3d_frame_model(char sheet, unsigned int sprite, int model)

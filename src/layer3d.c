@@ -646,6 +646,35 @@ bool l3d_key_seen(Uint32 key)
 	return false;
 }
 
+bool l3d_add_option_shot(unsigned int shape, int x, int y, float step_x, float step_y, Uint32 key)
+{
+	// Its model on the shape's middle (blit_sprite_blend draws it from its top left at x, y), moving between ticks as
+	// a shot does (l3d_add_shot), its glow the line's (glow=) or none.
+	if (!l3d_capturing || !m3d_enabled || !sprite_exists(OPTION_SHAPES, shape))
+		return false;
+	M3DAppearance look = { 0 };
+	if (!m3d_option_shot_appearance(shape, &look))
+		return false;
+	const float cx = x + get_sprite_width(OPTION_SHAPES, shape) / 2.0f, cy = y + get_sprite_height(OPTION_SHAPES, shape) / 2.0f;
+	const int index = l3d_frame.object_count;
+	if (!l3d_add_object(look.model, cx + look.at_dx, cy + look.at_dy, look.height, look.yaw, 0.0f, 0))
+		return false;
+	if (l3d_frame.object_count > index)  // (not dropped)
+		l3d_frame.objects[index].scale = look.scale;
+	const bool jump = fabsf(step_x) > MOTION_MAX_STEP || fabsf(step_y) > MOTION_MAX_STEP;
+	float vx, vy;
+	l3d_key_last_object(key, NULL, NULL);
+	l3d_new_object_velocity(jump ? 0.0f : step_x, jump ? 0.0f : step_y, &vx, &vy);
+	if (look.glow_size > 0)
+	{
+		if (look.glow_has_rgb)
+			l3d_add_rgb_glow(cx + look.glow_dx, cy + look.glow_dy, look.glow_size, look.glow_strength, look.glow_rgb, vx, vy);
+		else if (look.glow_color != 0)
+			l3d_add_color_glow(cx + look.glow_dx, cy + look.glow_dy, look.glow_size, look.glow_strength, look.glow_color, vx, vy);
+	}
+	return true;
+}
+
 #define MAX_DEPARTED 96  // shots flying on past the top of the screen (l3d_shot_departed)
 #define L3D_KEY_DEPARTED 0x60000u
 
