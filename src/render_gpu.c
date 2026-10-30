@@ -4623,6 +4623,9 @@ static void init_batch(BTBHGPUSceneGeometryBatch *b)
 
 static float instances[MAX_INSTANCES * 24];
 static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
+// Batches of a shot's glowing materials (add_object_batches): they cast no shadow (glowing bolts drew dark bars
+// on the sea, 1:29). Cleared as each frame's objects are made.
+static bool glowing_shot_batch[MAX_BATCHES];
 
 // TYR3D_LOG_CLIP (log_clipping): what the frame draws where, kept only while the switch is on. Each
 // model object's transform as add_object_batches draws it (before aligned()), and each background
@@ -4723,6 +4726,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
                                int *batch_count)
 {
 	sync_model_cache();
+	memset(glowing_shot_batch, 0, sizeof(glowing_shot_batch));
 	const bool clip_log = clip_log_on();
 	if (clip_log)
 		memset(clip_drawn, 0, sizeof(clip_drawn));
@@ -4822,6 +4826,10 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				}
 				if (b->albedo_alpha < 255)  // see-through materials (glass)
 					b->transparency_enabled = 1;
+				glowing_shot_batch[b - batches] =
+					SDL_strncmp(m3d_models[model_index].name, "shot_", 5) == 0 &&
+					(b->emission_texture != NULL || b->emission_red + b->emission_green + b->emission_blue > 0) &&
+					b->emission_energy > 0.0f;
 				// A flame model's glowing materials (FLAME_ADD of them) added to what is behind: fire as glowing gas
 				// rather than opaque lumps (TYR3D_FLAME=0: as the others).
 				if (m3d_models[model_index].flame && flame_models() &&
@@ -12105,7 +12113,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	const bool shadows = shadows_enabled();
 	for (int i = 0; i < batch_count; ++i)
 	{
-		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]);
+		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]) &&
+		                  !(i >= first_object_batch && glowing_shot_batch[i]);
 		if (shadows && batches[i].unlit_enabled == 1 && (i < first_space_batch || i >= end_space_batch))
 			batches[i].unlit_enabled = batches[i].transparency_enabled ? 3 : 2;
 	}
