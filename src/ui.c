@@ -1445,6 +1445,15 @@ static void item_icon(const UIItem *it, Box well, float alpha)
 	               snap(well.y + (well.h - h) / 2), w, h, alpha * L.alpha);
 }
 
+// The HUD's lives: the player's own ship as its 3D model's picture, else the game's little ship (sheet 9, 285), icon high.
+static void life_icon(const Player *p, float x, float y, float icon)
+{
+	const int model = m3d_ship_appearance(p->items.ship).model;
+	const float side = icon * 1.15f;
+	if (model < 0 || !rgpu_ui_model_icon(model, x + (icon * 12 / 14.0f - side) / 2, y + (icon - side) / 2, side, side, L.alpha))
+		rgpu_ui_sprite(&spriteSheet9, 285, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+}
+
 // A scrolled list: the first of `count` rows shown when `fits` do, keeping the selected one in view
 // (each list keeps where it was scrolled to).
 enum { LIST_ROWS, LIST_CARDS, LIST_FILES, LIST_PREVIEW, LIST_KINDS };
@@ -4617,7 +4626,7 @@ static Box hud_player_panel(int k, Box safe, float margin, float row_h, float la
 		float x = b.x + U(20);
 		if (extra_lives > 0)
 		{
-			rgpu_ui_sprite(&spriteSheet9, 285, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+			life_icon(p, x, y, icon);
 			x += icon * 12 / 14.0f + U(8);
 			char count[16];
 			snprintf(count, sizeof(count), "x%d", extra_lives);
@@ -4836,7 +4845,7 @@ void ui_build_hud(const UIView *view)
 			if (extra_lives > 0)
 			{
 				// The ship's own little picture (the panel's), and how many.
-				rgpu_ui_sprite(&spriteSheet9, 285, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+				life_icon(p, x, y, icon);
 				x += icon * 12 / 14.0f + U(8);
 				char count[16];
 				snprintf(count, sizeof(count), "x%d", extra_lives);
