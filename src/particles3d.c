@@ -536,7 +536,9 @@ bool p3d_explosion(int x, int y, int type)
 		light(cx, cy, 24, 30, 2.5f, 6);
 		return true;
 	case 2: case 3: case 4: case 5:  // a quarter of a large explosion on the ground
-		flash(cx, cy, 10, 22, 7);
+		// (One flash at the middle of the four: a flash each burned into a white rounded square.)
+		if (type == 5)
+			flash(cx - 6, cy - 7, 10, 34, 8);
 		fireball(cx, cy, 8, 6, 18, 28, 5);
 		sparks(cx, cy, 8, 6, 2.8f);
 		embers(cx, cy, 6, 5, 1.5f);
@@ -554,7 +556,8 @@ bool p3d_explosion(int x, int y, int type)
 		wisp(cx, cy, 30);
 		return true;
 	case 7: case 8: case 9: case 10:  // a quarter of a large explosion in the air
-		flash(cx, cy, 30, 22, 7);
+		if (type == 10)
+			flash(cx - 6, cy - 7, 30, 34, 8);
 		fireball(cx, cy, 30, 6, 17, 24, 5);
 		sparks(cx, cy, 30, 9, 3.2f);
 		embers(cx, cy, 30, 4, 1.7f);
