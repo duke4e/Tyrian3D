@@ -167,13 +167,15 @@ def poison_bomb():
 # --- Shuriken -----------------------------------------------------------------------------------------------
 
 @model("shot_shuriken", ("shots", 109), [("shots", 109, 0, "spin=24", "Shuriken Field (spins)")],
-       note="dark four-bladed throwing star, curved blades")
+       note="polished steel four-bladed throwing star, curved blades")
 def shuriken():
     """Four curved blades round a hub (the sprite's centre at x = 0, y = 0.5), each running out from
-    the hub and hooking round clockwise."""
-    steel = sk.pal("sh_steel", 0x05, metallic=0.6, roughness=0.2)
-    edge = sk.pal("sh_edge", 0x09, metallic=0.75, roughness=0.15)
-    dark = sk.pal("sh_dark", 0x01, metallic=0.4, roughness=0.5)
+    the hub and hooking round clockwise. Polished steel lighter than the sprite's near-black greys (0x05,
+    0x09: on every ground the spinning stars read as soot or bats, not as the player's shots), its rim
+    bright."""
+    steel = sk.pal("sh_steel", 0x0b, metallic=0.75, roughness=0.18)
+    edge = sk.pal("sh_edge", 0x0e, metallic=0.85, roughness=0.1)
+    dark = sk.pal("sh_dark", 0x04, metallic=0.4, roughness=0.5)
     cy = 0.5
     # One blade, pointing up and hooking right: its outline from the hub out along the outer edge
     # to the tip and back along the inner edge.
