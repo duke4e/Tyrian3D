@@ -5418,12 +5418,20 @@ static float cloud_billows(float x, float z)
 // cost a frame's time); with `live` (by CLOUD_COARSE x CLOUD_COARSE texels, `qw` across), only there.
 enum { CLOUD_WARP_X, CLOUD_WARP_Z, CLOUD_ERODE, CLOUD_BILLOW };
 
+// The cover's edges wander by two octaves of noise (40 and 16 game pixels; CLOUD_WARP_FINE of the finer), up to
+// CLOUD_WARP_REACH game pixels each way in all, and are eaten away by CLOUD_ERODE_DEPTH of the erosion noise: with one
+// octave, half as far and 0.7, the tiles' straight runs stayed straight, and the clouds read as felt cut-outs.
+#define CLOUD_WARP_REACH 72.0f
+#define CLOUD_WARP_FINE 0.35f
+#define CLOUD_ERODE_DEPTH 0.9f
+#define CLOUD_OPACITY 0.6f  // (0.7 hid the shots and enemies under them)
+
 static float cloud_field_at(int which, float x, float z)
 {
 	switch (which)
 	{
-	case CLOUD_WARP_X: return cloud_noise(x, z, 40.0f, 13);
-	case CLOUD_WARP_Z: return cloud_noise(x, z, 40.0f, 14);
+	case CLOUD_WARP_X: return (1 - CLOUD_WARP_FINE) * cloud_noise(x, z, 40.0f, 13) + CLOUD_WARP_FINE * cloud_noise(x, z, 16.0f, 15);
+	case CLOUD_WARP_Z: return (1 - CLOUD_WARP_FINE) * cloud_noise(x, z, 40.0f, 14) + CLOUD_WARP_FINE * cloud_noise(x, z, 16.0f, 16);
 	case CLOUD_ERODE:  return 0.6f * cloud_noise(x, z, 34.0f, 11) + 0.4f * cloud_noise(x, z, 15.0f, 12);
 	default:           return cloud_billows(x, z);
 	}
@@ -5877,13 +5885,13 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended, float ba
 			light[i] = factor;
 		}
 	}
-	// The edges wander too: the cover is looked up a little way off, by noise (up to 8 texels), between
+	// The edges wander too: the cover is looked up a little way off, by noise (up to 12 texels), between
 	// texels (looked up at the nearest, its edges would step); the tiles' light and shade with it.
 	memcpy(scratch, cover, sizeof(float) * (size_t)(w * h));
 	memset(cover, 0, sizeof(float) * (size_t)(w * h));
 	cloud_field(field_a, w, h, map_x0, map_z0, CLOUD_WARP_X, live, qw);
 	cloud_field(field_b, w, h, map_x0, map_z0, CLOUD_WARP_Z, live, qw);
-	const float reach = 48.0f / CLOUD_SCALE, right = (float)(w - 1), bottom_row = (float)(h - 1);
+	const float reach = CLOUD_WARP_REACH / CLOUD_SCALE, right = (float)(w - 1), bottom_row = (float)(h - 1);
 	for (int y = 0; y < h; ++y)
 	{
 		const float *warp_x = &field_a[y * w], *warp_z = &field_b[y * w];
@@ -5923,7 +5931,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended, float ba
 			if (!live_row[x / Q])
 				continue;
 			const float c0 = out[x], outer = deep[x] < 1 ? 1 - deep[x] : 0, thin = c0 * 3 < 1 ? c0 * 3 : 1;
-			const float thick = c0 - 0.7f * erode[x] * outer * thin;
+			const float thick = c0 - CLOUD_ERODE_DEPTH * erode[x] * outer * thin;
 			float edge = SDL_min(x, w - 1 - x) * (1.0f / 6);
 			edge = edge < edge_y ? edge : edge_y;
 			out[x] = thick <= 0 ? 0 : thick * (edge < 1 ? edge : 1) * far;
@@ -6264,7 +6272,7 @@ static void add_cloud_batches(const float *heights, const Camera3D *camera, bool
 		               cloud_canvases[c].blended ? 0.22f : 0.3f, instance_count, batch_count);
 		// The cloud: two slices, a little apart, for some depth; clouds the game blends with what is
 		// below let about half of it through.
-		const float opacity = cloud_canvases[c].blended ? 0.42f : 0.7f;
+		const float opacity = cloud_canvases[c].blended ? 0.36f : CLOUD_OPACITY;
 		add_cloud_quad(c, height - 1.5f, 0, 0, 0.94f, opacity, instance_count, batch_count);
 		add_cloud_quad(c, height + 1.5f, 0, 0, 1.0f, opacity, instance_count, batch_count);
 	}
