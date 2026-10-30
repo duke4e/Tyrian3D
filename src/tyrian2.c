@@ -2741,7 +2741,12 @@ level_loop:
 	if (astralDuration == 0)
 		draw_background_1(VGAScreen);
 	else
+	{
 		JE_clr256(VGAScreen);
+		// (Tyrian3D: the rows above the screen too, which the 3D view shows: else the Astral Zone's space had a band
+		// of the last ground drawn there across its top, flat and at the screen's size)
+		memset(surface_pixels_ll(VGAScreen), 0, (size_t)(-surface_top(VGAScreen)) * VGAScreen->pitch);
+	}
 
 	/*Set Movement of background 1*/
 	if (--map1YDelay == 0)
