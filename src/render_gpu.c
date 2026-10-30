@@ -19,6 +19,7 @@
 #include "model_icons.h"
 #include "models3d.h"
 #include "palette.h"
+#include "pcxmast.h"
 #include "particles3d.h"
 #include "picload.h"
 #include "file.h"
@@ -4514,6 +4515,22 @@ static Uint8 palette_albedo(Uint8 value)
 	return (Uint8)SDL_min(255.0f, srgb_to_linear(value) / MODEL_UP_FACING_LIGHT * 255.0f + 0.5f);
 }
 
+// A palette material glows as its surface is coloured: its GLB's emission colour (linear) was baked from the levels'
+// palette (the in-game panel picture's, as tools/blender/tyrkit.py's level_palette), so the frame's colour of its
+// index (the level's own palette, a fade, a sprite filter) carries it as far as it lies from that palette's colour.
+static Uint8 palette_emission(Uint8 emission, Uint8 now, Uint8 then)
+{
+	return (Uint8)SDL_min(255.0f, emission * (srgb_to_linear(now) + 0.002f) / (srgb_to_linear(then) + 0.002f) + 0.5f);
+}
+
+static void palette_emission_of(BTBHGPUSceneGeometryBatch *b, const Uint8 now[3], int index)
+{
+	const SDL_Color then = palettes[pcxpal[3 - 1]][index];
+	b->emission_red = palette_emission(b->emission_red, now[0], then.r);
+	b->emission_green = palette_emission(b->emission_green, now[1], then.g);
+	b->emission_blue = palette_emission(b->emission_blue, now[2], then.b);
+}
+
 static LoadedModel *get_model(int index)
 {
 	LoadedModel *loaded = &loaded_models[index];
@@ -4779,6 +4796,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 						b->albedo_red = palette_albedo(c[0]);
 						b->albedo_green = palette_albedo(c[1]);
 						b->albedo_blue = palette_albedo(c[2]);
+						palette_emission_of(b, c, loaded->palette_index[m]);
 					}
 				}
 				if (b->albedo_alpha < 255)  // see-through materials (glass)
@@ -12166,6 +12184,7 @@ static void add_showcase_model(int model_index, const Mat4 *placement, float foo
 			b->albedo_red = palette_albedo(c[0]);
 			b->albedo_green = palette_albedo(c[1]);
 			b->albedo_blue = palette_albedo(c[2]);
+			palette_emission_of(b, c, loaded->palette_index[m]);
 		}
 		if (b->albedo_alpha < 255)
 			b->transparency_enabled = 1;
