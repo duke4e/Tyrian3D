@@ -971,11 +971,32 @@ void b3d_build_atlas_hd(Uint8 *indices, Uint8 *opaque, Uint8 *ground)
 		{
 			const Uint8 *tile = m.first_tile + k * m.tile_stride;
 			const Uint8 *hd = hd_tile(set, k);
-			static Uint8 enlarged[B3D_TILE_W * B3D_TILE_H * 64];
+			static Uint8 enlarged[B3D_TILE_W * B3D_TILE_H * 64], masked[B3D_TILE_W * B3D_TILE_H * 64];
 			if (hd == NULL && s <= 8)
 			{
 				enlarge_tile(tile, s, enlarged);
 				hd = enlarged;
+			}
+			else if (hd != NULL && s <= 8 && memchr(tile, 0, B3D_TILE_W * B3D_TILE_H) != NULL)
+			{
+				// Colour 0 (clear) of a tile whose HD pixels lost much of it: the maps it was upscaled
+				// from had background 1's colour 0 opaque black (b3d_export_maps), which then showed as
+				// black rectangles over the planets and nebulae behind (5:16 STATION, 4:20 EYESPY). Clear
+				// where the tile enlarged (Scale2x, rounded) is, if over a quarter of that is opaque.
+				enlarge_tile(tile, s, enlarged);
+				int clear = 0, lost = 0;
+				for (int i = 0; i < tw * th; ++i)
+					if (enlarged[i] == 0)
+					{
+						++clear;
+						lost += hd[i] != 0;
+					}
+				if (lost * 4 > clear)
+				{
+					for (int i = 0; i < tw * th; ++i)
+						masked[i] = enlarged[i] == 0 ? 0 : hd[i];
+					hd = masked;
+				}
 			}
 			int ox, oy;
 			b3d_cell_origin((set - 1) * B3D_TILES_PER_SET + k, &ox, &oy);
