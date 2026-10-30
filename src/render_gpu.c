@@ -4553,6 +4553,9 @@ static LoadedModel *get_model(int index)
 		loaded->half[2] = (report.maximum_z - report.minimum_z) / 2;
 		loaded->footprint = SDL_max(report.maximum_x - report.minimum_x, report.maximum_z - report.minimum_z);
 		loaded->material_count = SDL_min(report.material_count, (uint32_t)COUNTOF(loaded->materials));
+		if (report.material_count > loaded->material_count)
+			fprintf(stderr, "warning: model %s has %u materials, only the first %u are drawn\n", model->path,
+			        report.material_count, loaded->material_count);
 		for (uint32_t m = 0; m < loaded->material_count; ++m)
 			btbh_gpu_model_material_info(loaded->gpu, m, &loaded->materials[m]);
 		read_palette_materials(model->path, loaded);
