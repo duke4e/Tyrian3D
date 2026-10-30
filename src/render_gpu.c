@@ -11174,39 +11174,56 @@ static void add_debris_batch(int *instance_count, int *batch_count)
 static void add_glow_batch(const L3DFrame *frame, const Uint32 colors[256], const float *heights, int *instance_count,
                            int *batch_count)
 {
-	const int first = *instance_count;
-	for (int g = 0; g < frame->glow_count && *instance_count < MAX_INSTANCES; ++g)
+	// Two batches: glows in the air face the camera; glows on the ground (its enemies' layer and below) lie flat on it,
+	// a little above it: standing up, the ground cut their lower half off in a straight line (4:45's glowing ground
+	// enemies sat in orange boxes). Seen from the slanted camera a flat disc is nearly round.
+	for (int flat = 0; flat < 2; ++flat)
 	{
-		const L3DGlow *glow = &frame->glows[g];
-		Mat4 transform = mat4_identity();
-		transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
-		transform.m[12] = glow->x + (glow->pointer ? l3d_pointer_lead[0] : glow->vx * ahead);
-		transform.m[14] = glow->y + (glow->pointer ? l3d_pointer_lead[1] : glow->vy * ahead);
-		// As high as what glows: its layer's height in the game's order, on the ground as drawn.
-		const float base = layer_base(frame, heights, (L3DLayerType)glow->layer, glow->phase) + 0.5f;
-		transform.m[13] = base + (glow->layer == L3D_GROUND_ENEMY ? stand_lift(transform.m[12], transform.m[14], base, NULL) : 0.0f);
-		float *instance = instances + *instance_count * 24;
-		write_instance(instance, &transform, 1.0f);
-		const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
-		for (int i = 0; i < 3; ++i)
-			instance[16 + i] = srgb_to_linear(c[i]) * glow->strength;
-		instance[19] = 1.0f;
-		++*instance_count;
-	}
-	if (*instance_count == first || *batch_count >= MAX_BATCHES)
-		return;
+		const int first = *instance_count;
+		for (int g = 0; g < frame->glow_count && *instance_count < MAX_INSTANCES; ++g)
+		{
+			const L3DGlow *glow = &frame->glows[g];
+			const bool on_ground = glow->layer == L3D_GROUND_ENEMY || glow->layer == L3D_GROUND || glow->layer == L3D_BG2_LOW;
+			if (on_ground != (flat == 1))
+				continue;
+			Mat4 transform = mat4_identity();
+			transform.m[0] = transform.m[5] = transform.m[10] = glow->size;
+			transform.m[12] = glow->x + (glow->pointer ? l3d_pointer_lead[0] : glow->vx * ahead);
+			transform.m[14] = glow->y + (glow->pointer ? l3d_pointer_lead[1] : glow->vy * ahead);
+			// As high as what glows: its layer's height in the game's order, on the ground as drawn.
+			const float base = layer_base(frame, heights, (L3DLayerType)glow->layer, glow->phase) + 0.5f;
+			transform.m[13] = base + (glow->layer == L3D_GROUND_ENEMY ? stand_lift(transform.m[12], transform.m[14], base, NULL) : 0.0f);
+			if (flat)
+			{
+				// (The quad's corner at its origin: centred.)
+				transform.m[5] = 1;
+				transform.m[12] -= glow->size / 2;
+				transform.m[14] -= glow->size / 2;
+				transform.m[13] += 0.1f;
+			}
+			float *instance = instances + *instance_count * 24;
+			write_instance(instance, &transform, 1.0f);
+			const Uint8 *c = glow->has_rgb ? glow->rgb : (const Uint8 *)&colors[glow->color];
+			for (int i = 0; i < 3; ++i)
+				instance[16 + i] = srgb_to_linear(c[i]) * glow->strength;
+			instance[19] = 1.0f;
+			++*instance_count;
+		}
+		if (*instance_count == first || *batch_count >= MAX_BATCHES)
+			continue;
 
-	BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
-	init_batch(b);
-	b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
-	b->custom_mesh = billboard_mesh;
-	b->first_instance = first;
-	b->instance_count = *instance_count - first;
-	b->albedo_texture = particle_texture;
-	b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
-	b->unlit_enabled = 1;
-	b->transparency_enabled = 1;
-	b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = flat ? quad_mesh : billboard_mesh;
+		b->first_instance = first;
+		b->instance_count = *instance_count - first;
+		b->albedo_texture = particle_texture;
+		b->billboard_mode = flat ? BTBH_GPU_SCENE_BILLBOARD_DISABLED : BTBH_GPU_SCENE_BILLBOARD_FRONT;
+		b->unlit_enabled = 1;
+		b->transparency_enabled = 1;
+		b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+	}
 }
 
 // The scene's point lights: the explosions' (particles3d.h) and the glows of shots and other
