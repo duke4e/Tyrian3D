@@ -4836,6 +4836,10 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					b->transparency_enabled = 1;
 					b->albedo_alpha = (Uint8)(b->albedo_alpha / 2);
 				}
+				// Fading (in, out, a ghost): only the faces towards the camera, or the model's far side and insides
+				// show through it (1:21's launcher fading in read as a glass box).
+				if (state->ghost || state->appear != 0 || shown_step(f) < SHOWN_STEPS)
+					b->cull_mode = BTBH_GPU_SCENE_CULL_BACK;
 				if (state->appear != 0)
 				{
 					b->transparency_enabled = 1;
