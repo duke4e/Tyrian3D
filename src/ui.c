@@ -3913,12 +3913,21 @@ static void build_rogue(const UIMenu *m)
 			const bool open = r->nodes[to].can_go && (from < 0 || r->nodes[from].visited);
 			rogue_path(ax, ay, ar, bx, by, br, r->edge[e].flown, open);
 		}
-		// The ship where it is, drawn anew (the game leaves it out of the picture).
+		// The ship where it is, drawn anew (the game leaves it out of the picture): its own 3D model rendered, else its
+		// sprite.
 		if (r->ship_sheet != NULL)
 		{
 			const float sw = 24 * k * 1.25f, sh = 28 * k * 1.25f;
-			rgpu_ui_sprite(r->ship_sheet, (unsigned int)r->ship_sprite, true, pic.x + r->ship_x * k - sw / 2, pic.y + r->ship_y * k - sh / 2, sw, sh,
-			               L.alpha);
+			const bool t2000 = r->ship_sheet == (const void *)&spriteSheetT2000;
+			int model = -1;
+			for (int id = 1; id <= SHIP_NUM && model < 0 && (t2000 || r->ship_sheet == (const void *)&spriteSheet9); ++id)
+				if (ships[id].shipgraphic == (unsigned int)r->ship_sprite + (t2000 ? 500u : 0u))
+					model = shop_item_model(2, id);
+			const float side = sh * 1.1f;
+			if (model < 0 || !rgpu_ui_model_icon(model, pic.x + r->ship_x * k - side / 2, pic.y + r->ship_y * k - side / 2, side, side,
+			                                     L.alpha))
+				rgpu_ui_sprite(r->ship_sheet, (unsigned int)r->ship_sprite, true, pic.x + r->ship_x * k - sw / 2,
+				               pic.y + r->ship_y * k - sh / 2, sw, sh, L.alpha);
 		}
 		for (int i = 0; i < r->node_count; ++i)
 		{
