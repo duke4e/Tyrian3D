@@ -962,6 +962,19 @@ bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 colo
 	return true;
 }
 
+void l3d_light_column(float x, float half_width)
+{
+	// Glows close enough to run together, at the phase's height, the ground lit under them; at most 24 of them.
+	if (!l3d_capturing || half_width <= 0)
+		return;
+	static const Uint8 light[3] = { 255, 248, 232 };
+	const float top = -(float)l3d_field_ahead, bottom = (float)L3D_PLAYFIELD_H;
+	const float size = 2.0f * half_width + 6.0f;
+	const float step = SDL_max((bottom - top) / 24.0f, size * 0.35f);
+	for (float y = top + step / 2; y < bottom; y += step)
+		l3d_add_rgb_glow(x, y, size, 0.16f, light, 0, 0);
+}
+
 void l3d_add_glow(const void *sheet, unsigned int sprite, int x, int y)
 {
 	if (l3d_capturing)

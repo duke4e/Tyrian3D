@@ -864,8 +864,13 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 	{
 		temp = 25 - abs(zinglonDuration - 25);
 
-		JE_barBright(VGAScreen, player[0].x + 7 - temp,     0, player[0].x + 7 + temp,     184);
-		JE_barBright(VGAScreen, player[0].x + 7 - temp - 2, 0, player[0].x + 7 + temp + 2, 184);
+		if (l3d_capturing)  // (Tyrian3D: a column of light; the brightened band showed the 2D screen's own pixels)
+			l3d_light_column(player[0].x + 7, temp + 1);
+		else
+		{
+			JE_barBright(VGAScreen, player[0].x + 7 - temp,     0, player[0].x + 7 + temp,     184);
+			JE_barBright(VGAScreen, player[0].x + 7 - temp - 2, 0, player[0].x + 7 + temp + 2, 184);
+		}
 
 		zinglonDuration--;
 		if (zinglonDuration % 5 == 0)

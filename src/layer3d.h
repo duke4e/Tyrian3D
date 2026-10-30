@@ -330,6 +330,9 @@ void l3d_pointer_last_glow(void);
 bool l3d_add_color_glow(float x, float y, float size, float strength, Uint8 color, float vx, float vy);
 // The same in a colour of no palette (sRGB).
 bool l3d_add_rgb_glow(float x, float y, float size, float strength, const Uint8 rgb[3], float vx, float vy);
+// A column of light down the whole playfield the 3D view shows, half_width game pixels either side of x (the Soul
+// of Zinglon's, which the game draws by brightening the screen's pixels in a band).
+void l3d_light_column(float x, float half_width);
 // The player's shield took a hit (player 0 or 1): the 3D view shows the shield round the ship for a moment
 // (l3d_shield_glow) instead of the game's shield sprites.
 void l3d_shield_hit(int player_index);
