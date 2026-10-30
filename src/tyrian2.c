@@ -3685,7 +3685,9 @@ draw_player_shot_loop_end:
 	if (displayTime > 0)
 	{
 		displayTime--;
+		l3d_phase(L3D_HUD);  // (Tyrian3D: one of the game's displays, which the modern HUD shows its own way)
 		JE_outTextAndDarken(VGAScreen, 90, 10, miscText[59], 15, (JE_byte)flash - 8, FONT_SHAPES);
+		l3d_phase(L3D_OVERLAY);
 		flash += flashChange;
 		if (flash > 4 || flash == 0)
 			flashChange = -flashChange;

@@ -4968,6 +4968,24 @@ void ui_build_hud(const UIView *view)
 		text_mid(FONT_BOLD, "WARNING", b, 0, cap, (Colour){ 1.0f, 0.28f + 0.3f * pulse, 0.2f + 0.15f * pulse, 1 }, ALIGN_CENTRE);
 	}
 
+	// The game's notice flashing at the screen's top while displayTime runs (a warp to a secret level taken:
+	// miscText[59]), which it draws among its displays: a plate at the top middle, its text glowing as it flashes.
+	if (displayTime > 0 && !view->menu_over && rgpu_ui_text_ready())
+	{
+		char notice[48];
+		plain_label_ui(notice, miscText[59], sizeof(notice));
+		const float a = SDL_clamp(SDL_min(displayTime / 20.0f, (150 - displayTime) / 8.0f), 0.0f, 1.0f);
+		const float pulse = 0.5f + 0.5f * sinf(SDL_GetTicks() / 160.0f);
+		const float cap = cap_of(34, 16);
+		const float w = text_w(FONT_BOLD, notice, cap) + U(110), h = cap * 2.4f;
+		const Box b = { safe.x + (safe.w - w) / 2, safe.y + safe.h * 0.3f - h / 2 + (1 - a) * U(12), w, h };  // (under the level's name)
+		L.alpha = a;
+		panel(b, U(14), PANEL_SOLID);
+		text_graded(FONT_BOLD, notice, b.x + b.w / 2, b.y + (h - cap) / 2, cap, mix(C_GOLD_TOP, (Colour){ 1, 1, 1, 1 }, 0.4f * pulse),
+		            C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+		L.alpha = 1;
+	}
+
 	// Game over: a plate in the middle while the game shows it (ui_note_game_over).
 	if (game_over_seen && l3d_frame_number - game_over_frame <= 2 && !view->menu_over)
 	{
