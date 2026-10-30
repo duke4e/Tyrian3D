@@ -9037,14 +9037,20 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 		// Ground of terrain below its plane (sunken ground, chasms) shows further up the level at the
 		// window's top edge. Its rows are drawn aligned at the plane's height (aligned(): x, y and z
 		// scaled about the plane), so its lowest ground is that much lower in the world.
+		// Raised ground likewise shows further down the level at the window's bottom edge (its rows are seen
+		// higher up the window than the plane's: without the rows below, the window's bottom showed black, 1:41).
 		const B3DTerrain *ground = background == lift_ground ? lift_terrain : NULL;
 		const float deepest = ground == NULL ? 0.0f
 		                                     : SDL_max(ground->hole_count > 0 ? TERRAIN_HOLE_DEPTH : 0.0f, (float)-ground->lowest);
-		if (deepest > 0)
+		const float highest = ground == NULL ? 0.0f : (float)SDL_max(ground->highest, 0);
+		for (int side = 0; side < 2; ++side)
 		{
+			const float by = side == 0 ? -deepest : highest;
+			if (by == 0)
+				continue;
 			const float k = align_scale(height);
 			float low[4];
-			plane_footprint_world(camera, height - deepest * k, align.cz + (-BACKGROUND_AHEAD - align.cz) * k, low);
+			plane_footprint_world(camera, height + by * k, align.cz + (-BACKGROUND_AHEAD - align.cz) * k, low);
 			if (low[0] <= low[2])
 			{
 				low[0] = align.cx + (low[0] - align.cx) / k;
