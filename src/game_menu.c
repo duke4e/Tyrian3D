@@ -2727,18 +2727,26 @@ static int data_cube_model(int *ramp)
 	return look.model >= 0 ? look.model : -1;
 }
 
+int super_bomb_model(void)
+{
+	// (The HUD's super bomb, the ships sheet's 304, is the blue canister the shots sheet's 90 draws, its outline a little
+	// fuller: shot_canister_blue.)
+	return m3d_enabled ? m3d_find_model("shot_canister_blue") : -1;
+}
+
 int shop_icon_models(int *models, int *ramps, int max)
 {
 	int count = 0;
 	// (Each item with a name, and its model or that its icon stays its sprite, listed as it goes.)
 	const int parts[][2] = { { 2, SHIP_NUM }, { 3, PORT_NUM }, { 5, SHIELD_NUM }, { 6, POWER_NUM }, { 7, OPTION_NUM } };
-	static const char *const kinds[] = { "ship", "gun", "shield", "generator", "sidekick", "special", "data cube" };
-	for (int kind = 0; kind < (int)COUNTOF(parts) + 2; ++kind)
+	static const char *const kinds[] = { "ship", "gun", "shield", "generator", "sidekick", "special", "data cube", "super bomb" };
+	for (int kind = 0; kind < (int)COUNTOF(parts) + 3; ++kind)
 		for (int item = 1; item <= (kind < (int)COUNTOF(parts) ? parts[kind][1] : kind == (int)COUNTOF(parts) ? SPECIAL_NUM : 1); ++item)
 		{
 			int ramp = -1;
 			const int model = kind < (int)COUNTOF(parts) ? shop_item_model(parts[kind][0], item)
-			                : kind == (int)COUNTOF(parts) ? special_item_model(item) : data_cube_model(&ramp);
+			                : kind == (int)COUNTOF(parts) ? special_item_model(item)
+			                : kind == (int)COUNTOF(parts) + 1 ? data_cube_model(&ramp) : super_bomb_model();
 			char name[48];
 			if (kind < (int)COUNTOF(parts))
 				shop_item_name(parts[kind][0], item, name, sizeof(name));
@@ -2746,7 +2754,7 @@ int shop_icon_models(int *models, int *ramps, int max)
 				SDL_strlcpy(name, kind == (int)COUNTOF(parts) ? special[item].name : "", sizeof(name));
 			for (int k = (int)strlen(name) - 1; k >= 0 && name[k] == ' '; --k)
 				name[k] = '\0';
-			if (name[0] != '\0' || kind == (int)COUNTOF(parts) + 1)
+			if (name[0] != '\0' || kind > (int)COUNTOF(parts))
 				printf("icons: %s %d %s: %s\n", kinds[kind], item, name, model >= 0 ? m3d_models[model].name : "its sprite");
 			bool known = model < 0;
 			for (int i = 0; i < count && !known; ++i)

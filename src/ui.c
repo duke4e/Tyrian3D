@@ -1445,6 +1445,15 @@ static void item_icon(const UIItem *it, Box well, float alpha)
 	               snap(well.y + (well.h - h) / 2), w, h, alpha * L.alpha);
 }
 
+// The HUD's super bombs: the blue canister's 3D model's picture, else the game's sprite (sheet 9, 304), icon high.
+static void bomb_icon(float x, float y, float icon)
+{
+	const int model = super_bomb_model();
+	const float side = icon * 1.1f;
+	if (model < 0 || !rgpu_ui_model_icon(model, x + (icon * 12 / 14.0f - side) / 2, y + (icon - side) / 2, side, side, L.alpha))
+		rgpu_ui_sprite(&spriteSheet9, 304, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+}
+
 // The HUD's lives: the player's own ship as its 3D model's picture, else the game's little ship (sheet 9, 285), icon high.
 static void life_icon(const Player *p, float x, float y, float icon)
 {
@@ -4635,7 +4644,7 @@ static Box hud_player_panel(int k, Box safe, float margin, float row_h, float la
 		}
 		for (int i = 0; i < bombs; ++i)
 		{
-			rgpu_ui_sprite(&spriteSheet9, 304, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+			bomb_icon(x, y, icon);
 			x += icon * 0.8f;
 		}
 	}
@@ -4854,7 +4863,7 @@ void ui_build_hud(const UIView *view)
 			}
 			for (int i = 0; i < bombs; ++i)
 			{
-				rgpu_ui_sprite(&spriteSheet9, 304, false, x, y, icon * 12 / 14.0f, icon, L.alpha);
+				bomb_icon(x, y, icon);
 				x += icon * 0.8f;
 			}
 			y += icon + U(10);

@@ -56,6 +56,8 @@ float shop_shield_strength(void);
 // its render as the item's icon (ui.h icon_model).
 int shop_item_model(int part, int item);
 int special_item_model(int id);
+// The HUD's super bomb's model (its icon), or -1.
+int super_bomb_model(void);
 // TYR3D_RENDER_ICONS: the models every item's icon is rendered from, once each, and the palette ramp each takes (-1:
 // its own colours); how many.
 int shop_icon_models(int *models, int *ramps, int max);
