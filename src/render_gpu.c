@@ -11129,6 +11129,72 @@ typedef struct
 	float position[3], radius, color[3], energy;
 } PointLight;
 
+// The point lights a frame takes from its candidates (importance: each one's), written to lighting; returns how many.
+static int merge_point_lights(BTBHGPUSceneLighting *lighting, const PointLight *candidates, const float *importance,
+                              int candidate_count)
+{
+	// The most important first, lights close together merged into one (a stream of shots, a ring of them: each pixel
+	// adds up every light the scene has, so their number is what costs; 32 lights took half the frame), at most
+	// max_lights (TYR3D_POINT_LIGHTS) of them. A light within MERGE_REACH of its radius from one taken already joins
+	// it: the energy adds up, position and colour weighted by energy, the radius grows to reach both.
+	static int max_lights = -1;
+	if (max_lights < 0)
+		max_lights = SDL_clamp(SDL_getenv("TYR3D_POINT_LIGHTS") != NULL ? SDL_atoi(SDL_getenv("TYR3D_POINT_LIGHTS")) : 12, 0,
+		                       BTBH_GPU_SCENE_POINT_LIGHTS);
+	static int order[512];
+	candidate_count = SDL_min(candidate_count, 512);
+	for (int i = 0; i < candidate_count; ++i)
+	{
+		int at = i;
+		while (at > 0 && importance[order[at - 1]] < importance[i])
+		{
+			order[at] = order[at - 1];
+			--at;
+		}
+		order[at] = i;
+	}
+	PointLight merged[BTBH_GPU_SCENE_POINT_LIGHTS];
+	int count = 0;
+	for (int n = 0; n < candidate_count; ++n)
+	{
+		const PointLight *l = &candidates[order[n]];
+		int into = -1;
+		for (int m = 0; m < count && into < 0; ++m)
+		{
+			const float dx = merged[m].position[0] - l->position[0], dz = merged[m].position[2] - l->position[2];
+			const float reach = MERGE_REACH * SDL_min(merged[m].radius, l->radius);
+			if (dx * dx + dz * dz < reach * reach && fabsf(merged[m].position[1] - l->position[1]) < reach)
+				into = m;
+		}
+		if (into < 0)
+		{
+			if (count < max_lights)
+				merged[count++] = *l;
+			continue;
+		}
+		PointLight *m = &merged[into];
+		const float total = m->energy + l->energy, a = m->energy / total, b = l->energy / total;
+		const float dx = l->position[0] - m->position[0], dz = l->position[2] - m->position[2];
+		for (int c = 0; c < 3; ++c)
+		{
+			m->position[c] = m->position[c] * a + l->position[c] * b;
+			m->color[c] = m->color[c] * a + l->color[c] * b;
+		}
+		m->radius = SDL_max(m->radius, l->radius) + 0.5f * sqrtf(dx * dx + dz * dz);
+		m->energy = SDL_min(total, MERGE_ENERGY_MAX);
+	}
+	for (int n = 0; n < count; ++n)
+	{
+		const PointLight *l = &merged[n];
+		float *out = lighting->point_lights[n];
+		memcpy(out, l->position, 3 * sizeof(float));
+		out[3] = l->radius;
+		memcpy(out + 4, l->color, 3 * sizeof(float));
+		out[7] = l->energy;
+	}
+	return count;
+}
+
 static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame *frame, const Uint32 colors[256],
                                  bool glow_lights)
 {
@@ -11181,64 +11247,7 @@ static void add_explosion_lights(BTBHGPUSceneLighting *lighting, const L3DFrame 
 		importance[candidate_count++] = out->energy * glow->size;
 	}
 
-	// The most important first, lights close together merged into one (a stream of shots, a ring of them: each pixel
-	// adds up every light the scene has, so their number is what costs; 32 lights took half the frame), at most
-	// max_lights (TYR3D_POINT_LIGHTS) of them. A light within MERGE_REACH of its radius from one taken already joins
-	// it: the energy adds up, position and colour weighted by energy, the radius grows to reach both.
-	static int max_lights = -1;
-	if (max_lights < 0)
-		max_lights = SDL_clamp(SDL_getenv("TYR3D_POINT_LIGHTS") != NULL ? SDL_atoi(SDL_getenv("TYR3D_POINT_LIGHTS")) : 12, 0,
-		                       BTBH_GPU_SCENE_POINT_LIGHTS);
-	static int order[MAX_CANDIDATES];
-	for (int i = 0; i < candidate_count; ++i)
-	{
-		int at = i;
-		while (at > 0 && importance[order[at - 1]] < importance[i])
-		{
-			order[at] = order[at - 1];
-			--at;
-		}
-		order[at] = i;
-	}
-	PointLight merged[BTBH_GPU_SCENE_POINT_LIGHTS];
-	int count = 0;
-	for (int n = 0; n < candidate_count; ++n)
-	{
-		const PointLight *l = &candidates[order[n]];
-		int into = -1;
-		for (int m = 0; m < count && into < 0; ++m)
-		{
-			const float dx = merged[m].position[0] - l->position[0], dz = merged[m].position[2] - l->position[2];
-			const float reach = MERGE_REACH * SDL_min(merged[m].radius, l->radius);
-			if (dx * dx + dz * dz < reach * reach && fabsf(merged[m].position[1] - l->position[1]) < reach)
-				into = m;
-		}
-		if (into < 0)
-		{
-			if (count < max_lights)
-				merged[count++] = *l;
-			continue;
-		}
-		PointLight *m = &merged[into];
-		const float total = m->energy + l->energy, a = m->energy / total, b = l->energy / total;
-		const float dx = l->position[0] - m->position[0], dz = l->position[2] - m->position[2];
-		for (int c = 0; c < 3; ++c)
-		{
-			m->position[c] = m->position[c] * a + l->position[c] * b;
-			m->color[c] = m->color[c] * a + l->color[c] * b;
-		}
-		m->radius = SDL_max(m->radius, l->radius) + 0.5f * sqrtf(dx * dx + dz * dz);
-		m->energy = SDL_min(total, MERGE_ENERGY_MAX);
-	}
-	for (int n = 0; n < count; ++n)
-	{
-		const PointLight *l = &merged[n];
-		float *out = lighting->point_lights[n];
-		memcpy(out, l->position, 3 * sizeof(float));
-		out[3] = l->radius;
-		memcpy(out + 4, l->color, 3 * sizeof(float));
-		out[7] = l->energy;
-	}
+	const int count = merge_point_lights(lighting, candidates, importance, candidate_count);
 	lighting->point_light_count = (uint32_t)count;
 	if (SDL_getenv("TYR3D_LOG_LIGHTS") != NULL && ahead == 0)
 	{
@@ -12396,41 +12405,29 @@ static void add_showcase_lights(BTBHGPUSceneLighting *lighting, const RGPUShowca
 		glow_lights = SDL_getenv("TYR3D_GLOW_LIGHTS") == NULL || SDL_atoi(SDL_getenv("TYR3D_GLOW_LIGHTS")) != 0;
 	if (!glow_lights)
 		return;
-	int chosen[BTBH_GPU_SCENE_POINT_LIGHTS];
-	int count = 0;
-	for (int g = 0; g < show->glow_count; ++g)
+	// Its glows as candidates, merged and chosen as a level's (merge_point_lights).
+	static PointLight candidates[512];
+	static float importance[512];
+	int candidate_count = 0;
+	for (int g = 0; g < show->glow_count && candidate_count < 512; ++g)
 	{
 		const RGPUShowcaseGlow *glow = &show->glows[g];
 		if (glow->strength <= 0.05f || glow->size <= 1.0f)
 			continue;
-		const float importance = glow->strength * glow->size;
-		int at = count < BTBH_GPU_SCENE_POINT_LIGHTS ? count : BTBH_GPU_SCENE_POINT_LIGHTS - 1;
-		if (count == BTBH_GPU_SCENE_POINT_LIGHTS && importance <= show->glows[chosen[at]].strength * show->glows[chosen[at]].size)
-			continue;
-		while (at > 0 && show->glows[chosen[at - 1]].strength * show->glows[chosen[at - 1]].size < importance)
-		{
-			chosen[at] = chosen[at - 1];
-			--at;
-		}
-		chosen[at] = g;
-		if (count < BTBH_GPU_SCENE_POINT_LIGHTS)
-			++count;
-	}
-	for (int n = 0; n < count; ++n)
-	{
-		const RGPUShowcaseGlow *glow = &show->glows[chosen[n]];
 		const float height = glow->height * k * GLOW_LIGHT_LOW;
-		float *out = lighting->point_lights[n];
-		out[0] = ox + glow->x * k;
-		out[1] = height;
-		out[2] = oz + glow->y * k;
-		out[3] = height + glow->size * k * GLOW_LIGHT_REACH;
+		PointLight *out = &candidates[candidate_count];
+		out->position[0] = ox + glow->x * k;
+		out->position[1] = height;
+		out->position[2] = oz + glow->y * k;
+		out->radius = height + glow->size * k * GLOW_LIGHT_REACH;
 		const Uint8 *c = glow->color != 0 ? (const Uint8 *)&colors[glow->color] : glow->rgb;
 		const float peak = SDL_max(SDL_max(c[0], c[1]), SDL_max(c[2], 1));
 		for (int i = 0; i < 3; ++i)
-			out[4 + i] = c[i] / peak;
-		out[7] = glow->strength * GLOW_LIGHT_ENERGY;
+			out->color[i] = c[i] / peak;
+		out->energy = glow->strength * GLOW_LIGHT_ENERGY;
+		importance[candidate_count++] = glow->strength * glow->size;
 	}
+	const int count = merge_point_lights(lighting, candidates, importance, candidate_count);
 	lighting->point_light_count = (uint32_t)count;
 }
 
