@@ -812,7 +812,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_TEST_WRECK=<every>` | The player's ship's wreck flung apart (with a large explosion) mid-screen every so many frames |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
 | `TYR3D_SIDEKICKS=<left>,<right>` | With `TYR3D_START`: the sidekicks, numbered as in the shop (the catalogue lists them) |
-| `TYR3D_SPECIAL=<n>`, `TYR3D_BOMBS=<n>` | With `TYR3D_START`: a special weapon (its id in the item data), super bombs at each level's start (0-10) |
+| `TYR3D_SPECIAL=<n>`, `TYR3D_BOMBS=<n>`, `TYR3D_ARMOR=<n>` | With `TYR3D_START`: a special weapon (its id in the item data), super bombs at each level's start (0-10), the ship's armor at each level's start (1-28; under 6 the low-armor warning) |
 | `TYR3D_WINDOWED=1` | Run in a window in the corner of the screen without taking the focus, and keep playing without it (`tools/capture_run.sh` sets it) |
 | `TYR3D_EXPORT_MUSIC=<dir>` | Export every song as a MIDI file (with the General MIDI instruments the composer set for MIDI devices, the drums on the drum channel), and the instruments they use (`instruments.json`, with each one's raw MIDI bytes: program, dum1, dum2) |
 | `TYR3D_EXTRACT=<dir>` | Export the sprite sheets and the enemy catalogue (see `tools/catalog_html.py`) |

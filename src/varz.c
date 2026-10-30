@@ -283,6 +283,7 @@ JE_boolean  flareStart;
 JE_shortint flareColChg;
 JE_byte     specialWait;
 bool        special_ready = false;  // Tyrian3D: the special weapon's ready light (JE_doSpecialShot) was lit
+int         armor_warning = -1;     // Tyrian3D: the low-armor warning's armor (tyrian2.c), -1 none
 JE_byte     nextSpecialWait;
 JE_boolean  spraySpecial;
 JE_byte     doIced;

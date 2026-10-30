@@ -3556,6 +3556,7 @@ draw_player_shot_loop_end:
 
 	/*-------------------------Warning---------------------------*/
 	l3d_phase(L3D_OVERLAY);
+	armor_warning = -1;
 	if ((player[0].is_alive && player[0].armor < 6) ||
 	    (twoPlayerMode && !galagaMode && player[1].is_alive && player[1].armor < 6))
 	{
@@ -3606,11 +3607,15 @@ draw_player_shot_loop_end:
 			{
 				warningColChange = -warningColChange;
 			}
+			// (Tyrian3D: one of the game's displays, which the modern HUD shows its own way: armor_warning)
+			armor_warning = armor_amount;
+			l3d_phase(L3D_HUD);
 			fill_rectangle_xy(VGAScreen, 24, 181, 138, 183, warningCol);
 			fill_rectangle_xy(VGAScreen, 175, 181, 287, 183, warningCol);
 			fill_rectangle_xy(VGAScreen, 24, 0, 287, 3, warningCol);
 
 			JE_outText(VGAScreen, 140, 178, "WARNING", 7, (warningCol % 16) / 2);
+			l3d_phase(L3D_OVERLAY);
 
 		}
 	}

@@ -253,6 +253,9 @@ void dev_level_start_items(void)
 	const char *bombs = SDL_getenv("TYR3D_BOMBS");  // super bombs at each level's start
 	if (bombs != NULL && SDL_getenv("TYR3D_START") != NULL)
 		player[0].superbombs = (uint)SDL_clamp(SDL_atoi(bombs), 0, 10);
+	const char *armor = SDL_getenv("TYR3D_ARMOR");  // the ship's armor at each level's start (under 6: the warning)
+	if (armor != NULL && SDL_getenv("TYR3D_START") != NULL)
+		player[0].armor = (uint)SDL_clamp(SDL_atoi(armor), 1, 28);
 }
 
 bool dev_background_run(void)

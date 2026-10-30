@@ -4906,6 +4906,7 @@ void ui_build_hud(const UIView *view)
 	}
 
 	// The game's message (JE_drawTextWindow) in a pill at the bottom middle, while it shows.
+	float message_top = -1;  // (the low-armor warning keeps clear of it)
 	{
 		static char shown_message[sizeof(text_window_message)] = "";
 		static Uint64 message_since = 0;
@@ -4936,7 +4937,35 @@ void ui_build_hud(const UIView *view)
 			text_mid(FONT_SEMIBOLD, fitted, b, 0, cap, C_CREAM, ALIGN_CENTRE);
 			hud_fade(mark, b, &fades[4]);
 			L.alpha = 1;
+			message_top = b.y;
 		}
+	}
+
+	// The low-armor warning (the game draws red bars at the screen's top and bottom and a WARNING among its displays):
+	// red light at the window's top and bottom edges and a WARNING over the bottom middle, pulsing faster the less
+	// armor is left, as the game's warning sound repeats.
+	if (armor_warning >= 0 && !view->menu_over && rgpu_ui_text_ready())
+	{
+		const float period = (armor_warning * 4 + 8) / 35.0f;  // seconds
+		const float pulse = 0.5f + 0.5f * sinf(SDL_GetTicks() / 1000.0f * 6.2831853f / period);
+		const float glow_h = U(80);
+		const Colour red = { 0.92f, 0.1f, 0.05f, 0.16f + 0.22f * pulse }, clear = { 0.92f, 0.1f, 0.05f, 0 };
+		rect((Box){ L.window.x, L.window.y, L.window.w, glow_h }, red, clear);
+		rect((Box){ L.window.x, L.window.y + L.window.h - glow_h, L.window.w, glow_h }, clear, red);
+		const float cap = cap_of(22, 12);
+		const float w = text_w(FONT_BOLD, "WARNING", cap) + U(64), h = cap * 2.3f;
+		// Between the bottom panels and under the message; above them where it doesn't fit between.
+		const float x = safe.x + (safe.w - w) / 2;
+		float y = safe.y + safe.h - margin - h - U(4);
+		const float left_end = bottom_left.w > 0 ? bottom_left.x + bottom_left.w + U(16) : safe.x;
+		const float right_start = bottom_right.w > 0 ? bottom_right.x - U(16) : safe.x + safe.w;
+		if (x < left_end || x + w > right_start)
+			y = SDL_min(bottom_left.w > 0 ? bottom_left.y : y + h, bottom_right.w > 0 ? bottom_right.y : y + h) - h - U(16);
+		if (message_top >= 0)
+			y = SDL_min(y, message_top - h - U(12));
+		const Box b = { x, y, w, h };
+		panel(b, U(10), PANEL_SOLID);
+		text_mid(FONT_BOLD, "WARNING", b, 0, cap, (Colour){ 1.0f, 0.28f + 0.3f * pulse, 0.2f + 0.15f * pulse, 1 }, ALIGN_CENTRE);
 	}
 
 	// Game over: a plate in the middle while the game shows it (ui_note_game_over).
