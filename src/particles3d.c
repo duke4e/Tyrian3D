@@ -81,23 +81,23 @@ static void sparks(float x, float y, float height, int count, float speed)
 	}
 }
 
-// Smoke that rises, spreads and thins out.
-static void smoke(float x, float y, float height, int count, float size, Uint8 grey)
+// A wisp of white smoke that drifts up and thins out soon: the game's smoke behind missiles, many in a row.
+static void wisp(float x, float y, float height)
 {
-	for (int i = 0; i < count; ++i)
+	for (int i = 0; i < 2; ++i)
 	{
-		P3DParticle *p = spawn(P3D_SMOKE, x + random_range(-3, 3), y + random_range(-3, 3), height);
+		P3DParticle *p = spawn(P3D_SMOKE, x + random_range(-1.5f, 1.5f), y + random_range(-1.5f, 1.5f), height);
 		if (p == NULL)
 			return;
-		p->vx = random_range(-0.15f, 0.15f);
-		p->vy = random_range(-0.25f, 0.05f);
-		p->vheight = random_range(0.2f, 0.45f);
-		p->drag = 0.98f;
-		p->size = size * random_range(0.6f, 1.0f);
-		p->grow = size * 0.04f;
-		p->age = -random_range(0, 4);  // puffs appear one after another
-		p->life = random_range(28, 44);
-		set_colors(p, grey, grey, grey, 120, grey / 2, grey / 2, grey / 2, 0);
+		p->vx = random_range(-0.1f, 0.1f);
+		p->vy = random_range(-0.15f, 0.05f);
+		p->vheight = random_range(0.15f, 0.3f);
+		p->drag = 0.97f;
+		p->size = random_range(4.5f, 6.0f);
+		p->grow = 0.22f;
+		p->age = -random_range(0, 2);
+		p->life = random_range(18, 28);
+		set_colors(p, 200, 200, 200, 52, 100, 100, 100, 0);
 	}
 }
 
@@ -431,10 +431,11 @@ void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind
 				p->vx = random_range(-0.03f, 0.03f);
 				p->vy = random_range(-0.03f, 0.03f);
 				p->drag = 0.9f;
-				p->size = random_range(2.6f, 3.2f);
-				p->grow = 0.1f;
-				p->life = random_range(18, 24) - k * 0.5f;
-				set_colors(p, 235, 240, 245, 42, 235, 240, 245, 0);
+				// (Thin and short: 2.6-3.2 growing 0.1 for 18-24 frames made two thick white worms behind every jet.)
+				p->size = random_range(1.7f, 2.2f);
+				p->grow = 0.06f;
+				p->life = random_range(12, 16) - k * 0.4f;
+				set_colors(p, 235, 240, 245, 36, 235, 240, 245, 0);
 			}
 		}
 		P3DParticle *glow = spawn(P3D_GLOW, x - ux * 6.0f, y - uy * 6.0f, height);
@@ -446,20 +447,27 @@ void p3d_trail(float x, float y, float dx, float dy, float height, P3DTrail kind
 		}
 		return;
 	}
-	// Behind its motor, a little off its line, drifting slowly as it thins out.
+	// Behind its motor, a little off its line, drifting slowly as it thins out: puffs every two pixels along the way
+	// it came this frame, thin and soon gone, so the trail is a wisp, not a row of thick beads that crosses the
+	// screen (one puff a frame of 2.2-3 growing 0.22 for 16-24 frames: grey worms over every space level's shots).
 	const float bx = x - dx / speed * 5.0f, by = y - dy / speed * 5.0f;
-	P3DParticle *p = spawn(P3D_SMOKE, bx + random_range(-0.6f, 0.6f), by + random_range(-0.6f, 0.6f), height);
-	if (p != NULL)
+	const int steps = SDL_clamp((int)ceilf(speed / 2.0f), 1, 4);
+	for (int k = 0; k < steps; ++k)
 	{
-		p->vx = -dx * 0.04f + random_range(-0.08f, 0.08f);
-		p->vy = -dy * 0.04f + random_range(-0.08f, 0.08f);
-		p->vheight = random_range(0.0f, 0.06f);
+		const float back = speed * k / steps;
+		P3DParticle *p = spawn(P3D_SMOKE, bx - dx / speed * back + random_range(-0.4f, 0.4f),
+		                       by - dy / speed * back + random_range(-0.4f, 0.4f), height);
+		if (p == NULL)
+			break;
+		p->vx = -dx * 0.03f + random_range(-0.06f, 0.06f);
+		p->vy = -dy * 0.03f + random_range(-0.06f, 0.06f);
+		p->vheight = random_range(0.0f, 0.05f);
 		p->drag = 0.94f;
-		p->size = random_range(2.2f, 3.0f);
-		p->grow = 0.22f;
-		p->life = random_range(16, 24);
+		p->size = random_range(1.6f, 2.2f);
+		p->grow = 0.14f;
+		p->life = random_range(11, 16) - k * 0.4f;
 		const Uint8 grey = (Uint8)random_range(150, 190);
-		set_colors(p, grey, grey, grey, 95, grey, grey, grey, 0);
+		set_colors(p, grey, grey, grey, 60, grey, grey, grey, 0);
 	}
 	P3DParticle *spark = spawn(P3D_GLOW, bx + dx / speed * 1.5f, by + dy / speed * 1.5f, height);
 	if (spark != NULL)
@@ -542,8 +550,8 @@ bool p3d_explosion(int x, int y, int type)
 		}
 		light(cx, cy, 12, 56, 5.5f, 12);
 		return true;
-	case 6:  // white smoke
-		smoke(cx, cy, 30, 3, 10, 200);
+	case 6:  // white smoke (the game's missiles leave it every few frames: a wisp each, or they drew thick grey worms)
+		wisp(cx, cy, 30);
 		return true;
 	case 7: case 8: case 9: case 10:  // a quarter of a large explosion in the air
 		flash(cx, cy, 30, 22, 7);

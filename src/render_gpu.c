@@ -235,7 +235,8 @@ static float glint_parameters[4] = { 1.0f, 0.5f, 140.0f, 3.0f };
 // emissive parts, highlights), spread around it. The palette's colours never get past white, so
 // the ground, sprites and HUD don't bloom. Intensity, threshold, knee and radius;
 // TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius> overrides them (intensity 0: none).
-static float bloom_parameters[4] = { 0.5f, 1.0f, 0.1f, 1.2f };
+// (0.5, 1.0, 0.1 until 2026-10-30: an explosion over pale ice bloomed white over the ship.)
+static float bloom_parameters[4] = { 0.35f, 1.25f, 0.2f, 1.2f };
 
 // Whether a colour is water: blue to cyan and fairly bright (Tyrian's water and ice).
 static bool water_color(Uint32 color)
@@ -4702,6 +4703,22 @@ static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded,
 	return mat4_chain((int)COUNTOF(chain), chain);
 }
 
+// Flame models (M3DModel.flame): TYR3D_FLAME=<share> (0 off) tunes how much of their glowing materials is added.
+#define FLAME_ADD 0.25f  // (0.6 burned into a white block; 0.15 thin)
+
+static float flame_add(void)
+{
+	static float add = -1.0f;
+	if (add < 0.0f)
+		add = SDL_getenv("TYR3D_FLAME") != NULL ? SDL_clamp((float)SDL_atof(SDL_getenv("TYR3D_FLAME")), 0.0f, 1.0f) : FLAME_ADD;
+	return add;
+}
+
+static bool flame_models(void)
+{
+	return flame_add() > 0.0f;
+}
+
 static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
                                int *batch_count)
 {
@@ -4805,6 +4822,15 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 				}
 				if (b->albedo_alpha < 255)  // see-through materials (glass)
 					b->transparency_enabled = 1;
+				// A flame model's glowing materials (FLAME_ADD of them) added to what is behind: fire as glowing gas
+				// rather than opaque lumps (TYR3D_FLAME=0: as the others).
+				if (m3d_models[model_index].flame && flame_models() &&
+				    (b->emission_texture != NULL || b->emission_red + b->emission_green + b->emission_blue > 0))
+				{
+					b->transparency_enabled = 1;
+					b->blend_mode = BTBH_GPU_SCENE_BLEND_ADDITIVE;
+					b->albedo_alpha = (Uint8)(b->albedo_alpha * flame_add());
+				}
 				if (state->ghost)
 				{
 					b->transparency_enabled = 1;

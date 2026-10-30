@@ -25,6 +25,7 @@ typedef struct
 	float size;               // footprint in game pixels; 0 = model units are game pixels
 	float yaw, pitch, roll;   // degrees, applied to face the model up the screen
 	bool keep_origin;         // drawn at its own origin (pieces of one object), not centred in height
+	bool flame;               // its glowing materials drawn added to what is behind (fire as glowing gas, not lumps)
 } M3DModel;
 
 typedef enum

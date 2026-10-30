@@ -805,6 +805,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_RC=1` | Print the radiance cascades' state now and then |
 | `TYR3D_GLOW_LIGHTS=0` | Shots and other glows don't light their surroundings |
 | `TYR3D_LIGHT_CEILING=<luminance>` | The point lights' ceiling (default 1.0, 0 none): the light the explosions and glows add to a surface eases out towards the room it has left under this luminance (at least a fifth of it), so dark ground still flashes bright while pale ice or snow under a stream of shots doesn't burn white (`BTBHGPUSceneLighting.point_light_ceiling`) |
+| `TYR3D_FLAME=<share>` | How much of a flame model's glowing materials is added to what is behind it (`models.cfg` `model ... flame`; default 0.25, 0 draws them opaque as other models) |
 | `TYR3D_POINT_LIGHTS=<n>` | At most n point lights in a frame (default 12, 0-32): the explosions' and the glows' lights, the most important first, lights close together merged into one (`render_gpu.c` `add_explosion_lights`); every lit pixel adds up every light, so their number is the cost |
 | `TYR3D_LOG_LIGHTS=1` | Print the point lights of each frame |
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
@@ -866,7 +867,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEBUG_WATER=1` | Tint the procedural water red (to see where it is) |
 | `TYR3D_EXPLOSION_LIGHTS=0` | Leave out the explosions' lights |
 | `TYR3D_TEST_LIGHT=<x>,<y>,<height>,<radius>,<energy>` | Add a point light at a game position (to check the lighting) |
-| `TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius>` | Tune the bloom (defaults 0.5, 1, 0.1, 1.2; intensity 0 turns it off) |
+| `TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius>` | Tune the bloom (defaults 0.35, 1.25, 0.2, 1.2; intensity 0 turns it off) |
 | `TYR3D_SUN=<x>,<y>,<z>` | Override the direction the sun's light travels (for tuning; default 0.6,-1,0.6: from the top left of the screen) |
 | `TYR3D_VIEWER=ships` | Model viewer: each ship's 3D look beside its sprite (see `src/viewer.h`), with `TYR3D_VIEWER_YAW`, `_ROLL`, `_SPIN`; `sidekicks` shows the sidekicks |
 

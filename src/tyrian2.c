@@ -414,8 +414,10 @@ static void smoulder(unsigned int i, float x, float y, bool large)
 		return;
 	const L3DLayerType layer = l3d_current_layer();
 	const bool ground = layer == L3D_GROUND_ENEMY || layer == L3D_BG2_LOW || layer == L3D_GROUND;
-	p3d_smoulder(x, y, ground ? 3.0f : l3d_layer_height(layer) - l3d_terrain_headroom, large ? 1.6f : 1.0f,
-	             1 - since / SMOULDER_FRAMES);
+	// (In the sky it flies on, its smoke a trail behind it: thinner, or damaged jets and saucers drew thick grey
+	// worms across the screen.)
+	const float scale = (large ? 1.6f : 1.0f) * (ground ? 1.0f : 0.65f), strength = (1 - since / SMOULDER_FRAMES) * (ground ? 1.0f : 0.6f);
+	p3d_smoulder(x, y, ground ? 3.0f : l3d_layer_height(layer) - l3d_terrain_headroom, scale, strength);
 }
 
 // Tyrian3D: the GBC bosses' pieces (episode 7, tools/gbc/boss.py) are on links of their own: one shot down or rammed
