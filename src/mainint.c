@@ -3506,7 +3506,10 @@ void JE_playCredits(void)
 		else if (shipxc > 10)
 			ship_sprite += (shipxc > 20) ? 4 : 2;
 
-		blit_sprite2x2(VGAScreen, shipx / 40, 184 - (ticks % 200), spriteSheet9, ship_sprite);
+		// (Tyrian3D: with the modern UI the ship is its 3D model's picture over the screen, UICredits.)
+		const int ship_model = ui_modern() ? m3d_ship_appearance(currentship).model : -1;
+		if (ship_model < 0)
+			blit_sprite2x2(VGAScreen, shipx / 40, 184 - (ticks % 200), spriteSheet9, ship_sprite);
 
 		// Tyrian3D: the screen before its texts (with the bars the original puts over them), the modern UI's
 		// picture under its own lines (below).
@@ -3569,6 +3572,9 @@ void JE_playCredits(void)
 			}
 			if (currentpic == sprite_table[EXTRA_SHAPES].count - 1)
 				plain_label(c->note, miscText[54], sizeof(c->note));
+			c->ship_model = ship_model;
+			c->ship_x = shipx / 40.0f;
+			c->ship_y = 184 - (ticks % 200);
 			ui->selected = -1;
 			ui->wheel = UI_WHEEL_NONE;
 			ui_menu_publish(ui, VGAScreen, credits_picture != NULL ? credits_picture : VGAScreen);

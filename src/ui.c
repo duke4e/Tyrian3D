@@ -3666,6 +3666,14 @@ static void build_credits(const UIMenu *m)
 	rect_h((Box){ col.x + col.w, col.y, U(30), col.h }, dark, with_alpha(dark, 0));
 	const float cap = SDL_max(k * 6.2f, L.px * 10);
 	const float fade = 22 * k;
+	// The ship flying by (the original's sprite), its 3D model's picture, fading under the bars at the top and bottom.
+	if (c->ship_model >= 0)
+	{
+		const float side = 30 * k, x = pic.x + (c->ship_x + 12) * k - side / 2, y = pic.y + (c->ship_y + 14) * k - side / 2;
+		const float a = SDL_clamp(SDL_min((y + side - col.y) / fade, (col.y + col.h - y) / fade), 0.0f, 1.0f);
+		if (a > 0)
+			rgpu_ui_model_icon(c->ship_model, x, y, side, side, L.alpha * a);
+	}
 	for (int i = 0; i < c->count; ++i)
 	{
 		const float x = pic.x + c->x[i] * k, y = pic.y + c->y[i] * k;

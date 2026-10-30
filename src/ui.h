@@ -348,6 +348,8 @@ typedef struct
 	float x[UI_CREDIT_LINES], y[UI_CREDIT_LINES];
 	int colour[UI_CREDIT_LINES];  // the original's colour (its palette's hue)
 	char note[48];                // a line at the bottom ("Levels in Episode ..."), or ""
+	int ship_model;               // the ship flying by as its 3D model's picture (rgpu_ui_model_icon), -1 none
+	float ship_x, ship_y;         // where (screen pixels, its 24 x 28 sprite's top left)
 } UICredits;
 
 // The rogue mode's screens.
