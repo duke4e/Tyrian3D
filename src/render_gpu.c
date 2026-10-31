@@ -2275,7 +2275,8 @@ static void add_hd_picture(float sx, float sy, float sw, float sh, float x, floa
  * box, the screen's pixels of the sprite taken off.
  */
 #define HD_LOGO_PICTURE 4
-#define HD_LOGO_SAME 0.85f  // the share of the sprite's pixels the screen shows for the new logo to show
+#define HD_LOGO_SAME 0.6f   // the share of the sprite's pixels the screen shows for the new logo to show (0.85 missed
+                                    // them while they fly in: the 2000(tm) passes over the logo's right side)
 
 static struct
 {
