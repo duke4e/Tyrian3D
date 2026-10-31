@@ -54,9 +54,10 @@ Plate and shear_to_camera), so the camera sees every point where the sprites dra
   laid on as a little relief (EMBOSS), the vent's fins standing 1.5 (the lower ribs 0.6), the ring a rounded band
   rising to 4.7 round the dull red eye (a dome to 4.4), the rod 4.1, the spine 0.9 over the housing with its three
   sockets (rings 1.15 high) round the three dull red lamps (domes).
-Painted by the sprite under each face: each boulder facet one colour, the mean shade of the sprite's pixels of its
-commonest ramp under it, LIFT lighter, lighter the less the game's sun lights its plane (COMP, LIT_MEAN), its
-normal its plane's (flat, crisp facets); the crevices where the sprite draws its near-black lines (smoothed) dark
+Painted by the sprite under each face: each boulder one colour, the mean shade of the sprite's pixels of its
+commonest ramp under it, LIFT + BOULDER_LIFT lighter, its faces the heightfield's own normals, so the game's light
+shades its facets (2026-10-31: a colour and a plane's normal a facet, given cell by cell, drew the facets' borders
+as pixel staircases in flat posterised patches); the crevices where the sprite draws its near-black lines (smoothed) dark
 0xa2; the machine's faces its own greys MACHINE_LIFT lighter (its sprite is mostly near-black), the ring, rod and
 sockets silver, the dull eye and lamps red glass with a faint glow of their own; at most 15 materials a piece (the
 rarest merged into their neighbours of the same ramp). Heights: the machine heap 0-13.8 pixels, the cover 0-14.3
@@ -1078,6 +1079,7 @@ def machine_heights(pic, mask):
 LIFT = 0.8                        # painted this many shades lighter than drawn (the game reads darker)
 MACHINE_LIFT = 1.7                # the machine's dark steel more (its sprite is mostly near-black)
 COMP, LIT_MEAN = 0.8, 0.72        # and lighter where the game's sun lights a face less (gyges_wall's way)
+BOULDER_LIFT = 0.6                # a boulder's one colour this much lighter again (its faces away from the sun read dark)
 CREVICE = 0xa2                    # the dark between the boulders (the sprite's near-black lines and outline)
 ROCK = (0.05, 0.78)               # finishes (metallic, roughness)
 STEEL = (0.45, 0.36)
@@ -1240,20 +1242,24 @@ def facet_colours(whole):
                 continue
             key = (o, int(whole.facet[j, i]))
             sums.setdefault(key, {}).setdefault(v >> 4, []).append(v & 15)
+    # One colour a boulder (2026-10-31): a colour a facet, given cell by cell on the grid, drew its facets' borders as
+    # pixel staircases in flat posterised patches (the QA pass); the game's light shades its facets instead.
     out = {}
     for b in whole.boulders:
         default = float(np.median([a[r, c] & 15 for r, c in zip(*np.nonzero(whole.labels == b.index))
                                    if not dark(int(a[r, c]))] or [5]))
-        for f, (A, B, C) in enumerate(b.planes):
-            by_ramp = sums.get((b.index, f), {})
-            count = sum(len(v) for v in by_ramp.values())
-            if count >= 3:
-                ramp = max(sorted(by_ramp), key=lambda q: len(by_ramp[q]))
-                mean = float(np.mean(by_ramp[ramp]))
-            else:
-                ramp, mean = b.ramp, default
-            light = float(lit([(-A, -B, 1.0)])[0])
-            out[(b.index, f)] = quantize(ramp, mean + LIFT + COMP * (LIT_MEAN - light))
+        by_ramp = {}
+        for f in range(len(b.planes)):
+            for ramp, shades in sums.get((b.index, f), {}).items():
+                by_ramp.setdefault(ramp, []).extend(shades)
+        if sum(len(v) for v in by_ramp.values()) >= 3:
+            ramp = max(sorted(by_ramp), key=lambda q: len(by_ramp[q]))
+            mean = float(np.mean(by_ramp[ramp]))
+        else:
+            ramp, mean = b.ramp, default
+        colour = quantize(ramp, mean + LIFT + BOULDER_LIFT)
+        for f in range(len(b.planes)):
+            out[(b.index, f)] = colour
     return out
 
 
@@ -1312,8 +1318,8 @@ def paint_piece(whole, obj, kinds, facet_key, palette, dark_key):
                     keys[poly.index] = dark_key
                 else:
                     keys[poly.index] = (facet_key[(o, f)], ROCK, 0.0)
-                A, B, _ = whole.boulders[o].planes[f]
-                n = Vector((-A, -B, 1.0)).normalized()
+                # (The heightfield's own normals: its triangles' facets, not the planes' cell by cell.)
+                n = Vector(poly.normal)
                 for li in poly.loop_indices:
                     normals[li] = n
             elif o >= MACHINE:
