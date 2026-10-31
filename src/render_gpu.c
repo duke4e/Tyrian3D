@@ -4687,11 +4687,12 @@ static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded,
 	if (mirror)
 		mirror_x.m[0] = -1;
 	// Seen from the side (l3d_sideways), every model lies on its side, its top towards
-	// the window's top: the level's craft are seen in profile.
+	// the window's top: the level's craft are seen in profile. Flat ones whose profile is a thin strip (models.cfg
+	// "face": GRAVITRON's chain of links) keep facing the camera as from above.
 	const Mat4 chain[] = {
 		mat4_translation(object_x(object), height, object_y(object)),
 		mirror_x,
-		mat4_rotation(2, l3d_sideways ? SIDE_ROLL : 0.0f),
+		mat4_rotation(2, l3d_sideways && !model->face ? SIDE_ROLL : 0.0f),
 		mat4_rotation(1, -object->yaw),
 		mat4_rotation(2, -object->roll),
 		mat4_rotation(1, model->yaw),
