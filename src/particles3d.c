@@ -324,7 +324,9 @@ void p3d_field(float x, float y, float height, P3DField field, float reach, bool
 	// Cold blue-white light, unlike the explosions' fire.
 	if (pulse && (field == P3D_FIELD_REPULSE || field == P3D_FIELD_ATTRACT))
 	{
-		for (int k = 0; k < 2; ++k)
+		// (One faint ring a pulse: two bright ones every 14 frames, from several fields, covered the screen in
+		// overlapping blue rings, 1:19, 3:6.)
+		for (int k = 0; k < 1; ++k)
 		{
 			P3DParticle *p = spawn(P3D_RING, x, y, height);
 			if (p == NULL)
@@ -342,7 +344,7 @@ void p3d_field(float x, float y, float height, P3DField field, float reach, bool
 			}
 			p->age = -6.0f * k;
 			p->life = life;
-			set_colors(p, 150, 220, 255, 150, 40, 90, 255, 0);
+			set_colors(p, 150, 220, 255, 80, 40, 90, 255, 0);
 		}
 	}
 	const int count = pulse ? 10 : 2;

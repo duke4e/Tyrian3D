@@ -1540,7 +1540,7 @@ static void show_field(int enemy_index, int x, int y, P3DField field, float reac
 	if (!l3d_enabled || enemy_index < 0 || enemy_index >= 100)
 		return;
 	static Uint32 last_pulse[100];
-	const bool pulse = l3d_frame_number - last_pulse[enemy_index] >= 14;
+	const bool pulse = l3d_frame_number - last_pulse[enemy_index] >= 24;
 	if (pulse)
 		last_pulse[enemy_index] = l3d_frame_number;
 	p3d_field((float)x + 6, (float)y + 7, enemy[enemy_index].enemyground ? 4.0f : 30.0f, field, reach, pulse);
