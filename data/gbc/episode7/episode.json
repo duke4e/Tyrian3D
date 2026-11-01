@@ -1,0 +1,813 @@
+{
+ "stages": [
+  {
+   "gbc": 23,
+   "name": "TYRIAN",
+   "pc": [
+    1,
+    "TYRIAN"
+   ],
+   "fills": {
+    "2": 0.15
+   },
+   "maps": [
+    [
+     1,
+     "TYRIAN"
+    ],
+    [
+     3,
+     "TYRIAN X"
+    ],
+    [
+     4,
+     "NOSE DRIP"
+    ]
+   ],
+   "pool": [
+    [
+     1,
+     "TYRIAN"
+    ],
+    [
+     3,
+     "TYRIAN X"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASSASSIN"
+   ],
+   "slug": "01_L23",
+   "cubes": [
+    {
+     "text": "HELLO.  I AM TRANSON/LOHK, HEAD OF/GENCORE.|LET ME SAY IT WILL/BE A PLEASURE/WORKING WITH A FINE/PILOT LIKE YOURSELF.|I'LL MEET UP WITH/YOU A LITTLE LATER/IN THE GAME, BUT/FIRST I HAVE A BIT/OF A PROBLEM...|IT SEEMS THAT/SMUGGLERS HAVE BEEN/STEALING SHIPMENTS/OF OUR SPACE BANANAS/USED FOR WEAPONRY.|IF YOU MANAGE TO/CONVINCE ENOUGH/STARBASES TO GIVE/UP THIS CARGO, WE/WILL REWARD YOU.|GENCORE ALWAYS HAS/SECRET PROJECTS/RUNNING...|THANKS FOR YOUR/TIME.  I'M SURE/THIS WILL BE A/GREAT PARTNERSHIP.",
+     "speaker": "TRANSON"
+    },
+    {
+     "text": "MY HAZUDRA FRIEND/DIED TO GIVE ME A/CHANCE TO ESCAPE/THIS MICROSOL/DEATHTRAP.|I DON'T KNOW WHY HE/HAS DONE THIS, BUT/THERE'S NO TIME TO/CONSIDER THAT NOW...",
+     "speaker": null
+    }
+   ]
+  },
+  {
+   "gbc": 3,
+   "name": "ASTEROID",
+   "pc": [
+    1,
+    "ASTEROID1"
+   ],
+   "pool": [
+    [
+     1,
+     "ASTEROID1"
+    ],
+    [
+     1,
+     "ASTEROID2"
+    ],
+    [
+     1,
+     "ASTEROID?"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASTEROID2"
+   ],
+   "slug": "02_L03",
+   "cubes": [
+    {
+     "text": "SAVARA/THE PRIME CHAIR, AT/MIDWAY STATION,/ANNOUNCED IMMENSE/COMING BENEFITS FROM/TERRAFORMATION AND|MINING OF PLANET/TYRIAN. THIS/PLANET IS NOTED FOR/HOW ITS SURFACE/BREAKS APART/SPONTANEOUSLY,|HOWEVER, ITS/ATMOSPHERE IS QUITE/HABITABLE. MICROSOL/PLANS TO MAKE THE/PLANET LIVABLE AND/ELIMINATE THE|CRUST BREAKUP,/GENCORE STATED A/COUNTER ARGUMENT/THAT THE CENTER OF/THE PLANET IS GAS/AND UNSTABLE.|INTEREST IN THE/PLANET WAS REKINDLED/BY THE DESTRUCTION/OF PROPERTY BY A/TRENT HAWKINS,/TERRAFORM SCOUT.|HE IS STILL AT LARGE/THOUGH MICROSOL WILL/POLICE THE MATTER/WITHOUT OUTSIDE/HELP.",
+     "speaker": "NEWS"
+    }
+   ]
+  },
+  {
+   "gbc": 11,
+   "name": "SPACE",
+   "pc": [
+    2,
+    "SOH JIN"
+   ],
+   "space": true,
+   "pool": [
+    [
+     1,
+     "SOH JIN"
+    ],
+    [
+     2,
+     "SOH JIN"
+    ],
+    [
+     2,
+     "GEM WAR"
+    ],
+    [
+     2,
+     "MARKERS"
+    ],
+    [
+     2,
+     "MISTAKES"
+    ]
+   ],
+   "boss": [
+    4,
+    "ICE EXIT"
+   ],
+   "slug": "03_L11",
+   "cubes": [
+    {
+     "text": "TRENT HAWKINS?//HEAD FOR GENCORE AT/PLANET DELIANI. YOU/SHOULD BE ABLE TO/FIND REFUGE WITH|TRANSON LOHK, THE/CHANCELLOR.//JUST AN INTERESTED/PARTY.  I HAVE NO/LOVE OF MICROSOL.",
+     "speaker": "TECH"
+    }
+   ]
+  },
+  {
+   "gbc": 19,
+   "name": "SAVARA",
+   "pc": [
+    4,
+    "SAVARA IV"
+   ],
+   "layers": [
+    1,
+    "SAVARA V"
+   ],
+   "pool": [
+    [
+     1,
+     "SAVARA"
+    ],
+    [
+     1,
+     "SAVARA V"
+    ],
+    [
+     4,
+     "SAVARA IV"
+    ],
+    [
+     3,
+     "SAVARA Y"
+    ]
+   ],
+   "boss": [
+    1,
+    "SAVARA V"
+   ],
+   "slug": "04_L19",
+   "cubes": [
+    {
+     "text": "WE READ YOU ON OUR/VID SCREENS AS/TRENT HAWKINS,/TERRAFORM PILOT.//I AM TRANSON LOHK.|WE NEED YOUR HELP,/TRENT.  DELIANI IS/BEING INFILTRATED/BY A FLEET OF/MICROSOL SHIPS/ALREADY.|YOU SAY THAT THEY/ARE SECRETLY MINING/A POWERFUL GRAVITIC/ORE ON TYRIAN?/YES, THAT WOULD/EXPLAIN A LOT.|IF WHAT YOU SAY IS/TRUE, IT MAY BE TOO/LATE. MICROSOL WILL/USE THIS POWER TO/DEVASTATING EFFECT.|YOU'RE OBVIOUSLY AN/AMAZING PILOT.  WE'D/LIKE YOU ON OUR/INFILTRATION TEAM./HOLD OUT A LITTLE/LONGER, TRENT.|JAVI, HEAD OF/SECURITY, WILL BRIEF/YOU WHEN WE CAN/TRANSMIT TO YOU/AGAIN./THANK YOU.",
+     "speaker": "TRANSON"
+    }
+   ]
+  },
+  {
+   "gbc": 20,
+   "name": "SAVARA II",
+   "pc": [
+    1,
+    "SAVARA V"
+   ],
+   "pool": [
+    [
+     1,
+     "SAVARA"
+    ],
+    [
+     1,
+     "SAVARA V"
+    ],
+    [
+     4,
+     "SAVARA IV"
+    ],
+    [
+     3,
+     "SAVARA Y"
+    ]
+   ],
+   "boss": [
+    1,
+    "SAVARA"
+   ],
+   "slug": "05_L20",
+   "cubes": [
+    {
+     "text": "TO ANYONE WHO CAN/HEAR ME...|AN ENERGY BEAM IS/DISRUPTING THE/GRAVITY OF THIS/PLANET! PANIC HAS/FLOODED OUR SKIES/WITH REFUGEES.|EVEN WORSE, A CRAZED/LUNATIC CALLING/HIMSELF LORD/GOPENHAGEN IS FLYING/AROUND IN A TTN/SHIP AND BLASTING|BUILDINGS TO BITS.//I HOPE SOMEONE CAN/HELP US, BUT I'M/NOT GOING TO FIND/OUT!|A ROYAL SHUTTLE IS/LEAVING IN FIVE/MINUTES AND I'LL/BE ON IT!",
+     "speaker": "SAVARA"
+    }
+   ]
+  },
+  {
+   "gbc": 14,
+   "name": "OASIS",
+   "pc": [
+    4,
+    "SURFACE"
+   ],
+   "arcade": true,
+   "pool": [
+    [
+     4,
+     "SURFACE"
+    ],
+    [
+     4,
+     "DESERTRUN"
+    ],
+    [
+     4,
+     "TIME WAR"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASTEROID2"
+   ],
+   "slug": "06_L14",
+   "cubes": [
+    {
+     "text": "TRENT, THIS IS JAVI/ONUKALA, SECURITY/CHIEF FOR GENCORE.|WE ARE MONITORING/FREIGHTER SHIPMENTS/BETWEEN TORM AND/IXMUCANE. INSIGHT/INTO THESE MAY GIVE/US A CLUE TO|MICROSOL'S BASE OF/OPERATIONS. SET A/COURSE TO INTERCEPT/AND INVESTIGATE.|WE MAY NOT SPEAK/AGAIN UNTIL THEN.//JAVI OUT.",
+     "speaker": "JAVI"
+    }
+   ]
+  },
+  {
+   "gbc": 2,
+   "name": "DESERT",
+   "pc": [
+    4,
+    "DESERTRUN"
+   ],
+   "arcade": true,
+   "pool": [
+    [
+     4,
+     "SURFACE"
+    ],
+    [
+     4,
+     "DESERTRUN"
+    ],
+    [
+     4,
+     "TIME WAR"
+    ]
+   ],
+   "boss": [
+    4,
+    "SURFACE"
+   ],
+   "slug": "07_L02",
+   "cubes": []
+  },
+  {
+   "gbc": 4,
+   "name": "JUNGLE",
+   "pc": [
+    2,
+    "TORM"
+   ],
+   "pool": [
+    [
+     2,
+     "TORM"
+    ],
+    [
+     2,
+     "GYGES"
+    ],
+    [
+     2,
+     "BOTANY A"
+    ],
+    [
+     2,
+     "BOTANY B"
+    ]
+   ],
+   "slug": "08_L04",
+   "cubes": []
+  },
+  {
+   "gbc": 8,
+   "name": "JUNGLE II",
+   "pc": [
+    2,
+    "TORM"
+   ],
+   "seed": 2,
+   "pool": [
+    [
+     2,
+     "TORM"
+    ],
+    [
+     2,
+     "GYGES"
+    ],
+    [
+     2,
+     "BOTANY A"
+    ],
+    [
+     2,
+     "BOTANY B"
+    ]
+   ],
+   "slug": "09_L08",
+   "cubes": [
+    {
+     "text": "WELL, WELL, WELL...//LOOKS LIKE YOU'VE/GOTTEN YOURSELF INTO/TOO MUCH TROUBLE.|TORM IS NO PLACE TO/BE INVESTIGATING/MICROSOL SHIPMENTS.//THEY'RE CENTERED/AROUND SAVARA AND|THE STARGATE AT THIS/TIME. I'D SAY YOU'VE/BEEN SENT ON A WILD/GOOSE CHASE. HAVE A/WORD WITH THAT JAVI/YOU MENTIONED.|ASK FOR ANSWERS...//THIS IS CAPTAIN/DOUGAN, FREESPACE.",
+     "speaker": "CAPTAIN"
+    }
+   ]
+  },
+  {
+   "gbc": 9,
+   "name": "ASTEROID2",
+   "pc": [
+    1,
+    "ASTEROID2"
+   ],
+   "pool": [
+    [
+     1,
+     "ASTEROID2"
+    ],
+    [
+     1,
+     "ASTEROID1"
+    ],
+    [
+     2,
+     "ASTCITY"
+    ],
+    [
+     3,
+     "AST. CITY"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASTEROID1"
+   ],
+   "slug": "10_L09",
+   "cubes": [
+    {
+     "text": "WHO DO YOU THINK YOU/ARE, INSIGNIFIGANT/SCUM?/DO YOU KNOW WHAT/LIES IN STORE FOR/YOU HERE?|THE ENTIRE GRYPHON/FLEET IS MOBILIZED/AND READY TO ATTACK!|ONLY ONE PIRATE MADE/IT PAST OUR/DEFENSES. WE KILLED/HIM ONE MONTH LATER.",
+     "speaker": "VYKROMOD"
+    }
+   ]
+  },
+  {
+   "gbc": 13,
+   "name": "WARP",
+   "pc": [
+    3,
+    "STARGATE"
+   ],
+   "space": true,
+   "stars": true,
+   "pool": [
+    [
+     3,
+     "STARGATE"
+    ],
+    [
+     1,
+     "BUBBLES"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASSASSIN"
+   ],
+   "slug": "11_L13",
+   "cubes": [
+    {
+     "text": "I AM REID, HEAD OF/THE MENDIVIAN AND/'END MICROSOL'/LEAGUE.  WHY HAVE/YOU ATTACKED US?|WHAT!? WE ARE NOT/THE ONES PLANNING AN/ATTACK ON THE/SECTOR. IT IS/MICROSOL, STATIONED/AT SAVARA AND READY|TO LAUNCH IN TEN/DAYS! YOU HAVE BEEN/TRICKED! APPARENTLY/YOU WERE DECEIVIED/BY JAVI, EH? HE IS/A HAZUDRA STOLEN|AT BIRTH AND IN/HOLOGRAPHIC CONTROL/BY MICROSOL. YOU/MUST RETURN TO/DELIANI AND STOP/HIM!|HE IS PROBABLY THE/MEANS FOR MICROSOL/TO INFILTRATE/GENCORE. HURRY, AS/THEY WILL SOON FORM/A STRATEGIC DEFENSE!",
+     "speaker": "REID"
+    }
+   ]
+  },
+  {
+   "gbc": 12,
+   "name": "BUBBLES",
+   "pc": [
+    1,
+    "BUBBLES"
+   ],
+   "arcade": true,
+   "pool": [
+    [
+     1,
+     "BUBBLES"
+    ],
+    [
+     3,
+     "STARGATE"
+    ]
+   ],
+   "boss": [
+    2,
+    "GEM WAR"
+   ],
+   "slug": "12_L12",
+   "cubes": [
+    {
+     "text": "WE HAVE FINALLY BEEN/ABLE TO GET THROUGH!//JAVI WAS JAMMING OUR/TRANSMISSIONS.|I GRIEVE FOR THE/LOSS OF YOUR PARENTS/TRENT. THEY WERE IN/THAT EXPLOSION ON/SAVARA.../I'M SORRY.|IF YOUR'RE STILL/WITH US, WE NEED YOU/TO FLY TO THE/MICROSOL BASE ON/CAMANIS.|GOOD./WE NEED INFORMATION/ON THAT FLEET! HOW/MANY SHIPS, WEAPONS,/DEFENSIVE MEASURES,/EVERYTHING.|ROUTE THE INFO TO/US VIA A LINK FLUX.//WE WILL BE WAITING,/AND GOOD LUCK TO/YOU.",
+     "speaker": "TRANSON"
+    }
+   ]
+  },
+  {
+   "gbc": 15,
+   "name": "CAMANIS",
+   "pc": [
+    3,
+    "CAMANIS"
+   ],
+   "pool": [
+    [
+     3,
+     "CAMANIS"
+    ],
+    [
+     4,
+     "ICE EXIT"
+    ],
+    [
+     4,
+     "ICESECRET"
+    ]
+   ],
+   "slug": "13_L15",
+   "cubes": []
+  },
+  {
+   "gbc": 18,
+   "name": "ICE EXIT",
+   "pc": [
+    4,
+    "ICE EXIT"
+   ],
+   "maps": [
+    [
+     4,
+     "ICE EXIT"
+    ],
+    [
+     3,
+     "CAMANIS"
+    ]
+   ],
+   "arcade": true,
+   "pool": [
+    [
+     3,
+     "CAMANIS"
+    ],
+    [
+     4,
+     "ICE EXIT"
+    ],
+    [
+     4,
+     "ICESECRET"
+    ]
+   ],
+   "boss": [
+    4,
+    "DREAD-NOT"
+   ],
+   "slug": "14_L18",
+   "cubes": [
+    {
+     "text": "I SEE YOU HAVE/DISCOVERED THE/TRUTH.|I WAS GOING TO USE/YOU AS A SCOUT FOR/THE FLEET BEFORE I/HAD YOUR BRAIN/SCANNED FOR DATA/ON GRAVITIUM.|WELL, NO MATTER./YOU'VE SERVED YOUR/PURPOSE. OUR/SCIENTISTS HAVE/DISCOVERED THE/GRAVITIUM SECRET.|YOU ARE BEING/TRACTORED TO THE/IMPOUND STATION/WHERE YOU WILL BE/UNABLE TO HELP/YOUR FRIENDS.|KINDLY RESIST, IF/YOU WOULD. THEN WE/CAN FILM YOUR/DESTRUCTION FOR/EVERYONE.",
+     "speaker": "JAVI"
+    }
+   ]
+  },
+  {
+   "gbc": 5,
+   "name": "AST.BONUS",
+   "pc": [
+    1,
+    "ASTEROID?"
+   ],
+   "pool": [
+    [
+     1,
+     "ASTEROID?"
+    ],
+    [
+     1,
+     "BONUS"
+    ],
+    [
+     2,
+     "BONUS"
+    ]
+   ],
+   "boss": [
+    1,
+    "ASTEROID2"
+   ],
+   "gbc_boss": false,
+   "slug": "15_L05",
+   "cubes": []
+  },
+  {
+   "gbc": 10,
+   "name": "SPACE ATK",
+   "pc": [
+    4,
+    "SQUADRON"
+   ],
+   "space": true,
+   "pool": [
+    [
+     4,
+     "SQUADRON"
+    ],
+    [
+     1,
+     "ASSASSIN"
+    ],
+    [
+     4,
+     "DREAD-NOT"
+    ]
+   ],
+   "boss": [
+    4,
+    "APPROACH"
+   ],
+   "slug": "16_L10",
+   "cubes": [
+    {
+     "text": "WE SEE THAT YOU ARE/NOT A PART OF THE/HIDEOUS MASS THAT/THREATENS THE/SECTOR. IT IS NOT/SAFE TO STAY HERE.|YOU MUST ESCAPE FROM/CAMANIS, AND WE CAN/HELP SUPPLY YOU/WITH WEAPONS. BUT,/OUR RACE IS TRAPPED/ON THE OTHER SIDE|OF THE BLOCKADED/STARGATE. IT IS UP/TO YOU NOW, HUMAN./FOR THE LIFE OF/MILLIONS YOU MUST/STOP THAT FLEET.",
+     "speaker": "TECH"
+    }
+   ]
+  },
+  {
+   "gbc": 21,
+   "name": "FLEET",
+   "pc": [
+    3,
+    "FLEET"
+   ],
+   "as_they_are": [
+    3
+   ],
+   "pool": [
+    [
+     3,
+     "FLEET"
+    ]
+   ],
+   "slug": "17_L21",
+   "cubes": [
+    {
+     "text": "WE HAVE MONITORED/YOUR ESCAPE,/HAWKINS.//YOU WON'T GET FAR.|I HAVE NOTIFIED THE/MICROSOL PATROL/NEARBY AND THEY ARE/ON THEIR WAY TO PICK/YOU UP.|YOU COULD MAKE IT/EASIER FOR ME BY/WAITING WHERE YOU/ARE. THEY HAVE/ORDERS TO DESTROY/YOU IF YOU RESIST.",
+     "speaker": "CAPTAIN"
+    }
+   ]
+  },
+  {
+   "gbc": 17,
+   "name": "DELIANI",
+   "pc": [
+    4,
+    "BRAINIAC"
+   ],
+   "pool": [
+    [
+     4,
+     "BRAINIAC"
+    ],
+    [
+     1,
+     "DELIANI"
+    ],
+    [
+     3,
+     "New Deli"
+    ]
+   ],
+   "boss": [
+    1,
+    "DELIANI"
+   ],
+   "slug": "18_L17",
+   "cubes": [
+    {
+     "text": "TRENT!? IS THAT YOU?//I NEVER THOUGHT I'D/SEE YOU AGAIN.|I CAN'T BELIEVE/YOU'VE DECIDED TO/FOREFEIT YOURSELF TO/STOP ME FROM TAKING/OVER DELIANI!|I'VE GOT A NASTY/SURPRISE WAITING/DOWN HERE. SO COME,/TRENT. BE THE HERO/YOU WANTED TO BE/AND COME AFTER ME.|YOU'RE TOO/INSIGNIFICANT TO BE/A PART OF MY PLAN./I'D BE AMAZED IF/YOU MAKE IT PAST/THE MISSILES...",
+     "speaker": "JAVI"
+    }
+   ]
+  },
+  {
+   "gbc": 22,
+   "name": "TUNNEL",
+   "pc": [
+    4,
+    "NOSE DRIP"
+   ],
+   "pool": [
+    [
+     4,
+     "?TUNNEL?"
+    ],
+    [
+     4,
+     "NOSE DRIP"
+    ],
+    [
+     3,
+     "IXMUCANE"
+    ]
+   ],
+   "boss": [
+    3,
+    "IXMUCANE"
+   ],
+   "slug": "19_L22",
+   "cubes": [
+    {
+     "text": "..CODED MESSAGE..//THIS IS HARBLE WOM/AT IXMUCANE CENTER./THIS IS A DOWNSTAR/EMERGENCY.|I AM PATCHED INTO A/SECURE NET. I HAVE/LEARNED THAT/MICROSOL HAS/UNLOCKED SOME OF THE/ZICA COMMAND CODES.|THE SCIS HAVE/ACTIVATED THE/ANCIENT COMPUTER!|THE TEMP IS/ONE OH THREE/AND RISING!|MEN ARE COMPLAINING/BUT ARE TURNED AWAY/BY THE GUARDS.|I FEAR THAT ONLY/ARMED CONFLICT/WILL PREVENT/OUR MASSACRE.|I THINK THEY'RE/GOING TO TURN THIS/PLANET INTO A SUN!//GET ME OUT OF HERE!",
+     "speaker": "TECH"
+    }
+   ]
+  },
+  {
+   "gbc": 1,
+   "name": "DELICORE",
+   "pc": [
+    1,
+    "DELIANI"
+   ],
+   "match": true,
+   "arcade": true,
+   "pool": [
+    [
+     1,
+     "DELIANI"
+    ],
+    [
+     3,
+     "New Deli"
+    ],
+    [
+     4,
+     "UNDERDELI"
+    ],
+    [
+     4,
+     "CORE"
+    ]
+   ],
+   "slug": "20_L01",
+   "cubes": [
+    {
+     "text": "TRENT! I DIDN'T/THINK I WOULD SEE/YOU AGAIN!|YOU CLEARED ENOUGH/SHIPS FOR US TO/CONTACT YOU AND/START RESCUING/PEOPLE ON THE/PLANET.|WE NEED MORE TIME,/TRENT. THE SURFACE/IS HEATING UP AND/IT'S A MATTER OF/MOMENTS UNTIL IT/BECOMES DEADLY.|YOU HAVE TO FLY/DOWN THERE AND/DISTRACT WHATEVER/IS IN THE CORE.|WE'RE SENDING YOU/DATA ON A CENTRAL/SHAFT WE WERE ABLE/TO SCAN. TRY TO/HEAD DOWN THERE/FIRST.|FURTHER CONTACT WILL/NOT BE POSSIBLE./WE'RE ALL DEPENDING/ON YOU TO DISTRACT/THEM. GOOD LUCK.",
+     "speaker": "TRANSON"
+    }
+   ]
+  },
+  {
+   "gbc": 16,
+   "name": "DELI CORE",
+   "pc": [
+    3,
+    "New Deli"
+   ],
+   "match": true,
+   "pool": [
+    [
+     1,
+     "DELIANI"
+    ],
+    [
+     3,
+     "New Deli"
+    ],
+    [
+     4,
+     "UNDERDELI"
+    ],
+    [
+     4,
+     "CORE"
+    ]
+   ],
+   "boss": [
+    4,
+    "DREAD-NOT"
+   ],
+   "slug": "21_L16",
+   "cubes": []
+  },
+  {
+   "gbc": 6,
+   "name": "LAVA I",
+   "pc": [
+    4,
+    "LAVA EXIT"
+   ],
+   "pool": [
+    [
+     4,
+     "LAVA EXIT"
+    ],
+    [
+     4,
+     "LAVA RUN"
+    ],
+    [
+     4,
+     "SIDE EXIT"
+    ]
+   ],
+   "slug": "22_L06",
+   "cubes": [
+    {
+     "text": "DON'T I RECOGNIZE/YOU? NO MATTER.//THIS PLANET IS GOING/TO BE VAPORIZED,/INTRUDER.|THERE'S NO HOPE FOR/YOU TO REACH THE/CORE IN TIME TO/DESTROY IT. THIS IS/NOT YOUR AFFAIR.|I'D KILL YOU MYSELF/BUT I'M NOT STUPID/ENOUGH TO STAY/BEHIND AND DIE.",
+     "speaker": "CAPTAIN"
+    }
+   ]
+  },
+  {
+   "gbc": 7,
+   "name": "LAVA II",
+   "pc": [
+    4,
+    "LAVA RUN"
+   ],
+   "pool": [
+    [
+     4,
+     "LAVA EXIT"
+    ],
+    [
+     4,
+     "LAVA RUN"
+    ],
+    [
+     4,
+     "SIDE EXIT"
+    ]
+   ],
+   "boss": [
+    4,
+    "CORE"
+   ],
+   "slug": "23_L07",
+   "cubes": [
+    {
+     "text": "ALL TRANSMISSIONS/JAMMED.//TRAJECTORY PLOTTED/TO SURFACE AREA./COMPUTER OUT.",
+     "speaker": "STATIC"
+    }
+   ]
+  },
+  {
+   "gbc": 24,
+   "name": "FINALE",
+   "pc": [
+    4,
+    "DREAD-NOT"
+   ],
+   "space": true,
+   "pool": [
+    [
+     4,
+     "DREAD-NOT"
+    ],
+    [
+     4,
+     "APPROACH"
+    ]
+   ],
+   "slug": "24_L24",
+   "cubes": [
+    {
+     "text": "TRENT! WE'VE PICKED/UP A GIANT ENERGY/BUILDUP IN YOUR/AREA! IT SEEMS THE/PLANET CONVERSION/HAS STARTED!|WE'VE ONLY BEEN ABLE/TO RETRIEVE ABOUT/NINE THOUSAND/PEOPLE, BUT WE MUST/DISENGAGE TO AVOID/OUR OWN DESTRUCTION.|WHAT'S GOING ON DOWN/THERE?//WE'RE SENDING YOU/THE COORDINATES OF/A TUNNEL TO ESCAPE.|I KNOW YOU DID YOUR/BEST, TRENT.//I...|I WISH WE COULD HAVE/SAVED THEM ALL.",
+     "speaker": "TRANSON"
+    }
+   ]
+  }
+ ],
+ "ending": [
+  {
+   "text": "THE BATTLE RAGED ON,/BUT WITHOUT TRENT/HAWKINS, WHO SLIPPED/AWAY QUIETLY IN HIS/SHIP AND LEFT KNOWN/SPACE./HE WAS SOON/FORGOTTEN AMIDST THE/DEFEATS SPURRED BY/THE LOSS OF/DELIANI.../",
+   "speaker": null
+  }
+ ]
+}

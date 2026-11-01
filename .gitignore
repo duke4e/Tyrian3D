@@ -1,4 +1,25 @@
-/data/
+# Tyrian3D: data/ holds the game's data (downloaded: tools/fetch_data.sh) and what was made from it.
+# What the game and its build need is in the repository: the HD art, the voices, the remastered
+# sound effects, the default SoundFont and episode 7's levels. The rest is made again by the tools,
+# or is in the devtools release (tools/fetch_devtools.sh).
+/data/*
+!/data/hd/
+!/data/voices/
+/data/voices/cache/
+/data/voices/previews/
+!/data/tyrian2000/
+/data/tyrian2000/*
+!/data/tyrian2000/sfx/
+!/data/soundfonts/
+/data/soundfonts/*
+!/data/soundfonts/GeneralUser-GS.sf2
+!/data/soundfonts/GeneralUser-GS-LICENSE.txt
+!/data/gbc/
+/data/gbc/*
+!/data/gbc/episode7/
+/data/gbc/episode7/preview/
+!/data/gbc/shop.json
+.DS_Store
 
 opentyrian.cfg
 tyrian.cfg

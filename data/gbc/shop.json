@@ -1,0 +1,719 @@
+{
+ "names": {
+  "side": [
+   "None",
+   "Single",
+   "Dual",
+   "Shield",
+   "Repair",
+   "Bomb",
+   "Magnet",
+   "Charge",
+   "Cold",
+   "Heat"
+  ],
+  "shield": [
+   "Low",
+   "Hard",
+   "Diammd",
+   "LHX Sld",
+   "HTX Sld",
+   "Iron",
+   "Gold"
+  ],
+  "engine": [
+   "Std",
+   "Light",
+   "Heavy",
+   "MFusion",
+   "Graviton",
+   "Micro"
+  ],
+  "weapon": [
+   "Pulse",
+   "Multi",
+   "Scatter",
+   "Sonic",
+   "Vulcan",
+   "Mega",
+   "Proton",
+   "Thunder",
+   "Fireball",
+   "Rail",
+   "Chip",
+   "Hotdog",
+   "L.Ball",
+   "Ninja",
+   "Banana",
+   "Fruit",
+   "Pretzel",
+   "IcePick",
+   "Laser",
+   "PowerS",
+   "Poison",
+   "Hyper",
+   "Arrow",
+   "Gumball",
+   "Plasma"
+  ],
+  "ship": [
+   "Talon",
+   "Micros",
+   "Phoenx",
+   "Storm",
+   "Dragon",
+   "Carrot",
+   "UShip"
+  ]
+ },
+ "shops": [
+  {
+   "before": 23,
+   "offer": {
+    "ship": [
+     "Talon"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Vulcan",
+     "L.Ball"
+    ],
+    "engine": [
+     "Std"
+    ],
+    "shield": [
+     "Low"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Dual",
+     "Shield"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Dual",
+     "Shield"
+    ]
+   }
+  },
+  {
+   "after": 23,
+   "before": 3,
+   "offer": {
+    "ship": [
+     "Talon"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Vulcan"
+    ],
+    "engine": [
+     "Std",
+     "Micro"
+    ],
+    "shield": [
+     "Low"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Repair"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Repair"
+    ]
+   }
+  },
+  {
+   "after": 3,
+   "before": 11,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Vulcan",
+     "Proton"
+    ],
+    "engine": [
+     "Std",
+     "Micro"
+    ],
+    "shield": [
+     "Low",
+     "Hard"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Bomb"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Bomb"
+    ]
+   }
+  },
+  {
+   "after": 11,
+   "before": 19,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Scatter"
+    ],
+    "engine": [
+     "Std",
+     "Micro"
+    ],
+    "shield": [
+     "Low",
+     "Hard"
+    ],
+    "sideA": [
+     "None",
+     "Shield",
+     "Bomb"
+    ],
+    "sideB": [
+     "None",
+     "Shield",
+     "Bomb"
+    ]
+   }
+  },
+  {
+   "after": 19,
+   "before": 20,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Sonic"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Repair"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Repair"
+    ]
+   }
+  },
+  {
+   "after": 20,
+   "before": 4,
+   "offer": {
+    "ship": [
+     "Talon"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Scatter",
+     "Vulcan"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Micro"
+    ],
+    "shield": [
+     "Low",
+     "Hard"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Bomb"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Bomb"
+    ]
+   }
+  },
+  {
+   "after": 4,
+   "before": 8,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Scatter",
+     "Chip"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd"
+    ],
+    "sideA": [
+     "None",
+     "Dual",
+     "Shield"
+    ],
+    "sideB": [
+     "None",
+     "Dual",
+     "Shield"
+    ]
+   }
+  },
+  {
+   "after": 8,
+   "before": 9,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Phoenx",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Mega",
+     "Rail"
+    ],
+    "engine": [
+     "Std",
+     "Heavy",
+     "MFusion"
+    ],
+    "shield": [
+     "Low",
+     "Diammd",
+     "LHX Sld",
+     "HTX Sld"
+    ],
+    "sideA": [
+     "None",
+     "Dual",
+     "Shield",
+     "Heat"
+    ],
+    "sideB": [
+     "None",
+     "Dual",
+     "Shield",
+     "Heat"
+    ]
+   }
+  },
+  {
+   "after": 9,
+   "before": 13,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Scatter",
+     "Plasma"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Repair"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Repair"
+    ]
+   }
+  },
+  {
+   "after": 13,
+   "before": 15,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Phoenx",
+     "UShip"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Proton",
+     "Chip",
+     "Hyper"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Heavy"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Iron"
+    ],
+    "sideA": [
+     "None",
+     "Dual",
+     "Repair"
+    ],
+    "sideB": [
+     "None",
+     "Dual",
+     "Repair"
+    ]
+   }
+  },
+  {
+   "after": 15,
+   "before": 5,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Vulcan",
+     "Arrow"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard"
+    ],
+    "sideA": [
+     "None",
+     "Shield",
+     "Cold"
+    ],
+    "sideB": [
+     "None",
+     "Shield",
+     "Cold"
+    ]
+   }
+  },
+  {
+   "after": 5,
+   "before": 10,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Vulcan",
+     "Rail",
+     "Hyper"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Heavy",
+     "Micro"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd",
+     "Gold"
+    ],
+    "sideA": [
+     "None",
+     "Shield",
+     "Repair",
+     "Bomb"
+    ],
+    "sideB": [
+     "None",
+     "Shield",
+     "Repair",
+     "Bomb"
+    ]
+   }
+  },
+  {
+   "after": 10,
+   "before": 21,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Proton",
+     "Thunder"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Heavy"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd"
+    ],
+    "sideA": [
+     "None",
+     "Shield",
+     "Cold"
+    ],
+    "sideB": [
+     "None",
+     "Shield",
+     "Cold"
+    ]
+   }
+  },
+  {
+   "after": 21,
+   "before": 17,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Phoenx"
+    ],
+    "weapon": [
+     "Pulse",
+     "Mega",
+     "Thunder",
+     "Rail",
+     "Laser"
+    ],
+    "engine": [
+     "Std",
+     "Heavy",
+     "MFusion"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd",
+     "LHX Sld"
+    ],
+    "sideA": [
+     "None",
+     "Repair",
+     "Bomb",
+     "Charge"
+    ],
+    "sideB": [
+     "None",
+     "Repair",
+     "Bomb",
+     "Charge"
+    ]
+   }
+  },
+  {
+   "after": 17,
+   "before": 22,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros"
+    ],
+    "weapon": [
+     "Pulse",
+     "Sonic",
+     "Thunder",
+     "Hyper"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd"
+    ],
+    "sideA": [
+     "None",
+     "Repair",
+     "Bomb",
+     "Magnet"
+    ],
+    "sideB": [
+     "None",
+     "Repair",
+     "Bomb",
+     "Magnet"
+    ]
+   }
+  },
+  {
+   "after": 22,
+   "before": 16,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Scatter",
+     "Mega",
+     "Proton",
+     "Plasma"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Heavy"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "LHX Sld"
+    ],
+    "sideA": [
+     "None",
+     "Dual",
+     "Magnet"
+    ],
+    "sideB": [
+     "None",
+     "Dual",
+     "Magnet"
+    ]
+   }
+  },
+  {
+   "after": 16,
+   "before": 6,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Multi",
+     "Scatter",
+     "Mega",
+     "Chip"
+    ],
+    "engine": [
+     "Std",
+     "Light",
+     "Heavy"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd",
+     "LHX Sld"
+    ],
+    "sideA": [
+     "None",
+     "Shield",
+     "Repair",
+     "Magnet"
+    ],
+    "sideB": [
+     "None",
+     "Shield",
+     "Repair",
+     "Magnet"
+    ]
+   }
+  },
+  {
+   "after": 6,
+   "before": 7,
+   "offer": {
+    "ship": [
+     "Talon",
+     "Micros",
+     "Storm"
+    ],
+    "weapon": [
+     "Pulse",
+     "Scatter",
+     "Proton",
+     "Arrow"
+    ],
+    "engine": [
+     "Std",
+     "Light"
+    ],
+    "shield": [
+     "Low",
+     "Hard",
+     "Diammd"
+    ],
+    "sideA": [
+     "None",
+     "Single",
+     "Dual"
+    ],
+    "sideB": [
+     "None",
+     "Single",
+     "Dual"
+    ]
+   }
+  }
+ ]
+}
