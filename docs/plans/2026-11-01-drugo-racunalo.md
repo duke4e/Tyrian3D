@@ -84,6 +84,15 @@ Izmjereno na ovim datotekama:
 
 ## Koraci
 
+**Stanje 2026-11-01:**
+- **Gotovo:** koraci 1-6 i 9-10 (commiti `e9f9563b`..`d3cc78c3`, Release `devtools`).
+- **Provjera (korak 11):** svježi clone s `bootstrap.sh` daje iste epizode 6 i 7 (bajt po bajt). Slike levela 1:3, 6:2, 7:2 i Camanis 2 iste su kao iz glavnog stabla (najviše 0,05 % piksela razlike, animacija).
+- **Otvoreno:**
+  - odakle dolaze GBC ROM i Camanis 2 (camanis.net ima samo Tyrian 1.1, 2.1 i 2000);
+  - stvarno preuzimanje s camanis.net (do sada testirano lokalnom kopijom zipa);
+  - zadana grana (`master` je još OpenTyrian2000);
+  - korak 8, objava.
+
 1. ~~**Renderer javan**~~ (gotovo 2026-11-01).
 2. **`tools/fetch_data.sh`:** preuzima Tyrian 2000, `Tyrian.gb` i Camanis 2 s camanis.net, s provjerom SHA-256. URL-ove i preuzimanja odobravaš ti.
 3. **`.gitignore` i `.gitattributes`:**
