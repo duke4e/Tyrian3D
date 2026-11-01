@@ -3,7 +3,8 @@
 # - a Python with numpy, scipy, Pillow and torch in ~/Library/Caches/Tyrian3D/tools-venv (tools/terrain,
 #   tools/hd_sheets.py, tools/upscale_sprites.py, tools/tiles_hd.py, tools/sprite_reference.py ...);
 # - the ESRGAN model the HD tiles, sprites and HUD panels are upscaled with, 4x-Fatality by twittman
-#   (OpenModelDB, CC BY-NC-SA 4.0), in ~/Library/Caches/Tyrian3D/esrgan.
+#   (OpenModelDB, CC BY-NC-SA 4.0), in ~/Library/Caches/Tyrian3D/esrgan. The other, 4x-BigFArt-Detail,
+#   is not in OpenModelDB's storage: tools/fetch_devtools.sh models brings both from the devtools release.
 # It downloads from PyPI (~110 MB) and OpenModelDB's storage (67 MB): ask the user before running it.
 # usage: tools/setup_tools_venv.sh   (PYTHON=<python 3.10+> to pick the interpreter)
 set -eu
