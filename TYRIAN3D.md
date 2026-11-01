@@ -30,8 +30,9 @@ Then build the game:
 cmake -S . -B build/game && cmake --build build/game -j 10
 ```
 
-The game needs the freeware Tyrian 2000 data in `data/tyrian2000`
-(https://www.camanis.net/tyrian/tyrian2000.zip; `tools/fetch_data.sh` downloads it and checks each file).
+The game needs the freeware Tyrian 2000 data in `data/tyrian2000`: `tools/fetch_data.sh` downloads it
+(and Camanis 2, and with `gbc` the GBC ROM) from the archive of the old Tyrian fan site's downloads page,
+https://jkdf2.net/JKBot/JKArchive/JKDF2/JKDF2/Websites/Tyrian/downloads.html, and checks each file.
 Everything else the game shows (the HD art, the voices, the remastered sound effects, the default
 SoundFont, episode 7's levels) is in the repository.
 
@@ -296,9 +297,10 @@ enemies of episodes 1-3 they use into episode 6's item data (`enemydata.py`). Ma
 
 The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never sold, freeware since
 2007) as an episode of the PC game, flown with its ships, weapons and enemies (plan:
-`docs/plans/2026-10-25-gbc-epizoda.md`). It is made from the user's copy of the GBC ROM, so neither
-the ROM nor anything taken from it is in the repository: the ROM goes to `data/gbc/Tyrian.gb`, and
-the tools in `tools/gbc` (run with the tools' Python, which has numpy, scipy and PIL) read it:
+`docs/plans/2026-10-25-gbc-epizoda.md`). It is made from the GBC ROM, which is not in the repository
+(`tools/fetch_data.sh gbc` puts it in `data/gbc/Tyrian.gb`); the levels rebuilt from it are
+(`data/gbc/episode7`, `data/gbc/shop.json`), the rest the tools take from it stays out. The tools in
+`tools/gbc` (run with the tools' Python, which has numpy, scipy and PIL) read it:
 
 * `extract.py` runs the ROM in the tools' own GBC emulator (`gbemu.c`, a shared library driven from
   Python by `gb.py`: CPU, MBC1, PPU, CGB banks and palettes, HDMA, logs of ROM reads, VRAM and sound
@@ -685,8 +687,8 @@ episode N's) and its end (`]Q`) goes back to the title screen. `TYR3D_START=<fol
 starts one in a test run, and `tools/levels.py` lists their sections that way, so the tools that go
 through every level (`each_level.sh`, `ground_log.sh`, `review.sh`) take them too.
 
-**Camanis 2** (`data/custom/camanis2`, from `LEVELS4.DAT` and `TYRIAN4.LVL` made for episode 4,
-2005): a shop (`Camanis 2 Buy/Sell`), one level, the end. The level is on CAMANIS's ice tileset
+**Camanis 2** (`data/custom/camanis2`, from `LEVELS4.DAT` and `TYRIAN4.LVL` made for episode 4 by
+Kenneth Frank Henderson Jr., 2005; `tools/fetch_data.sh camanis2`): a shop (`Camanis 2 Buy/Sell`), one level, the end. The level is on CAMANIS's ice tileset
 (`shapesw.dat`, a third of its ground rows are CAMANIS's) with backgrounds 2 and 3 empty; its item
 data is episode 4's with 190 enemies changed, most of them episode 1-3 enemies (CAMANIS's and
 IXMUCANE's) copied into episode 4's slots, and a boss of four `b` sheet pieces (link 254) that is

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Makes a fresh clone ready to play, as TYRIAN3D.md's "Build (macOS)" does by hand: the renderer's
 # submodule, the shader compiler (SDL_shadercross, built once: long the first time), the Tyrian 2000
-# data (tools/fetch_data.sh, when data/tyrian2000 has none) and the game, in build/game. With
-# --devtools also what the offline tools start from (tools/fetch_devtools.sh) and their Python
-# (tools/setup_tools_venv.sh). It downloads (the submodules, the data, with --devtools ~1 GB more).
+# data and Camanis 2 (tools/fetch_data.sh, when they are missing) and the game, in build/game. With
+# --devtools also the GBC ROM, what the offline tools start from (tools/fetch_devtools.sh) and their
+# Python (tools/setup_tools_venv.sh). It downloads (the submodules, the data, with --devtools ~1 GB more).
 # usage: tools/bootstrap.sh [--devtools]
 set -eu
 # (a number of jobs: without one, make starts them all at once, and DXC's LLVM fills the memory)
@@ -29,10 +29,12 @@ if [ ! -x build/shadercross/shadercross ]; then
 	cmake --build build/shadercross --target shadercross -j "$(( (CPUS + 1) / 2 ))"
 fi
 # (before the game: episodes 6 and 7 are made from the data at build time)
-[ -f data/tyrian2000/tyrian.hdt ] || tools/fetch_data.sh
+[ -f data/tyrian2000/tyrian.hdt ] || tools/fetch_data.sh tyrian2000
+[ -f data/custom/camanis2/tyrian4.lvl ] || tools/fetch_data.sh camanis2
 cmake -S . -B build/game
 cmake --build build/game -j "$CPUS"
 if [ "${1:-}" = "--devtools" ]; then
+	[ -f data/gbc/Tyrian.gb ] || tools/fetch_data.sh gbc
 	tools/fetch_devtools.sh
 	tools/setup_tools_venv.sh
 fi

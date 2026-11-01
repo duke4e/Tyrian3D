@@ -5,7 +5,8 @@ version 2 (`COPYING`). The parts it is built from, and the tools its assets were
 
 | Part | Author | License | Where |
 | --- | --- | --- | --- |
-| Tyrian, Tyrian 2000 (the game's data, not included) | Eclipse Software, Jason Emery | freeware | the player's own copy, or `tools/fetch_data.sh` from camanis.net |
+| Tyrian, Tyrian 2000 (the game's data, not included) | Eclipse Software, Jason Emery | freeware | the player's own copy, or `tools/fetch_data.sh` (the archive of the old Tyrian fan site's downloads page on jkdf2.net) |
+| Camanis 2 (`data/custom/camanis2`, not included): a custom level in place of episode 4's | Kenneth Frank Henderson Jr. | a fan level, free to download | `tools/fetch_data.sh camanis2` |
 | Episode 7 (`data/gbc/episode7`): Tyrian 2000 for the Game Boy Color's levels, rebuilt on the PC game's art | World Tree Games (the GBC game); Tyrian3D authors (the rebuild) | freeware; the rebuild GPL-2.0 | `data/gbc` |
 | HD art (`data/hd`), remastered sound effects (`data/tyrian2000/sfx`) | made from the game's data (see below) | as the game's data; for the free game only (the ESRGAN models' non-commercial licenses) | `data/hd`, `data/tyrian2000/sfx` |
 | Voices of the data cubes and story texts (`data/voices`) | ElevenLabs text to speech, rendered by `tools/voices/generate.py` | the texts the game's; the audio rendered with a paid ElevenLabs subscription | `data/voices` |

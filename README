@@ -1,3 +1,20 @@
+Tyrian3D
+================================================================================
+
+Tyrian3D is OpenTyrian2000 with a 3D view: the levels' ground as terrain, the ships and enemies as
+models, HD art, remastered sound effects, voiced data cubes, and two new episodes (a sixth of its
+own, and a seventh rebuilt from Tyrian 2000 for the Game Boy Color). It is free, a passion project.
+
+On macOS (brew install sdl3 assimp cmake):
+
+  git clone https://github.com/duke4e/Tyrian3D && cd Tyrian3D
+  tools/bootstrap.sh
+  build/game/tyrian3d
+
+tools/bootstrap.sh brings the renderer's submodule, builds the shader compiler and the game, and
+downloads the freeware Tyrian 2000 data (tools/fetch_data.sh). TYRIAN3D.md has the details,
+LICENSES.md the parts and their licenses. The rest of this file is OpenTyrian2000's.
+
 OpenTyrian2000
 ================================================================================
 

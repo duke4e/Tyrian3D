@@ -9,7 +9,7 @@ Igra je besplatna, to je projekt iz ljubavi, i javni repo treba imati sve da igr
 - **Renderer je javan** od 2026-11-01 (`duke4e/btbh-renderer`, zlib). Prije objave pregledana mu je povijest: nema ključeva ni koda igre. Jedino što je nađeno je istekli ključ lokalnog brainstorm servera iz srpnja (`.superpowers`, `localhost`).
 - **Tyrian3D postaje javan** kad su resursi u njemu. Njegova povijest je pregledana: nema ključeva ni datoteka većih od 5 MB, a `data/` nikad nije bio commitan.
 - **U repo ide (običan git):** HD grafika, glasovi, poboljšani zvukovi, GeneralUser GS i epizoda 7. Epizoda 7 je naša rekonstrukcija GBC levela.
-- **Preuzima se kao i dosad, sa stranice camanis.net, s provjerom SHA-256:** Tyrian 2000, GBC ROM (`Tyrian.gb`) i Camanis 2.
+- **Preuzima se kao i dosad, s arhive stare Tyrian fan stranice (jkdf2.net, `downloads.html`), s provjerom SHA-256:** Tyrian 2000 (`TyrianFull.zip`), Camanis 2 (`KFH.zip`) i GBC ROM (`TyrianGB.zip`).
 - **GBC glazba ne ide.** Bez `data/gbc/music/loops/loops.json` `build.py` ne piše `music.txt`, pa epizoda 7 svira PC pjesme (`gbc_music` u `src/tyrian2.c`). Iz ROM-a se može izraditi i lokalno.
 - **Alati za ponovnu izradu idu u GitHub Release `devtools` istog repoa:** ESRGAN modeli, log tla, medijani pločica i cache glasova. Release ne napuhava povijest i nema kvotu; svaka datoteka mora biti manja od 2 GiB.
 - **Licence:** ESRGAN modeli su nekomercijalni (Fatality CC BY-NC-SA 4.0, BigFArt CC BY-NC 4.0). Zato se HD grafika smije dijeliti samo u besplatnoj igri, a igra je ionako besplatna. Isti uvjeti vrijede i za ponovno dijeljenje samih modela u Releaseu, uz navođenje autora.
@@ -27,9 +27,9 @@ GitHub za običan git nema kvotu pohrane ni prometa. Odbija datoteke veće od 10
 | Resurs | Veličina | Iznova? | Kako | Kamo |
 | --- | --- | --- | --- | --- |
 | **Podaci igre** | | | | |
-| `data/tyrian2000` (bez `sfx`) | 12 MB | da, preuzimanje | freeware zip s camanis.net | preuzimanje |
+| `data/tyrian2000` (bez `sfx`) | 12 MB | da, preuzimanje | freeware zip s jkdf2.net (`TyrianFull.zip`) | preuzimanje |
 | `data/tyrian2000/sfx` | 3,4 MB | da, sporo | AudioSR (`tools/upscale_sfx.py`; AudioSR venv i model se preuzimaju) | repo |
-| `data/custom/camanis2` | 0,3 MB | da, preuzimanje | zajednički level iz 2005., s camanis.net | preuzimanje |
+| `data/custom/camanis2` | 0,3 MB | da, preuzimanje | level Kennetha Franka Hendersona Jr. iz 2005., s jkdf2.net (`KFH.zip`) | preuzimanje |
 | **HD grafika (`data/hd`)** | | | | |
 | `tiles` | 4,1 MB | da, sati | `export_maps.sh` → `tiles_hd.py` (BigFArt za z/y/x/w, Fatality za lavu) | repo |
 | `tiles_fatality` | 3,6 MB | da, sati | `tiles_hd.py` s Fatalityjem | repo |
@@ -42,7 +42,7 @@ GitHub za običan git nema kvotu pohrane ni prometa. Odbija datoteke veće od 10
 | `cache` | 425 MB | samo uz plaćanje | isti `generate.py`; čuva da se iznova renderiraju samo promijenjene replike | Release |
 | `previews` | 30 MB | samo uz plaćanje | `generate.py design` | ne |
 | **GBC epizoda (`data/gbc`)** | | | | |
-| `Tyrian.gb` | 0,5 MB | da, preuzimanje | s camanis.net, uz Tyrian 2000 | preuzimanje |
+| `Tyrian.gb` | 0,5 MB | da, preuzimanje | s jkdf2.net (`TyrianGB.zip`) | preuzimanje |
 | `episode7`, `shop.json`, `story*.json`, `enemies`, `bosses`, `cache` | ~37 MB | da, iz ROM-a | `tools/gbc`: `extract.py`, `episode.py`, `shop.py`, `story.py`, `boss_rom.py` (—) | repo |
 | `music/loops` | 50 MB | da, iz ROM-a | `songs.py` i `apu.py` → `music.py` (—) | ne (svira PC glazba) |
 | `music` (ostalo) | 631 MB | da, iz ROM-a | `songs.py` (—) | ne |
@@ -85,16 +85,12 @@ Izmjereno na ovim datotekama:
 ## Koraci
 
 **Stanje 2026-11-01:**
-- **Gotovo:** koraci 1-6 i 9-10 (commiti `e9f9563b`..`d3cc78c3`, Release `devtools`).
+- **Gotovo:** svi koraci. Commiti `e9f9563b`..`d3cc78c3` i Release `devtools`; zatim izvori na jkdf2.net, README, `master` pomaknut na `tyrian3d/m1-tools` i Tyrian3D javan.
 - **Provjera (korak 11):** svježi clone s `bootstrap.sh` daje iste epizode 6 i 7 (bajt po bajt). Slike levela 1:3, 6:2, 7:2 i Camanis 2 iste su kao iz glavnog stabla (najviše 0,05 % piksela razlike, animacija).
-- **Otvoreno:**
-  - odakle dolaze GBC ROM i Camanis 2 (camanis.net ima samo Tyrian 1.1, 2.1 i 2000);
-  - stvarno preuzimanje s camanis.net (do sada testirano lokalnom kopijom zipa);
-  - zadana grana (`master` je još OpenTyrian2000);
-  - korak 8, objava.
+- **Preuzimanja:** `fetch_data.sh` s jkdf2.net isproban na pravim URL-ovima. Datoteke igre iz `TyrianFull.zip` iste su kao naše, a razlikuju se samo DOS programi, ikone, readme i nekorišten `estpa.shp`. Zato `tools/tyrian2000.sha256` (84 datoteke) i kopiranje pokrivaju samo ono što igra čita. Camanis 2 i ROM isti su bajt po bajt.
 
 1. ~~**Renderer javan**~~ (gotovo 2026-11-01).
-2. **`tools/fetch_data.sh`:** preuzima Tyrian 2000, `Tyrian.gb` i Camanis 2 s camanis.net, s provjerom SHA-256. URL-ove i preuzimanja odobravaš ti.
+2. **`tools/fetch_data.sh`:** preuzima Tyrian 2000, Camanis 2 i (`gbc`) `Tyrian.gb` s jkdf2.net, s provjerom SHA-256.
 3. **`.gitignore` i `.gitattributes`:**
    - `/data/` se više ne ignorira cijeli. Propuštaju se `hd`, glasovi (bez `cache` i `previews`), `tyrian2000/sfx`, `soundfonts/GeneralUser-GS*` i GBC rekonstrukcija; ostalo ostaje ignorirano.
    - Binarne datoteke se označe kao `binary` (`*.png *.hd *.hdt *.wav *.sf2`).
