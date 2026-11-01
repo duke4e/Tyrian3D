@@ -21,13 +21,13 @@ cmake -S external/btbh-renderer/external/SDL_shadercross -B build/shadercross -D
 ```
 
 ```bash
-cmake --build build/shadercross --target shadercross -j
+cmake --build build/shadercross --target shadercross -j 6
 ```
 
 Then build the game:
 
 ```bash
-cmake -S . -B build/game && cmake --build build/game -j
+cmake -S . -B build/game && cmake --build build/game -j 10
 ```
 
 The game needs the freeware Tyrian 2000 data in `data/tyrian2000`

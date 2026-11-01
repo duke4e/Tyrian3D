@@ -6,6 +6,8 @@
 # (tools/setup_tools_venv.sh). It downloads (the submodules, the data, with --devtools ~1 GB more).
 # usage: tools/bootstrap.sh [--devtools]
 set -eu
+# (a number of jobs: without one, make starts them all at once, and DXC's LLVM fills the memory)
+CPUS="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 for tool in git cmake curl unzip shasum python3; do
@@ -24,12 +26,12 @@ if [ ! -x build/shadercross/shadercross ]; then
 		-DSDLSHADERCROSS_DXC=ON -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_SHARED=OFF \
 		-DSDLSHADERCROSS_STATIC=ON -DSDLSHADERCROSS_SPIRVCROSS_SHARED=OFF -DSDLSHADERCROSS_CLI=ON \
 		-DSDLSHADERCROSS_CLI_STATIC=OFF -DSDLSHADERCROSS_INSTALL=OFF -DSDLSHADERCROSS_TESTS=OFF -DSPIRV_SKIP_TESTS=ON
-	cmake --build build/shadercross --target shadercross -j
+	cmake --build build/shadercross --target shadercross -j "$(( (CPUS + 1) / 2 ))"
 fi
 # (before the game: episodes 6 and 7 are made from the data at build time)
 [ -f data/tyrian2000/tyrian.hdt ] || tools/fetch_data.sh
 cmake -S . -B build/game
-cmake --build build/game -j
+cmake --build build/game -j "$CPUS"
 if [ "${1:-}" = "--devtools" ]; then
 	tools/fetch_devtools.sh
 	tools/setup_tools_venv.sh
