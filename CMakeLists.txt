@@ -112,8 +112,8 @@ if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/tyrian2000/tyrian5.lvl")
 endif()
 
 # --- Episode 7 (the GBC levels) ---------------------------------------------------------------------
-# Made from the user's GBC ROM (data/gbc/episode7, tools/gbc/episode.py), so not in the repository:
-# written to assets/content/episode7 when those levels are there (tools/content/gbc/build.py).
+# Made from episode 7's levels (data/gbc/episode7, in the repository; tools/gbc/episode.py makes them from
+# the GBC ROM): written to assets/content/episode7 when those levels are there (tools/content/gbc/build.py).
 
 set(TYR3D_EPISODE7_DIR "${CMAKE_SOURCE_DIR}/assets/content/episode7")
 if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/data/gbc/episode7/episode.json")

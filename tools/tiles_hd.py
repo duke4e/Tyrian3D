@@ -17,7 +17,7 @@ original. A tile doesn't depend on the map it is in, so generated levels built f
 Parts are picked per tileset until every shape is seen --min times (every occurrence if it has
 fewer) away from the parts' first and last rows (no neighbours across the cut); at most --keep
 upscales of a shape are kept for its median. Writes <out>/<tileset>.hdt (what the game loads: data/hd, beside the game's
-data and like it outside the repository) and, in the work folder, <work>/<tileset>.png (the tiles, to look at) and
+data, in the repository) and, in the work folder, <work>/<tileset>.png (the tiles, to look at) and
 <work>/<tileset>_median.npz (for --requantize); a tileset named by a symbol is written x<hex>, as the sprite sheets.
 --add makes only the tiles a tileset's kept medians lack (shapes of maps exported since, such as a custom
 episode's: src/episodes.h), from the parts that have them, and keeps the others as they are.

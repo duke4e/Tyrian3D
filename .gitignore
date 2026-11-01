@@ -69,7 +69,7 @@ __pycache__/
 
 # Tyrian3D: generated from the game data (tools/content/episode6/build.py at build time)
 /assets/content/episode6/
-# ... and from the user's GBC ROM (tools/content/gbc/build.py)
+# ... and from episode 7's levels, data/gbc/episode7 (tools/content/gbc/build.py)
 /assets/content/episode7/
 
 # ElevenLabs API key (npx @elevenlabs/cli onboard connect writes it here; never commit it)

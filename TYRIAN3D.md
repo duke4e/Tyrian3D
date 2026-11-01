@@ -31,7 +31,14 @@ cmake -S . -B build/game && cmake --build build/game -j
 ```
 
 The game needs the freeware Tyrian 2000 data in `data/tyrian2000`
-(https://www.camanis.net/tyrian/tyrian2000.zip).
+(https://www.camanis.net/tyrian/tyrian2000.zip; `tools/fetch_data.sh` downloads it and checks each file).
+Everything else the game shows (the HD art, the voices, the remastered sound effects, the default
+SoundFont, episode 7's levels) is in the repository.
+
+On a fresh clone `tools/bootstrap.sh` does all of the above: the submodule, shadercross, the data and
+the game. `tools/bootstrap.sh --devtools` also brings what the offline tools start from (the ESRGAN
+models, the ground logs, the HD tiles' saved upscales, the voices' render cache: `tools/fetch_devtools.sh`,
+from the repository's `devtools` release) and sets up their Python (`tools/setup_tools_venv.sh`).
 
 ```bash
 build/game/tyrian3d
@@ -1175,7 +1182,7 @@ TYR3D_START=1:4 TYR3D_SHOP=1 TYR3D_WINDOWED=1 TYR3D_WINDOW_SIZE=1600x900 TYR3D_R
 
 ## HD resources
 
-The 3D view's HD pictures are made from the game's data, so, like the data, they are not in the repository; the
+The 3D view's HD pictures are made from the game's data and are in the repository; the
 game loads them from `data/hd` (beside `data/tyrian2000`; `TYR3D_UPSCALE_DIR` overrides it): `tiles/<tileset>.hdt`
 (the background tiles at 4x), `sheets/<sheet>.hd` (the sprite sheets at 4x, for the HD volumes) and `hud_1p.png`,
 `hud_2p.png` (the HUD panel). Without them the game draws the original pixels. The HD tiles and terrain rows are
@@ -1335,7 +1342,7 @@ shop, and a cube opened in the reader plays from its start; the Data list marks 
 `cube_autoplay`) the store reads its cubes aloud one after another as it opens, each once a visit; a cube
 opened in the reader plays at once, and when a voice ends while a reader is open the autoplay stops there.
 
-The voices go in `data/voices` (outside git; `TYR3D_VOICES_DIR`): `e<episode>/<cube>.wav` (the cube's
+The voices go in `data/voices` (in the repository, without the render cache and the previews; `TYR3D_VOICES_DIR`): `e<episode>/<cube>.wav` (the cube's
 number in its episode's `cubetxt` file), `story/e<episode>_<n>.wav` and `manifest.txt`, which lists each
 with the hash of the text it reads (32-bit FNV-1a over the cube's text lines or the story's
 `levelWarningText` lines); the game plays a voice only over its own text, so an edited cube (episode 6's
@@ -1367,7 +1374,7 @@ Rendered 2026-10-25 with `eleven_v4` (about 0.44 credits a character; about 69,0
 design): all 170 cubes and the 96 story texts and hints, about 140 minutes, 100 MB of WAVs, with the
 render cache (about 400 MB) beside them in `data/voices`. The voices chosen are in `cast.json` (`voice_id`,
 `adopted_preview`); the account's 30 custom voices hold the 28 and the user's own. The Game Boy Color
-episode's 20 cubes (episode 7, from `assets/content/episode7` when it has been built from the user's ROM;
+episode's 20 cubes (episode 7, from `assets/content/episode7`;
 local corrections such as 7:11's "your're" in `data/voices/overrides.json`) were rendered 2026-10-26 with the
 same voices (3,180 credits), its story text and end hints on the same day (207 credits; the 8 hints are 3 texts
 repeated, and a voice is found by its text, so 3 were rendered).
@@ -1400,7 +1407,7 @@ See `LICENSES.md` for the licenses (the macOS app has them in `Contents/Resource
 - Music synth: TinySoundFont by Bernhard Schelling, MIT (`external/tinysoundfont/LICENSE`).
 - SoundFonts: GeneralUser GS by S. Christian Collins, free to use; FluidR3 GM by Frank Wen, MIT;
   Arachno SoundFont by Maxime Abbey, freeware for private, non-commercial use (not in the app) (all
-  downloaded by `tools/fetch_soundfont.sh` with their licenses; not in git).
-- Sound effect upscaling: AudioSR by Haohe Liu et al. (run locally, results not in git).
+  downloaded by `tools/fetch_soundfont.sh` with their licenses; GeneralUser GS is also in the repository).
+- Sound effect upscaling: AudioSR by Haohe Liu et al. (run locally; the results are in `data/tyrian2000/sfx`).
 - Voices of the data cubes and story texts: ElevenLabs text to speech (rendered with the user's own
-  subscription by `tools/voices/generate.py`; not in git).
+  subscription by `tools/voices/generate.py`; in `data/voices`).

@@ -13,7 +13,7 @@ so the script holds exactly the words the reader shows.
 Writes data/voices/script.json (per cube: episode, number, title, sender, portrait, speaker, the
 text cleaned for speech and split into segments of one speaker each, the game's wrapped lines)
 and data/voices/script.html (a review copy). The game's text and anything made from it stay under
-data/ (outside git); tools/voices/cast.json (the speakers, their voices, which cubes they read,
+data/ (the voices are in the repository, the game's data is downloaded); tools/voices/cast.json (the speakers, their voices, which cubes they read,
 the few cubes split between several voices) is ours and in the repository. Updates the "usage"
 of every speaker in cast.json (its cubes, portraits and characters).
 

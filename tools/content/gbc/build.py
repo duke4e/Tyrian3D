@@ -6,8 +6,8 @@ written to assets/content/episode7: tyrian7.lvl (the levels and the episode's it
 
 usage: tools/content/gbc/build.py
 
-The levels are data/gbc/episode7 (tools/gbc/episode.py: made from the user's GBC ROM, so neither they
-nor this episode are in the repository); without them this writes nothing. Standard library only: it
+The levels are data/gbc/episode7 (in the repository; tools/gbc/episode.py makes them from the GBC ROM);
+without them this writes nothing. Standard library only: it
 runs at build time.
 """
 import json
