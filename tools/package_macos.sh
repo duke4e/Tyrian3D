@@ -30,14 +30,10 @@ cp -R "$ROOT/assets/sides" "$APP/Contents/Resources/sides"
 cp -R "$ROOT/assets/terrain" "$APP/Contents/Resources/terrain"
 cp -R "$ROOT/assets/fonts" "$APP/Contents/Resources/fonts"
 cp -R "$ROOT/assets/content" "$APP/Contents/Resources/content"
-# The SoundFonts for the music as MIDI (tools/fetch_soundfont.sh) that may be passed on, those there are:
-# GeneralUser GS and FluidR3 GM (Arachno is for private use only).
+# The SoundFont for the music as MIDI, GeneralUser GS (in the repository): the only one the app carries,
+# whatever else data/soundfonts holds.
 mkdir -p "$APP/Contents/Resources/soundfonts"
-for f in GeneralUser-GS.sf2 FluidR3_GM.sf2; do
-	if [ -f "$ROOT/data/soundfonts/$f" ]; then
-		cp "$ROOT/data/soundfonts/$f" "$APP/Contents/Resources/soundfonts/"
-	fi
-done
+cp "$ROOT/data/soundfonts/GeneralUser-GS.sf2" "$APP/Contents/Resources/soundfonts/"
 # The voices of the data cubes and story texts (tools/voices), when they have been rendered: the
 # WAVs and the game's list of them, not the scripts and the render cache beside them.
 if [ -f "$ROOT/data/voices/manifest.txt" ]; then
@@ -59,8 +55,7 @@ cp "$ROOT/assets/models/kenney-space-kit/License.txt" "$LICENSES/Kenney-Space-Ki
 cp "$ROOT/assets/fonts/Oxanium-OFL.txt" "$LICENSES/Oxanium-OFL.txt"
 for f in "$(brew --prefix sdl3 2>/dev/null)/LICENSE.txt:SDL3-LICENSE.txt" \
          "$(brew --prefix assimp 2>/dev/null)/LICENSE:assimp-LICENSE.txt" \
-         "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt" \
-         "$ROOT/data/soundfonts/FluidR3_GM-LICENSE.txt:FluidR3_GM-LICENSE.txt"; do
+         "$ROOT/data/soundfonts/GeneralUser-GS-LICENSE.txt:GeneralUser-GS-LICENSE.txt"; do
 	if [ -f "${f%%:*}" ]; then
 		cp "${f%%:*}" "$LICENSES/${f##*:}"
 	fi

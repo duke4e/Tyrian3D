@@ -48,7 +48,7 @@ GitHub za običan git nema kvotu pohrane ni prometa. Odbija datoteke veće od 10
 | `music` (ostalo) | 631 MB | da, iz ROM-a | `songs.py` (—) | ne |
 | `report`, `levels`, `screens` | ~55 MB | da, iz ROM-a | `report.py`, `extract.py` | ne |
 | **SoundFontovi (`data/soundfonts`)** | | | | |
-| GeneralUser GS (zadani) | 32 MB | da, preuzimanje | `tools/fetch_soundfont.sh` | repo |
+| GeneralUser GS (zadani) | 32 MB | da, preuzimanje | bio `tools/fetch_soundfont.sh`, sada u repou (skripta uklonjena) | repo |
 | FluidR3 GM, Arachno, MV30, Jnsgm2, Timbres of Heaven | ~900 MB | — | izostavljeni: ide samo GeneralUser GS | ne |
 | **Radne mape** | | | | |
 | `upscale/out/tiles`, `tiles_bigfart` | 87 MB | da, sati | `tiles_hd.py`; spremljeni medijani, s njima `--add` radi samo pločice novih mapa | Release |
