@@ -47,7 +47,8 @@ as the sprite draws them, z up) and sheared along the camera's line of sight (y 
 that the camera sees every point where the sprite draws it however high it stands, and the pieces' edges lie along its
 line of sight; from straight above the outline is the sprite's rectangle.
 - One height field over the picture, a grid of GRID_X across (the strands are thin) by GRID_Y down (they are long):
-  the curtain a slope from its lip at the back (LIP high, rounding over) down to the pool (POOL) at FOOT, its strands
+  the curtain a slope from its lip at the back (LIP high, rounding over) down to the pool (POOL, under the river's
+  level SURFACE: the 3D view's procedural water covers the pool) at FOOT, its strands
   raised (STRANDS per shade lighter than round them), a ridge of white water where it plunges (PLUNGE); the crevice
   sunk under it (CREVICE); the rock a slope ROCK_BACK..ROCK_MID..ROCK_FRONT, lumpy by the sprite's shading (ROCK_LUMPS:
   light raised, dark sunk: the boulder caps, the pillars and the clefts between them); the leaves' banks; the kinds
@@ -258,7 +259,10 @@ def model_name(piece, frame):
 # --- The shape -----------------------------------------------------------------------------------------------------
 GRID_X = 0.6                # the height field's spacing across (the strands are thin) and down (they are long);
 GRID_Y = 1.4                # the sprites' edges are grid lines
-POOL = 0.8                  # the pool's water over the ground (the river's level)
+SURFACE = 0.8               # the river's water over the ground (its level): where the foam and the white water float
+POOL = -3.0                 # the pool under it, so the 3D view's procedural water (terrain.cfg "below") covers it
+                            # and flows on from the curtain's foot as the river's (2026-11-02; 0.8, the pool its own
+                            # banded water, until then: a pale box at the curtain's foot on the procedural river)
 LIP = 15.0                  # the curtain's lip at the back
 FOOT = -9.0                 # where the curtain meets the pool (y: row 36.5)
 ROCK_BACK = 17.0            # the rock's slope: at the back, at the curtain's foot, at the front
@@ -275,7 +279,7 @@ SLOPE = 2.0                 # the steepest rise towards the back (dz / dy; the c
 PLUNGE = (0.5, 1.3)         # the white water's ridge along the curtain's foot: height, half-width
 PLUNGE_LIGHT = 1.5          # and how many shades lighter it is
 FOAM_LIGHT = (3.0, 4.5)     # the pool lighter (churned white) under the foam: shades, and how far down it reaches
-SKIRT = -1.5                # the outer edges' skirts reach down to here
+SKIRT = -4.5                # the outer edges' skirts reach down to here (under the pool)
 SOFT = 0.8                  # how softly the kinds blend (pixels)
 SEAM_SAME = 1.0             # the side columns are the middle's periodic field this close to the seams,
 SEAM_BLEND = 3.0            # and blend into their own over this far beyond
@@ -430,7 +434,7 @@ class Base:
         plunge = np.exp(-((Y - FOOT) / PLUNGE[1]) ** 2)  # the white water where the curtain plunges
         churn = np.clip(1.0 - (FOOT - Y) / FOAM_LIGHT[1], 0.0, 1.0) * (Y < FOOT)  # white water under the foam
         self.water_shade = self.water_shade + PLUNGE_LIGHT * plunge + FOAM_LIGHT[0] * churn ** 1.5
-        zw = np.where(Y > FOOT, curtain_z(Y), POOL) + STRANDS * self.highpass + PLUNGE[0] * plunge
+        zw = np.where(Y > FOOT, curtain_z(Y), POOL) + STRANDS * self.highpass + (SURFACE - POOL + PLUNGE[0]) * plunge
         zr = rock_base(Y) + ROCK_LUMPS * (rock_px - 4.0)
         zc = curtain_z(Y) - CREVICE
         zg = rock_base(Y) + BANK
@@ -771,10 +775,10 @@ def foam(base, frame, m, box):
     for n, (x, y, bubbles, phase, drift, splash) in enumerate(foam_specs()):
         age = (frame + phase) % 4
         if splash:
-            size, mat, pz, flat = SPLASH_SIZE[age], m[SPLASH_SHADE[age]], POOL + 0.25 + SPLASH_BOB[age], 0.6
+            size, mat, pz, flat = SPLASH_SIZE[age], m[SPLASH_SHADE[age]], SURFACE + 0.25 + SPLASH_BOB[age], 0.6
             cx, cy = x, y
         else:
-            size, mat, pz, flat = FOAM_SIZE[age], m[FOAM_SHADE[age]], POOL + 0.05, FOAM_FLAT
+            size, mat, pz, flat = FOAM_SIZE[age], m[FOAM_SHADE[age]], SURFACE + 0.05, FOAM_FLAT
             cx, cy = x + drift * age, y - FOAM_DRIFT * age
         if in_water(cx, cy) < 0.8:
             continue
