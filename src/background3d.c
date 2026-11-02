@@ -1895,12 +1895,18 @@ const B3DVegetation *b3d_vegetation(void)
 	vegetation_state.row_start = NULL;
 
 	char dir[1024], path[1200];
-	snprintf(path, sizeof(path), "%s/%016llx.veg",
-	         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
-	         (unsigned long long)b3d_map_hash(1));
-	FILE *f = fopen(path, "rb");
+	FILE *f = NULL;
+	int set = 1;
+	for (; set <= B3D_SETS && f == NULL; ++set)
+	{
+		snprintf(path, sizeof(path), "%s/%016llx.veg",
+		         tyr3d_resource_dir("TYR3D_TERRAIN_DIR", TYR3D_TERRAIN_DIR, "terrain", dir, sizeof(dir)),
+		         (unsigned long long)b3d_map_hash(set));
+		f = fopen(path, "rb");
+	}
 	if (f == NULL)
 		return NULL;
+	--set;  // (the loop's ++set)
 	Uint8 header[16 + B3D_PLANT_KINDS * 2 * 3];
 	const bool header_read = fread(header, 1, sizeof(header), f) == sizeof(header) && memcmp(header, "TYVG", 4) == 0;
 	fseek(f, 0, SEEK_END);
@@ -1917,6 +1923,7 @@ const B3DVegetation *b3d_vegetation(void)
 	Uint32 values[3];
 	memcpy(values, header + 4, sizeof(values));
 	B3DVegetation *v = &vegetation_state.vegetation;
+	v->set = set;
 	v->count = (int)SDL_Swap32LE(values[1]);
 	v->side_columns = (int)SDL_Swap32LE(values[2]);
 	memcpy(v->colors, header + 16, sizeof(v->colors));
@@ -1947,7 +1954,7 @@ const B3DVegetation *b3d_vegetation(void)
 	}
 	free(records);
 	// Where each map row's plants start (they are in order of y).
-	const MapSet m = map_set(1);
+	const MapSet m = map_set(set);
 	v->rows = m.rows;
 	vegetation_state.row_start = malloc(sizeof(int) * (size_t)(m.rows + 1));
 	if (vegetation_state.row_start == NULL)

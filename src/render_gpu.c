@@ -3486,13 +3486,27 @@ static bool stars_covered(void)
 	return frame_terrains[1] != NULL && frame_terrains[1]->holes && frame_terrains[1]->hole_count == 0;
 }
 
+// A background the game runs only its ice filter over (ICE EXIT's ice and floating crystals): its tiles in the
+// filter's colours (composed, or remapped: b3d_tile_remap) show in the playfield as round it. Its capture there also
+// has the filter's blur with the frame before, which left the crystals in the playfield's rectangle dark and smeared
+// against their clean tiles round it, the classic HUD's score smeared into them.
+static bool iced_background(const L3DBackground *background)
+{
+	if (background->effect_count == 0)
+		return false;
+	for (int e = 0; e < background->effect_count; ++e)
+		if (background->effects[e] != L3D_EFFECT_ICE)
+			return false;
+	return true;
+}
+
 // Whether none of the background's capture is drawn, the background being shown otherwise: as water, relief,
-// terrain or HD tiles (build_layer_atlas; composed: b3d_composed_backgrounds's for it).
+// terrain, HD tiles or composed under the ice filter (build_layer_atlas; composed: b3d_composed_backgrounds's for it).
 static bool capture_hidden(const L3DFrame *frame, const L3DBackground *background, bool composed, bool relief)
 {
 	return water_overlay(background) || (relief && background->set == 1) || terrain_background(frame, background) ||
 	       (b3d_terrain_ground && background->blend && !cloud_background(background, composed)) ||
-	       hd_tile_background(frame, background, composed);
+	       hd_tile_background(frame, background, composed) || iced_background(background);
 }
 
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
@@ -9247,6 +9261,97 @@ static float terrain_height_at(const B3DTerrain *t, float mx, float my)
 	return (h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay;
 }
 
+// A background's plants (B3DVegetation.set 2 or 3: HARVEST's woods and meadows on background 3, over its machinery),
+// standing on its plane as drawn flat, for the stretch the camera sees, cleared round the enemies on it. The plant
+// meshes are made (make_plant_meshes).
+static void add_plane_plants(const L3DFrame *frame, const B3DVegetation *veg, const Camera3D *camera, const float *heights,
+                             int *instance_count, int *batch_count)
+{
+	const L3DBackground *background = NULL;
+	for (int i = 0; i < frame->background_count; ++i)
+		if (frame->backgrounds[i].set == veg->set)
+			background = &frame->backgrounds[i];
+	float ox, oy;  // where the map's corner is on the screen (the map moves as a whole)
+	if (background == NULL || !b3d_screen_point(background, 0.0f, 0.0f, &ox, &oy))
+		return;
+	const float height = heights[background->layer];
+	float rect[4];
+	plane_footprint(camera, height, rect);
+	if (rect[0] > rect[2])
+		return;
+
+	// Not under the enemies on it (background 3's ride it, among the top enemies): a circle round each.
+	enum { MAX_CLEARINGS = 128 };
+	float clearings[MAX_CLEARINGS][3];
+	int clearing_count = 0;
+	const L3DLayerType riders = veg->set == 3 ? L3D_TOP_ENEMY : L3D_GROUND_ENEMY;
+	for (int o = 0; o < frame->object_count && clearing_count < MAX_CLEARINGS; ++o)
+	{
+		const L3DObject *object = &frame->objects[o];
+		if (object->layer != riders)
+			continue;
+		const M3DModel *model = object->model >= 0 && object->model < m3d_model_count ? &m3d_models[object->model] : NULL;
+		const float radius = (model != NULL && model->size > 0 ? model->size / 2.0f : 13.0f) + 3.0f;
+		clearings[clearing_count][0] = object->x;
+		clearings[clearing_count][1] = object->y;
+		clearings[clearing_count][2] = radius * radius;
+		++clearing_count;
+	}
+
+	const int first_row = SDL_max((int)floorf((rect[1] - oy) / B3D_TILE_H) - 1, 0);
+	const int last_row = SDL_min((int)floorf((rect[3] - oy) / B3D_TILE_H) + 1, veg->rows - 1);
+	for (int kind = 0; kind < B3D_PLANT_KINDS && *batch_count < MAX_BATCHES; ++kind)
+	{
+		if (plant_meshes.meshes[kind] == NULL)
+			continue;
+		const int first = *instance_count;
+		for (int i = first_row <= last_row ? veg->row_start[first_row] : 0;
+		     first_row <= last_row && i < veg->row_start[last_row + 1] && *instance_count < MAX_INSTANCES; ++i)
+		{
+			const B3DPlant *p = &veg->plants[i];
+			const float x = ox + p->x, y = oy + p->y;
+			if (p->kind != kind || x < rect[0] - 8 || x > rect[2] + 8)
+				continue;
+			bool cleared = false;
+			for (int c = 0; c < clearing_count && !cleared; ++c)
+			{
+				const float dx = x - clearings[c][0], dy = y - clearings[c][1];
+				cleared = dx * dx + dy * dy < clearings[c][2];
+			}
+			if (cleared)
+				continue;
+			const float size = p->size / 8.0f, turn = p->turn / 256.0f * 6.2831853f;
+			// The wind, as on the ground (add_background_batches).
+			const float wind = sinf(glint_time * 1.6f + p->x * 0.045f + p->y * 0.03f) * 0.6f +
+			                   sinf(glint_time * 3.7f + p->x * 0.11f) * 0.25f;
+			const float bend = (kind == B3D_GRASS ? 0.35f : kind == B3D_PALM ? 0.05f : 0.015f) * wind;
+			const float c = cosf(turn), sn = sinf(turn);
+			const Mat4 base = aligned(&(Mat4){ .m = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, height, y, 1 } });
+			// base only scales (alike on all axes) and moves.
+			const float k = base.m[0] * size;
+			Mat4 world = { .m = { c * k, 0, -sn * k, 0, bend * k, k, bend * 0.4f * k, 0, sn * k, 0, c * k, 0,
+			                      base.m[12], base.m[13], base.m[14], 1 } };
+			if (solid_place_count > 0 && under_solid(world.m[12], world.m[14]))
+				continue;
+			write_instance_world(instances + *instance_count * 24, &world, p->shade / 128.0f);
+			++*instance_count;
+		}
+		if (*instance_count == first)
+			continue;
+		terrain_batch[*batch_count] = true;  // they cast shadows
+		BTBHGPUSceneGeometryBatch *b = &batches[(*batch_count)++];
+		init_batch(b);
+		b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+		b->custom_mesh = plant_meshes.meshes[kind];
+		b->first_instance = first;
+		b->instance_count = (uint32_t)(*instance_count - first);
+		b->albedo_texture = white_texture;
+		dim_tiles(b);
+		b->unlit_enabled = 1;
+		b->ssao_mode = kind == B3D_GRASS ? BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY : BTBH_GPU_SCENE_SSAO_FULL;
+	}
+}
+
 static void add_background_batches(const L3DFrame *frame, const bool *composed, const Camera3D *camera,
                                    const float *heights, const Uint32 colors[256], int *instance_count, int *batch_count)
 {
@@ -9604,11 +9709,16 @@ static void add_background_batches(const L3DFrame *frame, const bool *composed, 
 			b->normal_scale = -BACKGROUND_RELIEF;  // the relief the lights bring out (see set_glints)
 	}
 
-	// The ground's plants, on the rows drawn.
-	const B3DVegetation *veg = frame_terrains[1] != NULL ? b3d_vegetation() : NULL;
-	if (veg == NULL || !m3d_enabled)
+	// The ground's plants, on the rows drawn (or a background's, on its plane: add_plane_plants).
+	const B3DVegetation *veg = frame_terrains[1] != NULL || b3d_map_hash(2) != 0 || b3d_map_hash(3) != 0 ? b3d_vegetation() : NULL;
+	if (veg == NULL || !m3d_enabled || (veg->set == 1 && frame_terrains[1] == NULL))
 		return;
 	make_plant_meshes(veg, tint_set != 0 ? tint_hue : -1, tint_brightness, colors);
+	if (veg->set != 1)
+	{
+		add_plane_plants(frame, veg, camera, heights, instance_count, batch_count);
+		return;
+	}
 	const B3DTerrain *ground = frame_terrains[1];
 
 	// No plants under ground enemies that move over the map, where they are now (the vegetation tool

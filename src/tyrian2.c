@@ -1558,6 +1558,26 @@ static void show_field(int enemy_index, int x, int y, P3DField field, float reac
 	p3d_field((float)x + 6, (float)y + 7, enemy[enemy_index].enemyground ? 4.0f : 30.0f, field, reach, pulse);
 }
 
+/*
+ * Tyrian3D: on the wide playfield the ship shoots further than in the original (up to l3d_field_ahead above the
+ * screen, and at its sides), so it can bring a boss down before the level's events take it over: HARVEST's ship (link
+ * 10), shot down before its fight, left the one piece the fight then makes (enemy 66, stopped high above the playfield,
+ * to go with the ship) alone and out of reach, and the map, stopped until the ground's enemies are gone, never moved
+ * on. An enemy like that (above where the shots reach, not coming down, the last of its link) doesn't hold the map
+ * stopped (enemyOnScreen); once the map moves on it comes down with the ground and can be fought.
+ */
+static bool stranded_enemy(int i)
+{
+	if (!l3d_field_wide || enemy[i].linknum == 0 ||
+	    enemy[i].ey + (enemy[i].size == 1 ? 28 : 14) > -15 - l3d_field_ahead ||  // (shots: shots.c)
+	    enemy[i].eyc + enemy[i].fixedmovey + tempBackMove > 0)
+		return false;
+	for (int j = 0; j < 100; ++j)
+		if (j != i && enemyAvail[j] != 1 && enemy[j].linknum == enemy[i].linknum)
+			return false;
+	return true;
+}
+
 void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just drawing
 {
 	player[0].x -= 25;
@@ -1746,7 +1766,8 @@ enemy_still_exists:
 			if (enemy[i].edamaged == 1)
 				goto draw_enemy_end;
 
-			enemyOnScreen++;
+			if (!stranded_enemy(i))
+				enemyOnScreen++;
 
 			if (enemy[i].iced)
 			{
@@ -6138,10 +6159,11 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		const Uint32 key = COMING_KEY + (Uint32)(e * 4 + enemyTypeOfs) * 4 + (tempW & 3);
 		float px = 0, py = 0;
 		const bool seen = l3d_key_seen(key) && l3d_key_position(key, &px, &py);
-		printf("spawn: %s event %d type %d slot %d/%d enemy %u at %d,%d moving %d,%d+%d swing %d,%d steer %d,%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
+		printf("spawn: %s event %d type %d slot %d/%d enemy %u at %d,%d moving %d,%d+%d swing %d,%d steer %d,%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d armor %u link %u (3D frame %u)\n",
 		       levelName, e, eventRec[e].eventtype, enemyOffset, b - 1, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
 		       enemy[b-1].fixedmovey, enemy[b-1].excc, enemy[b-1].eycc, enemy[b-1].xaccel, enemy[b-1].yaccel,
-		       seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax, l3d_frame_number);
+		       seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax,
+		       enemy[b-1].armorleft, enemy[b-1].linknum, l3d_frame_number);
 	}
 }
 
@@ -6198,6 +6220,18 @@ bool JE_searchFor/*enemy*/(JE_byte PLType, JE_byte* out_index)
 
 void JE_eventSystem(void)
 {
+	// Tyrian3D dev: TYR3D_LOG_EVENTS prints each event as the clock reaches it.
+	static int log_events = -1;
+	if (log_events < 0)
+		log_events = SDL_getenv("TYR3D_LOG_EVENTS") != NULL;
+	if (log_events)
+	{
+		const struct JE_EventRecType *ev = &eventRec[eventLoc-1];
+		printf("event %d at %u (clock %u): type %u dat %d %d %d %u %d %d (3D frame %u)\n", eventLoc - 1, ev->eventtime,
+		       (unsigned)curLoc, ev->eventtype, ev->eventdat, ev->eventdat2, ev->eventdat3, ev->eventdat4, ev->eventdat5,
+		       ev->eventdat6, l3d_frame_number);
+	}
+
 	switch (eventRec[eventLoc-1].eventtype)
 	{
 	case 1:

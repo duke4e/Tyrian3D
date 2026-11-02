@@ -844,6 +844,8 @@ def cmd_build(name):
     info, exported, opaque = load_map(name)
     rgb = cleaned(name, exported) if info["background"] == 1 else exported  # (the clean ground, make_cleanground.py)
     s = settings(name)
+    if info["background"] > 1 and not s.get("solid") and not s.get("ground"):
+        return  # (an entry for its plants only: make_vegetation.py)
     h, hole, standing = heights(name, rgb, opaque, info, s, None if rgb is exported else exported)
     # Samples every SAMPLE pixels, at the samples' corners (the grid the game builds meshes on).
     grid = np.pad(h[::SAMPLE, ::SAMPLE], ((0, 1), (0, 1)), mode="edge")

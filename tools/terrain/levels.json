@@ -1000,5 +1000,10 @@
   "solid": true,
   "level": "LAVA II (gbc)",
   "episode": 7
+ },
+ "31b8d8bc635b79c9": {
+  "level": "HARVEST",
+  "background": 3,
+  "vegetation": true
  }
 }

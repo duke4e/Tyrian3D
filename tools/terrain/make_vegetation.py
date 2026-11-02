@@ -12,7 +12,9 @@ make_cleanground.py: the objects' painted art erased), palms where the map paint
 palms' place). They are kept off the models' real footprints where ground enemies stand (export/terrain/ground.txt;
 footprints.py: grass off the models' low parts, palms and trees off all of them) and where stand-ins stand
 (assets/terrain/<map>.std); the game clears the plants under the ones that move as they pass. Nothing over holes.
-"vegetation": false in a map's levels.json entry turns it off.
+"vegetation": false in a map's levels.json entry turns it off; "vegetation": true in a background 2 or 3 map's entry
+gives that background plants instead, where it is the level's grass (HARVEST's background 3: meadows and woods over
+the machinery of background 1), only where it has something (not over its clear pixels); the game draws them on its plane.
 
 usage: <python with numpy, scipy and PIL> tools/terrain/make_vegetation.py <map hash>... | all
 
@@ -93,9 +95,9 @@ def keep_off(name, shape):
     return full, low
 
 
-def detect(name, rgb, s, painted=None):
+def detect(name, rgb, s, painted=None, clear=None):
     """The plants: palms on the map as painted (painted, if given: the map as exported), trees and grass on
-    rgb (the clean ground)."""
+    rgb (the clean ground); none where clear is (a background 2's or 3's clear pixels)."""
     green, big, small = green_regions(rgb)
     if painted is not None:
         small = green_regions(painted)[2]
@@ -107,6 +109,10 @@ def detect(name, rgb, s, painted=None):
     # Not on what stands on the map, nor over space. (Where enemies pass, the game clears the plants
     # under them as they go.)
     keep_clear, keep_low = keep_off(name, lum.shape)
+    if clear is not None:
+        clear = ndimage.binary_dilation(clear, np.ones((5, 5), bool))
+        keep_clear |= clear
+        keep_low |= clear
     if s.get("void") == "hole":
         keep_clear |= mt.void_mask(rgb)
         keep_low |= mt.void_mask(rgb)
@@ -156,15 +162,15 @@ def detect(name, rgb, s, painted=None):
 
 
 def cmd_build(name):
-    info, painted, _ = mt.load_map(name)
+    info, painted, opaque = mt.load_map(name)
     s = mt.settings(name)
     path = os.path.join(mt.OUT, f"{name}.veg")
-    if info["background"] != 1 or s.get("vegetation") is False:
+    if s.get("vegetation") is False or (info["background"] != 1 and s.get("vegetation") is not True):
         if os.path.exists(path):
             os.remove(path)
         return
     rgb = mt.cleaned(name, painted)
-    plants, colours, (forest, meadow, small) = detect(name, rgb, s, painted)
+    plants, colours, (forest, meadow, small) = detect(name, rgb, s, painted, None if info["background"] == 1 else ~opaque)
     if not plants:
         if os.path.exists(path):
             os.remove(path)

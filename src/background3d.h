@@ -224,6 +224,8 @@ const B3DTerrain *b3d_terrain(int set);
  * Vegetation (polish): palms, trees and grass of the ground map, found offline by their colour
  * (tools/terrain/make_vegetation.py, assets/terrain/<map>.veg), drawn as models on the terrain.
  * Positions in the exported map's pixels (the generated columns included), plants in order of y.
+ * A level whose ground has none may have them on background 2 or 3 instead, where that is its grass
+ * (HARVEST's meadows and woods over the machinery): drawn on that background's plane.
  */
 enum { B3D_PALM, B3D_TREE, B3D_GRASS, B3D_PLANT_KINDS };
 
@@ -244,9 +246,11 @@ typedef struct
 	const B3DPlant *plants;
 	const int *row_start;  // by map row (tile row), the first plant at or below it; rows + 1 entries
 	int rows;
+	int set;  // the background whose map they grow on (1 the ground)
 } B3DVegetation;
 
-// The current ground map's vegetation, or NULL if it has none (or TYR3D_VEGETATION=0).
+// The current level's vegetation (the ground map's, or background 2's or 3's), or NULL if it has none (or
+// TYR3D_VEGETATION=0).
 const B3DVegetation *b3d_vegetation(void);
 
 /*
