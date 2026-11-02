@@ -157,6 +157,17 @@ typedef struct
 
 #define L3D_MAX_GLOWS 256
 
+// A picked-up item's value (the game shows it as a sprite: the coins' and gems'): where the sprite is (its top left
+// corner), the value, how far through its time it is (0 new, 1 gone) and how much further each tick.
+typedef struct
+{
+	float x, y;
+	int value;
+	float age, step;
+} L3DValue;
+
+#define L3D_MAX_VALUES 16
+
 typedef struct
 {
 	int layer_count;
@@ -177,6 +188,9 @@ typedef struct
 
 	int glow_count;
 	L3DGlow glows[L3D_MAX_GLOWS];
+
+	int value_count;
+	L3DValue values[L3D_MAX_VALUES];
 
 	// JE_filterScreen parameters, applied when layers are converted to colour.
 	int filter_hue;         // -99 for none
@@ -352,6 +366,8 @@ void l3d_add_background(int set, Uint8 **top_row, Uint8 **position, Uint8 **wrap
 
 // Records a star of the background starfield drawn in the current phase.
 void l3d_add_star(Uint16 position, Uint8 color, bool bright);
+// Records a picked-up item's value, which the 3D view writes instead of the game's sprite (L3DValue).
+void l3d_add_value(float x, float y, int value, float age, float step);
 
 // Records a glow around a 1x1 sprite (a shot; sheet is a Sprite2_array *) drawn at x, y in the
 // current phase. Its colour is the sprite's brightest.

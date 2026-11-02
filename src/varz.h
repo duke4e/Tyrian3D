@@ -191,6 +191,8 @@ typedef struct {
 	bool fixedPosition;
 	JE_integer deltaY;
 	bool particles;  // Tyrian3D: shown by particles in the 3D view, not by its sprite
+	int value;       // Tyrian3D: a picked-up item's value, which its sprite shows (the 3D view writes it: l3d_add_value)
+	JE_byte life;    // Tyrian3D: its ttl at first
 } Explosion;
 
 typedef struct {
@@ -342,7 +344,7 @@ void JE_doSpecialShot(JE_byte playernum, uint *armor, uint *shield);
 void JE_wipeShieldArmorBars(void);
 JE_byte JE_playerDamage(JE_byte temp, Player *);
 
-void JE_setupExplosion(JE_integer x, JE_integer y, JE_integer deltaY, JE_integer type, bool fixedPosition, bool followPlayer);
+int JE_setupExplosion(JE_integer x, JE_integer y, JE_integer deltaY, JE_integer type, bool fixedPosition, bool followPlayer);
 void JE_setupExplosionLarge(JE_boolean enemyground, JE_byte explonum, JE_integer x, JE_integer y);
 
 void JE_drawShield(void);

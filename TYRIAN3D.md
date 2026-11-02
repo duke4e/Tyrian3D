@@ -72,7 +72,7 @@ The original controls are unchanged. These are added:
 The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
-sprites), shadows, ambient occlusion (soft shading where things meet and in the hollows), effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather, the view shaking at big blasts near the ship), a camera preset (Standard,
+sprites), shadows, ambient occlusion (soft shading where things meet and in the hollows), effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather), screen shake (the view shaking at big blasts near the ship and at hits, also in Destruct), a camera preset (Standard,
 Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
@@ -820,7 +820,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_BOSS=1` | Print the boss bar's armor each time it changes |
 | `TYR3D_LOG_JUMPS=1` | Print the level clock's jumps (loops, timers, mid-level bosses), scroll speed changes, warp orbs and data cubes picked up |
 | `TYR3D_TEST_EXPLOSION=<x>,<y>,<every>` | A large explosion at this screen point every so many frames, to look at the particles |
-| `TYR3D_TEST_PICKUP=<every>` | An item's pickup flash at the ship every so many frames, to look at it |
+| `TYR3D_TEST_PICKUP=<every>` | An item's pickup flash at the ship every so many frames, and a coin's value over it (250 and 1k in turn), to look at them |
 | `TYR3D_TEST_WARP=<frame>` | The level ends at that frame as its last event ends it (the ship warping away) |
 | `TYR3D_TEST_WRECK=<every>` | The player's ship's wreck flung apart (with a large explosion) mid-screen every so many frames |
 | `TYR3D_WEAPONS=<front>,<rear>[,<power>]` | With `TYR3D_START`: the weapons, ids as in the shop's weapon ports, and their power (1-11) |
@@ -837,6 +837,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SHADOWS=0`, `TYR3D_EFFECTS=0` | No shadows, no particles and glows (override the 3D settings) |
 | `TYR3D_SHADOW_SOFTNESS=<n>` | The sun's apparent size for the shadows' penumbrae (default 1; 0 sharp, only the hardware's 2x2 filtering; for tuning) |
 | `TYR3D_SSAO=0\|1` | The ambient occlusion off or on for the run (default: the setting, 3D → Ambient Occlusion, `ssao` in `[tyrian3d]`) |
+| `TYR3D_SHAKE=0\|1` | The view's shaking off or on for the run (default: the setting, 3D → Screen Shake, `shake` in `[tyrian3d]`) |
 | `TYR3D_SSAO_TUNE=<radius>,<intensity>,<power>,<bias>` | Tune the ambient occlusion (defaults 14, 3.5, 1, 0.05; the radius and the bias in game pixels: how far round a point it looks for what hides it, how far over a surface a point must stand to count) |
 | `TYR3D_SSAO_DEBUG=1\|2` | 1: the scene shows the ambient occlusion alone, in grey (the see-through surfaces still drawn over it); 2: every other scene is drawn without it, to see before and after in one run (Destruct and the jukebox don't repeat frame for frame) |
 | `TYR3D_SIDES=mirror` | Continue the background maps beyond their sides mirrored, as before the generated columns |

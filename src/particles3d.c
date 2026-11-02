@@ -584,7 +584,7 @@ float p3d_shake = 0;
 
 void p3d_add_shake(float amount)
 {
-	if (settings3d.effects)
+	if (settings3d.shake)
 		p3d_shake = SDL_min(1.0f, p3d_shake + amount);
 }
 

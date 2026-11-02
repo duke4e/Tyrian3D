@@ -507,11 +507,10 @@ int b3d_collect_tiles(const L3DBackground *b, bool fill_empty, float x0, float z
 #define STAR_ROWS 177
 #define STAR_RING 65536
 
-static int add_star_pixel(float x, float z, Uint8 color, B3DStar *stars, int count, int capacity)
+static int add_star_pixel(float x, float z, Uint8 color, bool everywhere, B3DStar *stars, int count, int capacity)
 {
-	const bool in_playfield = x >= L3D_PLAYFIELD_X && x < L3D_PLAYFIELD_X + L3D_PLAYFIELD_W &&
-	                          z >= 0 && z < L3D_PLAYFIELD_H;
-	if (in_playfield || count == capacity)
+	const bool in_field = x >= l3d_field_x() && x < l3d_field_x() + l3d_field_w() && z >= 0 && z < L3D_PLAYFIELD_H;
+	if ((in_field && !everywhere) || count == capacity)
 		return count;
 	stars[count].x = x;
 	stars[count].z = z;
@@ -519,7 +518,7 @@ static int add_star_pixel(float x, float z, Uint8 color, B3DStar *stars, int cou
 	return count + 1;
 }
 
-int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1,
+int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1, bool everywhere,
                       B3DStar *stars, int capacity)
 {
 	int count = 0;
@@ -543,14 +542,14 @@ int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float
 				const float x = (float)(column + copy * L3D_WIDTH), z = (float)row;
 				if (x + 1 < x0 || x - 1 > x1)
 					continue;
-				count = add_star_pixel(x, z, star->color, stars, count, capacity);
+				count = add_star_pixel(x, z, star->color, everywhere, stars, count, capacity);
 				if (star->bright)
 				{
 					const Uint8 dim = star->color - 4;
-					count = add_star_pixel(x - 1, z, dim, stars, count, capacity);
-					count = add_star_pixel(x + 1, z, dim, stars, count, capacity);
-					count = add_star_pixel(x, z - 1, dim, stars, count, capacity);
-					count = add_star_pixel(x, z + 1, dim, stars, count, capacity);
+					count = add_star_pixel(x - 1, z, dim, everywhere, stars, count, capacity);
+					count = add_star_pixel(x + 1, z, dim, everywhere, stars, count, capacity);
+					count = add_star_pixel(x, z - 1, dim, everywhere, stars, count, capacity);
+					count = add_star_pixel(x, z + 1, dim, everywhere, stars, count, capacity);
 				}
 			}
 		}
@@ -756,7 +755,7 @@ void b3d_compose(const L3DFrame *frame, const bool composed[L3D_MAX_BACKGROUNDS]
 			if (b->set == 1 && frame->star_count > 0 && frame->star_layer == b->layer)
 			{
 				const int star_count = b3d_collect_stars(frame, (float)x0, (float)z0, (float)(x0 + w - 1),
-				                                         (float)(z0 + h - 1), stars, (int)COUNTOF(stars));
+				                                         (float)(z0 + h - 1), false, stars, (int)COUNTOF(stars));
 				for (int s = 0; s < star_count; ++s)
 				{
 					const int x = (int)stars[s].x - x0, y = (int)stars[s].z - z0;
@@ -1365,6 +1364,7 @@ static struct
 	char name[16];
 	int set;
 	bool plain;
+	int below;  // terrain.cfg "below <depth>": on its terrain, the water is where the ground lies that deep (b3d_water_below)
 } water_sets[64];
 static int water_set_count = -1;
 
@@ -1394,10 +1394,17 @@ static void load_terrain_config(void)
 		int set;
 		if (sscanf(line, " water %d %15[^\r\n]", &set, name) == 2 && water_set_count < (int)COUNTOF(water_sets))
 		{
-			const bool plain = SDL_strncmp(name, "plain ", 6) == 0;
-			SDL_strlcpy(water_sets[water_set_count].name, plain ? name + 6 : name, sizeof(water_sets[0].name));
+			const char *rest = name;
+			const bool plain = SDL_strncmp(rest, "plain ", 6) == 0;
+			if (plain)
+				rest += 6;
+			int below = 0, skip = 0;
+			if (sscanf(rest, "below %d %n", &below, &skip) == 1 && skip > 0)
+				rest += skip;
+			SDL_strlcpy(water_sets[water_set_count].name, rest, sizeof(water_sets[0].name));
 			water_sets[water_set_count].set = set;
 			water_sets[water_set_count].plain = plain;
+			water_sets[water_set_count].below = SDL_max(below, 0);
 			++water_set_count;
 		}
 		if (sscanf(line, " birds %15[^\r\n]", name) == 1 && bird_level_count < (int)COUNTOF(bird_levels))
@@ -1454,19 +1461,34 @@ B3DWeather b3d_weather(void)
 	return weather;
 }
 
-static bool set_has_water(int set, bool *plain)
+static int water_set_of_level(int set)
 {
 	if (water_set_count < 0)
 		load_terrain_config();
 	for (int i = 0; i < water_set_count; ++i)
 		if (water_sets[i].set == set &&
 		    SDL_strncasecmp(levelName, water_sets[i].name, SDL_strlen(water_sets[i].name)) == 0)
-		{
-			*plain = water_sets[i].plain;
-			return true;
-		}
-	*plain = false;
-	return false;
+			return i;
+	return -1;
+}
+
+static bool set_has_water(int set, bool *plain)
+{
+	const int i = water_set_of_level(set);
+	*plain = i >= 0 && water_sets[i].plain;
+	return i >= 0;
+}
+
+bool b3d_blue_pixel(Uint8 index)
+{
+	const Uint8 *c = (const Uint8 *)&rgb_palette[index];
+	return index != 0 && water_pixel(index) && c[2] >= c[1] + 12;  // (blue over green: no teal grass)
+}
+
+int b3d_water_below(int set)
+{
+	const int i = water_set_of_level(set);
+	return i >= 0 ? water_sets[i].below : 0;
 }
 
 bool b3d_tile_is_water(int set, int tile)

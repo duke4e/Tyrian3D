@@ -15,18 +15,18 @@
 #include <stdio.h>
 #include <string.h>
 
-Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .camera = 0, .music_midi = true,
+Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .shake = true, .camera = 0, .music_midi = true,
                           .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
                           .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
                           .cube_autoplay = true, .pointer_size = 36 };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
-static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .camera = 0, .music_midi = true,
+static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .shake = true, .camera = 0, .music_midi = true,
                              .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
                              .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
                              .cube_autoplay = true, .pointer_size = 36 };
-static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_ssao, overridden_effects, overridden_music, overridden_mouse, overridden_hud,
+static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_ssao, overridden_effects, overridden_shake, overridden_music, overridden_mouse, overridden_hud,
             overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale, overridden_voices;
 
 static const int ui_scales[] = { 75, 90, 100, 115, 130, 150 };
@@ -106,6 +106,7 @@ void settings3d_load(const ConfigSection *section)
 		config_get_bool_option(section, "shadows", &chosen.shadows);
 		config_get_bool_option(section, "ssao", &chosen.ssao);
 		config_get_bool_option(section, "effects", &chosen.effects);
+		config_get_bool_option(section, "shake", &chosen.shake);
 		const char *music;
 		if (config_get_string_option(section, "music", &music))
 			chosen.music_midi = SDL_strcasecmp(music, "opl") != 0;
@@ -162,6 +163,9 @@ void settings3d_load(const ConfigSection *section)
 	const char *effects = SDL_getenv("TYR3D_EFFECTS");
 	if ((overridden_effects = effects != NULL))
 		settings3d.effects = SDL_atoi(effects) != 0;
+	const char *shake = SDL_getenv("TYR3D_SHAKE");  // 0 or 1
+	if ((overridden_shake = shake != NULL))
+		settings3d.shake = SDL_atoi(shake) != 0;
 	const char *music = SDL_getenv("TYR3D_MUSIC");  // midi or opl
 	if ((overridden_music = music != NULL))
 		settings3d.music_midi = SDL_strcasecmp(music, "opl") != 0;
@@ -212,6 +216,10 @@ void settings3d_changed(Settings3DField field)
 	case S3D_EFFECTS:
 		chosen.effects = settings3d.effects;
 		overridden_effects = false;
+		break;
+	case S3D_SHAKE:
+		chosen.shake = settings3d.shake;
+		overridden_shake = false;
 		break;
 	case S3D_CAMERA:
 		chosen.camera = settings3d.camera;
@@ -270,6 +278,7 @@ void settings3d_save(ConfigSection *section)
 	config_set_bool_option(section, "shadows", overridden_shadows ? chosen.shadows : settings3d.shadows, NO_YES);
 	config_set_bool_option(section, "ssao", overridden_ssao ? chosen.ssao : settings3d.ssao, NO_YES);
 	config_set_bool_option(section, "effects", overridden_effects ? chosen.effects : settings3d.effects, NO_YES);
+	config_set_bool_option(section, "shake", overridden_shake ? chosen.shake : settings3d.shake, NO_YES);
 	config_set_string_option(section, "camera", settings3d_camera_name(settings3d.camera));
 	config_set_string_option(section, "music", (overridden_music ? chosen.music_midi : settings3d.music_midi) ? "midi" : "opl");
 	config_set_string_option(section, "mouse", (overridden_mouse ? chosen.mouse_direct : settings3d.mouse_direct) ? "direct" : "original");

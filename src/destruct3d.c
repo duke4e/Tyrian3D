@@ -9,6 +9,8 @@
  */
 #include "destruct3d.h"
 
+#include "settings3d.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -857,7 +859,8 @@ static void blast_effects(const D3Blast *e)
 		p->grow = s * 0.14f;
 		paint(p, 2.2f, 1.3f, 0.5f, 1, 0, 0, 0, 0);
 	}
-	shake = SDL_min(shake + s / 26.0f, 3.5f);
+	if (settings3d.shake)
+		shake = SDL_min(shake + s / 26.0f, 3.5f);
 }
 
 // A shot's trail, by its kind: lasers a blue streak, the big shells smoke, dirt dust, the rest sparks.

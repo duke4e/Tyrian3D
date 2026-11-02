@@ -959,8 +959,19 @@ static struct
 static const Uint8 *screen_without_texts(const SDL_Surface *screen);
 // Pictures drawn anew (data/hd/pictures, rgpu_ui_picture's section).
 static int hd_picture;
+static int hd_picture_before = 0;  // the one rgpu_present_2d showed last (a slide's earlier picture)
+// The picture sliding over the screen (rgpu_picture_slide) and the earlier one, each with its top left corner on the
+// screen, and whether the screen shows them this frame.
+static struct
+{
+	int picture, x, y;
+	bool shown;
+} slide[2];  // the earlier picture, the sliding one
 static int match_hd_picture(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha);
+static void hd_picture_fade(int best);
+static bool match_hd_slide(const Uint8 *picture, Uint32 *rgba);
+static void add_hd_slide(const SDL_Rect *dst);
 static void find_hd_logos(const Uint8 *picture, Uint32 *rgba);
 static void add_hd_logos(const SDL_Rect *dst);
 static int hd_face;  // (the data cube's face drawn anew this frame: find_hd_face)
@@ -1661,7 +1672,20 @@ void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst)
 	}
 	// A picture drawn anew (the logos as the game starts, the title before its menu): under the screen,
 	// which keeps only what the game drew over it.
-	hd_picture = pixels != NULL ? match_hd_picture(pixels, screen_rgba) : 0;
+	// (While a picture slides over the screen, it and the earlier one where they are: rgpu_picture_slide.)
+	if (slide[1].picture != 0)
+	{
+		if (pixels != NULL && match_hd_slide(pixels, screen_rgba))
+		{
+			add_hd_slide(dst);
+			hud_under = hud_quad_count;
+		}
+	}
+	else
+	{
+		hd_picture = pixels != NULL ? match_hd_picture(pixels, screen_rgba) : 0;
+		hd_picture_before = hd_picture;
+	}
 	if (hd_picture != 0)
 	{
 		find_hd_logos(pixels, screen_rgba);
@@ -2229,6 +2253,17 @@ static int match_hd_picture(const Uint8 *picture, Uint32 *rgba)
 	for (int i = 0; i < SCREEN_W * SCREEN_H; ++i)
 		if (picture[i] == original[i])
 			rgba[i] = 0;
+	hd_picture_fade(best);
+	if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
+		printf("debug picture shown %d: share %.3f brightness %.3f white %.3f\n", best, best_share, hd_picture_brightness,
+		       hd_picture_white);
+	return best;
+}
+
+// How far the palette has faded since the picture drawn anew best was loaded in its own (hd_picture_brightness,
+// hd_picture_white).
+static void hd_picture_fade(int best)
+{
 	// (The palette's fade since the picture was loaded in its own: towards black or white, the median over the
 	// colours it has, weighed by their pixels, so that colours the screen animates (the title's) don't count.)
 	const SDL_Color *own = best == HD_PICTURE_TSHP2 ? hd_pictures[best].palette : palettes[pcxpal[best - 1]];
@@ -2249,23 +2284,99 @@ static int match_hd_picture(const Uint8 *picture, Uint32 *rgba)
 	hd_picture_white = weighted_median(light, weight, n, 0.0f);
 	if (hd_picture_white < 0.02f)
 		hd_picture_white = 0;
-	if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
-		printf("debug picture shown %d: share %.3f brightness %.3f white %.3f (%d colours)\n", best, best_share, hd_picture_brightness,
-		       hd_picture_white, n);
-	return best;
 }
 
-// A part of the picture drawn anew (screen pixels sx, sy, sw, sh) at x, y, w, h.
-static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
+void rgpu_picture_slide(int picture, int x, int y, int old_x, int old_y)
+{
+	if (picture != 0 && slide[1].picture == 0)
+		slide[0].picture = hd_picture_before;  // (as the slide begins: what the screen showed)
+	if (picture <= 0 || picture >= HD_PICTURE_TSHP2)
+		picture = slide[0].picture = 0;
+	slide[0].x = old_x, slide[0].y = old_y;
+	slide[1].picture = picture, slide[1].x = x, slide[1].y = y;
+}
+
+// Whether the screen pixel x, y is in the sliding picture's part of the screen (which the earlier one doesn't have).
+static bool in_slide(int x, int y)
+{
+	return slide[1].picture != 0 && x >= slide[1].x && x < slide[1].x + SCREEN_W && y >= slide[1].y && y < slide[1].y + SCREEN_H;
+}
+
+// While a picture slides (rgpu_picture_slide): whether the screen shows it or the earlier one where they are (as
+// match_hd_picture, each over its part of the screen), and if so the screen's pixels in rgba clear where it shows them.
+static bool match_hd_slide(const Uint8 *picture, Uint32 *rgba)
+{
+	find_hd_pictures();
+	bool any = false;
+	for (int l = 0; l < 2; ++l)
+	{
+		slide[l].shown = false;
+		const int n = slide[l].picture;
+		if (n == 0 || hd_pictures[n].original == NULL)
+			continue;
+		const Uint8 *original = hd_pictures[n].original;
+		const int dx = slide[l].x, dy = slide[l].y;
+		const int x0 = SDL_max(dx, 0), x1 = SDL_min(dx + SCREEN_W, SCREEN_W);
+		const int y0 = SDL_max(dy, 0), y1 = SDL_min(dy + SCREEN_H, SCREEN_H);
+		int same = 0, own = 0;
+		for (int y = y0; y < y1; ++y)
+			for (int x = x0; x < x1; ++x)
+			{
+				const Uint8 o = original[(y - dy) * SCREEN_W + x - dx];
+				if (o != 0 && (l == 1 || !in_slide(x, y)))
+				{
+					++own;
+					same += picture[y * SCREEN_W + x] == o;
+				}
+			}
+		if (SDL_getenv("TYR3D_DEBUG_PICTURES") != NULL)
+			printf("debug slide %d: picture %d at %d, %d: same %d of %d\n", l, n, dx, dy, same, own);
+		if (own == 0 || same < own * HD_PICTURE_SAME)
+			continue;
+		for (int y = y0; y < y1; ++y)
+			for (int x = x0; x < x1; ++x)
+				if ((l == 1 || !in_slide(x, y)) && picture[y * SCREEN_W + x] == original[(y - dy) * SCREEN_W + x - dx])
+					rgba[y * SCREEN_W + x] = 0;
+		slide[l].shown = any = true;
+		hd_picture_fade(n);
+	}
+	return any;
+}
+
+// A part of the picture drawn anew n (screen pixels sx, sy, sw, sh) at x, y, w, h.
+static void add_hd_picture_of(int n, float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
 {
 	HudQuad *q = hud_quad_add();
 	if (q == NULL)
 		return;
 	const float b = hd_picture_brightness;
 	*q = (HudQuad){ x, y, w, h, sx / SCREEN_W, sy / SCREEN_H, (sx + sw) / SCREEN_W, (sy + sh) / SCREEN_H, { b, b, b, alpha },
-	                { b, b, b, alpha }, .texture = hd_pictures[hd_picture].texture };
+	                { b, b, b, alpha }, .texture = hd_pictures[n].texture };
 	if (hd_picture_white > 0 && (q = hud_quad_add()) != NULL)  // (a fade to white over it)
 		*q = (HudQuad){ x, y, w, h, 0, 0, 1, 1, { 1, 1, 1, alpha * hd_picture_white }, { 1, 1, 1, alpha * hd_picture_white } };
+}
+
+// A part of this frame's picture drawn anew (hd_picture).
+static void add_hd_picture(float sx, float sy, float sw, float sh, float x, float y, float w, float h, float alpha)
+{
+	add_hd_picture_of(hd_picture, sx, sy, sw, sh, x, y, w, h, alpha);
+}
+
+// The sliding pictures the screen shows (match_hd_slide), where they are on it, the screen at dst: the earlier one,
+// then the sliding one over it.
+static void add_hd_slide(const SDL_Rect *dst)
+{
+	const float kx = dst->w / (float)SCREEN_W, ky = dst->h / (float)SCREEN_H;
+	for (int l = 0; l < 2; ++l)
+	{
+		if (!slide[l].shown)
+			continue;
+		const int dx = slide[l].x, dy = slide[l].y;
+		const int x0 = SDL_max(dx, 0), x1 = SDL_min(dx + SCREEN_W, SCREEN_W);
+		const int y0 = SDL_max(dy, 0), y1 = SDL_min(dy + SCREEN_H, SCREEN_H);
+		add_hd_picture_of(slide[l].picture, (float)(x0 - dx), (float)(y0 - dy), (float)(x1 - x0), (float)(y1 - y0), dst->x + x0 * kx,
+		                  dst->y + y0 * ky, (x1 - x0) * kx, (y1 - y0) * ky, 1);
+	}
 }
 
 /*
@@ -3375,6 +3486,15 @@ static bool stars_covered(void)
 	return frame_terrains[1] != NULL && frame_terrains[1]->holes && frame_terrains[1]->hole_count == 0;
 }
 
+// Whether none of the background's capture is drawn, the background being shown otherwise: as water, relief,
+// terrain or HD tiles (build_layer_atlas; composed: b3d_composed_backgrounds's for it).
+static bool capture_hidden(const L3DFrame *frame, const L3DBackground *background, bool composed, bool relief)
+{
+	return water_overlay(background) || (relief && background->set == 1) || terrain_background(frame, background) ||
+	       (b3d_terrain_ground && background->blend && !cloud_background(background, composed)) ||
+	       hd_tile_background(frame, background, composed);
+}
+
 static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], const bool *native,
                               const bool *composed_layer, int *slot_of_layer, int *slot_count)
 {
@@ -3427,12 +3547,7 @@ static void build_layer_atlas(const L3DFrame *frame, const Uint32 colors[256], c
 				b3d_composed_backgrounds(frame, composed);
 				const bool relief = relief_frame(frame, composed);
 				for (int i = 0; i < frame->background_count; ++i)
-					if (frame->backgrounds[i].layer == l &&
-					    (water_overlay(&frame->backgrounds[i]) || (relief && frame->backgrounds[i].set == 1) ||
-					     terrain_background(frame, &frame->backgrounds[i]) ||
-					     (b3d_terrain_ground && frame->backgrounds[i].blend &&
-					      !cloud_background(&frame->backgrounds[i], composed[i])) ||
-					     hd_tile_background(frame, &frame->backgrounds[i], composed[i])))
+					if (frame->backgrounds[i].layer == l && capture_hidden(frame, &frame->backgrounds[i], composed[i], relief))
 					{
 						memset(cloud_mask, 1, sizeof(cloud_mask));  // none of it is drawn
 						clouds = true;
@@ -4203,6 +4318,38 @@ static void playfield_text_quads(const Layout3D *layout)
 		const float cap = 5.4f * ky;
 		text_quads(TEXT_TINY, text_window_message, layout->playfield[0] + 20 * kx,
 		           layout->playfield[1] + (MESSAGE_AT + 1) * ky, cap, color, cap * 0.09f);
+	}
+}
+
+bool rgpu_values_written(void)
+{
+	return fonts_enabled();
+}
+
+// The values of items picked up (L3DFrame.values): written where their sprites would be, in the steady view
+// (shown_view), centred, rising a little and fading as their time runs out (between ticks too).
+static void value_text_quads(const L3DFrame *frame, const Layout3D *layout)
+{
+	if (frame->value_count == 0 || menu.on || !fonts_enabled())
+		return;
+	const float ky = layout->playfield[3] / L3D_PLAYFIELD_H, cap = 7.5f * ky;
+	for (int i = 0; i < frame->value_count; ++i)
+	{
+		const L3DValue *v = &frame->values[i];
+		char s[16];
+		if (v->value >= 1000 && v->value % 1000 == 0)
+			snprintf(s, sizeof(s), "%dk", v->value / 1000);
+		else if (v->value >= 1000 && v->value % 100 == 0)
+			snprintf(s, sizeof(s), "%d.%dk", v->value / 1000, v->value % 1000 / 100);
+		else
+			snprintf(s, sizeof(s), "%d", v->value);
+		const float age = SDL_min(v->age + ahead * v->step, 1.0f);
+		float wx, wy;
+		if (!rgpu_playfield_to_window(v->x + 6, v->y + 7 - age * 8, &wx, &wy))
+			continue;
+		const float alpha = SDL_clamp((1 - age) / 0.35f, 0.0f, 1.0f);
+		const float top[4] = { 1.0f, 0.94f, 0.62f, alpha }, bottom[4] = { 0.98f, 0.62f, 0.16f, alpha };
+		text_quads_graded(TEXT_LARGE, s, wx - text_width(TEXT_LARGE, s, cap) / 2, wy - cap / 2, cap, top, bottom, cap * 0.14f);
 	}
 }
 
@@ -8625,6 +8772,22 @@ static void water_over_shore_pixels(Uint32 *water, const Uint32 *rgba, int pitch
 	}
 }
 
+// How far below the plane the terrain lies at a pixel of its rows (x from its left generated column on, y the map's;
+// 0 over a hole or above the plane).
+static float terrain_depth_at(const B3DTerrain *t, int x, int y)
+{
+	const float fx = (x + 0.5f) / t->sample, fy = (y + 0.5f) / t->sample;
+	const int sx = SDL_clamp((int)fx, 0, t->width - 2), sy = SDL_clamp((int)fy, 0, t->height - 2);
+	const float ax = SDL_clamp(fx - sx, 0.0f, 1.0f), ay = SDL_clamp(fy - sy, 0.0f, 1.0f);
+	float h[4];
+	for (int k = 0; k < 4; ++k)
+	{
+		const Sint8 value = t->heights[(sy + (k >> 1)) * t->width + sx + (k & 1)];
+		h[k] = t->holes && value == B3D_TERRAIN_HOLE ? 0.0f : (float)value;
+	}
+	return -SDL_min((h[0] * (1 - ax) + h[1] * ax) * (1 - ay) + (h[2] * (1 - ax) + h[3] * ax) * ay, 0.0f);
+}
+
 static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int set, int map_row, const Uint32 colors[256])
 {
 	const int slot = map_row % ring->ring_rows;
@@ -8634,6 +8797,7 @@ static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int se
 	static const Uint8 water_rgba[4] = { 0, 0, 255, 255 };
 	Uint32 water_color;
 	memcpy(&water_color, water_rgba, 4);
+	const int below = ring->water != NULL ? b3d_water_below(set) : 0;  // (water where the ground lies that deep)
 	for (int c = 0; c < columns; ++c)
 	{
 		bool flipped;
@@ -8654,7 +8818,9 @@ static void terrain_ring_row_made(TerrainRing *ring, const B3DTerrain *t, int se
 				const int i = (oy + y) * B3D_ATLAS_W + ox + (flipped ? B3D_TILE_W - 1 - x : x);
 				if (tile_opaque[i] || (ring->ground_zero && tile_ground[i]))
 					*out = colors[tile_indices[i]];
-				if (water_tile && tile_opaque[i] && b3d_water_pixel(set, tile, tile_indices[i]))
+				if (below > 0 ? tile_opaque[i] && b3d_blue_pixel(tile_indices[i]) &&
+				                terrain_depth_at(t, c * B3D_TILE_W + x, map_row * B3D_TILE_H + y) >= below
+				              : water_tile && tile_opaque[i] && b3d_water_pixel(set, tile, tile_indices[i]))
 					*wet = water_color;
 			}
 	}
@@ -10161,6 +10327,16 @@ static float hash_unit(Uint32 x)
 	return (hash32(x) >> 8) / 16777216.0f;
 }
 
+// Smooth noise along t, -1 to 1: a new value at each whole t, eased into from the one before; one stream per seed.
+static float smooth_noise(float t, Uint32 seed)
+{
+	const float f = floorf(t), u = t - f;
+	const Uint32 i = (Uint32)(Sint32)f;
+	const float a = hash_unit(i * 2654435761u ^ seed * 0x9e3779b9u) * 2 - 1;
+	const float b = hash_unit((i + 1) * 2654435761u ^ seed * 0x9e3779b9u) * 2 - 1;
+	return a + (b - a) * u * u * (3 - 2 * u);
+}
+
 #define STARFIELD_RAMP 0x90  // the game's stars' palette ramp (STARFIELD_HUE)
 
 static void add_deep_star_batch(const L3DFrame *frame, const Camera3D *camera, const float *heights,
@@ -10588,15 +10764,18 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 		return;
 
 	// The level's planet, and where its drift began (the deep stars' scroll when the level's map came).
+	// (The same map again, as a level's sections load it, is the same planet going on where it was.)
 	static unsigned int seeded_for = 0;  // b3d_map_generation + 1
 	static Uint32 level = 0;
 	static float scroll_start = 0;
 	if (seeded_for != b3d_map_generation + 1)
 	{
-		seeded_for = b3d_map_generation + 1;
 		const Uint64 map = b3d_map_hash(1);
+		const Uint32 was = level;
 		level = hash32((Uint32)map ^ (Uint32)(map >> 32) ^ 0x5bd1e995u);
-		scroll_start = deep_star_scroll;
+		if (level != was || seeded_for == 0)
+			scroll_start = deep_star_scroll;
+		seeded_for = b3d_map_generation + 1;
 	}
 	static const struct
 	{
@@ -10625,9 +10804,12 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 	if (world_textures[texture] == NULL || world_mesh == NULL)
 		return;
 
+	// Where: in the part of its plane the steady view shows (shown_view, not the shaken camera: the planet doesn't
+	// change size and place as the view shakes), as far up as the window shows it (not only as far as the map is
+	// drawn: it comes round above the view, not in it).
 	const float height = heights[frame->star_layer] - stars_below_layer() - WORLD_DEPTH * rgpu_camera.height_scale;
 	float rect[4];
-	plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+	plane_footprint_world(&shown_view.camera, height, -20000.0f, rect);
 	if (rect[0] > rect[2] || rect[1] >= rect[3])
 		return;
 	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
@@ -10881,9 +11063,17 @@ static void add_star_batch(const L3DFrame *frame, const bool *composed, const Ca
 	star_instances_count = 0;
 	if (frame->star_count == 0 || *batch_count >= MAX_BATCHES || stars_covered())
 		return;
+	// (Where the star layer's capture is drawn it shows the field's stars; where it isn't, as under HD tiles,
+	// these are all of them.)
+	const bool relief = relief_frame(frame, composed);
+	bool everywhere = false;
 	for (int i = 0; i < frame->background_count; ++i)
-		if (composed[i] && frame->backgrounds[i].layer == frame->star_layer)
-			return;
+		if (frame->backgrounds[i].layer == frame->star_layer)
+		{
+			if (composed[i])
+				return;
+			everywhere |= capture_hidden(frame, &frame->backgrounds[i], composed[i], relief);
+		}
 
 	const float height = heights[frame->star_layer] - stars_below_layer();
 	float rect[4];
@@ -10892,7 +11082,7 @@ static void add_star_batch(const L3DFrame *frame, const bool *composed, const Ca
 		return;
 
 	static B3DStar stars[MAX_STARS];
-	const int count = b3d_collect_stars(frame, rect[0], rect[1], rect[2], rect[3], stars,
+	const int count = b3d_collect_stars(frame, rect[0], rect[1], rect[2], rect[3], everywhere, stars,
 	                                    SDL_min(MAX_STARS, MAX_INSTANCES - *instance_count));
 	if (count == 0)
 		return;
@@ -12086,22 +12276,29 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 		heights[l] = height;
 	}
 
-	// The view shakes (p3d_shake): its picture moves a little, a new way every frame (the mouse still finds
-	// the game's points in the steady view).
+	// The view shakes (p3d_shake, Screen Shake): its picture moves along smooth noise, a new turn every couple
+	// of ticks and eased between them (between ticks too), as far as the shake squared; the strongest shakes
+	// draw it in a little too, a kick. (The mouse still finds the game's points in the steady view.)
 	float shaken[4];
 	memcpy(shaken, ndc_rect, sizeof(shaken));
-	if (p3d_shake > 0 && settings3d.effects)
+	if (p3d_shake > 0 && settings3d.shake)
 	{
-		const Uint32 k = hash32(l3d_frame_number * 2654435761u);
-		const float amount = p3d_shake * p3d_shake * 0.012f;
-		const float sx = (hash_unit(k) - 0.5f) * 2 * amount, sy = (hash_unit(k + 1) - 0.5f) * 2 * amount;
-		shaken[0] += sx, shaken[2] += sx;
-		shaken[1] += sy, shaken[3] += sy;
+		const float t = ((float)l3d_frame_number + ahead) * 0.6f;
+		const float amount = p3d_shake * p3d_shake * 0.016f;
+		const float sx = smooth_noise(t, 1) * amount, sy = smooth_noise(t, 2) * amount * 0.8f;
+		const float kick = p3d_shake * p3d_shake * p3d_shake * 0.02f;
+		const float cx = (shaken[0] + shaken[2]) / 2, cy = (shaken[1] + shaken[3]) / 2;
+		for (int i = 0; i < 4; i += 2)
+		{
+			shaken[i] = cx + (shaken[i] - cx) * (1 + kick) + sx;
+			shaken[i + 1] = cy + (shaken[i + 1] - cy) * (1 + kick) + sy;
+		}
 	}
 	const Camera3D camera = fit_camera(reference_height, viewport_aspect, shaken, upside_down, sideways);
 	set_alignment(&camera, reference_height);
 	shown_view = (ShownView){ true, fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways),
 	                          reference_height, logical_w, logical_h, upside_down };
+	value_text_quads(frame, &layout);
 	bool composed[L3D_MAX_BACKGROUNDS];
 	b3d_composed_backgrounds(frame, composed);
 	// What stands on the ground stands on it as drawn, the layers' objects in the game's order

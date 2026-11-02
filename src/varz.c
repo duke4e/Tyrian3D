@@ -881,7 +881,8 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 	}
 }
 
-void JE_setupExplosion(
+// (Tyrian3D: returns the explosion's slot in explosions, or -1 if none was made.)
+int JE_setupExplosion(
 	JE_integer x,
 	JE_integer y,
 	JE_integer deltaY,
@@ -972,10 +973,13 @@ void JE_setupExplosion(
 				explosions[i].fixedPosition = fixedPosition;
 				explosions[i].deltaY = deltaY;
 				explosions[i].particles = l3d_enabled && p3d_explosion(explosions[i].x, explosions[i].y, type);  // Tyrian3D
-				break;
+				explosions[i].value = 0;
+				explosions[i].life = explosions[i].ttl;
+				return i;
 			}
 		}
 	}
+	return -1;
 }
 
 void JE_setupExplosionLarge(JE_boolean enemyGround, JE_byte exploNum, JE_integer x, JE_integer y)

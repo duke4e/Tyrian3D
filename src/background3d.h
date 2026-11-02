@@ -105,11 +105,12 @@ typedef struct
 	Uint8 color;  // palette index
 } B3DStar;
 
-// Appends the pixels of the frame's starfield that lie outside the playfield (inside it the game
-// draws the stars itself) and inside the rectangle [x0, x1] x [z0, z1]. The game's stars cycle
-// through a ring of 65536 pixels, 320 wide; the ring continues further up the screen, where the
-// stars will come from, and repeats every 320 pixels beside it.
-int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1,
+// Appends the pixels of the frame's starfield that lie inside the rectangle [x0, x1] x [z0, z1] and
+// outside the field (l3d_field_x/w: inside it the game draws the stars itself), or everywhere (where
+// what the game draws isn't shown). The game's stars cycle through a ring of 65536 pixels, 320 wide;
+// the ring continues further up the screen, where the stars will come from, and repeats every 320
+// pixels beside it.
+int b3d_collect_stars(const L3DFrame *frame, float x0, float z0, float x1, float z1, bool everywhere,
                       B3DStar *stars, int capacity);
 
 /*
@@ -163,7 +164,12 @@ void b3d_cloud_mask(const L3DBackground *b, Uint8 *mask);
 // pixels (L3D_WIDTH x L3D_ROWS) that a background's water tiles cover, and the average colour of a
 // set's water (false if it has none).
 bool b3d_tile_is_water(int set, int tile);
-bool b3d_tile_has_water(int set, int tile);  // water in good part, or a shore
+bool b3d_tile_has_water(int set, int tile);
+// On the set's terrain, how deep the ground lies where its blue pixels (b3d_blue_pixel) are water (terrain.cfg
+// "water <set> below <depth>": TORM's river in its channel, whose dark painted water and grass are both blue enough
+// to the colours alone), or 0: the colours alone say.
+int b3d_water_below(int set);
+bool b3d_blue_pixel(Uint8 index);  // saturated blue, plainly bluer than green (no teal)  // water in good part, or a shore
 // Whether a pixel (palette index) of a tile is water: in a water tile, the water's colours.
 bool b3d_water_pixel(int set, int tile, Uint8 index);
 void b3d_water_mask(const L3DBackground *b, Uint8 *mask);

@@ -1925,20 +1925,20 @@ void JE_doInGameSetup(void)
  */
 enum
 {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD, OPT_MUSIC,
-	OPT_MENUS, OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_SOUNDFONT, OPT_DONE,
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_SHAKE, OPT_CAMERA, OPT_MOUSE, OPT_HUD, OPT_PLAYFIELD,
+	OPT_MUSIC, OPT_MENUS, OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_SOUNDFONT, OPT_DONE,
 	OPT_COUNT
 };
 
 // The graphics page's rows.
 static const int graphics_page[] = {
-	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_CAMERA, OPT_HUD, OPT_PLAYFIELD, OPT_MENUS, OPT_SCREENS,
-	OPT_UI_SCALE, OPT_DETAIL, OPT_DONE,
+	OPT_VIEW, OPT_OBJECTS, OPT_SHADOWS, OPT_SSAO, OPT_EFFECTS, OPT_SHAKE, OPT_CAMERA, OPT_HUD, OPT_PLAYFIELD, OPT_MENUS,
+	OPT_SCREENS, OPT_UI_SCALE, OPT_DETAIL, OPT_DONE,
 };
 
 static const char *const option_names[OPT_COUNT] = {
-	"View", "Objects", "Shadows", "Ambient Occlusion", "Effects", "Camera", "Mouse", "HUD", "Playfield", "Music", "Menus",
-	"Screens", "UI Scale", "Detail Level", "SoundFont", "Done",
+	"View", "Objects", "Shadows", "Ambient Occlusion", "Effects", "Screen Shake", "Camera", "Mouse", "HUD", "Playfield",
+	"Music", "Menus", "Screens", "UI Scale", "Detail Level", "SoundFont", "Done",
 };
 
 static const char *const option_help[OPT_COUNT] = {
@@ -1947,6 +1947,7 @@ static const char *const option_help[OPT_COUNT] = {
 	"Shadows of ships and enemies.",
 	"Soft shading where things meet and in hollows.",
 	"Explosion particles and glowing shots.",
+	"The view shakes at big blasts and hits.",
 	"How the 3D camera looks at the playfield.",
 	"The ship moves as far as the mouse, or as in the original.",
 	"A few gauges over the playfield, or the original panel.",
@@ -1981,6 +1982,7 @@ static const char *option_value(int option)
 	case OPT_SHADOWS: return settings3d.shadows ? "On" : "Off";
 	case OPT_SSAO:    return settings3d.ssao ? "On" : "Off";
 	case OPT_EFFECTS: return settings3d.effects ? "On" : "Off";
+	case OPT_SHAKE:   return settings3d.shake ? "On" : "Off";
 	case OPT_CAMERA:  return settings3d_camera_name(settings3d.camera);
 	case OPT_MOUSE:   return settings3d.mouse_direct ? "Direct" : "Original";
 	case OPT_HUD:     return settings3d.hud_modern ? "Modern" : "Classic";
@@ -2032,6 +2034,10 @@ static void option_turn(int option, int step)
 	case OPT_EFFECTS:
 		settings3d.effects = !settings3d.effects;
 		settings3d_changed(S3D_EFFECTS);
+		break;
+	case OPT_SHAKE:
+		settings3d.shake = !settings3d.shake;
+		settings3d_changed(S3D_SHAKE);
 		break;
 	case OPT_CAMERA:
 	{
@@ -2115,7 +2121,7 @@ static void level_crumb(char *out, size_t size)
 static void ingame_options_3d(void)
 {
 	enum { ROWS = (int)COUNTOF(graphics_page) };
-	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 13 rows in the box)
+	const int yItems = 16, dyItems = 9, hItem = 9;  // (Tyrian3D: 14 rows in the box)
 	const int xName = 10, wName = 132, xValue = xName + wName, wValue = 120;  // (Tyrian3D: room for "Ambient Occlusion")
 	int selected = 0;
 
@@ -4896,8 +4902,13 @@ redo:
 					}
 					else if (settings3d.mouse_direct && !isNetworkGame)
 					{
-						pointer_moved = mouse_take_pointer_moved();
-						mouse_ship = this_player;
+						// (A ship linked to the first, as galaga mode's Dragonwing, goes where that one goes: the
+						// pointer stays the first's, or each tick it was put on the other ship.)
+						if (!(twoPlayerLinked && playerNum_ == 2))
+						{
+							pointer_moved = mouse_take_pointer_moved();
+							mouse_ship = this_player;
+						}
 					}
 					else
 					{
@@ -6485,7 +6496,11 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 					{
 						this_player->cash += evalue;
 					}
-					JE_setupExplosion(enemy_screen_x, enemy[z].ey, 0, enemyDat[enemy[z].enemytype].explosiontype, true, false);
+					const int type = enemyDat[enemy[z].enemytype].explosiontype;
+					const int e = JE_setupExplosion(enemy_screen_x, enemy[z].ey, 0, type, true, false);
+					// Tyrian3D: the coins' and gems' values (explosion_data's 35-52), which the 3D view writes in Oxanium.
+					if (e >= 0 && type >= 35 && type <= 52 && evalue > 1 && evalue < 30000)
+						explosions[e].value = evalue;
 				}
 				else if (this_player->invulnerable_ticks == 0 && enemyAvail[z] == 0 &&
 				         (enemyDat[enemy[z].enemytype].explosiontype & 1) == 0 && // explosiontype & 1 == 0: not ground enemy

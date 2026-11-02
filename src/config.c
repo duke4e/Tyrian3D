@@ -213,7 +213,8 @@ Config opentyrian_config;  // implicitly initialized
 bool load_opentyrian_config(void)
 {
 	// defaults
-	fullscreen_display = -1;
+	// Tyrian3D: fullscreen (borderless, on the first display) until the player picks a window.
+	fullscreen_display = 0;
 	set_scaler_by_name("3x");
 	memcpy(keySettings, defaultKeySettings, sizeof(keySettings));
 	memcpy(mouseSettings, defaultMouseSettings, sizeof(mouseSettings));

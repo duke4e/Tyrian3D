@@ -56,6 +56,7 @@
 #include "pcxload.h"
 #include "pcxmast.h"
 #include "picload.h"
+#include "render_gpu.h"
 #include "shots.h"
 #include "sprite.h"
 #include "ui.h"
@@ -1624,6 +1625,11 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 
 				enemy[i].filter = 0;
 			}
+			// Tyrian3D: the wide 3D view sees beyond those sides near its top, as far as enemies live: their models
+			// there too (the game goes on as ever: no animation step, no sprite), so they don't pop in at the edges.
+			else if (l3d_field_wide && l3d_capturing && enemy[i].ex + tempMapXOfs > -80 && enemy[i].ex + tempMapXOfs < 340 &&
+			         enemy[i].egr[enemy[i].enemycycle - 1] != 999)
+				draw_enemy_model(i);
 
 			if (enemy[i].excc)
 			{
@@ -3476,11 +3482,17 @@ draw_player_shot_loop_end:
 		int tx, ty, every;
 		if (test != NULL && sscanf(test, "%d,%d,%d", &tx, &ty, &every) == 3 && every > 0 && ++test_frame % every == 0)
 			JE_setupExplosionLarge((test_frame / every) & 1, 0, tx, ty);
-		// TYR3D_TEST_PICKUP=<every n frames>: an item's pickup flash at the ship (for looking at it).
+		// TYR3D_TEST_PICKUP=<every n frames>: an item's pickup flash at the ship and a coin's value over it (250 and 1000
+		// in turn; for looking at them).
 		const char *pickup = SDL_getenv("TYR3D_TEST_PICKUP");
 		static unsigned int pickup_frame = 0;
 		if (pickup != NULL && SDL_atoi(pickup) > 0 && ++pickup_frame % SDL_atoi(pickup) == 0 && l3d_capturing)
+		{
 			p3d_pickup(player[0].x + 7.0f, player[0].y + 7.0f, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom);
+			const int e = JE_setupExplosion(player[0].x, player[0].y - 24, 0, 36, true, false);
+			if (e >= 0)
+				explosions[e].value = (pickup_frame / SDL_atoi(pickup)) & 1 ? 1000 : 250;
+		}
 		// TYR3D_TEST_WARP=<frame>: the level ends there as its last event ends it (the ship warping away).
 		const char *warp = SDL_getenv("TYR3D_TEST_WARP");
 		static unsigned int warp_frame = 0;
@@ -3525,8 +3537,12 @@ draw_player_shot_loop_end:
 			}
 			else
 			{
-				// Tyrian3D: explosions the particles show aren't drawn as sprites in the 3D view.
-				if (explosions[j].particles && l3d_capturing && m3d_enabled)
+				// Tyrian3D: explosions the particles show aren't drawn as sprites in the 3D view, nor items' values,
+				// which it writes.
+				if (explosions[j].value != 0 && l3d_capturing && rgpu_values_written())
+					l3d_add_value(explosions[j].x, explosions[j].y, explosions[j].value,
+					              1 - explosions[j].ttl / (float)SDL_max(explosions[j].life, 1), 1.0f / SDL_max(explosions[j].life, 1));
+				else if (explosions[j].particles && l3d_capturing && m3d_enabled)
 					;
 				else if (explosionTransparent)
 					blit_sprite2_blend(VGAScreen, explosions[j].x, explosions[j].y, explosionSpriteSheet, explosions[j].sprite + 1);
@@ -4427,6 +4443,7 @@ new_game:
 										vga += VGAScreen->pitch;
 									}
 
+									rgpu_picture_slide(tempX, 0, z - 199, 0, z + 1);  // Tyrian3D (drawn anew; the earlier one pushed down)
 									JE_showVGA();
 
 									if (isNetworkGame)
@@ -4439,6 +4456,7 @@ new_game:
 							}
 
 							memcpy(VGAScreen->pixels, pic_buffer, sizeof(pic_buffer));
+							rgpu_picture_slide(0, 0, 0, 0, 0);  // Tyrian3D
 						}
 						break;
 
@@ -4479,6 +4497,7 @@ new_game:
 										vga += VGAScreen->pitch;
 									}
 
+									rgpu_picture_slide(tempX, 0, 200 - z, 0, 0);  // Tyrian3D (drawn anew)
 									JE_showVGA();
 
 									if (isNetworkGame)
@@ -4491,6 +4510,7 @@ new_game:
 							}
 
 							memcpy(VGAScreen->pixels, pic_buffer, sizeof(pic_buffer));
+							rgpu_picture_slide(0, 0, 0, 0, 0);  // Tyrian3D
 						}
 						break;
 
@@ -4527,6 +4547,7 @@ new_game:
 										pic += 320;
 									}
 
+									rgpu_picture_slide(tempX, 320 - z, 0, -z, 0);  // Tyrian3D (drawn anew; the earlier one pushed left)
 									JE_showVGA();
 
 									if (isNetworkGame)
@@ -4539,6 +4560,7 @@ new_game:
 							}
 
 							memcpy(VGAScreen->pixels, pic_buffer, sizeof(pic_buffer));
+							rgpu_picture_slide(0, 0, 0, 0, 0);  // Tyrian3D
 						}
 						break;
 

@@ -256,6 +256,7 @@ void l3d_frame_begin(L3DLayerType first_type)
 	l3d_frame.star_count = 0;
 	l3d_frame.space = false;
 	l3d_frame.glow_count = 0;
+	l3d_frame.value_count = 0;
 	l3d_frame.filter_hue = -99;
 	l3d_frame.filter_brightness = -99;
 	memset(owner, 0xff, sizeof(owner));
@@ -382,12 +383,16 @@ static void add_side_decor(void)
 static void note_space(void)
 {
 	static Uint32 stars_level = UINT32_MAX;  // l3d_level_frame of the level the starfield was last on in
+	static bool was_space = false;  // the frame before (a field about half covered doesn't flicker in and out of space)
 	l3d_frame.space = l3d_frame.star_count > 0;
 	if (l3d_frame.space)
 	{
 		stars_level = l3d_level_frame;
+		was_space = true;
 		return;
 	}
+	const bool held = was_space;
+	was_space = false;
 	if (stars_level != l3d_level_frame)
 		return;
 	for (int b = 0; b < l3d_frame.background_count; ++b)
@@ -403,9 +408,9 @@ static void note_space(void)
 				++all;
 				empty += !layer->cover[i] || layer->index[i] == 0;
 			}
-		if (empty * 2 > all)
+		if (empty * 2 > all || (held && empty * 5 > all))
 		{
-			l3d_frame.space = true;
+			l3d_frame.space = was_space = true;
 			l3d_frame.star_layer = l3d_frame.backgrounds[b].layer;
 		}
 		return;
@@ -865,6 +870,13 @@ void l3d_add_star(Uint16 position, Uint8 color, bool bright)
 	star->position = position;
 	star->color = color;
 	star->bright = bright;
+}
+
+void l3d_add_value(float x, float y, int value, float age, float step)
+{
+	if (!l3d_capturing || l3d_frame.value_count == L3D_MAX_VALUES)
+		return;
+	l3d_frame.values[l3d_frame.value_count++] = (L3DValue){ x, y, value, age, step };
 }
 
 // What the 3D view needs to know of a sprite's colours, cached per sheet and sprite.

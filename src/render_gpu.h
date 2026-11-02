@@ -35,6 +35,12 @@ void rgpu_shutdown(void);
 // dst is the 320x200 screen's rectangle in window coordinates. With the modern UI's Screens: Fill
 // (ui_fill_screens) it fills the window's height, sharp, over a blurred copy of itself.
 void rgpu_present_2d(const SDL_Surface *screen, const SDL_Rect *dst);
+// A picture sliding over the screen (the level texts' ]U, ]V and ]R): JE_loadPic's picture with its top left
+// corner at x, y on the screen, and the screen's earlier picture moved to old_x, old_y, each drawn anew where
+// it is (rgpu_present_2d); picture 0 when the slide is over.
+void rgpu_picture_slide(int picture, int x, int y, int old_x, int old_y);
+// Whether the 3D view writes picked-up items' values (L3DFrame.values) in Oxanium, so the game leaves out their sprites.
+bool rgpu_values_written(void);
 // The window black (nothing of the screen).
 void rgpu_present_blank(void);
 // Whether the 3D view shows the modern HUD (gauges over the scene) rather than the game's panel.
