@@ -46,7 +46,16 @@ static struct
 	Uint32 player_hashes[VOICEOVER_PLAYER_CUBES];
 	char player_titles[VOICEOVER_PLAYER_CUBES][48];
 	bool autoplay;   // the store's cubes were started one after another for this visit (settings3d.cube_autoplay)
+
+	// Cubes picked up in a level (voiceover_cube_found) and read there, which the store's autoplay passes over, and the
+	// one waiting for the game's "Data acquired" to be said (pending_at: SDL_GetTicks, 0: none).
+	int heard_episode[VOICEOVER_PLAYER_CUBES], heard_cube[VOICEOVER_PLAYER_CUBES], heard_count;
+	int pending_episode, pending_cube;
+	Uint32 pending_hash;
+	Uint64 pending_at;
 } vo = { .player_index = -1 };
+
+#define CUBE_FOUND_DELAY_MS 1300  // the game's "Data acquired." (V_DATA_CUBE) said first
 
 Uint32 voiceover_hash(Uint32 hash, const char *line)
 {
@@ -188,9 +197,16 @@ static void start(const Voice *v)
 }
 
 static void autoplay_next(void);
+static void cube_start(int episode, int cube, Uint32 text_hash);
 
 void voiceover_update(void)
 {
+	if (vo.pending_at != 0 && SDL_GetTicks() >= vo.pending_at)
+	{
+		vo.pending_at = 0;
+		cube_start(vo.pending_episode, vo.pending_cube, vo.pending_hash);
+		return;
+	}
 	if (!vo.playing)
 		return;
 	Sint16 *done[2];
@@ -213,6 +229,7 @@ void voiceover_stop(void)
 	vo.episode = vo.cube = 0;
 	vo.hash = 0;
 	vo.player_index = -1;
+	vo.pending_at = 0;
 	vo.paused = false;
 	if (vo.playing)
 		start(NULL);
@@ -226,7 +243,31 @@ void voiceover_stop(void)
 static int reader_episode, reader_cube;
 static Uint32 reader_hash;
 
-static void cube_start(int episode, int cube, Uint32 text_hash);
+void voiceover_cube_found(int episode, int cube, Uint32 text_hash)
+{
+	if (cube <= 0 || !settings3d.voices || !voiceover_installed())
+		return;
+	if (vo.heard_count < VOICEOVER_PLAYER_CUBES)
+	{
+		vo.heard_episode[vo.heard_count] = episode;
+		vo.heard_cube[vo.heard_count] = cube;
+		++vo.heard_count;
+	}
+	vo.pending_episode = episode;
+	vo.pending_cube = cube;
+	vo.pending_hash = text_hash;
+	vo.pending_at = SDL_GetTicks() + CUBE_FOUND_DELAY_MS;
+	if (vo.debug)
+		printf("voices: cube %d:%d picked up\n", episode, cube);
+}
+
+static bool heard(int episode, int cube)
+{
+	for (int i = 0; i < vo.heard_count; ++i)
+		if (vo.heard_episode[i] == episode && vo.heard_cube[i] == cube)
+			return true;
+	return false;
+}
 
 void voiceover_cube(int episode, int cube, Uint32 text_hash)
 {
@@ -349,6 +390,7 @@ void voiceover_store_closed(void)
 {
 	voiceover_stop();
 	vo.autoplay = false;
+	vo.heard_count = 0;
 }
 
 // Plays the store's cube i (as its reader would).
@@ -360,11 +402,13 @@ static void player_play(int i)
 	vo.player_index = i;
 }
 
-// Autoplay: the store's cubes from i on, the first one that has a voice.
+// Autoplay: the store's cubes from i on, the first one that has a voice (and wasn't read as it was picked up).
 static void autoplay_from(int i)
 {
 	for (; i < vo.player_count; ++i)
 	{
+		if (heard(vo.player_episode, vo.player_cubes[i]))
+			continue;
 		player_play(i);
 		if (vo.playing)
 			return;

@@ -6467,6 +6467,7 @@ void JE_playerCollide(Player *this_player, JE_byte playerNum_)
 							printf("data cube picked up\n");
 						cubeMax++;
 						soundQueue[3] = V_DATA_CUBE;
+						cube_picked_up();  // (Tyrian3D: read aloud once "Data acquired" has been said)
 					}
 					else if ((evalue == -1 || evalue == -2) && power_up_port(evalue) == FRONT_WEAPON)  // got front weapon powerup
 					{

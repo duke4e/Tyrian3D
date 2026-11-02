@@ -4,8 +4,9 @@
  * story/e<episode>_<n>.wav, listed in manifest.txt with a hash of the text each one reads, so a voice plays
  * only over the text it was made from (an edited cube, a custom episode's own cubes: silence).
  *
- * A voice plays over the music, which is ducked meanwhile (loudness.c), while its text shows: the
- * store's data cube reader, a story text between levels. It stops when the text closes. Settings:
+ * A voice plays over the music and the sounds, which are ducked meanwhile (loudness.c), while its text shows: the
+ * store's data cube reader, a story text between levels. It stops when the text closes. With Cube Autoplay a data
+ * cube picked up in a level is read aloud there and then (voiceover_cube_found). Settings:
  * settings3d.voices and voice_volume (Setup, Sound, Voices); TYR3D_DEBUG_VOICES=1 prints each event.
  */
 #ifndef VOICEOVER_H
@@ -26,6 +27,10 @@ bool voiceover_installed(void);
 // episode's cubetxt file and its text's hash; cube 0 when no cube is shown. A new cube's voice
 // starts, the old one stops.
 void voiceover_cube(int episode, int cube, Uint32 text_hash);
+
+// A data cube picked up in a level (settings3d.cube_autoplay): its voice plays once the game's "Data acquired" has
+// been said, to its end (or until another voice); the store after the level doesn't read it again by itself.
+void voiceover_cube_found(int episode, int cube, Uint32 text_hash);
 
 // A story text shown (levelWarningText): lines first..count-1 are what is read. Plays until
 // voiceover_stop.

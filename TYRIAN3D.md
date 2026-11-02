@@ -76,7 +76,9 @@ sprites), shadows, ambient occlusion (soft shading where things meet and in the 
 Steep, Overhead), the mouse, Sidekicks (how the sidekicks that charge up and never run out, the Zica
 SuperCharger's kind, fire: Charged, the default, by themselves while the main fire is held, each time
 they are fully charged; Rapid, as fast as they can, uncharged; Hold, only on their own key, as in the
-original; `sidekick_fire` in `[tyrian3d]`; network games and demos play as the original), and the HUD: Modern (the playfield fills the window; in a 16:9 area
+original; `sidekick_fire` in `[tyrian3d]`; network games and demos play as the original), Specials (Auto, the default: while
+fire is held the special weapon, the Flare's kind, fires again whenever it is ready; Click: a press each, as the original;
+`special_auto`), and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
 and special weapon (lit while it is ready) at the bottom left, the boss bar and the level timer at the top, all from the
@@ -857,6 +859,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
 | `TYR3D_MODEL_ICONS=0` | The modern UI's item icons as the sprites' pictures (the HD upscales), as before 2026-10-29, instead of the renders of the items' models (`assets/models/icons`), to compare (with `TYR3D_PROFILE` each render's texture prints as it is made: `model icon: <model> at <n> pixels, its texture made in <ms> ms`, what it took the main thread) |
 | `TYR3D_RENDER_ICONS=<dir>` | Once the modern store shows the ship, render the icon of every model an item's icon shows into `<dir>/<model>.png` (`render_gpu.c` `rgpu_render_icons`; `assets/models/icons` is what the UI reads; see Models), printing every item and what its icon shows (`icons: <ship\|gun\|shield\|generator\|sidekick\|special\|data cube> <id> <name>: <model or "its sprite">`), then `icons: <model>: <w>x<h> of a <n> square, written` for each render and how many |
+| `TYR3D_SPECIAL_AUTO=0\|1` | The special weapon a press each, or again whenever it is ready while fire is held, for the run (default: the setting, 3D → Specials) |
 | `TYR3D_SIDEKICK_FIRE=hold\|charged\|rapid` | How the charging sidekicks with endless ammo fire for the run (default: the setting, 3D → Sidekicks) |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
@@ -1337,8 +1340,8 @@ found once it has been discovered (`[destruct] discovered`).
 
 The data cubes and the story texts between levels are read aloud (`src/voiceover.c`): when the store's
 data cube reader opens a cube, or a story text, a warning or an episode's end with its secret hint shows
-(classic or modern menus), its voice plays over the music, which is ducked by about 6 dB (200 ms ramps,
-`loudness.c`), and a story's stops when the text closes (a 30 ms fade); the text stays as the subtitles.
+(classic or modern menus), its voice plays over the music and the sounds, which are ducked by about 6 dB (200 ms
+ramps, `loudness.c`), and a story's stops when the text closes (a 30 ms fade); the text stays as the subtitles.
 A cube's voice plays on when its reader closes, until the store closes: the store's data cube player (the
 modern UI's bar under the ship: previous, play or pause, next, the cube playing and how far; P plays or
 pauses, `[` and `]` go to the previous or next cube, wrapping round) plays the store's cubes while you
@@ -1346,8 +1349,11 @@ shop, and a cube opened in the reader plays from its start; the Data list marks 
 "PAUSED"). Sound →
 **Voices** in Setup is its volume (Left/Right) and on/off (Enter), kept as `voices` and `voice_volume` in
 `[tyrian3d]`; "No voices installed" when there are none. With Sound → **Cube Autoplay** (on by default,
-`cube_autoplay`) the store reads its cubes aloud one after another as it opens, each once a visit; a cube
-opened in the reader plays at once, and when a voice ends while a reader is open the autoplay stops there.
+`cube_autoplay`) a data cube picked up in a level is read aloud there and then, once the game's "Data acquired" has
+been said: the cube the store after the level shows in its place, found by the store's list (`]?`) in the episode's
+sections ahead (`upcoming_cube`; not in network games or demos); and the store reads its cubes aloud one after
+another as it opens, each once a visit, passing over those already read in the level; a cube opened in the reader
+plays at once, and when a voice ends while a reader is open the autoplay stops there.
 
 The voices go in `data/voices` (in the repository, without the render cache and the previews; `TYR3D_VOICES_DIR`): `e<episode>/<cube>.wav` (the cube's
 number in its episode's `cubetxt` file), `story/e<episode>_<n>.wav` and `manifest.txt`, which lists each

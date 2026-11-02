@@ -55,6 +55,10 @@ void JE_starShowVGA(void);
 
 void JE_main(void);
 void JE_loadMap(void);
+// Tyrian3D: the data cube the store after this level shows as its n-th (1-based: the n-th found since the last store),
+// by its list (the "]?" command) in the episode's sections from the next level's (nextLevel) on, up to the next level
+// they load; 0 if there is none.
+int upcoming_cube(int n);
 #ifdef WITH_NETWORK
 void networkStartScreen(void);
 #endif

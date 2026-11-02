@@ -76,8 +76,8 @@ static Uint8 channelVolume[CHANNEL_COUNT];
 #define CHANNEL_VOLUME_LEVELS 8
 
 // Tyrian3D: the voice channel (voiceover.h): the voice playing and the one fading out after it was
-// replaced or stopped (~30 ms), mixed over the rest; the music ducked (~6 dB, ~200 ms ramps) while
-// a voice speaks. The buffers belong to voiceover.c, which frees them once the mixer is done.
+// replaced or stopped (~30 ms), mixed over the rest; the music and the sounds ducked (~6 dB, ~200 ms ramps)
+// while a voice speaks. The buffers belong to voiceover.c, which frees them once the mixer is done.
 typedef struct
 {
 	Sint16 *samples;
@@ -323,6 +323,8 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 	else if (!samples_disabled)
 	{
 		Sint32 sampleVolumeFactor = volumeFactorTable[sampleVolume];
+		// (Tyrian3D: ducked as the music is while a voice speaks, by where its ramp is at the buffer's end)
+		sampleVolumeFactor = (Sint32)(((Sint64)sampleVolumeFactor * voiceDuck) >> 16);
 		Sint32 sampleVolumeFactors[CHANNEL_VOLUME_LEVELS];
 		for (int i = 0; i < CHANNEL_VOLUME_LEVELS; ++i)
 			sampleVolumeFactors[i] = sampleVolumeFactor * (i + 1) / CHANNEL_VOLUME_LEVELS;

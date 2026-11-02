@@ -213,6 +213,12 @@ static const char *getOnOffPickerItem(size_t i, char *buffer, size_t bufferSize)
 	return i == 0 ? "On" : "Off";
 }
 
+static const char *getSpecialPickerItem(size_t i, char *buffer, size_t bufferSize)
+{
+	(void)buffer, (void)bufferSize;
+	return i == 0 ? "Auto" : "Click";
+}
+
 static size_t getSidekickFirePickerItemsCount(void)
 {
 	return S3D_SIDEKICK_FIRE_COUNT;
@@ -271,6 +277,7 @@ void setupMenu(void)
 		MENU_ITEM_SSAO,  // Tyrian3D: the 3D view's ambient occlusion (render_gpu.c scene_ssao)
 		MENU_ITEM_SHAKE,  // Tyrian3D: the 3D view shaking (p3d_shake)
 		MENU_ITEM_SIDEKICK_FIRE,  // Tyrian3D: charge sidekicks firing with the main fire (settings3d.sidekick_fire)
+		MENU_ITEM_SPECIAL_AUTO,   // Tyrian3D: the special weapon firing again while fire is held (settings3d.special_auto)
 	} MenuItemId;
 
 	typedef enum
@@ -343,6 +350,8 @@ void setupMenu(void)
 				{ MENU_ITEM_MOUSE, "Mouse:", "The ship moves as far as the mouse, or as in the original.", getTwoItemsCount, getMousePickerItem },
 				{ MENU_ITEM_SIDEKICK_FIRE, "Sidekicks:", "Charge sidekicks fire with the main fire: at full charge, rapidly, or on their key.",
 				  getSidekickFirePickerItemsCount, getSidekickFirePickerItem },
+				{ MENU_ITEM_SPECIAL_AUTO, "Specials:", "The special weapon fires whenever it's ready while fire is held, or a press each.",
+				  getTwoItemsCount, getSpecialPickerItem },
 				{ MENU_ITEM_HUD, "HUD:", "A few gauges over the playfield, or the original panel.", getTwoItemsCount, getHudPickerItem },
 				{ MENU_ITEM_PLAYFIELD, "Playfield:", "Play in all the 3D view shows, or the original's screen.", getTwoItemsCount, getPlayfieldPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
@@ -355,7 +364,7 @@ void setupMenu(void)
 				{ MENU_ITEM_MUSIC_VOLUME, "Music Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_SOUND_VOLUME, "Sound Volume", "Change volume with the left/right arrow keys." },
 				{ MENU_ITEM_VOICES, "Voices", "Cubes and story texts read aloud: left/right the volume, Enter on or off." },
-				{ MENU_ITEM_CUBE_AUTOPLAY, "Cube Autoplay:", "In the store, its data cubes are read aloud one after another.", getTwoItemsCount, getOnOffPickerItem },
+				{ MENU_ITEM_CUBE_AUTOPLAY, "Cube Autoplay:", "Data cubes are read aloud as they're picked up, and in the store.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_MUSIC_SYNTH, "Music:", "The music as MIDI through a SoundFont, or on the AdLib chip.", getTwoItemsCount, getMusicPickerItem },
 				{ MENU_ITEM_SOUNDFONT, "SoundFont:", "The instruments the music plays on: the SoundFonts in data/soundfonts.", getSoundFontPickerItemsCount, getSoundFontPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the previous menu." },
@@ -427,8 +436,8 @@ void setupMenu(void)
 				tab_index = (int)t;
 
 		const Menu *menu = &menus[currentMenu];
-		yMenuItems = currentMenu == MENU_3D ? 28 : 37;
-		dyMenuItems = currentMenu == MENU_3D ? 13 : 21;
+		yMenuItems = currentMenu == MENU_3D ? 26 : 37;
+		dyMenuItems = currentMenu == MENU_3D ? 12 : 21;
 
 		// Draw header.
 		draw_font_hv_shadow(VGAScreen, xCenter, yMenuHeader, menu->header, large_font, centered, 15, -3, false, 2);
@@ -499,6 +508,7 @@ void setupMenu(void)
 			case MENU_ITEM_MUSIC_SYNTH:
 			case MENU_ITEM_MOUSE:
 			case MENU_ITEM_SIDEKICK_FIRE:
+			case MENU_ITEM_SPECIAL_AUTO:
 			case MENU_ITEM_HUD:
 			case MENU_ITEM_PLAYFIELD:
 			case MENU_ITEM_MENUS:
@@ -511,6 +521,7 @@ void setupMenu(void)
 				const size_t choice =
 					menuItem->id == MENU_ITEM_SOUNDFONT ? soundfont_index() :
 					menuItem->id == MENU_ITEM_SIDEKICK_FIRE ? (size_t)settings3d.sidekick_fire :
+					menuItem->id == MENU_ITEM_SPECIAL_AUTO ? !settings3d.special_auto :
 					menuItem->id == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 					menuItem->id == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 					menuItem->id == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
@@ -944,6 +955,7 @@ void setupMenu(void)
 				case MENU_ITEM_MUSIC_SYNTH:
 				case MENU_ITEM_MOUSE:
 				case MENU_ITEM_SIDEKICK_FIRE:
+				case MENU_ITEM_SPECIAL_AUTO:
 				case MENU_ITEM_HUD:
 				case MENU_ITEM_PLAYFIELD:
 				case MENU_ITEM_MENUS:
@@ -959,6 +971,7 @@ void setupMenu(void)
 					pickerSelectedIndex =
 						selectedMenuItemId == MENU_ITEM_SOUNDFONT ? soundfont_index() :
 						selectedMenuItemId == MENU_ITEM_SIDEKICK_FIRE ? (size_t)settings3d.sidekick_fire :
+						selectedMenuItemId == MENU_ITEM_SPECIAL_AUTO ? !settings3d.special_auto :
 						selectedMenuItemId == MENU_ITEM_MENUS ? !settings3d.menus_modern :
 						selectedMenuItemId == MENU_ITEM_SCREENS ? !settings3d.screens_fill :
 						selectedMenuItemId == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
@@ -1233,6 +1246,10 @@ void setupMenu(void)
 				case MENU_ITEM_SIDEKICK_FIRE:
 					settings3d.sidekick_fire = (int)pickerSelectedIndex;
 					settings3d_changed(S3D_SIDEKICK_FIRE);
+					break;
+				case MENU_ITEM_SPECIAL_AUTO:
+					settings3d.special_auto = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_SPECIAL_AUTO);
 					break;
 				case MENU_ITEM_HUD:
 					settings3d.hud_modern = pickerSelectedIndex == 0;

@@ -22,6 +22,8 @@ typedef struct
 	bool music_midi;  // the music through a SoundFont as MIDI (else the emulated OPL chip)
 	bool mouse_direct;  // the mouse moves the ship as far as it moves (else as in the original)
 	int sidekick_fire;  // sidekicks with charge stages and endless ammo, with the main fire (settings3d_sidekick_fire_name)
+	bool special_auto;  // the special weapon (the Flare's kind) fires again whenever it's ready while fire is held (else a
+	                    // press each, as the original); not in network games and demos
 	bool hud_modern;    // a few gauges over the scene (else the original panel beside it)
 	bool playfield_wide;  // the 3D view's wide playfield (l3d_field_wide), from the next level on
 	bool menus_modern;    // the menus in the new style over the 3D view (ui.h), else the original screens
@@ -67,7 +69,7 @@ void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
                S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER, S3D_SSAO, S3D_SHAKE,
-               S3D_SIDEKICK_FIRE } Settings3DField;
+               S3D_SIDEKICK_FIRE, S3D_SPECIAL_AUTO } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

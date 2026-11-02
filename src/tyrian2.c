@@ -62,6 +62,7 @@
 #include "ui.h"
 #include "vga256d.h"
 #include "video.h"
+#include "voiceover.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -2739,6 +2740,7 @@ level_loop:
 
 	/*---------------------------EVENTS-------------------------*/
 	prespawn_events();
+	voiceover_update();  // (Tyrian3D: a data cube picked up, read aloud: voiceover_cube_found)
 	while (eventRec[eventLoc-1].eventtime <= curLoc && eventLoc <= maxEvent)
 	{
 		if (prespawned[eventLoc-1])
@@ -3232,6 +3234,7 @@ level_loop:
 											if (enemy[temp2].evalue == 1)
 											{
 												cubeMax++;
+												cube_picked_up();  // (Tyrian3D: read aloud)
 											}
 											else
 											{
@@ -4035,6 +4038,42 @@ draw_player_shot_loop_end:
 		goto start_level;
 	}
 	goto level_loop;
+}
+
+int upcoming_cube(int n)
+{
+	if (n <= 0)
+		return 0;
+	FILE *f = dir_fopen(data_dir(), episode_file, "rb");
+	if (f == NULL)
+		return 0;
+	char s[256];
+	int section = 0, cube = 0;
+	while (section < nextLevel && !feof(f))
+	{
+		read_encrypted_pascal_string(s, sizeof(s), f);
+		if (s[0] == '*')
+			++section;
+	}
+	// (as JE_loadMap reads "]?": the count at 4, the cubes at 7, 11, ...)
+	for (int lines = 0; lines < 2000 && !feof(f); ++lines)
+	{
+		strcpy(s, " ");
+		read_encrypted_pascal_string(s, sizeof(s), f);
+		if (s[0] != ']')
+			continue;
+		if (s[1] == 'L')
+			break;
+		if (s[1] == '?')
+		{
+			const int count = atoi(s + 4);
+			if (n <= count && (size_t)(3 + n * 4) < strlen(s))
+				cube = atoi(s + 3 + n * 4);
+			break;
+		}
+	}
+	fclose(f);
+	return cube;
 }
 
 /* --- Load Level/Map Data --- */

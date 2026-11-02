@@ -163,6 +163,9 @@ static bool play_ending_3d(void)
 	const M3DAppearance ship = m3d_ship_appearance(player[0].items.ship);
 	jukebox3d_ending_start(ship.model >= 0 ? ship.model : m3d_find_model("talon"));
 	JE_clr256(VGAScreen);
+	// (The palette at full, the screen black: the scene comes out of black and goes back by itself, and the UI's fade
+	// follows the palette, which the level's end left faded out, the whole scene drawn black after FLEET.)
+	set_palette(colors, 0, 255);
 	service_SDL_events(true);
 	while (jukebox3d_ending_time() < J3D_ENDING_SECONDS)
 	{

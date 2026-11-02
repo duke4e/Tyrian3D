@@ -685,8 +685,16 @@ void JE_specialComplete(JE_byte playerNum, JE_byte specialType)
 	}
 }
 
+// Tyrian3D: with Specials on Auto, a held fire fires the special again at most this often (ticks): as fast as a quick
+// finger presses (those without a wait of their own fired every tick).
+#define SPECIAL_AUTO_GAP 6
+
 void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 {
+	static int special_auto_wait = 0;
+	if (special_auto_wait > 0)
+		--special_auto_wait;
+
 	if (player[0].items.special > 0)
 	{
 		// (Tyrian3D: one of the game's displays, drawn with them in the 3D view: l3d_hud_sprite.)
@@ -766,8 +774,13 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 		{
 			fireButtonHeld = false;
 		}
-		else if (shotRepeat[SHOT_SPECIAL] == 0 && !fireButtonHeld && !(flareDuration > 0) && specialWait == 0)
+		// (Tyrian3D: with Specials on Auto, held fire fires it again whenever it is ready; network games and demos as the
+		// original, a press each)
+		else if (shotRepeat[SHOT_SPECIAL] == 0 && !(flareDuration > 0) && specialWait == 0 &&
+		         (!fireButtonHeld ||
+		          (settings3d.special_auto && special_auto_wait == 0 && !isNetworkGame && !play_demo && !record_demo)))
 		{
+			special_auto_wait = SPECIAL_AUTO_GAP;
 			fireButtonHeld = true;
 			JE_specialComplete(playerNum, player[0].items.special);
 		}

@@ -37,6 +37,7 @@
 #include "pcxmast.h"
 #include "picload.h"
 #include "player.h"
+#include "settings3d.h"
 #include "shots.h"
 #include "sprite.h"
 #include "tyrian2.h"
@@ -2935,6 +2936,43 @@ bool load_cube(int cube_slot, int cube_index)
 	fclose(f);
 
 	return true;
+}
+
+// Tyrian3D: the hash of the cube's text (cube_index: as load_cube's), as load_cube works it out (voiceover.h); 0 if
+// the cube file can't be read.
+static Uint32 cube_text_hash(int cube_index)
+{
+	FILE *f = dir_fopen(data_dir(), cube_file, "rb");
+	if (f == NULL)
+		return 0;
+	char buf[256];
+	while (cube_index > 0 && !feof(f))
+	{
+		read_encrypted_pascal_string(buf, sizeof(buf), f);
+		if (buf[0] == '*')
+			--cube_index;
+	}
+	read_encrypted_pascal_string(buf, sizeof(buf), f);  // (the title)
+	read_encrypted_pascal_string(buf, sizeof(buf), f);  // (the header)
+	Uint32 hash = VOICEOVER_HASH_START;
+	for (int lines = 0; lines < 1000 && !feof(f); ++lines)
+	{
+		read_encrypted_pascal_string(buf, sizeof(buf), f);
+		if (buf[0] == '*')
+			break;
+		hash = voiceover_hash(hash, buf);
+	}
+	fclose(f);
+	return hash;
+}
+
+void cube_picked_up(void)
+{
+	if (!settings3d.cube_autoplay || !settings3d.voices || isNetworkGame || play_demo)
+		return;
+	const int cube_index = upcoming_cube(cubeMax);
+	if (cube_index > 0)
+		voiceover_cube_found(episodeNum, cube_index, cube_text_hash(cube_index));
 }
 
 void JE_drawItem(JE_byte itemType, JE_word itemNum, JE_word x, JE_word y)

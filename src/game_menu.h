@@ -30,6 +30,9 @@ void JE_itemScreen(void);
 
 void load_cubes(void);
 bool load_cube(int cube_slot, int cube_index);
+// Tyrian3D: a data cube picked up in a level (cubeMax counts it already): with Cube Autoplay its voice reads it there
+// and then (voiceover_cube_found), the cube being the one the store after the level shows in its place (upcoming_cube).
+void cube_picked_up(void);
 
 void JE_drawItem(JE_byte itemType, JE_word itemNum, JE_word x, JE_word y);
 void JE_drawMenuHeader(void);
