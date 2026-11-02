@@ -681,14 +681,14 @@ class Cleaner:
         for k in range(1, n + 1):   # (in the object's own tiles all its art, in the tiles round it what it hides)
             comp = lab == k
             mine = (comp & own).any() or (comp & covered).sum() >= 0.5 * comp.sum()
-            if mine and self.goes_on(comp, inside, X0, Y0, hist) < CONTINUE:
+            if mine and self.goes_on(comp, inside, X0, Y0, hist, occupied) < CONTINUE:
                 out |= comp
         lab, n = parts(weak)
         grown = ndimage.binary_dilation(out, iterations=1)
         for k in range(1, n + 1):
             comp = lab == k
             if ((comp & grown).any() or (comp & touch).sum() >= 0.5 * comp.sum() or not (comp & ~own).any()) and \
-                    self.goes_on(comp, inside, X0, Y0, hist) < CONTINUE:
+                    self.goes_on(comp, inside, X0, Y0, hist, occupied) < CONTINUE:
                 out |= comp
         out = ndimage.binary_fill_holes(ndimage.binary_closing(out, np.ones((3, 3), bool)) | out)
         if out.any():
@@ -715,9 +715,11 @@ class Cleaner:
         out = ndimage.binary_dilation(out, iterations=1) & inside
         return out, (X0, Y0, W, H)
 
-    def goes_on(self, comp, inside, X0, Y0, hist):
+    def goes_on(self, comp, inside, X0, Y0, hist, occupied=()):
         """How many of a part's pixels at the edge of the object's cells go on out of them: of a colour rare
-        in the ground, next to another one outside."""
+        in the ground, next to another one outside, not in the cells of another object standing there (domes
+        side by side, made by one event: IXMUCANE's three small ones and its two big ones, whose paintings
+        touch, were each landscape to the others and kept)."""
         H, W = comp.shape
         edge = comp & ~ndimage.binary_erosion(inside, np.ones((3, 3), bool), border_value=0)
         edge &= hist[self.idx[Y0:Y0 + H, X0:X0 + W]] < RARE
@@ -728,6 +730,8 @@ class Cleaner:
                 if 0 <= yy < H and 0 <= xx < W and inside[yy, xx]:
                     continue
                 Y, X = Y0 + yy, X0 + xx
+                if (Y // TILE_H, X // TILE_W - self.side) in occupied:
+                    continue
                 if 0 <= Y < self.idx.shape[0] and 0 <= X < self.idx.shape[1] and hist[self.idx[Y, X]] < RARE:
                     n += 1
                     break
@@ -1338,7 +1342,7 @@ def write_standins(name, standins):
     for x, y, letter, sprite, large, mode, group, covers in sorted(standins, key=lambda s: (s[1], s[0])):
         cov = " ".join(f"{letter_code(l)}:{s}" for l, s in covers)
         lines.append(f"{x:.1f} {y:.1f} {letter_code(letter)}:{sprite} {int(large)} {mode} {group} {cov}")
-    open(path, "w").write("\n".join(lines) + "\n")
+    open(path, "w", newline="\n").write("\n".join(lines) + "\n")  # (LF on Windows too)
 
 
 def review(name, cl, standins):
