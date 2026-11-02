@@ -393,7 +393,7 @@ static float enemy_shown(unsigned int i)
 	}
 	const float shown = l3d_key_shown(ENEMY_MOTION_KEY(i));
 	if (shown * (L3D_APPEAR_FRAMES + 1) < 1.5f && SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
-		printf("appear: slot %u enemy %u sprite %u at %d,%d (3D frame %u)\n", i, enemy[i].enemytype, enemy[i].egr[0],
+		printf("appear: %s slot %u enemy %u sprite %u at %d,%d (3D frame %u)\n", levelName, i, enemy[i].enemytype, enemy[i].egr[0],
 		       enemy[i].ex + tempMapXOfs, enemy[i].ey, l3d_frame_number);
 	return shown;
 }
@@ -697,6 +697,17 @@ static bool draw_gbc_look_part(const GbcLookPart *p, float x, float y, Uint32 ke
 	return true;
 }
 
+// Tyrian3D: the top row above which the 3D view leaves an enemy's model out (in game y). The view sees further up
+// than the screen, furthest on the ground (from the Steep camera, some 135 rows up there): one coming down is drawn
+// as far up as it lives, so a big one made of rows (LAVA RUN's boss, the wide walls of turrets), and its shadow,
+// come down whole rather than row by row where the line used to be; one standing or rising up there is one the
+// game keeps out of sight (made above the playfield's top so as not to be seen), and stays left out.
+static int enemy_model_top(unsigned int i)
+{
+	const int vy = enemy[i].eyc + enemy[i].fixedmovey + tempBackMove;
+	return vy > 0 ? -112 - l3d_field_ahead : -26 - SDL_max(screen_overscan_rows, l3d_field_ahead);
+}
+
 // Tyrian3D: an episode-7 boss's piece in the 3D view by its look (gbc_look): its parts of the PC boss's body, or none
 // (true) while another piece of its group draws some; false: as itself.
 static bool draw_gbc_look(unsigned int i)
@@ -715,7 +726,7 @@ static bool draw_gbc_look(unsigned int i)
 	for (unsigned int k = 0; k < gbc_look_parts[i]; ++k)
 	{
 		GbcLookPart *p = &gbc_look[i][k];
-		if (enemy[i].ey + p->dy <= -26 - SDL_max(screen_overscan_rows, l3d_field_ahead) || enemy[i].ey + p->dy >= 200)
+		if (enemy[i].ey + p->dy <= enemy_model_top(i) || enemy[i].ey + p->dy >= 200)
 			continue;  // off screen
 		draw_gbc_look_part(p, x0 + p->dx, y0 + p->dy, GBC_LOOK_KEY(i, k), p->forecast, enemy[i].filter, vx, vy,
 		                   enemy_group[i], enemy_group_link[i]);
@@ -758,7 +769,7 @@ static bool draw_enemy_model(unsigned int i)
 	if (look.model == M3D_SPRITE)
 		return false;
 
-	if (enemy[i].ey <= -26 - SDL_max(screen_overscan_rows, l3d_field_ahead) || enemy[i].ey >= 200)
+	if (enemy[i].ey <= enemy_model_top(i) || enemy[i].ey >= 200)
 		return true;  // off screen
 
 	// Both 1x1 and 2x2 sprites are centred on (ex + 6, ey + 7).
@@ -5553,6 +5564,8 @@ void intro_logos(void)
 
 	fade_black(10);
 
+	// (Tyrian3D: the Eclipse logo shows whole, its name at its bottom: ui_fit_screen.)
+	ui_fit_screen = true;
 	JE_loadPic(VGAScreen, 12, false);
 	JE_showVGA();
 
@@ -5562,6 +5575,7 @@ void intro_logos(void)
 	wait_delayorinput();
 
 	fade_black(10);
+	ui_fit_screen = false;
 }
 
 void JE_readTextSync(void)
@@ -6124,8 +6138,8 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 		const Uint32 key = COMING_KEY + (Uint32)(e * 4 + enemyTypeOfs) * 4 + (tempW & 3);
 		float px = 0, py = 0;
 		const bool seen = l3d_key_seen(key) && l3d_key_position(key, &px, &py);
-		printf("spawn: event %d type %d slot %d enemy %u at %d,%d moving %d,%d+%d swing %d,%d steer %d,%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
-		       e, eventRec[e].eventtype, enemyOffset, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
+		printf("spawn: %s event %d type %d slot %d/%d enemy %u at %d,%d moving %d,%d+%d swing %d,%d steer %d,%d %s (shown at %.1f,%.1f); backMove %d/%d/%d delay %d (3D frame %u)\n",
+		       levelName, e, eventRec[e].eventtype, enemyOffset, b - 1, tempW, enemy[b-1].ex, enemy[b-1].ey, enemy[b-1].exc, enemy[b-1].eyc,
 		       enemy[b-1].fixedmovey, enemy[b-1].excc, enemy[b-1].eycc, enemy[b-1].xaccel, enemy[b-1].yaccel,
 		       seen ? "predicted" : "POPS", px - 6, py - 7, backMove, backMove2, backMove3, map1YDelayMax, l3d_frame_number);
 	}

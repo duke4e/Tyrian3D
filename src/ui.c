@@ -51,8 +51,16 @@ bool ui_fill_screens(void)
 	return settings3d.screens_fill && ui_modern();
 }
 
+bool ui_fit_screen = false;
+
 void ui_fill_rect(int window_w, int window_h, SDL_Rect *out)
 {
+	if (ui_fit_screen)
+	{
+		const int w = SDL_min(window_w, window_h * 8 / 5), h = w * 5 / 8;
+		*out = (SDL_Rect){ (window_w - w) / 2, (window_h - h) / 2, w, h };
+		return;
+	}
 	// Filling the window, cut where the window's shape differs from 8:5 (its top and bottom in a wider window, its
 	// sides in a narrower one); on ultrawide only the window's 16:9 middle, the picture's blurred copy round it.
 	// (Cut more at the bottom than at the top: the pictures' titles and logos are near their tops.)

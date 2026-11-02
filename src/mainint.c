@@ -5984,7 +5984,14 @@ redo:
 								else  // has infinite ammo
 								{
 									// Tyrian 2000: weapons with charge stages do not auto-fire
-									if ((button[0] && !this_option->pwr) || button[1 + i])
+									// (Tyrian3D: unless Sidekick Fire says: at full charge, or as fast as they can; not in a
+									// network game or a demo, which play as the original)
+									const int fire_mode = isNetworkGame || play_demo || record_demo ? S3D_SIDEKICK_HOLD
+									                                                                 : settings3d.sidekick_fire;
+									const bool auto_fire = !this_option->pwr || fire_mode == S3D_SIDEKICK_RAPID ||
+									                       (fire_mode == S3D_SIDEKICK_CHARGED &&
+									                        this_player->sidekick[i].charge >= this_option->pwr);
+									if ((button[0] && auto_fire) || button[1 + i])
 									{
 										b = player_shot_create(this_option->wport, shot_i, this_player->sidekick[i].x, this_player->sidekick[i].y, *mouseX_, *mouseY_, this_option->wpnum + this_player->sidekick[i].charge, playerNum_);
 
@@ -6030,7 +6037,25 @@ redo:
 				// Tyrian3D: the sidekick's 3D appearance, centred where its sprite would be.
 				const bool large = this_player->sidekick[i].style == 1 || this_player->sidekick[i].style == 2;
 				const M3DAppearance look = m3d_sidekick_appearance(this_player->items.sidekick[i]);
-				const float centre_y = large ? y + 14 : y + 7;
+				// One held by the ship (beside it, in front of it, orbiting it) goes 1:1 with it: shown where the ship is
+				// now (the game places the ones beside it before it moves, a tick behind it), and with the ship the mouse
+				// moves between ticks, as far as the mouse has moved it (l3d_pointer_last_object), rather than trailing
+				// it and catching up each tick.
+				const int style = this_player->sidekick[i].style;
+				int x3d = x, y3d = y;
+				const bool with_ship = style == 0 || style == 4 || (style == 2 && i == LEFT_SIDEKICK);
+				if (style == 0 && (!twoPlayerLinked || playerNum_ < 2) && (!twoPlayerMode || shipGr2 != 0))
+				{
+					x3d = this_player->x + (i == LEFT_SIDEKICK ? -14 : 16);
+					y3d = this_player->y;
+				}
+				else if (style == 2 && i == LEFT_SIDEKICK)
+				{
+					x3d = this_player->x;
+					y3d = MAX(10, this_player->y - 20);
+				}
+				const bool sidekick_pointer = with_ship && mouse_ship == this_player && settings3d.mouse_direct;
+				const float centre_y = large ? y3d + 14 : y3d + 7;
 				// Models: turning as the animation does or spinning, recoloured, with their glow.
 				float yaw = look.yaw;
 				if (look.yaw_mode == M3D_YAW_FRAMES)
@@ -6041,31 +6066,39 @@ redo:
 				if (look.recolor)
 					filter = (Uint8)(l3d_sprite_ramp(large ? &spriteSheet10 : &spriteSheet9, sprite, large) << 4);
 				const bool sidekick_3d = look.model >= 0
-					? l3d_add_object(look.model, x + 6, centre_y, look.height, yaw,
+					? l3d_add_object(look.model, x3d + 6, centre_y, look.height, yaw,
 					                 this_player->sidekick[i].animation_frame * look.roll_step, filter)
 					: look.model == M3D_VOLUME &&
-					  l3d_add_volume(large ? &spriteSheet10 : &spriteSheet9, sprite, large, V3D_STYLE_RAISED, x + 6, centre_y,
+					  l3d_add_volume(large ? &spriteSheet10 : &spriteSheet9, sprite, large, V3D_STYLE_RAISED, x3d + 6, centre_y,
 					                 look.height, 0.0f, 0.0f, 0);
 
 				if (sidekick_3d)
 				{
 					float vx, vy;
 					l3d_key_last_object(L3D_KEY_SIDEKICK + playerNum_ * 4 + i, &vx, &vy);
+					if (sidekick_pointer)
+						l3d_pointer_last_object();
 					if (look.model >= 0 && look.glow_size != 0)
 					{
 						const float size = look.glow_size < 0 ? -look.glow_size * (large ? 24 : 12) : look.glow_size;
+						bool glow;
 						if (look.glow_has_rgb)
-							l3d_add_rgb_glow(x + 6 + look.glow_dx, centre_y + look.glow_dy, size, look.glow_strength,
-							                 look.glow_rgb, vx, vy);
+							glow = l3d_add_rgb_glow(x3d + 6 + look.glow_dx, centre_y + look.glow_dy, size, look.glow_strength,
+							                        look.glow_rgb, vx, vy);
 						else if (look.glow_color != 0)
-							l3d_add_color_glow(x + 6 + look.glow_dx, centre_y + look.glow_dy, size, look.glow_strength,
-							                   look.glow_color, vx, vy);
+							glow = l3d_add_color_glow(x3d + 6 + look.glow_dx, centre_y + look.glow_dy, size, look.glow_strength,
+							                          look.glow_color, vx, vy);
 						else
 						{
-							l3d_add_sprite_glow(large ? &spriteSheet10 : &spriteSheet9, sprite, large, x + 6 + look.glow_dx,
+							const int glows = l3d_frame.glow_count;
+							l3d_add_sprite_glow(large ? &spriteSheet10 : &spriteSheet9, sprite, large, x3d + 6 + look.glow_dx,
 							                    centre_y + look.glow_dy, size, look.glow_strength);
-							l3d_last_glow_velocity(vx, vy);
+							glow = l3d_frame.glow_count > glows;
+							if (glow)
+								l3d_last_glow_velocity(vx, vy);
 						}
+						if (glow && sidekick_pointer)
+							l3d_pointer_last_glow();
 					}
 				}
 				else if (large)

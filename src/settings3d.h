@@ -21,6 +21,7 @@ typedef struct
 	int camera;     // a camera preset (settings3d_camera_name)
 	bool music_midi;  // the music through a SoundFont as MIDI (else the emulated OPL chip)
 	bool mouse_direct;  // the mouse moves the ship as far as it moves (else as in the original)
+	int sidekick_fire;  // sidekicks with charge stages and endless ammo, with the main fire (settings3d_sidekick_fire_name)
 	bool hud_modern;    // a few gauges over the scene (else the original panel beside it)
 	bool playfield_wide;  // the 3D view's wide playfield (l3d_field_wide), from the next level on
 	bool menus_modern;    // the menus in the new style over the 3D view (ui.h), else the original screens
@@ -38,6 +39,13 @@ extern Settings3D settings3d;
 
 int settings3d_camera_count(void);
 const char *settings3d_camera_name(int preset);
+
+// How the sidekicks that charge up (Tyrian 2000's charge stages: the Zica Supercharger's) and have endless ammo fire:
+// only on their own key, as the original has it (S3D_SIDEKICK_HOLD), or by themselves while the main fire is held, at
+// full charge (S3D_SIDEKICK_CHARGED) or as fast as they can, uncharged (S3D_SIDEKICK_RAPID). (The others fire with the
+// main fire anyway, and those with ammo only on their key.)
+enum { S3D_SIDEKICK_HOLD, S3D_SIDEKICK_CHARGED, S3D_SIDEKICK_RAPID, S3D_SIDEKICK_FIRE_COUNT };
+const char *settings3d_sidekick_fire_name(int mode);
 
 // The UI scale's choices (per cent): count, the i-th, and which one a value is (nearest).
 int settings3d_ui_scale_count(void);
@@ -58,7 +66,8 @@ void settings3d_save(ConfigSection *section);
 void settings3d_apply(void);
 
 typedef enum { S3D_VIEW, S3D_MODELS, S3D_SHADOWS, S3D_EFFECTS, S3D_CAMERA, S3D_MUSIC, S3D_MOUSE, S3D_HUD, S3D_PLAYFIELD, S3D_MENUS,
-               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER, S3D_SSAO, S3D_SHAKE } Settings3DField;
+               S3D_SCREENS, S3D_UI_SCALE, S3D_SOUNDFONT, S3D_VOICES, S3D_JUKEBOX, S3D_POINTER, S3D_SSAO, S3D_SHAKE,
+               S3D_SIDEKICK_FIRE } Settings3DField;
 
 // To be called when the player changed a setting (menu, F3, F4): it is saved as it is, whatever
 // the environment overrode.

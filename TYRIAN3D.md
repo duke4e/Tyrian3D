@@ -73,7 +73,10 @@ The camera keys work only while the 3D view is on screen.
 
 The setup menu has a **3D** page: the view (3D or the original 2D screen), objects (3D or flat
 sprites), shadows, ambient occlusion (soft shading where things meet and in the hollows), effects (explosion particles, glowing shots, the ship's engine flame, deep space, weather), screen shake (the view shaking at big blasts near the ship and at hits, also in Destruct), a camera preset (Standard,
-Steep, Overhead), the mouse, and the HUD: Modern (the playfield fills the window; in a 16:9 area
+Steep, Overhead), the mouse, Sidekicks (how the sidekicks that charge up and never run out, the Zica
+SuperCharger's kind, fire: Charged, the default, by themselves while the main fire is held, each time
+they are fully charged; Rapid, as fast as they can, uncharged; Hold, only on their own key, as in the
+original; `sidekick_fire` in `[tyrian3d]`; network games and demos play as the original), and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the
 guns' power and the sidekicks' ammunition at the top right, the score with the lives, super bombs
 and special weapon (lit while it is ready) at the bottom left, the boss bar and the level timer at the top, all from the
@@ -853,6 +856,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_UI_GALLERY=1` | The title screen shows the modern UI's widgets (tabs, item cards, pickers, bars, keys) instead of its menu, to judge the style by |
 | `TYR3D_MODEL_ICONS=0` | The modern UI's item icons as the sprites' pictures (the HD upscales), as before 2026-10-29, instead of the renders of the items' models (`assets/models/icons`), to compare (with `TYR3D_PROFILE` each render's texture prints as it is made: `model icon: <model> at <n> pixels, its texture made in <ms> ms`, what it took the main thread) |
 | `TYR3D_RENDER_ICONS=<dir>` | Once the modern store shows the ship, render the icon of every model an item's icon shows into `<dir>/<model>.png` (`render_gpu.c` `rgpu_render_icons`; `assets/models/icons` is what the UI reads; see Models), printing every item and what its icon shows (`icons: <ship\|gun\|shield\|generator\|sidekick\|special\|data cube> <id> <name>: <model or "its sprite">`), then `icons: <model>: <w>x<h> of a <n> square, written` for each render and how many |
+| `TYR3D_SIDEKICK_FIRE=hold\|charged\|rapid` | How the charging sidekicks with endless ammo fire for the run (default: the setting, 3D → Sidekicks) |
 | `TYR3D_MOUSE=direct\|original` | The ship goes where the (hidden) pointer is, which moves as on the desktop (default), or the original's mouse control (a speed, with momentum) |
 | `TYR3D_RENDER_SCALE=<0.25..1>` | Render the 3D scene at this scale of the window's pixels (default: the window's size in points, half on high-density displays) |
 | `TYR3D_TILES_ONLY=1` | Leave out the background layers the game drew, so only the map's tiles show the backgrounds (to compare them) |

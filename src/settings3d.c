@@ -16,17 +16,20 @@
 #include <string.h>
 
 Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .shake = true, .camera = 0, .music_midi = true,
-                          .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
+                          .mouse_direct = true, .sidekick_fire = S3D_SIDEKICK_CHARGED, .hud_modern = true,
+                          .playfield_wide = true, .menus_modern = true,
                           .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
                           .cube_autoplay = true, .pointer_size = 36 };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
 static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .ssao = true, .effects = true, .shake = true, .camera = 0, .music_midi = true,
-                             .mouse_direct = true, .hud_modern = true, .playfield_wide = true, .menus_modern = true,
+                             .mouse_direct = true, .sidekick_fire = S3D_SIDEKICK_CHARGED, .hud_modern = true,
+                             .playfield_wide = true, .menus_modern = true,
                              .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
                              .cube_autoplay = true, .pointer_size = 36 };
-static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_ssao, overridden_effects, overridden_shake, overridden_music, overridden_mouse, overridden_hud,
+static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_ssao, overridden_effects, overridden_shake, overridden_music, overridden_mouse,
+            overridden_sidekick_fire, overridden_hud,
             overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale, overridden_voices;
 
 static const int ui_scales[] = { 75, 90, 100, 115, 130, 150 };
@@ -97,6 +100,12 @@ const char *settings3d_camera_name(int preset)
 	return cameras[SDL_clamp(preset, 0, (int)COUNTOF(cameras) - 1)].name;
 }
 
+const char *settings3d_sidekick_fire_name(int mode)
+{
+	static const char *const names[S3D_SIDEKICK_FIRE_COUNT] = { "Hold", "Charged", "Rapid" };
+	return names[SDL_clamp(mode, 0, S3D_SIDEKICK_FIRE_COUNT - 1)];
+}
+
 void settings3d_load(const ConfigSection *section)
 {
 	if (section != NULL)
@@ -113,6 +122,11 @@ void settings3d_load(const ConfigSection *section)
 		const char *mouse;
 		if (config_get_string_option(section, "mouse", &mouse))
 			chosen.mouse_direct = SDL_strcasecmp(mouse, "original") != 0;
+		const char *sidekick_fire;
+		if (config_get_string_option(section, "sidekick_fire", &sidekick_fire))
+			for (int i = 0; i < S3D_SIDEKICK_FIRE_COUNT; ++i)
+				if (SDL_strcasecmp(sidekick_fire, settings3d_sidekick_fire_name(i)) == 0)
+					chosen.sidekick_fire = i;
 		const char *hud;
 		if (config_get_string_option(section, "hud", &hud))
 			chosen.hud_modern = SDL_strcasecmp(hud, "classic") != 0;
@@ -172,6 +186,11 @@ void settings3d_load(const ConfigSection *section)
 	const char *mouse = SDL_getenv("TYR3D_MOUSE");  // direct or original
 	if ((overridden_mouse = mouse != NULL))
 		settings3d.mouse_direct = SDL_strcasecmp(mouse, "original") != 0;
+	const char *sidekick_fire = SDL_getenv("TYR3D_SIDEKICK_FIRE");  // hold, charged or rapid
+	if ((overridden_sidekick_fire = sidekick_fire != NULL))
+		for (int i = 0; i < S3D_SIDEKICK_FIRE_COUNT; ++i)
+			if (SDL_strcasecmp(sidekick_fire, settings3d_sidekick_fire_name(i)) == 0)
+				settings3d.sidekick_fire = i;
 	const char *hud = SDL_getenv("TYR3D_HUD");  // modern or classic
 	if ((overridden_hud = hud != NULL))
 		settings3d.hud_modern = SDL_strcasecmp(hud, "classic") != 0;
@@ -232,6 +251,10 @@ void settings3d_changed(Settings3DField field)
 		chosen.mouse_direct = settings3d.mouse_direct;
 		overridden_mouse = false;
 		break;
+	case S3D_SIDEKICK_FIRE:
+		chosen.sidekick_fire = settings3d.sidekick_fire;
+		overridden_sidekick_fire = false;
+		break;
 	case S3D_HUD:
 		chosen.hud_modern = settings3d.hud_modern;
 		overridden_hud = false;
@@ -282,6 +305,8 @@ void settings3d_save(ConfigSection *section)
 	config_set_string_option(section, "camera", settings3d_camera_name(settings3d.camera));
 	config_set_string_option(section, "music", (overridden_music ? chosen.music_midi : settings3d.music_midi) ? "midi" : "opl");
 	config_set_string_option(section, "mouse", (overridden_mouse ? chosen.mouse_direct : settings3d.mouse_direct) ? "direct" : "original");
+	config_set_string_option(section, "sidekick_fire",
+	                         settings3d_sidekick_fire_name(overridden_sidekick_fire ? chosen.sidekick_fire : settings3d.sidekick_fire));
 	config_set_string_option(section, "hud", (overridden_hud ? chosen.hud_modern : settings3d.hud_modern) ? "modern" : "classic");
 	config_set_string_option(section, "playfield",
 	                         (overridden_playfield ? chosen.playfield_wide : settings3d.playfield_wide) ? "wide" : "original");

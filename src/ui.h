@@ -34,6 +34,9 @@ bool ui_fill_screens(void);
 // The rectangle (window points) a 320x200 screen fills in a window: 8:5, covering the window (or its 16:9 middle
 // on ultrawide), centred, so a part of it may lie outside the window.
 void ui_fill_rect(int window_w, int window_h, SDL_Rect *out);
+// The screen shown fits in the window whole instead (8:5 inside it, the blurred copy round it): the Eclipse logo as the
+// game starts, whose name lies at its bottom.
+extern bool ui_fit_screen;
 
 /* --- Menus' screens -------------------------------------------------------------------------- */
 

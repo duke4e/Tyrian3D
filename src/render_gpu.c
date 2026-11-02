@@ -4715,11 +4715,79 @@ static LoadedModel *get_model(int index)
 	return loaded->gpu != NULL ? loaded : NULL;
 }
 
+// Upside down (models turned round rather than mirrored, add_object_batches), the pieces of one object (a boss's
+// wings and body) turned round each about its own centre would show each wing on its own side facing the wrong
+// way: so they are turned round as one, each piece moved across to its mirror place about their middle
+// (piece_mirror_shift: by object, for the frame mirror_pieces looked at).
+static const L3DObject *piece_mirror_objects = NULL;
+static int piece_mirror_count = 0;
+static float piece_mirror_shift[L3D_MAX_OBJECTS];
+
 // Where an object is drawn in a frame shown `ahead` of its tick: moved on by its velocity, or,
 // the ship the mouse moves directly, where the mouse has moved it so far.
 static float object_x(const L3DObject *object)
 {
-	return object->x + (object->pointer ? l3d_pointer_lead[0] : object->vx * ahead);
+	float x = object->x + (object->pointer ? l3d_pointer_lead[0] : object->vx * ahead);
+	if (object >= piece_mirror_objects && object < piece_mirror_objects + piece_mirror_count)
+		x += piece_mirror_shift[object - piece_mirror_objects];
+	return x;
+}
+
+// The pieces of one object: the same group (the events' time and link), the same layer, side by side (each within
+// a piece's size of another: a large sprite is 24 x 28) rather than a formation of craft made together.
+#define PIECE_NEAR_X 26.0f
+#define PIECE_NEAR_Y 30.0f
+
+static void mirror_pieces(const L3DFrame *frame, bool mirror)
+{
+	piece_mirror_objects = frame->objects;
+	piece_mirror_count = mirror ? frame->object_count : 0;
+	if (!mirror)
+		return;
+	static int root[L3D_MAX_OBJECTS];
+	const int n = frame->object_count;
+	for (int o = 0; o < n; ++o)
+	{
+		root[o] = o;
+		piece_mirror_shift[o] = 0;
+	}
+	for (int o = 0; o < n; ++o)
+	{
+		const L3DObject *a = &frame->objects[o];
+		if (a->group == 0)
+			continue;
+		for (int p = o + 1; p < n; ++p)
+		{
+			const L3DObject *b = &frame->objects[p];
+			if (b->group != a->group || b->group_link != a->group_link || b->layer != a->layer ||
+			    fabsf(b->x - a->x) > PIECE_NEAR_X || fabsf(b->y - a->y) > PIECE_NEAR_Y)
+				continue;
+			int ra = o, rb = p;
+			while (root[ra] != ra)
+				ra = root[ra];
+			while (root[rb] != rb)
+				rb = root[rb];
+			root[SDL_max(ra, rb)] = SDL_min(ra, rb);
+		}
+	}
+	// Each object's middle across: halfway between its outermost pieces.
+	static float left[L3D_MAX_OBJECTS], right[L3D_MAX_OBJECTS];
+	for (int o = 0; o < n; ++o)
+	{
+		left[o] = INFINITY;
+		right[o] = -INFINITY;
+	}
+	for (int o = 0; o < n; ++o)
+	{
+		int r = o;
+		while (root[r] != r)
+			r = root[r];
+		root[o] = r;
+		left[r] = SDL_min(left[r], frame->objects[o].x);
+		right[r] = SDL_max(right[r], frame->objects[o].x);
+	}
+	for (int o = 0; o < n; ++o)
+		piece_mirror_shift[o] = left[root[o]] + right[root[o]] - 2 * frame->objects[o].x;
 }
 
 static float object_y(const L3DObject *object)
@@ -4774,6 +4842,9 @@ static BTBHGPUSceneGeometryBatch batches[MAX_BATCHES];
 // Batches of a shot's glowing materials (add_object_batches): they cast no shadow (glowing bolts drew dark bars
 // on the sea, 1:29). Cleared as each frame's objects are made.
 static bool glowing_shot_batch[MAX_BATCHES];
+// Batches of objects not yet half shown as they fade in (or out): they cast no shadow yet, as the shadow can't fade
+// (one coming into sight put its whole shadow down at once).
+static bool faint_object_batch[MAX_BATCHES];
 
 // TYR3D_LOG_CLIP (log_clipping): what the frame draws where, kept only while the switch is on. Each
 // model object's transform as add_object_batches draws it (before aligned()), and each background
@@ -4876,6 +4947,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 {
 	sync_model_cache();
 	memset(glowing_shot_batch, 0, sizeof(glowing_shot_batch));
+	memset(faint_object_batch, 0, sizeof(faint_object_batch));
 	const bool clip_log = clip_log_on();
 	if (clip_log)
 		memset(clip_drawn, 0, sizeof(clip_drawn));
@@ -5010,6 +5082,8 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 					b->albedo_alpha = (Uint8)(b->albedo_alpha * shown);
 					b->emission_energy *= shown;
 				}
+				faint_object_batch[b - batches] = (state->appear != 0 && appear_alpha(state->appear) < 0.5f) ||
+				                                  shown_step(f) < SHOWN_STEPS / 2;
 			}
 		}
 	}
@@ -11792,6 +11866,17 @@ static void shadow_view_projection(const Camera3D *camera, float out[16], int si
 }
 
 #define LIGHT_CEILING 1.0f  // the luminance the point lights ease out under (scene_lighting)
+// Over ice and lava (the levels with snow or embers, b3d_weather) the scene came out brighter than the game's own
+// colours (some 10 % over the 2D view's), and the shots' and glows' lights washed the pale ice out green and white
+// and blew the lava's reds out: their exposure and their lights' ceiling are this much lower.
+#define CLIMATE_EXPOSURE 0.88f
+#define CLIMATE_LIGHT_CEILING 0.7f
+
+static bool bright_climate(void)
+{
+	const B3DWeather w = b3d_weather();
+	return w == B3D_WEATHER_SNOW || w == B3D_WEATHER_EMBERS;
+}
 
 // The sun and the sky: models are lit by them; layers and volumetric sprites are unlit. The sun is
 // strong against the sky, as in the sprites' own shading: lit from the upper left, with clear
@@ -11823,7 +11908,7 @@ static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camer
 	if (light_ceiling < 0.0f)
 		light_ceiling = SDL_getenv("TYR3D_LIGHT_CEILING") != NULL ? SDL_max((float)SDL_atof(SDL_getenv("TYR3D_LIGHT_CEILING")), 0.0f)
 		                                                          : LIGHT_CEILING;
-	lighting->point_light_ceiling = light_ceiling;
+	lighting->point_light_ceiling = light_ceiling * (level && bright_climate() ? CLIMATE_LIGHT_CEILING : 1.0f);
 	// A level's own sunlight, by its climate (b3d_weather): cold over the ice, the lava's glow, desert sun.
 	if (level && settings3d.effects)
 	{
@@ -12305,6 +12390,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// (stand_lift, layer_base): with the planes' heights and the camera known.
 	const Uint64 lift_start = SDL_GetPerformanceCounter();
 	setup_stand(frame, composed, heights);
+	mirror_pieces(frame, upside_down && !sideways);
 	compute_object_lifts(frame, heights, upside_down);
 	hide_in_solids(frame, heights, upside_down);
 	profile_lift_ticks += SDL_GetPerformanceCounter() - lift_start;
@@ -12379,7 +12465,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	for (int i = 0; i < batch_count; ++i)
 	{
 		casts_shadow[i] = shadows && (i >= first_object_batch || terrain_batch[i]) &&
-		                  !(i >= first_object_batch && glowing_shot_batch[i]);
+		                  !(i >= first_object_batch && (glowing_shot_batch[i] || faint_object_batch[i]));
 		if (shadows && batches[i].unlit_enabled == 1 && (i < first_space_batch || i >= end_space_batch))
 			batches[i].unlit_enabled = batches[i].transparency_enabled ? 3 : 2;
 	}
@@ -12472,6 +12558,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	BTBHGPUScenePost post;
 	Uint32 render_w, render_h;
 	scene_post(&post, &window_frame, &render_w, &render_h);
+	if (bright_climate())
+		post.exposure = CLIMATE_EXPOSURE;
 	scene_ssao(&post, 1.0f);
 	add_radiance_cascades(&post);
 
