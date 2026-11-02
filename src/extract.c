@@ -43,6 +43,11 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+#endif
+
 #define SHEET_COLUMNS 19
 #define SHEET_ROWS 16
 #define CELL_W 12

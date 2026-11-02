@@ -10,10 +10,20 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(SDL3 REQUIRED CONFIG)
-# Homebrew's assimp CMake package hard-codes an SDK path for zlib, so link the library directly.
+# Homebrew's assimp CMake package hard-codes an SDK path for zlib, so link the library directly
+# (on Windows vcpkg's library is named after the toolset, assimp-vc143-mt).
 find_path(ASSIMP_INCLUDE_DIR assimp/cimport.h REQUIRED)
-find_library(ASSIMP_LIBRARY assimp REQUIRED)
+find_library(ASSIMP_LIBRARY NAMES assimp assimp-vc143-mt REQUIRED)
 find_package(ZLIB REQUIRED)
+
+# MSVC: M_PI from math.h, no warnings for the C runtime's fopen and friends, typeof as __typeof__
+# (C23's typeof needs /std:clatest there); TARGET_WIN32 is upstream OpenTyrian's (src/config.c).
+if(MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS typeof=__typeof__)
+endif()
+if(WIN32)
+    add_compile_definitions(TARGET_WIN32)
+endif()
 
 set(BTBH_DIR "${CMAKE_SOURCE_DIR}/external/btbh-renderer")
 
@@ -146,7 +156,7 @@ endif()
 if(TARGET tyrian3d_episode7)
     add_dependencies(tyrian3d tyrian3d_episode7)
 endif()
-target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 ZLIB::ZLIB m)
+target_link_libraries(tyrian3d PRIVATE btbh_gpu SDL3::SDL3 ZLIB::ZLIB $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
 # cgltf (compiled into btbh_gpu) reads the models' material names.
 target_include_directories(tyrian3d PRIVATE "${BTBH_DIR}/external/raylib/src/external")
 # TinySoundFont (MIT, external/tinysoundfont) plays the music as MIDI (src/music_midi.c).
@@ -167,6 +177,10 @@ target_compile_definitions(tyrian3d PRIVATE
     TYR3D_VOICES_DIR="${CMAKE_SOURCE_DIR}/data/voices"
     TYR3D_UPSCALE_DIR="${CMAKE_SOURCE_DIR}/data/hd"
 )
-target_compile_options(tyrian3d PRIVATE
-    -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter
-)
+if(MSVC)
+    target_compile_options(tyrian3d PRIVATE /W3)
+else()
+    target_compile_options(tyrian3d PRIVATE
+        -Wall -Wextra -Wno-missing-field-initializers -Wno-sign-compare -Wno-unused-parameter
+    )
+endif()

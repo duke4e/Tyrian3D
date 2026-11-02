@@ -1,0 +1,14 @@
+{
+  "name": "tyrian3d",
+  "version-string": "0",
+  "description": "Windows libraries for the game and for shadercross (macOS takes them from Homebrew); SDL with its Vulkan GPU backend, as the renderer's shaders are SPIR-V",
+  "builtin-baseline": "9a5dfef5d1a0438a7d24856a85bd60f309d355e9",
+  "dependencies": [
+    {
+      "name": "sdl3",
+      "features": [ "vulkan" ]
+    },
+    "assimp",
+    "zlib"
+  ]
+}
