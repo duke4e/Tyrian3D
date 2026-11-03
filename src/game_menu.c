@@ -289,7 +289,10 @@ static float shop_weapon_rate(int port, int power, int mode)
 {
 	if (port <= 0 || port > PORT_NUM || power < 1)
 		return 0;
-	return shop_weapon_damage(weaponPort[port].op[SDL_clamp(mode, 0, 1)][SDL_clamp(power, 1, 11) - 1]);
+	// (Tyrian3D: overclocked past 11, 11's shots harder and quicker: shots.c player_shot_overclock)
+	const int over = (int)weapon_overclock((unsigned int)power);
+	return shop_weapon_damage(weaponPort[port].op[SDL_clamp(mode, 0, 1)][SDL_clamp(power, 1, 11) - 1]) * (4 + over) / 4 *
+	       10 / (10 - over);
 }
 
 static int data_cube_model(int *ramp);
@@ -490,7 +493,7 @@ static void shop_publish(void)
 				shop_item_name(w == FRONT_WEAPON ? 3 : 4, p->items.weapon[w].id, weapon, sizeof(weapon));
 			SDL_strlcpy(s->players[k].weapon, weapon, sizeof(s->players[k].weapon));
 			s->players[k].power = p->items.weapon[w].id > 0 ? p->items.weapon[w].power : 0;
-			s->players[k].power_max = s->players[k].power > 11 ? 15 : 11;
+			s->players[k].power_max = SDL_max(s->players[k].power, weapon_power_max()) > 11 ? 15 : 11;
 			s->players[k].lives = k == 0 && p->lives != NULL ? (int)*p->lives - 1 : -1;
 			s->players[k].bombs = (int)p->superbombs;
 			s->players[k].input[0] = '\0';  // (the menu's Fly and Aim say it)
@@ -521,7 +524,7 @@ static void shop_publish(void)
 				shop_item_name(w == FRONT_WEAPON ? 3 : 4, p->items.weapon[w].id, weapon, sizeof(weapon));
 			SDL_strlcpy(s->players[k].weapon, weapon, sizeof(s->players[k].weapon));
 			s->players[k].power = p->items.weapon[w].id > 0 ? p->items.weapon[w].power : 0;
-			s->players[k].power_max = s->players[k].power > 11 ? 15 : 11;
+			s->players[k].power_max = SDL_max(s->players[k].power, weapon_power_max()) > 11 ? 15 : 11;
 			s->players[k].lives = p->lives != NULL ? (int)*p->lives - 1 : -1;
 			s->players[k].bombs = (int)p->superbombs;
 			if (joysticks > 1 && inputDevice[k] > 2)
@@ -596,7 +599,7 @@ static void shop_publish(void)
 		{
 			s->power_on = true;
 			s->power = player[0].items.weapon[part - 3].power;
-			s->power_max = 11;
+			s->power_max = weapon_power_max();
 			s->power_down = leftPower;
 			s->power_up = rightPower;
 			s->power_afford = rightPowerAfford;
@@ -913,7 +916,7 @@ static void shop_specs_publish(void)
 		SDL_strlcpy(it->value, name, sizeof(it->value));
 		if (k < 2 && item != 0)
 		{
-			it->pips = player[0].items.weapon[k].power > 11 ? 15 : 11;
+			it->pips = SDL_max(player[0].items.weapon[k].power, weapon_power_max()) > 11 ? 15 : 11;
 			it->pips_on = player[0].items.weapon[k].power;
 		}
 	}
@@ -1338,7 +1341,7 @@ void JE_itemScreen(void)
 					JE_getCost(curSel[MENU_UPGRADES], itemAvail[itemAvailMap[curSel[MENU_UPGRADES]-2]-1][curSel[MENU_UPGRADE_SUB]-2]);
 
 					leftPower  = item_level > 1;  // can downgrade
-					rightPower = item_level < 11; // can upgrade
+					rightPower = item_level < (uint)weapon_power_max(); // can upgrade (Tyrian3D: past 11 where it overclocks)
 
 					if (rightPower)
 						rightPowerAfford = JE_cashLeft() >= upgradeCost; // can afford upgrade
@@ -4455,12 +4458,14 @@ void JE_weaponSimUpdate(void)
 			JE_outText(VGAScreen, 58, 137, buf, 15, 4);
 		}
 
+		// (Tyrian3D: past 11, narrower, so 15 fit between the arrows)
+		const int step = temp > 11 ? 4 : 6, wide = temp > 11 ? 2 : 4;
 		for (int x = 1; x <= temp; x++)
 		{
-			fill_rectangle_xy(VGAScreen, 39 + x * 6, 151, 39 + x * 6 + 4, 151, 251);
-			JE_pix(VGAScreen, 39 + x * 6, 151, 252);
-			fill_rectangle_xy(VGAScreen, 39 + x * 6, 152, 39 + x * 6 + 4, 164, 250);
-			fill_rectangle_xy(VGAScreen, 39 + x * 6, 165, 39 + x * 6 + 4, 165, 249);
+			fill_rectangle_xy(VGAScreen, 39 + x * step, 151, 39 + x * step + wide, 151, 251);
+			JE_pix(VGAScreen, 39 + x * step, 151, 252);
+			fill_rectangle_xy(VGAScreen, 39 + x * step, 152, 39 + x * step + wide, 164, 250);
+			fill_rectangle_xy(VGAScreen, 39 + x * step, 165, 39 + x * step + wide, 165, 249);
 		}
 	}
 	else
@@ -4493,10 +4498,12 @@ void JE_weaponViewFrame(void)
 		else
 		{
 			const uint item       = player[0].items.weapon[i].id,
-			           item_power = player[0].items.weapon[i].power - 1,
+			           item_power = weapon_power_index(player[0].items.weapon[i].power),
 			           item_mode = (i == REAR_WEAPON) ? player[0].weapon_mode - 1 : 0;
 
+			player_shot_overclock = weapon_overclock(player[0].items.weapon[i].power);
 			b = player_shot_create(item, i, player[0].x, player[0].y, mouseX, mouseY, weaponPort[item].op[item_mode][item_power], 1);
+			player_shot_overclock = 0;
 		}
 	}
 

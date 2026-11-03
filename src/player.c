@@ -18,19 +18,29 @@
  */
 #include "player.h"
 
+#include "episodes.h"
+#include "rogue.h"
+#include "varz.h"
+
 Player player[2];
+
+int weapon_power_max(void)
+{
+	return !twoPlayerMode && !onePlayerAction && !galagaMode && superArcadeMode == SA_NONE && (episodeNum == 6 || rogue_run)
+	       ? WEAPON_POWER_OVERCLOCK : WEAPON_POWER_ORIGINAL;
+}
 
 void calc_purple_balls_needed(Player *this_player)
 {
 	static const uint purple_balls_required[12] = { 1, 1, 2, 4, 8, 12, 16, 20, 25, 30, 40, 50 };
 	
-	this_player->purple_balls_needed = purple_balls_required[*this_player->lives];
+	this_player->purple_balls_needed = purple_balls_required[SDL_min(*this_player->lives, 11)];  // (lives: the power byte)
 }
 
 bool power_up_weapon(Player *this_player, uint port)
 {
 	const bool can_power_up = this_player->items.weapon[port].id != 0 &&  // not None
-	                          this_player->items.weapon[port].power < 11; // not at max power
+	                          this_player->items.weapon[port].power < weapon_power_max(); // not at max power
 	if (can_power_up)
 	{
 		++this_player->items.weapon[port].power;

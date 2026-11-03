@@ -203,10 +203,22 @@ def main():
     out.sidekick(37, 30, "Guided Option", P[31]["op"][0][3], sk_port, 12000,
                  "Guided Option: the Guided Bombs (power 4) from an orbiting satellite")
 
+    out.lines.append("")
+
+    # --- Specials -----------------------------------------------------------------------------
+    # Nova (special 49; stype 19 is varz.c's nova): a shock racing out from the ship that wipes out the enemy shots it
+    # reaches and hits every enemy it reaches once, with this weapon made on it: one still blast of 40, gone after a
+    # few frames if it meets nothing (the flare's spark for a look; the 3D view draws the shock itself).
+    flare = W[622]
+    blast = out.weapon(blank(shotrepeat=0, sound=0, shipblastfilter=flare["shipblastfilter"], attack=[40] + [0] * 7,
+                             del_=[4] + [255] * 7, sg=[flare["sg"][0]] + [0] * 7), "Nova blast")
+    out.lines.append("# Nova: a shock racing out from the ship, wiping out enemy shots and hitting every enemy it reaches")
+    out.lines.append(f'special 49 name="Nova" itemgraphic=275 pwr=0 stype=19 wpn={blast}')
+
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w") as f:
+    with open(OUT, "w", newline="\n") as f:
         f.write("\n".join(out.lines) + "\n")
-    print(f"{OUT}: {out.next_weapon - 819} weapons, 6 ports, 5 sidekicks")
+    print(f"{OUT}: {out.next_weapon - 819} weapons, 6 ports, 5 sidekicks, 1 special")
     return 0
 
 

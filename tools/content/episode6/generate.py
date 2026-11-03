@@ -108,12 +108,17 @@ def make(design):
         blank = design["blank"]
         return finish(design, [[[blank] * 14 for _ in range(300)], [[0] * 14 for _ in range(600)],
                                [[0] * 15 for _ in range(600)]])
+    if design.get("original_maps"):
+        return finish(design, original_maps(*design["original_maps"]))
     grids = maps_of(design["map"], 0)
     model = Model(grids, max_tiles=LAYER_TILES[0])
     slug = name.lower().replace(" ", "_")
     if design.get("keep_map") or EVENTS_ONLY:
-        # The map as it is (a map liked as it was): only the events are made again.
+        # The map as it is (a map liked as it was): only the events are made again, and the layers
+        # in remake (DEEP ICE's top one, its brown rock out of place over the ice).
         layers = json.load(open(os.path.join(OUT, f"{slug}.json")))["maps"]
+        for k in design.get("remake", []) if not EVENTS_ONLY else []:
+            layers[k - 1] = upper_layer(design, k - 1)
         return finish(design, layers)
     plan = None
     if design.get("plan"):
@@ -131,19 +136,36 @@ def make(design):
         placed = plan.paste_objects(layer1, library)
         stats["objects"] = len(placed)
     print(name, "layer 1", dict(stats))
-    layers = [layer1]
-    for k, rows, columns in ((1, 600, 14), (2, 600, 15)):
-        names = design.get(f"layer{k + 1}")
-        if not names:
-            layers.append([[0] * columns for _ in range(rows)])
-            continue
-        m = Model(maps_of(names, k), max_tiles=LAYER_TILES[k] - 1)
-        upper_bias = design.get(f"bias{k + 1}")
-        grid, stats = generate(m, rows, columns, seed + k,
-                               bias=upper_bias(m, maps_of(names, k)) if upper_bias else None)
-        print(name, f"layer {k + 1}", dict(stats))
-        layers.append(grid)
+    layers = [layer1] + [upper_layer(design, k) for k in (1, 2)]
     return finish(design, layers)
+
+
+def original_maps(episode, name):
+    """An original level's three maps as shape numbers (its own map: its terrain, vegetation and clean ground are
+    found by the same hash, the tiles' shape numbers)."""
+    lv = waves.Source(episode, name).level
+    out = []
+    for k, (rows, columns) in enumerate(((300, 14), (600, 14), (600, 15))):
+        table, raw = lv.map_sh[k], lv.maps[k]
+        out.append([[table[raw[r * columns + c]] if raw[r * columns + c] < 128 else 0 for c in range(columns)]
+                    for r in range(rows)])
+    return out
+
+
+def upper_layer(design, k):
+    """Layer k + 1 (1 or 2: the upper layers) of a design."""
+    rows, columns = 600, (14, 15)[k - 1]
+    names = design.get(f"layer{k + 1}")
+    if not names:
+        return [[0] * columns for _ in range(rows)]
+    source = design.get(f"layer{k + 1}_from", k + 1) - 1
+    m = Model(maps_of(names, source), max_tiles=LAYER_TILES[k] - 1)
+    upper_bias = design.get(f"bias{k + 1}")
+    width = min(columns, len(maps_of(names, source)[0][0]))  # (layer 2's 14 columns as layer 3: one left empty)
+    grid, stats = generate(m, rows, width, design.get("seed", 1) + k,
+                           bias=upper_bias(m, maps_of(names, source)) if upper_bias else None)
+    print(design["name"], f"layer {k + 1}", dict(stats))
+    return [row + [0] * (columns - width) for row in grid]
 
 
 def make_invaders(design):
@@ -176,6 +198,37 @@ def level_speeds(design):
     return (start[0]["d1"], start[0]["d2"], start[0]["d3"]) if start else (1, 2, 3)
 
 
+# The waves' density (enemies per 1000 clock, from the level's start to its boss) by the level's place in the
+# episode (the user, 2026-11-03: "premalo protivnika - gledati progresiju od ep 1 do ep 5, pa ekstrapolirati"):
+# the originals' median enemies per 1000 clock, whole levels, bosses and ground enemies too, are 28, 38, 41, 34 and
+# 44 for episodes 1-5 (episode 6 had 12-27); episode 6 goes on from there, 38 at its first level to 52 at its last.
+ORDER = ["DIG SITE", "REEF", "GREY MOON", "DELI RUIN", "ROOST", "MIGRATION", "DEEP ICE", "GLACIER", "COLLECTOR",
+         "CRUSTGATE", "GRAVITRON", "THE CORE", "STARFALL", "THE GAUNTLET"]
+SECRET_TARGET = {"VAULT": ("GREY MOON", 0.8)}  # (a secret level: as its parent, a little calmer)
+
+
+def waves_target(name):
+    """The waves' density (from, to) through the level (see ORDER), or None (the old pace)."""
+    scale = 1.0
+    if name in SECRET_TARGET:
+        name, scale = SECRET_TARGET[name]
+    if name not in ORDER:
+        return None
+    n = ORDER.index(name)
+    total = 38 + 14 * n / (len(ORDER) - 1)
+    # (The waves' own: the measured whole falls short of the pace by the stretches without waves, round an
+    # ambush, a siege or a mid-level boss, and the waves too big for the start.)
+    return (1.0 * total * scale, 1.5 * total * scale)
+
+
+def kept_ground(design):
+    """The ground enemies of the level as it was, when its map is kept (its terrain is levelled under them)."""
+    path = os.path.join(OUT, f"{design['name'].lower().replace(' ', '_')}.json")
+    if not (EVENTS_ONLY or design.get("keep_map")) or not os.path.exists(path):
+        return None
+    return [e for e in json.load(open(path))["events"] if e["type"] in (6, 10, 12)]
+
+
 def finish(design, layers):
     """The level's events for its maps, and the level."""
     name, letter, seed = design["name"], design["shapes"], design.get("seed", 1)
@@ -190,7 +243,9 @@ def finish(design, layers):
                                                 ground_waves=design.get("ground_waves", False),
                                                 wealth=design.get("wealth", 10000),
                                                 gimmicks=design.get("gimmicks"), speeds=level_speeds(design),
-                                                ground_sheets=design.get("ground_sheets", 2))
+                                                ground_sheets=design.get("ground_sheets", 2), letter=letter,
+                                                target=waves_target(name), keep_ground=kept_ground(design),
+                                                need_sheets=design.get("need_sheets", ()))
     # The look of a chosen original level replaces the default settings at the start.
     look = waves.Source(*design.get("look", design["boss"]))
     # (Of the effects, lava, water and the spotlight: the blurs and the upside-down screen show as
@@ -205,6 +260,12 @@ def finish(design, layers):
     rest = [e for e in events if not (e["t"] == 0 and e["type"] in (2, 5, 8, 13))]
     level = dict(name=name, song=design["song"], shapes=letter, maps=layers, events=look_events + head + rest,
                  placements=placements, banks=banks, terrain=design.get("terrain", {}))
+    if design.get("chase"):
+        # Seen from behind the ship, the whole level (Tyrian3D event 205: the chase camera; no 2D look of its own).
+        level["events"][1:1] = [compose.event(0, 205, d1=1)]
+    if design.get("original_maps"):
+        level["shared_maps"] = "%d:%s" % design["original_maps"]  # (its 3D assets: the original's)
+        level["terrain"] = None
     if design.get("side"):
         # Stars on (the game's and the 3D view's deep ones), the view from the side with its rocks.
         level["events"] = [e for e in level["events"] if not (e["t"] == 0 and e["type"] in (1, 8, 9, 64))]
@@ -213,6 +274,104 @@ def finish(design, layers):
         level["terrain"] = None
         level["sideways"] = True
     return level
+
+
+def boss_sheets(source):
+    """The sheets an original's boss needs (its parts', and what they launch or leave)."""
+    boss = source.boss()
+    out = set()
+    for e in boss["events"]:
+        if e["type"] in waves.SPAWNS:
+            out |= waves.sheets_of(source.enemies, e["d1"])
+    return out - {21, 26}
+
+
+def episode_enemies(but):
+    """The enemies (episode, number) the episode's other levels make (as they stand in levels/): in the episode's
+    item data already, with their weapons (whose slots, for other episodes' enemies, are full)."""
+    out = set()
+    for f in sorted(os.listdir(OUT)):
+        level = json.load(open(os.path.join(OUT, f)))
+        if level["name"] == but or not level.get("placements"):
+            continue
+        out |= {(e["ep"], e["d1"]) for e in compose.expand(level) if e["type"] in waves.SPAWNS and "ep" in e}
+    return out
+
+
+HOARD_LEAD = 450  # clock from a fight's sheets to its boss (two of its own level's waves in between)
+HOARD_GAP = 200   # clock from a boss gone to the next fight's sheets
+
+
+def make_hoard(design):
+    """THE HOARD, the episode's last level (the user, 2026-11-03: "level samo sa svim bossevima, jedan za drugim + na
+    kojemu idemo all in - da uguramo sve što igra nudi kao one off mehanike"): over open space, the Collector's
+    hoard, its bosses one after another, each fought as a mid-level boss (the map stops, its pattern loops until it
+    is gone), two waves of its own level before it, and with each a mechanic of the game's (fights: flip, dark, side,
+    chase; bursts before; a siege before the last), the sheets changed for each (event 5: four at a time), the last
+    one the level's boss."""
+    rnd = random.Random(design["seed"])
+    speeds = tuple(design["speeds"])
+    events, placements = [], []
+    t, first, banks = 150, None, None
+    known = episode_enemies(design["name"])
+    for fight in design["fights"]:
+        source = waves.Source(*fight["boss"])
+        sheets = boss_sheets(source)
+        # (its waves those of the level of the episode it is fought in: their enemies, and their weapons, are in
+        # the episode already)
+        own = [(s, i, w) for s in (waves.Source(*k) for k in fight["waves"])
+               for i, w in enumerate(s.waves()) if 3 <= w["count"] <= 10 and w["length"] <= 400 and
+               all((s.episode, e["d1"]) in known for e in w["events"] if e["type"] in waves.SPAWNS)]
+        for b, _ in Counter(b for _, _, w in own for b in w["banks"]).most_common():
+            if len(sheets) < 4:
+                sheets.add(b)
+        fitting = [(s, i, w) for s, i, w in own if set(w["banks"]) <= sheets | {21, 26}]
+        banks = sorted(sheets)[:4]
+        load = compose.event(t, 5, *(banks + [0] * 4)[:2], d3=(banks + [0] * 4)[2], d4=(banks + [0] * 4)[3])
+        if first is None:
+            first = dict(load, t=0)
+        else:
+            events.append(load)
+        if fight.get("burst"):
+            events += [compose.event(t + 10, 16, d1=compose.MESSAGE_AFTERBURNER, d2=30),
+                       compose.event(t + 90, 2, d1=speeds[0] * 2, d2=speeds[1] * 2, d3=speeds[2] * 2),
+                       compose.event(t + HOARD_LEAD - 60, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2])]
+        for k in range(2 if fitting else 0):
+            s, index, w = rnd.choice(fitting)
+            placements.append(dict(kind="wave", episode=s.episode, name=s.name, index=index,
+                                   start=t + 40 + k * 200, drop=compose.pick_coin(rnd, 250)))
+        at = t + HOARD_LEAD
+        if fight.get("siege"):
+            # A siege first: the map stops, the waves come round until the level timer runs out.
+            loop_from, loop_to = at + 20, at + compose.HOLD_LOOP
+            exit_ = loop_to + 10
+            for k in range(3):
+                s, index, w = rnd.choice(fitting)
+                placements.append(dict(kind="wave", episode=s.episode, name=s.name, index=index,
+                                       start=loop_from + k * (compose.HOLD_LOOP // 3)))
+            events += [compose.event(at - 80, 16, d1=compose.MESSAGE_DANGER, d2=30), compose.event(at, 2),
+                       compose.event(at, 53), compose.event(at, 67, d1=1, d2=exit_, d3=fight["siege"] * 35 // 100),
+                       compose.event(loop_to, 54, d1=loop_from), compose.event(exit_ - 2, 16, d1=4, d2=30),
+                       compose.event(exit_, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]), compose.event(exit_, 53, d1=99)]
+            at = exit_ + 250
+        if fight.get("last"):
+            placements.append(dict(kind="boss", episode=source.episode, name=source.name, start=at))
+            break
+        stop, loop_from, loop_to = compose.midboss_span(source)
+        placements.append(dict(kind="midboss", episode=source.episode, name=source.name, start=at,
+                               loop=[stop, loop_from, loop_to], speeds=list(speeds),
+                               **{k: True for k in ("flip", "dark", "side", "chase") if fight.get(k)}))
+        t = at + loop_to + 2 + HOARD_GAP
+    look = waves.Source(*design["look"])
+    look_events = [dict(e) for e in look.events if e["t"] == 0 and e["type"] in LOOK_EVENTS and
+                   e["type"] not in (1, 2, 3, 8, 9, 64)]
+    head = [compose.event(0, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]), first, compose.event(0, 13),
+            compose.event(0, 9), compose.event(0, 1, d1=0)]
+    blank = design["blank"]
+    return dict(name=design["name"], song=design["song"], shapes=design["shapes"],
+                maps=[[[blank] * 14 for _ in range(300)], [[0] * 14 for _ in range(600)], [[0] * 15 for _ in range(600)]],
+                events=look_events + head + sorted(events, key=lambda e: e["t"]) + [compose.event(compose.CLOCK_END - 50, 11)],
+                placements=placements, banks=banks, terrain=None, open_space=True)
 
 
 # --- The levels ---------------------------------------------------------------------------------
@@ -352,20 +511,24 @@ def the_core(p):
 
 
 # map: the originals whose layer 1 the new map's tiles follow; layer2/layer3: those of the upper
-# layers (none: empty); plan (with materials, base, kinds) or bias; waves, boss, ground: the
+# layers (none: empty; layerN_from: the originals' layer they follow, if not the same); plan (with
+# materials, base, kinds) or bias; waves, boss, ground: the
 # originals whose waves, boss and ground enemies are used (episode, name): the ground enemies go
 # with the map's own tileset, the waves come from another theme and the boss from a third (the
 # user, 2026-10-09: "malo da začinimo igru"); look: the original whose start settings it takes;
 # speeds: the layers' scroll speeds; wealth: about the credits its coins and gems are worth;
 # gimmicks (compose.py, docs/plans/2026-10-09-epizoda-6.md 7): midboss ((episode, name), clock),
-# ambush [(clock, (episode, name))], bursts [(from, to, factor)], dark and flip [(from, to)],
+# ambush [(clock, (episode, name))], bursts [(from, to, factor)] or "map" (bursts_map of them, along the
+# map's most open stretches), dark [(from, to)] or "map" (over its darkest stretch), "midboss" or "hold"
+# (while the mid-level boss or the siege is fought), flip [(from, to)] or "boss"/"midboss" (upside down
+# while that boss is fought),
 # couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level),
 # hold (clock, seconds): a siege, the map stopped, waves round and round until the level timer ends.
 LEVELS = [
     dict(name="DIG SITE", terrain=SAVARA_TERRAIN, shapes="y", song=33, seed=4, map=SAVARA, layer2=SAVARA[:4], plan=dig_site, **SAVARA_MATS,
          waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=SAVARA[:4], boss_time=6100,
          look=(1, "SAVARA"), speeds=(1, 2, 3), wealth=12000,
-         gimmicks=dict(ambush=[(2900, (3, "CAMANIS"))], bursts=[(4300, 4900, 2)], couriers=[(3600, "cube")])),
+         gimmicks=dict(ambush=[(2900, (3, "CAMANIS"))], bursts="map", couriers=[(3600, "cube")])),
     dict(name="REEF", terrain=SAVARA_TERRAIN, shapes="y", song=21, seed=31, map=SAVARA, layer2=SAVARA[:4], plan=reef, **SAVARA_MATS,
          waves=[(2, "GYGES"), (2, "GRYPHON")], boss=(3, "IXMUCANE"), ground=SAVARA[:4], boss_time=5600,
          look=(4, "SAVARA IV"), speeds=(1, 2, 3), wealth=15000,
@@ -373,39 +536,40 @@ LEVELS = [
     dict(name="GREY MOON", terrain=ASTEROID_TERRAIN, shapes="z", song=1, seed=41, map=ASTEROIDS, layer2=ASTEROIDS[:2], layer3=ASTEROIDS[:2],
          plan=grey_moon, **ASTEROID_MATS, waves=[(4, "SAVARA IV"), (5, "SAVARA")], boss=(2, "TORM"),
          ground=ASTEROIDS, boss_time=6200, look=(1, "ASTEROID1"), wealth=18000,
-         gimmicks=dict(bursts=[(1500, 2200, 2), (4700, 5300, 2)], midboss=((1, "ASTEROID2"), 3000),
+         gimmicks=dict(bursts="map", bursts_map=2, midboss=((1, "ASTEROID2"), 3000),
                        couriers=[(4100, "warp:vault")]), ground_sheets=0),
     dict(name="DELI RUIN", terrain=DELI_TERRAIN, shapes="z", song=14, seed=91, map=DELI, layer2=DELI, layer3=DELI,
-         waves=[(4, "ICE EXIT"), (4, "EYESPY")], boss=(3, "FLEET"), ground=DELI, boss_time=5800,
-         look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000,
-         gimmicks=dict(dark=[(2000, 3400)], ambush=[(4300, (3, "New Deli"))], couriers=[(2900, "cube")],
+         waves=[(4, "ICE EXIT"), (4, "EYESPY"), (3, "FLEET")], boss=(3, "FLEET"), ground=DELI, boss_time=5800,
+         look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000, need_sheets=[15],
+         gimmicks=dict(dark="hold", ambush=[(4300, (3, "New Deli"))], couriers=[(2900, "cube")],
                        hold=(1100, 40))),
     dict(name="ROOST", terrain=TORM_TERRAIN, shapes="x", song=28, seed=51, map=[(2, "TORM")], bias=roost_bias,
          waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "TORM")], boss_time=6300,
          look=(2, "TORM"), wealth=24000,
-         gimmicks=dict(ambush=[(2200, (4, "LAVA RUN"))], flip=[(3300, 4300)], couriers=[(2800, "cube")])),
-    dict(name="DEEP ICE", terrain=ICE_TERRAIN, keep_map=True, shapes="w", song=14, seed=61, map=ICE, layer2=[(3, "IXMUCANE")], layer3=[(3, "IXMUCANE")],
+         gimmicks=dict(ambush=[(2200, (4, "LAVA RUN"))], flip="boss", couriers=[(1400, "special:49"), (2800, "cube")])),
+    dict(name="DEEP ICE", terrain=dict(ICE_TERRAIN, solid_upper=[2]), keep_map=True, remake=[3], shapes="w", song=14, seed=61,
+         map=ICE, layer2=[(3, "IXMUCANE")], layer3=[(4, "ICE EXIT")], layer3_from=2,
          bias=zones([(0, 300, 0.3)], 61), waves=[(1, "DELIANI"), (3, "New Deli")], boss=(1, "ASSASSIN"),
-         ground=ICE, boss_time=4600, look=(3, "IXMUCANE"), speeds=(1, 2, 2), wealth=27000,
-         gimmicks=dict(dark=[(900, 2100)], ambush=[(3000, (3, "New Deli"))], couriers=[(1500, "cube")])),
+         ground=ICE, boss_time=4600, look=(3, "IXMUCANE"), speeds=(1, 2, 2), wealth=27000, need_sheets=[10],
+         gimmicks=dict(dark="map", ambush=[(3000, (3, "New Deli"))], couriers=[(1500, "cube")])),
     dict(name="GLACIER", terrain=SNOW_TERRAIN, shapes="w", song=4, seed=71, map=SNOW, layer2=[(4, "ICE EXIT")], plan=glacier, **SNOW_MATS,
          waves=[(5, "STATION"), (4, "EYESPY")], boss=(2, "BOTANY A"), ground=[(4, "ICE EXIT")], boss_time=5200,
          look=(4, "ICE EXIT"), speeds=(1, 2, 2), wealth=30000,
-         gimmicks=dict(midboss=((4, "ICESECRET"), 2400), bursts=[(3700, 4300, 2)], couriers=[(3300, "cube")])),
+         gimmicks=dict(midboss=((4, "ICESECRET"), 2400), bursts="map", couriers=[(3300, "cube")])),
     dict(name="COLLECTOR", terrain=SPACE_TERRAIN, shapes="w", song=29, seed=101, map=[(3, "FLEET")], layer2=[(3, "FLEET")],
          layer3=[(3, "FLEET")], plan=collector, **SPACE_MATS, waves=[(4, "SURFACE"), (4, "LAVA EXIT")],
          boss=(4, "BRAINIAC"), boss_time=5600, look=(3, "FLEET"), intensity=lambda f: 0.55 + 0.45 * f,
-         wealth=34000, gimmicks=dict(bursts=[(1400, 2200, 2)], ambush=[(3200, (4, "LAVA EXIT"))],
+         wealth=34000, gimmicks=dict(bursts="map", ambush=[(3200, (4, "LAVA EXIT"))],
                                      couriers=[(2600, "cube")])),
     dict(name="CRUSTGATE", terrain=LAVA_TERRAIN, shapes=")", song=17, seed=81, map=LAVA, layer2=LAVA, plan=crustgate, **LAVA_MATS,
          waves=[(2, "MARKERS"), (2, "MISTAKES")], boss=(4, "ICE EXIT"), ground=LAVA, boss_time=6000,
          look=(4, "LAVA RUN"), wealth=38000,
-         gimmicks=dict(midboss=((5, "MINERS"), 1800), flip=[(3200, 4200)], bursts=[(4700, 5200, 2)],
+         gimmicks=dict(midboss=((5, "MINERS"), 1800), flip="midboss", bursts="map",
                        couriers=[(2800, "cube")])),
     dict(name="THE CORE", terrain=CORE_TERRAIN, shapes=")", song=23, seed=111, map=[(4, "CORE")], layer2=[(4, "CORE")], plan=the_core,
          **CORE_MATS, waves=[(3, "FLEET"), (3, "GAUNTLET")], boss=(5, "FRUIT"), ground=[(4, "CORE")], boss_time=5600,
          look=(4, "CORE"), intensity=lambda f: 0.6 + 0.4 * f, wealth=45000,
-         gimmicks=dict(dark=[(900, 2300)], midboss=((4, "CORE"), 3000), ambush=[(4700, (3, "CAMANIS"))])),
+         gimmicks=dict(dark="midboss", midboss=((4, "CORE"), 3000), ambush=[(4700, (3, "CAMANIS"))])),
     # Seen from the side (side: the rocks along the edges, 1 asteroids, 2 crags; blank: a blank tile
     # of the tile set, open space for the stars). Their upper layers' maps are empty, but layer 3 still
     # carries the top layer's enemies: its speed is the one their waves' originals give it (GRYPHON's 3,
@@ -415,14 +579,33 @@ LEVELS = [
          gimmicks=dict(couriers=[(3000, "cube")], ambush=[(4200, (2, "GRYPHON"))])),
     dict(name="GRAVITRON", side=2, blank=21, shapes=")", song=24, seed=141, waves=[(4, "BRAINIAC"), (3, "GAUNTLET")],
          boss=(4, "DREAD-NOT"), boss_time=6000, look=(4, "LAVA EXIT"), speeds=(1, 0, 1), wealth=40000,
-         intensity=lambda f: 0.55 + 0.45 * f, gimmicks=dict(couriers=[(2500, "cube")], bursts=[(3400, 4200, 2)])),
+         intensity=lambda f: 0.55 + 0.45 * f, gimmicks=dict(couriers=[(2500, "cube")], bursts="map")),
     # Secret and bonus levels (story.py places them: VAULT behind GREY MOON's warp orb, INVADERS after
     # THE CORE).
     dict(name="VAULT", terrain=DELI_TERRAIN, shapes="z", song=18, seed=121, map=DELI, layer2=DELI, plan=vault, **DELI_MATS,
          waves=[(3, "BONUS"), (3, "New Deli")], boss=(1, "ASTEROID2"), ground=DELI, boss_time=6200,
          look=(1, "DELIANI"), speeds=(1, 2, 2), intensity=lambda f: 0.3 + 0.4 * f, wealth=60000,
-         gimmicks=dict(couriers=[(2000, "cube"), (4400, "cube")], bursts=[(3000, 3600, 2)])),
+         gimmicks=dict(couriers=[(2000, "cube"), (4400, "cube")], bursts="map")),
     dict(name="INVADERS", kind="invaders", maps_of="collector", shapes="w", song=41, seed=3, look=(3, "FLEET")),
+    # The episode's last two (the user, 2026-11-03: "ovo bi mogla biti zadnja 2 levela ep 6: starfox like level - ne
+    # treba nužno imati 2d varijantu; level samo sa svim bossevima, jedan za drugim + ... all in"). STARFALL: the
+    # Collector's fleet chased low over Tyrian's farmland (HARVEST's own maps and 3D assets), seen from behind the
+    # ship the whole way (event 205): squadrons from ahead, rushes along the open fields, the dragons at the end
+    # (GEM WAR's, as in MIGRATION; waves of episode 5's levels: the episode's slots for other episodes' enemies'
+    # weapons are full, those that fire others most of all, below 150).
+    dict(name="STARFALL", original_maps=(4, "HARVEST"), chase=True, shapes="z", song=12, seed=151,
+         waves=[(5, "STATION"), (5, "SAVARA")], boss=(2, "GEM WAR"), boss_time=6000, look=(4, "HARVEST"),
+         speeds=(1, 2, 3), wealth=50000, intensity=lambda f: 0.6 + 0.4 * f,
+         gimmicks=dict(bursts="map", bursts_map=2, ambush=[(3900, (5, "STATION"))])),
+    # THE HOARD: see make_hoard.
+    dict(name="THE HOARD", kind="hoard", shapes=")", blank=21, song=35, seed=161, look=(4, "LAVA EXIT"),
+         speeds=(1, 2, 1), fights=[
+             dict(boss=(3, "TYRIAN X"), waves=[(3, "CAMANIS"), (3, "SAWBLADES")]),          # DIG SITE's
+             dict(boss=(3, "IXMUCANE"), waves=[(2, "GYGES"), (2, "GRYPHON")], dark=True),  # REEF's
+             dict(boss=(2, "TORM"), waves=[(4, "SAVARA IV"), (5, "SAVARA")], flip=True, burst=True),  # GREY MOON's
+             dict(boss=(1, "SAVARA"), waves=[(4, "LAVA RUN"), (4, "SURFACE")], chase=True),  # ROOST's
+             dict(boss=(1, "ASTEROID2"), waves=[(3, "BONUS"), (3, "New Deli")], side=True, burst=True),  # VAULT's
+             dict(boss=(4, "BRAINIAC"), waves=[(4, "SURFACE"), (4, "LAVA EXIT")], siege=30, last=True)]),  # COLLECTOR's
 ]
 
 
@@ -447,7 +630,8 @@ def main(names):
         if design.get("frozen") and "--force" not in names:
             print(f"{design['name']}: frozen (played and approved); --force makes it again")
             continue
-        level = make_invaders(design) if design.get("kind") == "invaders" else make(design)
+        level = make_invaders(design) if design.get("kind") == "invaders" else \
+            make_hoard(design) if design.get("kind") == "hoard" else make(design)
         slug = design["name"].lower().replace(" ", "_")
         with open(os.path.join(OUT, f"{slug}.json"), "w") as f:
             json.dump(level, f, separators=(",", ":"))

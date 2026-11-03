@@ -167,7 +167,7 @@ bool dev_setup_game(int episode, int section)
 	{
 		player[0].items.weapon[FRONT_WEAPON].id = (JE_byte)SDL_clamp(front, 0, PORT_NUM);
 		player[0].items.weapon[REAR_WEAPON].id = (JE_byte)SDL_clamp(rear, 0, PORT_NUM);
-		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (JE_byte)SDL_clamp(power, 1, 11);
+		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (JE_byte)SDL_clamp(power, 1, WEAPON_POWER_OVERCLOCK);
 	}
 
 	// Other game modes, as newGame() and newSuperArcadeGame() set them up.

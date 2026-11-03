@@ -4601,7 +4601,7 @@ static Box hud_player_panel(int k, Box safe, float margin, float row_h, float la
 	const float pip = SDL_max(U(18), L.px * 6), pgap = SDL_max(U(5), L.px * 2);
 	const int weapon = k == 0 ? FRONT_WEAPON : REAR_WEAPON;
 	const int power_now = p->items.weapon[weapon].id > 0 ? p->items.weapon[weapon].power : 0;
-	const int most = power_now > 11 ? 15 : 11;
+	const int most = SDL_max(power_now, weapon_power_max()) > 11 ? 15 : 11;
 	const float pips_w = most * pip + (most - 1) * pgap;
 	const float bar_w = SDL_max(U(240), pips_w);
 	const bool level = k == 1 && p->items.sidekick_level >= 101 && p->items.sidekick_level <= 103;
@@ -4799,7 +4799,7 @@ void ui_build_hud(const UIView *view)
 		const Player *gun_of[2] = { p, twin_stick() ? &player[1] : p }, *sk = gun_of[1];
 		const bool charge = twin_stick() && chargeMax > 0;
 		const float pip = SDL_max(U(20), L.px * 6), gap = SDL_max(U(5), L.px * 2);
-		const int most = SDL_max(gun_of[0]->items.weapon[0].power, gun_of[1]->items.weapon[1].power) > 11 ? 15 : 11;
+		const int most = SDL_max(SDL_max(gun_of[0]->items.weapon[0].power, gun_of[1]->items.weapon[1].power), weapon_power_max()) > 11 ? 15 : 11;
 		const float pips_w = most * pip + (most - 1) * gap;
 		int sidekick_rows = 0;
 		for (int i = 0; i < 2; ++i)

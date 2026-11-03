@@ -139,6 +139,25 @@ static inline bool all_players_alive(void)
 
 void calc_purple_balls_needed(Player *);
 bool power_up_weapon(Player *, uint port);
+
+// Tyrian3D: a weapon's power goes past 11 (overclock, up to 15) in episode 6 and the rogue run, for one player
+// (docs/plans/2026-10-09-novi-sadrzaj.md, D): 12-15 shoot as 11 does, harder and faster (shots.c
+// player_shot_overclock); the original game stays at 11.
+#define WEAPON_POWER_ORIGINAL 11
+#define WEAPON_POWER_OVERCLOCK 15
+int weapon_power_max(void);
+
+// The weapon port's record for a power (1-15): its own up to 11, 11's past it.
+static inline unsigned int weapon_power_index(unsigned int power)
+{
+	return (power > WEAPON_POWER_ORIGINAL ? WEAPON_POWER_ORIGINAL : power) - 1;
+}
+
+// How far past 11 a power is (0-4).
+static inline unsigned int weapon_overclock(unsigned int power)
+{
+	return power > WEAPON_POWER_ORIGINAL ? power - WEAPON_POWER_ORIGINAL : 0;
+}
 void handle_got_purple_ball(Player *);
 
 #endif // PLAYER_H

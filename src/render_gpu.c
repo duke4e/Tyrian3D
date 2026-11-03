@@ -2911,26 +2911,41 @@ static void ndc_slopes(const Camera3D *camera, const float ndc[2], float slope[2
 
 /*
  * World space: X = game x, Y = height above the ground, Z = game y (towards the bottom of the
- * screen). The camera looks towards -Z and down by the tilt angle.
+ * screen). The camera looks towards -Z and down by the tilt angle (towards +Z upside down: fit_camera).
  *
  * The camera is fitted so that the playfield's bottom edge, at the player's height, spans the
  * playfield viewport exactly; the perspective then reveals extra world towards the top.
  * The projection is shifted so that the fitted view lands on the playfield's rectangle within
  * the window, letting the scene continue under the HUD and into any letterbox area.
  */
-// upside_down mirrors the view vertically within the playfield's rectangle, as the game flips the
-// playfield on upside-down levels; sideways turns it clockwise into the rectangle (which is then
-// as tall as the playfield is wide), so the level scrolls from left to right.
+// Seen from behind the ship (l3d_chase, event 205): the camera's tilt from straight down, how far behind the
+// playfield's bottom edge the window's bottom shows the ground (the ship whole at the bottom of where it goes), and
+// how far up the level the background maps are drawn then (it looks far ahead).
+#define CHASE_TILT 64.0f
+#define CHASE_BEHIND 32.0f
+#define CHASE_AHEAD 2400.0f
+
+// upside_down shows the playfield top for bottom, as the game flips it on upside-down levels: turned half round, seen
+// from beyond its top edge (the playfield's top, l3d_field_ahead above the screen, spanning the rectangle's bottom)
+// looking down it the other way, so left and right are turned too (the controls with them: controls_move). (Mirrored
+// top for bottom, as it was, the view looked up through the ground, the near side at the top, and every surface but
+// the models, mirrored back for it, was lit from behind: everything inside out.) sideways turns it clockwise into the
+// rectangle (which is then as tall as the playfield is wide), so the level scrolls from left to right.
 static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4], bool upside_down,
-                           bool sideways)
+                           bool sideways, bool chase)
 {
-	const float theta = rgpu_camera.tilt_degrees * (float)M_PI / 180.0f;
+	// (Seen from the side, from straight above: the level scrolls across the window evenly, its craft seen from
+	// above as in the other levels; tilted, the window's right ran off far away and the craft lay in profile. From
+	// behind the ship, low: CHASE_TILT.)
+	const float tilt = sideways ? 0.0f : chase ? CHASE_TILT : rgpu_camera.tilt_degrees;
+	const float theta = tilt * (float)M_PI / 180.0f;
 	const float t = tanf(rgpu_camera.fov_degrees * (float)M_PI / 360.0f);
 	const float c = cosf(theta), s = sinf(theta);
 
-	const float forward[3] = { 0, -c, -s };
-	const float up[3] = { 0, s, -c };
-	const float right[3] = { 1, 0, 0 };
+	const bool turned = upside_down && !sideways && !chase;
+	const float forward[3] = { 0, -c, turned ? s : -s };
+	const float up[3] = { 0, s, turned ? c : -c };
+	const float right[3] = { turned ? -1.0f : 1.0f, 0, 0 };
 
 	// Camera-space depth and height of the bottom edge's centre (the playfield's: wide or the
 	// original's, l3d_field_x/w).
@@ -2938,7 +2953,8 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float depth = half_width / (t * viewport_aspect);
 	const float height = -t * depth;
 
-	const float bottom[3] = { l3d_field_x() + half_width, reference_height, L3D_PLAYFIELD_H };
+	const float bottom[3] = { l3d_field_x() + half_width, reference_height,
+	                          turned ? (float)-l3d_field_ahead : chase ? L3D_PLAYFIELD_H + CHASE_BEHIND : L3D_PLAYFIELD_H };
 	Camera3D camera;
 	for (int i = 0; i < 3; ++i)
 		camera.position[i] = bottom[i] - (height * up[i] + depth * forward[i]);
@@ -2985,7 +3001,7 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	else
 	{
 		post.m[0] = sx;
-		post.m[5] = upside_down ? -sy : sy;
+		post.m[5] = sy;
 	}
 	post.m[10] = 1;
 	post.m[12] = ox;
@@ -3009,7 +3025,7 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 // How far up the level the background maps are drawn (game pixels above the screen's top edge),
 // and the distance over which they fade out before that.
 // (Seen from the side, the window shows further ahead.)
-#define BACKGROUND_AHEAD (l3d_sideways ? 1100.0f : 640.0f)
+#define BACKGROUND_AHEAD (l3d_sideways ? 1100.0f : l3d_chase ? CHASE_AHEAD : 640.0f)
 #define BACKGROUND_FADE 160.0f
 
 /*
@@ -3127,7 +3143,6 @@ typedef struct
 	Camera3D camera;
 	float reference;           // the player's plane's height
 	float window_w, window_h;  // window points
-	bool upside_down;
 } ShownView;
 
 static ShownView shown_view;
@@ -4517,8 +4532,6 @@ bool rgpu_window_to_playfield(float wx, float wy, float *x, float *y)
 	const float ndc[2] = { wx / shown_view.window_w * 2 - 1, 1 - wy / shown_view.window_h * 2 };
 	float slope[2], ray[3];
 	ndc_slopes(camera, ndc, slope);
-	if (shown_view.upside_down && !camera->sideways)
-		slope[1] = -slope[1];
 	for (int i = 0; i < 3; ++i)
 		ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
 	if (ray[1] > -1e-6f)
@@ -4729,79 +4742,11 @@ static LoadedModel *get_model(int index)
 	return loaded->gpu != NULL ? loaded : NULL;
 }
 
-// Upside down (models turned round rather than mirrored, add_object_batches), the pieces of one object (a boss's
-// wings and body) turned round each about its own centre would show each wing on its own side facing the wrong
-// way: so they are turned round as one, each piece moved across to its mirror place about their middle
-// (piece_mirror_shift: by object, for the frame mirror_pieces looked at).
-static const L3DObject *piece_mirror_objects = NULL;
-static int piece_mirror_count = 0;
-static float piece_mirror_shift[L3D_MAX_OBJECTS];
-
 // Where an object is drawn in a frame shown `ahead` of its tick: moved on by its velocity, or,
 // the ship the mouse moves directly, where the mouse has moved it so far.
 static float object_x(const L3DObject *object)
 {
-	float x = object->x + (object->pointer ? l3d_pointer_lead[0] : object->vx * ahead);
-	if (object >= piece_mirror_objects && object < piece_mirror_objects + piece_mirror_count)
-		x += piece_mirror_shift[object - piece_mirror_objects];
-	return x;
-}
-
-// The pieces of one object: the same group (the events' time and link), the same layer, side by side (each within
-// a piece's size of another: a large sprite is 24 x 28) rather than a formation of craft made together.
-#define PIECE_NEAR_X 26.0f
-#define PIECE_NEAR_Y 30.0f
-
-static void mirror_pieces(const L3DFrame *frame, bool mirror)
-{
-	piece_mirror_objects = frame->objects;
-	piece_mirror_count = mirror ? frame->object_count : 0;
-	if (!mirror)
-		return;
-	static int root[L3D_MAX_OBJECTS];
-	const int n = frame->object_count;
-	for (int o = 0; o < n; ++o)
-	{
-		root[o] = o;
-		piece_mirror_shift[o] = 0;
-	}
-	for (int o = 0; o < n; ++o)
-	{
-		const L3DObject *a = &frame->objects[o];
-		if (a->group == 0)
-			continue;
-		for (int p = o + 1; p < n; ++p)
-		{
-			const L3DObject *b = &frame->objects[p];
-			if (b->group != a->group || b->group_link != a->group_link || b->layer != a->layer ||
-			    fabsf(b->x - a->x) > PIECE_NEAR_X || fabsf(b->y - a->y) > PIECE_NEAR_Y)
-				continue;
-			int ra = o, rb = p;
-			while (root[ra] != ra)
-				ra = root[ra];
-			while (root[rb] != rb)
-				rb = root[rb];
-			root[SDL_max(ra, rb)] = SDL_min(ra, rb);
-		}
-	}
-	// Each object's middle across: halfway between its outermost pieces.
-	static float left[L3D_MAX_OBJECTS], right[L3D_MAX_OBJECTS];
-	for (int o = 0; o < n; ++o)
-	{
-		left[o] = INFINITY;
-		right[o] = -INFINITY;
-	}
-	for (int o = 0; o < n; ++o)
-	{
-		int r = o;
-		while (root[r] != r)
-			r = root[r];
-		root[o] = r;
-		left[r] = SDL_min(left[r], frame->objects[o].x);
-		right[r] = SDL_max(right[r], frame->objects[o].x);
-	}
-	for (int o = 0; o < n; ++o)
-		piece_mirror_shift[o] = left[root[o]] + right[root[o]] - 2 * frame->objects[o].x;
+	return object->x + (object->pointer ? l3d_pointer_lead[0] : object->vx * ahead);
 }
 
 static float object_y(const L3DObject *object)
@@ -4889,10 +4834,6 @@ static bool clip_log_on(void)
 
 // Appends instances and batches for the frame's model objects, grouped by model. colors are the
 // frame's palette colours, for palette materials.
-// mirror turns the models left for right: in a vertically mirrored view (upside-down levels) that
-// makes them look turned round rather than mirrored, so their triangles still face the camera the
-// right way round for the renderer's lighting.
-#define SIDE_ROLL 90.0f  // degrees about the scroll axis, seen from the side
 
 // How opaque an object fading in is at its step (L3DObject.appear).
 static float appear_alpha(Uint8 step)
@@ -4911,21 +4852,13 @@ static int shown_step(int o)
 // A model object's transform at the given height (its translation's), on its plane before aligned():
 // where it is drawn, turned, scaled and centred (add_object_batches; what would sink is raised,
 // after this).
-static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded, bool mirror, float height)
+static Mat4 object_transform(const L3DObject *object, const LoadedModel *loaded, float height)
 {
 	const M3DModel *model = &m3d_models[object->model];
 	const float scale = (model->size > 0 && loaded->footprint > 0 ? model->size / loaded->footprint : 1.0f) *
 	                    (object->scale > 0 ? object->scale : 1.0f);
-	Mat4 mirror_x = mat4_identity();
-	if (mirror)
-		mirror_x.m[0] = -1;
-	// Seen from the side (l3d_sideways), every model lies on its side, its top towards
-	// the window's top: the level's craft are seen in profile. Flat ones whose profile is a thin strip (models.cfg
-	// "face": GRAVITRON's chain of links) keep facing the camera as from above.
 	const Mat4 chain[] = {
 		mat4_translation(object_x(object), height, object_y(object)),
-		mirror_x,
-		mat4_rotation(2, l3d_sideways && !model->face ? SIDE_ROLL : 0.0f),
 		mat4_rotation(1, -object->yaw),
 		mat4_rotation(2, -object->roll),
 		mat4_rotation(1, model->yaw),
@@ -4956,7 +4889,7 @@ static bool flame_models(void)
 	return flame_add() > 0.0f;
 }
 
-static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], bool mirror, int *instance_count,
+static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], int *instance_count,
                                int *batch_count)
 {
 	sync_model_cache();
@@ -4990,7 +4923,7 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 
 				const M3DModel *model = &m3d_models[model_index];
 				const float height = object_bases[o] + object->height + object_lifts[o];
-				Mat4 transform = object_transform(object, loaded, mirror, height);
+				Mat4 transform = object_transform(object, loaded, height);
 				if (object->standin == L3D_STANDIN_PLACEHOLDER)  // (a wreck's place, until it has a model)
 					for (int k = 1; k < 12; k += 4)
 						transform.m[k] *= STANDIN_SLUMP;
@@ -7310,7 +7243,7 @@ static float layer_base(const L3DFrame *frame, const float *heights, L3DLayerTyp
 // What an object covers of the ground round its position (game pixels as drawn, relative: x0, y0, x1,
 // y1) and how high it is (footprint[4], before alignment): a model's bounds as it is turned and scaled,
 // a volumetric sprite's sprite (nearly flat). False: nothing known.
-static bool object_footprint(const L3DObject *object, bool mirror, float footprint[5])
+static bool object_footprint(const L3DObject *object, float footprint[5])
 {
 	if (object->model == L3D_VOLUME)
 	{
@@ -7325,7 +7258,7 @@ static bool object_footprint(const L3DObject *object, bool mirror, float footpri
 	const LoadedModel *loaded = object->model >= 0 && object->model < m3d_model_count ? get_model(object->model) : NULL;
 	if (loaded == NULL)
 		return false;
-	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	const Mat4 t = object_transform(object, loaded, 0.0f);
 	footprint[0] = footprint[1] = INFINITY;
 	footprint[2] = footprint[3] = -INFINITY;
 	float y0 = INFINITY, y1 = -INFINITY;
@@ -7375,7 +7308,7 @@ static bool ground_model_log_on(void)
 	return on != 0;
 }
 
-static void log_ground_model(const L3DObject *object, bool mirror, float base, const float footprint[5])
+static void log_ground_model(const L3DObject *object, float base, const float footprint[5])
 {
 	if (!ground_model_log_on() || object->enemy_sheet == 0 || object->standin != 0 || object->model < 0 ||
 	    object->model >= m3d_model_count)
@@ -7383,7 +7316,7 @@ static void log_ground_model(const L3DObject *object, bool mirror, float base, c
 	const LoadedModel *loaded = get_model(object->model);
 	if (loaded == NULL)
 		return;
-	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	const Mat4 t = object_transform(object, loaded, 0.0f);
 	float bottom = INFINITY, top = -INFINITY;
 	for (int c = 0; c < 8; ++c)
 	{
@@ -7799,7 +7732,7 @@ static void lean_group(const L3DFrame *frame, const int *members, int count, flo
 // terrain the plane leans with the ground (lean_group). Pieces of different objects never join, however
 // near and alike (TYRIAN's walkers did, into one chain lifted at its middle). On terrain things alone lean
 // with the ground too (lean_alone).
-static void compute_object_lifts(const L3DFrame *frame, const float *heights, bool mirror)
+static void compute_object_lifts(const L3DFrame *frame, const float *heights)
 {
 	static int group[L3D_MAX_OBJECTS], pieces[L3D_MAX_OBJECTS];
 	static float piece_heights[L3D_MAX_OBJECTS];
@@ -7821,13 +7754,13 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 		if (stand.terrain == NULL && stand.low == NULL)
 		{
 			object_lifts[o] = stand.rise;  // (a flat ground)
-			if (ground_model_log_on() && object_footprint(object, mirror, footprint))
-				log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
+			if (ground_model_log_on() && object_footprint(object, footprint))
+				log_ground_model(object, object_bases[o] + object->height, footprint);
 			continue;
 		}
-		covers[o] = object_footprint(object, mirror, footprint);
+		covers[o] = object_footprint(object, footprint);
 		if (covers[o])
-			log_ground_model(object, mirror, object_bases[o] + object->height, footprint);
+			log_ground_model(object, object_bases[o] + object->height, footprint);
 		else
 			memset(footprint, 0, sizeof(footprints[o]));
 		piece_heights[o] = covers[o] ? footprint[4] * align_scale(object_bases[o] + object->height) : 0.0f;
@@ -7938,14 +7871,14 @@ static void compute_object_lifts(const L3DFrame *frame, const float *heights, bo
 #define SOLID_HIDE_ALL 0.85f
 
 // The bottom and top of a ground object's bounds (game pixels before alignment, from its translation).
-static void object_span(const L3DObject *object, bool mirror, float *bottom, float *top)
+static void object_span(const L3DObject *object, float *bottom, float *top)
 {
 	*bottom = 0.0f;
 	*top = 2.0f;
 	const LoadedModel *loaded = object->model >= 0 && object->model < m3d_model_count ? get_model(object->model) : NULL;
 	if (loaded == NULL)
 		return;
-	const Mat4 t = object_transform(object, loaded, mirror, 0.0f);
+	const Mat4 t = object_transform(object, loaded, 0.0f);
 	*bottom = INFINITY;
 	*top = -INFINITY;
 	for (int c = 0; c < 8; ++c)
@@ -7977,7 +7910,7 @@ static bool solid_rock_at(const B3DTerrain *t, const MapAnchor *a, float shift, 
 	return true;
 }
 
-static void hide_in_solids(const L3DFrame *frame, const float *heights, bool mirror)
+static void hide_in_solids(const L3DFrame *frame, const float *heights)
 {
 	for (int o = 0; o < frame->object_count; ++o)
 		object_shown[o] = 1.0f;
@@ -8007,10 +7940,10 @@ static void hide_in_solids(const L3DFrame *frame, const float *heights, bool mir
 	{
 		const L3DObject *object = &frame->objects[o];
 		float footprint[5];
-		if (object->layer != L3D_GROUND_ENEMY || !object_footprint(object, mirror, footprint))
+		if (object->layer != L3D_GROUND_ENEMY || !object_footprint(object, footprint))
 			continue;
 		float bottom, top;
-		object_span(object, mirror, &bottom, &top);
+		object_span(object, &bottom, &top);
 		float height = object_bases[o] + object->height + object_lifts[o];
 		if (object->model >= 0 && !m3d_models[object->model].keep_origin)
 			height = SDL_max(height, 0.3f + object_lifts[o] - bottom);  // (nothing sinks: add_object_batches)
@@ -12442,7 +12375,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// view as wide as the window, so the far right still looks down onto the level).
 	float px0 = layout.playfield[0], px1 = layout.playfield[0] + layout.playfield[2];
 	float py0 = layout.playfield[1], py1 = layout.playfield[1] + layout.playfield[3];
-	const bool sideways = l3d_sideways && !menu.on;
+	const bool sideways = l3d_sideways;  // (the menus over the level too: it turned back under them)
 	if (sideways)
 	{
 		const float room_w = layout.panel[2] > 0 ? layout.panel[0] : logical_w;
@@ -12489,10 +12422,10 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 			shaken[i + 1] = cy + (shaken[i + 1] - cy) * (1 + kick) + sy;
 		}
 	}
-	const Camera3D camera = fit_camera(reference_height, viewport_aspect, shaken, upside_down, sideways);
+	const Camera3D camera = fit_camera(reference_height, viewport_aspect, shaken, upside_down, sideways, l3d_chase && !sideways);
 	set_alignment(&camera, reference_height);
-	shown_view = (ShownView){ true, fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways),
-	                          reference_height, logical_w, logical_h, upside_down };
+	shown_view = (ShownView){ true, fit_camera(reference_height, viewport_aspect, ndc_rect, upside_down, sideways, l3d_chase && !sideways),
+	                          reference_height, logical_w, logical_h };
 	value_text_quads(frame, &layout);
 	bool composed[L3D_MAX_BACKGROUNDS];
 	b3d_composed_backgrounds(frame, composed);
@@ -12500,9 +12433,8 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	// (stand_lift, layer_base): with the planes' heights and the camera known.
 	const Uint64 lift_start = SDL_GetPerformanceCounter();
 	setup_stand(frame, composed, heights);
-	mirror_pieces(frame, upside_down && !sideways);
-	compute_object_lifts(frame, heights, upside_down);
-	hide_in_solids(frame, heights, upside_down);
+	compute_object_lifts(frame, heights);
+	hide_in_solids(frame, heights);
 	profile_lift_ticks += SDL_GetPerformanceCounter() - lift_start;
 	add_outside_shade(&camera, reference_height, layout.panel[2] > 0 ? layout.panel[0] : logical_w, logical_w, logical_h);
 	prepare_tile_atlas();
@@ -12560,7 +12492,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	add_weather_batch(frame, &camera, heights, &instance_count, &batch_count);
 	add_bird_batch(frame, &camera, heights, &instance_count, &batch_count);
 	const int first_object_batch = batch_count;
-	add_object_batches(frame, colors, upside_down, &instance_count, &batch_count);
+	add_object_batches(frame, colors, &instance_count, &batch_count);
 	add_volume_batches(frame, &instance_count, &batch_count);
 	if (settings3d.effects)
 		add_debris_batch(&instance_count, &batch_count);
@@ -13039,7 +12971,7 @@ void rgpu_present_showcase(const SDL_Surface *screen, const RGPUShowcase *show, 
 	const float ndc_rect[4] = { wx0 / logical_w * 2 - 1, 1 - wy1 / logical_h * 2, wx1 / logical_w * 2 - 1, 1 - wy0 / logical_h * 2 };
 	const float tilt = rgpu_camera.tilt_degrees;
 	rgpu_camera.tilt_degrees = 0;
-	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false);
+	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false, false);
 	rgpu_camera.tilt_degrees = tilt;
 	shown_view.valid = false;
 
@@ -14003,7 +13935,7 @@ static bool present_scene_pane(const RGPUShowcase *show, const float rect[4], co
 	const float ndc_rect[4] = { wx0 / logical_w * 2 - 1, 1 - wy1 / logical_h * 2, wx1 / logical_w * 2 - 1, 1 - wy0 / logical_h * 2 };
 	const float tilt = rgpu_camera.tilt_degrees;
 	rgpu_camera.tilt_degrees = 0;
-	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false);
+	const Camera3D camera = fit_camera(0.0f, (wx1 - wx0) / (wy1 - wy0), ndc_rect, false, false, false);
 	rgpu_camera.tilt_degrees = tilt;
 	shown_view.valid = false;
 
@@ -14542,7 +14474,7 @@ static Uint8 *icon_render(const RGPUIcon *icon, const LoadedModel *loaded, Uint8
 	const float tilt = rgpu_camera.tilt_degrees, fov = rgpu_camera.fov_degrees;
 	rgpu_camera.tilt_degrees = 0;
 	rgpu_camera.fov_degrees = ICON_FOV;
-	const Camera3D camera = fit_camera(height, 1.0f, ndc_rect, false, false);
+	const Camera3D camera = fit_camera(height, 1.0f, ndc_rect, false, false, false);
 	rgpu_camera.tilt_degrees = tilt;
 	rgpu_camera.fov_degrees = fov;
 	shown_view.valid = false;

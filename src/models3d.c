@@ -304,20 +304,17 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		M3DModel *model = &m3d_models[m3d_model_count++];
 		SDL_strlcpy(model->name, tokens[1], sizeof(model->name));
 		snprintf(model->path, sizeof(model->path), "%s/%s", dir, tokens[2]);
-		// The numbers in order (size, yaw, pitch, roll); "origin", "flame" and "face" anywhere among them.
+		// The numbers in order (size, yaw, pitch, roll); "origin" and "flame" anywhere among them.
 		float numbers[4] = { 0, 0, 0, 0 };
 		int n = 0;
 		model->keep_origin = false;
 		model->flame = false;
-		model->face = false;
 		for (int t = 3; t < count; ++t)
 		{
 			if (strcmp(tokens[t], "origin") == 0)
 				model->keep_origin = true;
 			else if (strcmp(tokens[t], "flame") == 0)
 				model->flame = true;
-			else if (strcmp(tokens[t], "face") == 0)
-				model->face = true;
 			else if (n < 4)
 				numbers[n++] = option_float(tokens[t], 0.0f);
 		}

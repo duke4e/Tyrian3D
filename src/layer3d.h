@@ -202,6 +202,10 @@ extern bool l3d_enabled;  // the 3D view is active (set by the renderer)
 // view turned a quarter so the level scrolls from left to right, the controls turned with it. The
 // game itself runs as ever (2D shows it as it is).
 extern bool l3d_sideways;
+// The level is seen from behind the ship (Tyrian3D event 205, episode 6's chase level): the 3D view low behind the
+// playfield's bottom edge looking up it, so what comes down the screen comes at the ship from ahead. The game runs as
+// ever (2D shows it as it is), the controls too (up is ahead).
+extern bool l3d_chase;
 // Seen from the side, what lines the window's top and bottom edges (event 200's d2): 0 nothing,
 // 1 asteroids, 2 crags of the crust.
 extern int l3d_side_decor;

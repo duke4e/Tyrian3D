@@ -150,6 +150,16 @@ what stands on them can be played) and 64 pixels above the screen, where enemies
 their time (as far up as they fly down meanwhile, so from where the original makes them on they
 fly as there; those that don't come down start at the playfield's top). The 2D view then shows
 the 264 pixels round the ship. **Original** is the game 1:1 (`l3d_field_wide`, `TYR3D_PLAYFIELD`).
+Items drift in to where the ship picks them up (within 8 pixels of where it goes, rather than the edges of what
+shows, x 1-307, out of its reach), and down into reach from above it; and once a level only waits for the screen to
+clear (event 36), an item standing still drifts down past the ship and away (REEF's cube from a courier held its end
+for 40 seconds), whatever the playfield (not in network games or demos). A boss gone to wrecks takes its bar down
+(they kept it up at their last hit's armour), and a mouse or pad button already held as a story text comes counts
+only once let go (firing as the warp orb was picked up skipped VAULT's text at once).
+On upside-down levels (LAVA RUN, EYESPY, episode 6's flips) the 3D view turns the playfield half round, seen from
+beyond its top looking down it the other way, and turns the controls' left and right with it (`render_gpu.c`
+`fit_camera`, `mainint.c` `view_turned`); mirrored top for bottom as the game draws it, the view looked up through
+the ground and everything but the models was lit from behind.
 What lies outside the playfield shows darkened, dimmed enemies coming or leaving included. The enemies still to come
 are shown coming before the game makes them (`tyrian2.c` `draw_coming_enemies`), not those an event 66 skips on the
 difficulty played (2026-10-29: shown, episode 7's Normal and Hard enemies came down on Easy and vanished where they'd
@@ -199,6 +209,13 @@ rules from the original data (`tools/content/tyrdata.py` reads it), so the rules
 | 35 Lightning Option | Lightning Cannon power 5 | rotary pod |
 | 36 Banana Option | Banana Blast power 5 | gun pod |
 | 37 Guided Option | Guided Bombs power 4 | orbiting satellite |
+| special 49 Nova | (new: stype 19, `varz.c` `nova`) | a shock racing out from the ship (8 pixels a frame for 22 frames) that wipes out the enemy shots it reaches and hits every enemy it reaches once with weapon 885 (a still blast of 40) made on it; ready again 140 frames on; the 3D view draws it as white-violet rings, a flash and sparks (`particles3d.c` `p3d_nova`) |
+
+**Overclock** (`player.h` `weapon_power_max`): in episode 6 and the rogue run, for one player, the guns' power goes on
+past 11 to 15 (the store's upgrade arrows, power-ups, the rogue run's upgrades; the costs go on as before: to 12-15, 78, 91, 105 and 120
+times the gun's price). Powers 12-15 shoot as 11 does, each step 25 % harder (so through more: a
+shot goes on with what an enemy's armour leaves of it) and 10 % quicker to fire again (`shots.c`
+`player_shot_overclock`); the HUD and the store show 15 pips there. The original game stays at 11.
 
 No shop sells them yet (that comes with the new episode and the rogue mode); the debug flight's
 loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them. The new sidekicks look as the ones they copy, in 3D too
@@ -276,22 +293,49 @@ Its levels are generated anew, the original levels only their inspiration
 the tiles of originals of the same look, by a plan of the level's design (`mapsynth.py`: each
 tile follows its neighbours as the originals have them, row by row, nothing copied), the events
 from the originals' waves placed anew along a difficulty curve, stationary ground enemies on tiles
-that suit them, a boss at the end (`compose.py`, `waves.py`; the event rules in
-`tools/content/EVENTS.md`, `tools/content/tyrevents.py` prints any level's events). The originals' gimmicks are mixed in per
+that suit them, a boss at the end (bosses fought in stages taken whole, their stages' links and jumps with them:
+GRAVITRON's DREAD-NOT, DEEP ICE's ASSASSIN; once it is dead, its wrecks are sent down off the screen and its bar
+taken down, so the level ends as the screen clears; `compose.py`, `waves.py`; the event rules in
+`tools/content/EVENTS.md`, `tools/content/tyrevents.py` prints any level's events). As many enemies as the
+episodes before have by then (the originals' median, whole levels, is 28, 38, 41, 34 and 44 enemies per 1000 clock
+for episodes 1-5; episode 6's waves are paced for 38 at its first level up to 52 at its last, by their enemies that
+can be shot, generate.py `ORDER`, `waves_target`; 37-55 up to the boss after it, from 12-27), at most 9 kinds of
+waves a level (they come round again: other episodes' enemies bring their weapons into the item data, whose slots
+for them are few, `enemydata.py`) and 3 waves of scenery (SURFACE's rock arches, completed by `waves.arch_parts`).
+A boss gets escorts (`compose.escorts`): waves of its own level from round its fight (else the level's own small
+ones) every 420 clock while it is fought, six at most, each skipped once it is gone (its last links set flag 10 as
+they die, 60; a 61 before each wave's spawns); and none of its parts stands unshootable longer than 350 clock unless
+a stage of its pattern comes first (`shorter_invulnerable`: BRAINIAC's brain waited 1000). The originals' cubes made
+as enemies (TYRIAN X's boss's) are coins: the episode's cubes are its own. The originals' gimmicks are mixed in per
 level (`gimmicks` in the designs, `compose.py`): a boss of another level in the middle (the map
-stops, its pattern loops until it is gone: events 2, 53, 54, 70), rushes (all layers faster),
-ambushes from behind with their warning, dark stretches with the ship's spotlight and the screen
-upside down (effects 6 and 9), a siege (the map stops, waves come round until the level timer,
-67, runs out). Secrets: in most levels a courier crosses the top of the screen
+stops, its pattern loops until it is gone: events 2, 53, 54, 70; then its wrecks go down off the screen and its bar
+goes), rushes (all layers faster) along the map's most open stretches (`map_gimmicks`: even rows, the fewest
+ground enemies; the event clock follows layer 1, so the map's rows give their times),
+ambushes from behind with their warning, dark stretches with the ship's spotlight (over the map's darkest stretch:
+DEEP ICE's crevasse; or while something is fought: THE CORE's mid-level boss, DELI RUIN's siege, the power cut) and
+the screen upside down (effects 6 and 9; turned by a boss, as EYESPY's, after a "Danger" message, and back when it
+dies: ROOST's final boss, CRUSTGATE's MINERS), a siege (the map stops, waves come round until the level timer,
+67, runs out). `generate.py --events <level>` makes a level's events again on its map, its ground enemies kept
+(its terrain is levelled under them). Only three levels have a message before them (VAULT's arrival, MIGRATION, THE CORE), each over the
+planet picture (`]P 005[`, as the originals' are). Secrets: in most levels a courier crosses the top of the screen
 fast; shot down, it leaves a data cube (shown in the next shop after the stage's own, `]+` and
 `]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
-at the end of episode 1. MIGRATION and GRAVITRON are seen from the side (Tyrian3D event 200): the
+at the end of episode 1; then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
+(HARVEST's own maps, so its terrain, trees and clean ground; `original_maps`), seen from behind the ship the whole
+way (Tyrian3D event 205, the chase camera; no 2D look of its own), episode 5's squadrons and GEM WAR's dragons;
+and THE HOARD (`make_hoard`), over open space, the Collector's hoard: TYRIAN X, IXMUCANE (lights out), TORM (upside
+down), SAVARA (from behind the ship, 205), ASTEROID2 (from the side, 200) one after another as mid-level bosses, a
+rush before two of them, a siege, then BRAINIAC; the sheets change for each fight (event 5: `build.py` checks each
+enemy against the sheets loaded where it is made). ROOST's first courier carries the Nova (special 49: the pickup
+of episode 5's 1296 worth 32149, `courier_events` "special:49", slower than the cube couriers). MIGRATION and GRAVITRON are seen from the side (Tyrian3D event 200): the
 game runs as ever, the 3D view is turned a quarter so the level scrolls from left to right (the
-controls turned with it, every model on its side so craft show in profile, the shots as they
-are), over open space with the stars in depth and rocks along the window's top and bottom edges
+controls turned with it), seen from straight above so the level crosses the window evenly and its
+craft show from above as in the other levels (the menus over the level keep it turned), over open
+space with the stars in depth and rocks along the window's top and bottom edges
 (`layer3d.c` `add_side_decor`); their playfield reaches 250 pixels further ahead (event 200's d3:
-enemies are made there, shots and the ship go there), so it fills the window on its side. The
+enemies are made there, shots and the ship go there), at least 340 (`tyrian2.c` `SIDE_AHEAD`) so
+enemies are made past the window's right edge, not in the middle of it. The
 generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
@@ -802,6 +846,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
+| `TYR3D_CHASE=1` | Every level seen from behind the ship (as Tyrian3D event 205 shows a level: the camera low behind the playfield's bottom edge, `CHASE_TILT` degrees from straight down, looking up it) |
 | `TYR3D_DIFFICULTY=<n>` | With `TYR3D_START`: the difficulty (1 easy, 2 normal, the default, 3 hard, 4 impossible ...; `config.h`); episode 1's TYRIAN and SAVARA have maps of their own from Hard on |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |
 | `TYR3D_CUBES=1` | Every store holds all the data cubes its script lists, as if they were picked up (to test the reader and its voices) |

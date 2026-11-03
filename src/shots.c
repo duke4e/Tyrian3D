@@ -334,6 +334,8 @@ bool player_shot_move_and_draw(
 	return true;
 }
 
+unsigned int player_shot_overclock = 0;
+
 JE_integer player_shot_create(JE_word portNum, uint bay_i, JE_word PX, JE_word PY, JE_word mouseX, JE_word mouseY, JE_word wpNum, JE_byte playerNum)
 {
 	static const JE_byte soundChannel[11] /* [1..11] */ = {0, 2, 4, 4, 2, 2, 5, 5, 1, 4, 1};
@@ -426,6 +428,9 @@ JE_integer player_shot_create(JE_word portNum, uint bay_i, JE_word PX, JE_word P
 		else
 		{
 			shot->shotDmg = weapon->attack[shotMultiPos[bay_i]-1];
+			// (Tyrian3D: overclocked, harder; under 100, where the attack values mean other things)
+			if (player_shot_overclock > 0 && shot->shotDmg < 100)
+				shot->shotDmg = (Uint8)SDL_min(shot->shotDmg * (4 + player_shot_overclock) / 4, 99);
 		}
 
 		shot->shotBlastFilter = weapon->shipblastfilter;
@@ -530,7 +535,7 @@ JE_integer player_shot_create(JE_word portNum, uint bay_i, JE_word PX, JE_word P
 			shot->aimAtEnemy = 0;
 		}
 
-		shotRepeat[bay_i] = weapon->shotrepeat;
+		shotRepeat[bay_i] = weapon->shotrepeat * (10 - player_shot_overclock) / 10;  // (Tyrian3D: overclocked, quicker)
 	}
 
 	return shot_id;

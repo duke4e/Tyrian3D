@@ -510,6 +510,47 @@ void JE_tyrianHalt(JE_byte code)
 	exit(code);
 }
 
+// Tyrian3D: the Nova (special stype 19: episode 6's special, assets/content/items.cfg's 49): a shock racing out from
+// where the ship was, NOVA_STEP game pixels a frame for NOVA_TICKS frames, that wipes out the enemy shots it reaches
+// and hits every enemy it reaches once, with the special's weapon made on it; ready again NOVA_RECHARGE frames on.
+#define NOVA_TICKS 22
+#define NOVA_STEP 8
+#define NOVA_RECHARGE 140
+
+static struct
+{
+	int ticks, x, y;
+	JE_word wpn;
+	JE_byte player;
+	bool hit[100];
+} nova;
+
+static void nova_update(void)
+{
+	if (nova.ticks <= 0)
+		return;
+	const int r = (NOVA_TICKS - nova.ticks + 1) * NOVA_STEP;
+	--nova.ticks;
+	for (int i = 0; i < ENEMY_SHOT_MAX; ++i)
+	{
+		const int dx = enemyShot[i].sx + 6 - nova.x, dy = enemyShot[i].sy + 7 - nova.y;
+		if (!enemyShotAvail[i] && dx * dx + dy * dy <= r * r)
+			enemyShotAvail[i] = 1;
+	}
+	for (int e = 0; e < 100; ++e)
+	{
+		if (enemyAvail[e] != 0 || enemy[e].scoreitem || nova.hit[e])
+			continue;
+		// (where a player shot meets it, tyrian2.c: its blast made right there)
+		const int ex = enemy[e].ex + enemy[e].mapoffset, ey = enemy[e].ey;
+		const int dx = ex + 6 - nova.x, dy = ey + 7 - nova.y;
+		if (dx * dx + dy * dy > r * r)
+			continue;
+		nova.hit[e] = true;
+		player_shot_create(0, SHOT_SPECIAL2, ex, ey - 12, mouseX, mouseY, nova.wpn, nova.player);
+	}
+}
+
 void JE_specialComplete(JE_byte playerNum, JE_byte specialType)
 {
 	nextSpecialWait = 0;
@@ -656,6 +697,19 @@ void JE_specialComplete(JE_byte playerNum, JE_byte specialType)
 			soundQueue[3] = S_POWERUP;
 			break;
 
+		case 19:  // (Tyrian3D: the Nova)
+			nova.ticks = NOVA_TICKS;
+			nova.player = playerNum;
+			nova.x = player[playerNum-1].x + 7;
+			nova.y = player[playerNum-1].y + 7;
+			nova.wpn = special[specialType].wpn;
+			memset(nova.hit, 0, sizeof(nova.hit));
+			shotRepeat[SHOT_SPECIAL] = NOVA_RECHARGE;
+			soundQueue[7] = S_EXPLOSION_22;
+			if (settings3d.effects)
+				p3d_nova(nova.x, nova.y, l3d_layer_height(L3D_PLAYER) - l3d_terrain_headroom, NOVA_TICKS * NOVA_STEP, NOVA_TICKS);
+			break;
+
 		case 17:  // spawn left or right sidekick
 			soundQueue[3] = S_POWERUP;
 
@@ -789,6 +843,9 @@ void JE_doSpecialShot(JE_byte playerNum, uint *armor, uint *shield)
 
 	if (astralDuration > 0)
 		astralDuration--;
+
+	if (playerNum == nova.player)
+		nova_update();  // (Tyrian3D)
 
 	shotAvail[MAX_PWEAPON-1] = 0;
 	if (flareDuration > 1)

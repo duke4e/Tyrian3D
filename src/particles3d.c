@@ -319,6 +319,47 @@ void p3d_pickup(float x, float y, float height)
 	}
 }
 
+void p3d_nova(float x, float y, float height, float reach, int life)
+{
+	// White-violet, a shock rather than fire.
+	for (int k = 0; k < 2; ++k)
+	{
+		P3DParticle *ring = spawn(P3D_RING, x, y, height);
+		if (ring == NULL)
+			return;
+		ring->screen = true;
+		ring->size = 8;
+		ring->grow = (2 * reach - 8) / life;
+		ring->age = -3.0f * k;  // (a second ring close behind)
+		ring->life = (float)life;
+		set_colors(ring, 255, 245, 255, 255, 170, 110, 255, 0);
+	}
+	P3DParticle *flash = spawn(P3D_GLOW, x, y, height);
+	if (flash != NULL)
+	{
+		flash->screen = true;
+		flash->size = 40;
+		flash->grow = -2.5f;
+		flash->life = 14;
+		set_colors(flash, 255, 250, 255, 255, 190, 140, 255, 0);
+	}
+	for (int i = 0; i < 28; ++i)
+	{
+		P3DParticle *p = spawn(P3D_GLOW, x, y, height);
+		if (p == NULL)
+			return;
+		p->screen = true;
+		const float angle = (i + random_range(0, 0.8f)) * 2 * (float)M_PI / 28, s = reach / life * random_range(0.8f, 1.1f);
+		p->vx = cosf(angle) * s;
+		p->vy = sinf(angle) * s;
+		p->vheight = random_range(0.0f, 1.0f);
+		p->size = random_range(2.0f, 3.2f);
+		p->life = (float)life * random_range(0.8f, 1.0f);
+		set_colors(p, 255, 240, 255, 255, 160, 120, 255, 0);
+	}
+	p3d_add_shake(0.35f);
+}
+
 void p3d_field(float x, float y, float height, P3DField field, float reach, bool pulse)
 {
 	// Cold blue-white light, unlike the explosions' fire.

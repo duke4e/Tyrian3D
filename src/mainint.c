@@ -800,7 +800,7 @@ static bool helpSystemPage(Uint8 *topic, bool *restart)
 // cost to upgrade a weapon power from power-1 (where power == 0 indicates an unupgraded weapon)
 long weapon_upgrade_cost(long base_cost, unsigned int power)
 {
-	assert(power <= 11);
+	assert(power <= WEAPON_POWER_OVERCLOCK);
 
 	unsigned int temp = 0;
 
@@ -4573,6 +4573,13 @@ static bool twin_key(SDL_Scancode key)
 	return true;
 }
 
+// Tyrian3D: upside down (starShowVGASpecialCode 1), the 3D view turns the playfield half round rather than
+// mirroring it top for bottom as the game does (rgpu fit_camera), so left and right are turned in it too.
+static bool view_turned(void)
+{
+	return l3d_enabled && starShowVGASpecialCode == 1 && !l3d_sideways;
+}
+
 // A controller's right stick and triggers, for the twin-stick ship.
 static void twin_stick_pad(int j)
 {
@@ -4582,7 +4589,7 @@ static void twin_stick_pad(int j)
 	if (rx * rx + ry * ry > 0.35f * 0.35f)
 	{
 		// (Seen from the side, the stick turned as controls_move turns the ship's.)
-		const float x = l3d_sideways && l3d_enabled ? ry : rx, y = l3d_sideways && l3d_enabled ? -rx : ry;
+		const float x = l3d_sideways && l3d_enabled ? ry : view_turned() ? -rx : rx, y = l3d_sideways && l3d_enabled ? -rx : ry;
 		twin_aim = TWIN_AIM_STICK;
 		twin_stick_direc = atan2f(x, y);
 	}
@@ -4616,7 +4623,8 @@ static void twin_stick_aim(void)
 }
 
 // The ship moved by the controls (keys, a digital pad): seen from the side (the 3D view turned
-// clockwise, the level scrolling to the right), right is up the level and down is right on it.
+// clockwise, the level scrolling to the right), right is up the level and down is right on it;
+// upside down in the 3D view (view_turned), right is left on it.
 // What moves the ship otherwise (the autopilot, constant play) goes in the level's terms.
 static void controls_move(Player *this_player, int dx, int dy)
 {
@@ -4627,7 +4635,7 @@ static void controls_move(Player *this_player, int dx, int dy)
 	}
 	else
 	{
-		this_player->x += dx;
+		this_player->x += view_turned() ? -dx : dx;
 		this_player->y += dy;
 	}
 }
@@ -5010,6 +5018,8 @@ redo:
 					mouseXC = mouseYC;
 					mouseYC = -cx;
 				}
+				else if (view_turned())
+					mouseXC = -mouseXC;  // (Tyrian3D: see view_turned)
 
 				if (smoothies[9-1])
 				{
@@ -5726,10 +5736,13 @@ redo:
 							}
 							else if (button[1-1])
 							{
-								const uint item_power = galagaMode ? 0 : this_player->items.weapon[temp].power - 1,
+								const uint power = galagaMode ? 1 : this_player->items.weapon[temp].power,
+								           item_power = weapon_power_index(power),
 								           item_mode = (temp == REAR_WEAPON) ? this_player->weapon_mode - 1 : 0;
 
+								player_shot_overclock = weapon_overclock(power);
 								b = player_shot_create(item, temp, this_player->x, this_player->y, *mouseX_, *mouseY_, weaponPort[item].op[item_mode][item_power], playerNum_);
+								player_shot_overclock = 0;
 							}
 						}
 					}
@@ -5769,7 +5782,7 @@ redo:
 						if (chargeLevel < chargeMax)
 							chargeLevel++;
 
-						chargeWait = 28 - this_player->items.weapon[REAR_WEAPON].power * 2;
+						chargeWait = 28 - (int)SDL_min(this_player->items.weapon[REAR_WEAPON].power, 11) * 2;
 						if (difficultyLevel > DIFFICULTY_HARD)
 							chargeWait -= 5;
 					}
@@ -5790,7 +5803,7 @@ redo:
 							fill_rectangle_xy(VGAScreenSeg, 269, 107 + (chargeLevel - 1) * 3, 275, 108 + (chargeLevel - 1) * 3, 193);
 
 						chargeLevel = 0;
-						chargeWait = 30 - this_player->items.weapon[REAR_WEAPON].power * 2;
+						chargeWait = 30 - (int)SDL_min(this_player->items.weapon[REAR_WEAPON].power, 11) * 2;
 					}
 				}
 
@@ -6210,8 +6223,8 @@ static uint power_up_port(JE_integer evalue)
 	if (episodeNum != EPISODE_GBC || twoPlayerMode)
 		return port;
 	const PlayerItems *items = &player[0].items;
-	const bool can = items->weapon[port].id != 0 && items->weapon[port].power < 11,
-	           other_can = items->weapon[other].id != 0 && items->weapon[other].power < 11;
+	const bool can = items->weapon[port].id != 0 && items->weapon[port].power < weapon_power_max(),
+	           other_can = items->weapon[other].id != 0 && items->weapon[other].power < weapon_power_max();
 	return !can && other_can ? other : port;
 }
 

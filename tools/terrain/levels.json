@@ -660,11 +660,6 @@
   "background": 2,
   "solid": true
  },
- "2d4db997b5491e24": {
-  "level": "DEEP ICE",
-  "background": 3,
-  "solid": true
- },
  "fd51fe9687ddb5f7": {
   "classes": 6,
   "heights": {},

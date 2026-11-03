@@ -72,8 +72,9 @@ def main(names):
                 continue
             if background == 1:
                 settings[h] = dict(terrain, level=name)
-            elif solid:
-                # Upper layers as solids (walls of ice, crust), as their originals have them.
+            elif solid is True or background in (solid or ()):
+                # Upper layers as solids (walls of ice, crust), as their originals have them (solid_upper
+                # True, or the backgrounds that are: DEEP ICE's floating crystals on layer 3 are tiles).
                 settings[h] = {"level": name, "background": background, "solid": True}
             else:
                 continue

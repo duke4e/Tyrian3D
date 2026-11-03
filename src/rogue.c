@@ -613,10 +613,10 @@ static void apply_card(const Card *card)
 		*item_slot(card->item_kind) = card->id;
 		break;
 	case CARD_POWER_FRONT:
-		items->weapon[FRONT_WEAPON].power = (Uint8)SDL_min(items->weapon[FRONT_WEAPON].power + 1, 11);
+		items->weapon[FRONT_WEAPON].power = (Uint8)SDL_min(items->weapon[FRONT_WEAPON].power + 1, weapon_power_max());
 		break;
 	case CARD_POWER_REAR:
-		items->weapon[REAR_WEAPON].power = (Uint8)SDL_min(items->weapon[REAR_WEAPON].power + 1, 11);
+		items->weapon[REAR_WEAPON].power = (Uint8)SDL_min(items->weapon[REAR_WEAPON].power + 1, weapon_power_max());
 		break;
 	case CARD_LIFE:
 		++run.lives;
@@ -847,7 +847,7 @@ static void card_texts(const Card *card, const char **title, const char **name, 
 		const int w = card->kind == CARD_POWER_FRONT ? FRONT_WEAPON : REAR_WEAPON;
 		*title = "Power Up";
 		*name = trimmed(weaponPort[items->weapon[w].id].name);
-		snprintf(detail, size, "Power %d to %d", items->weapon[w].power, SDL_min(items->weapon[w].power + 1, 11));
+		snprintf(detail, size, "Power %d to %d", items->weapon[w].power, SDL_min(items->weapon[w].power + 1, weapon_power_max()));
 		break;
 	}
 	case CARD_LIFE:
@@ -1655,7 +1655,7 @@ static void start_run(Uint32 seed)
 	{
 		player[0].items.weapon[FRONT_WEAPON].id = (Uint8)SDL_clamp(front, 0, PORT_NUM);
 		player[0].items.weapon[REAR_WEAPON].id = (Uint8)SDL_clamp(rear, 0, PORT_NUM);
-		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (Uint8)SDL_clamp(power, 1, 11);
+		player[0].items.weapon[FRONT_WEAPON].power = player[0].items.weapon[REAR_WEAPON].power = (Uint8)SDL_clamp(power, 1, WEAPON_POWER_OVERCLOCK);
 	}
 
 	rogue_run = true;

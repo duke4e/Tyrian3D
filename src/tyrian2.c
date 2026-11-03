@@ -1021,6 +1021,9 @@ static int ticks_until(JE_word eventtime, bool slow, int event_step)
  */
 static bool prespawned[EVENT_MAXIMUM];
 #define WIDE_AHEAD 64  // the wide playfield reaches this far above the screen (the overscan rows the 3D view gets)
+// Seen from the side (event 200), the playfield reaches at least this far ahead: a 16:9 window, seen from straight above
+// with the playfield's width as tall as the window, shows 535 game pixels across from 6 % in, to 351 above the screen.
+#define SIDE_AHEAD 340
 static int prespawn_rise = 0;   // made by prespawn_events: this far above where the event puts it,
 static int prespawn_ticks = 0;  // this many ticks ahead of its time
 
@@ -1564,17 +1567,26 @@ static void show_field(int enemy_index, int x, int y, P3DField field, float reac
  * screen, and at its sides), so it can bring a boss down before the level's events take it over: HARVEST's ship (link
  * 10), shot down before its fight, left the one piece the fight then makes (enemy 66, stopped high above the playfield,
  * to go with the ship) alone and out of reach, and the map, stopped until the ground's enemies are gone, never moved
- * on. An enemy like that (above where the shots reach, not coming down, the last of its link) doesn't hold the map
- * stopped (enemyOnScreen); once the map moves on it comes down with the ground and can be fought.
+ * on. An enemy like that (above where the shots reach, not coming down, and so all that is left of its link) doesn't
+ * hold the map stopped (enemyOnScreen); once the map moves on it comes down with the ground and can be fought.
  */
+static bool out_of_reach(int i)
+{
+	// (The layer that carries it, by its slot as JE_drawEnemy's groups take them: ground 25-49 and 75-99, sky 0-24,
+	// top 50-74.)
+	const int carried = i < 25 ? 0 : i < 50 || i >= 75 ? backMove : backMove3;
+	return enemy[i].ey + (enemy[i].size == 1 ? 28 : 14) <= -15 - l3d_field_ahead &&  // (shots: shots.c)
+	       enemy[i].eyc + enemy[i].fixedmovey + carried <= 0;
+}
+
 static bool stranded_enemy(int i)
 {
-	if (!l3d_field_wide || enemy[i].linknum == 0 ||
-	    enemy[i].ey + (enemy[i].size == 1 ? 28 : 14) > -15 - l3d_field_ahead ||  // (shots: shots.c)
-	    enemy[i].eyc + enemy[i].fixedmovey + tempBackMove > 0)
+	// (All that is left of its link, not only the last one: a boss's pieces made after its core was shot down,
+	// stopped above the playfield with the map.)
+	if (!l3d_field_wide || enemy[i].linknum == 0 || !out_of_reach(i))
 		return false;
 	for (int j = 0; j < 100; ++j)
-		if (j != i && enemyAvail[j] != 1 && enemy[j].linknum == enemy[i].linknum)
+		if (j != i && enemyAvail[j] != 1 && enemy[j].linknum == enemy[i].linknum && !out_of_reach(j))
 			return false;
 	return true;
 }
@@ -1741,13 +1753,21 @@ enemy_still_exists:
 			/* Evalue != 0 - score item at boundary */
 			if (enemy[i].scoreitem)
 			{
-				// (Tyrian3D: on the wide playfield, inside its 0-319 where it shows, its layer's
-				// offset held still.)
-				const int left = l3d_field_wide ? 1 - tempMapXOfs : -5, right = l3d_field_wide ? 307 - tempMapXOfs : 245;
+				// (Tyrian3D: on the wide playfield, where the ship can pick it up: within 8 of where the ship goes
+				// (x 16-288, a pickup within 12: mainint.c), its layer's offset held still; at 1-307, the edges of
+				// what shows, it was out of reach.)
+				const int left = l3d_field_wide ? 40 - l3d_field_left() - 8 - tempMapXOfs : -5;
+				const int right = l3d_field_wide ? 256 + l3d_field_right() + 8 - tempMapXOfs : 245;
 				if (enemy[i].ex < left)
 					enemy[i].ex++;
 				if (enemy[i].ex > right)
 					enemy[i].ex--;
+				// (Tyrian3D: above where the ship goes, not coming down: down into reach, as gently; and once the
+				// level only waits for the screen to clear (36), down past the ship and away, since one standing
+				// still held the level's end (REEF's cube from a courier: until its closing event, 40 s on).)
+				if (!isNetworkGame && !play_demo && !record_demo && enemy[i].eyc + enemy[i].fixedmovey + tempBackMove <= 0 &&
+				    ((l3d_field_wide && enemy[i].ey < 10 - l3d_field_ahead - 8) || readyToEndLevel))
+					enemy[i].ey++;
 			}
 
 			enemy[i].ey += tempBackMove;
@@ -2221,7 +2241,6 @@ start_level_first:
 
 	JE_outText(VGAScreen, 268, twoPlayerMode ? 76 : 118, levelName, 12, 4);
 	printf("level: %s (episode %d)\n", levelName, episodeNum);  // Tyrian3D: for logs and sweeps
-
 	video_level_intro(true);  // Tyrian3D: no panel fading in with the modern HUD (video.h)
 	JE_showVGA();
 	JE_gammaCorrect(&colors, gammaCorrection);
@@ -2522,6 +2541,7 @@ start_level_first:
 	l3d_level_frame = l3d_frame_number;
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
+	l3d_chase = SDL_getenv("TYR3D_CHASE") != NULL;  // (dev: any level from behind the ship)
 	// (not for the demos: they replay inputs on the original playfield)
 	l3d_field_wide = debug_flight_field_wide(settings3d.view_3d && settings3d.playfield_wide && !isNetworkGame &&
 	                                         !play_demo && !record_demo);
@@ -2696,7 +2716,7 @@ level_loop:
 				int x = twoPlayerMode ? 286 : 289,
 				    y = (i == 0) ? (twoPlayerMode ? 6 : 17) : (twoPlayerMode ? 100 : 38);
 
-				fill_rectangle_xy(VGAScreenSeg, x, y, x + 1 + 10 * 2, y + 2, 0);
+				fill_rectangle_xy(VGAScreenSeg, x, y, x + 1 + (WEAPON_POWER_OVERCLOCK - 1) * 2, y + 2, 0);  // (Tyrian3D: to 15)
 
 				for (uint j = 1; j <= item_power; ++j)
 				{
@@ -4040,6 +4060,20 @@ draw_player_shot_loop_end:
 	goto level_loop;
 }
 
+// A line of the episode's script, or false at its end: read_encrypted_pascal_string stops the game there, and feof()
+// only says so once a read has failed (a cube picked up in an episode's last level, whose next section is its ending:
+// no "]?" nor "]L" before the end).
+static bool script_line(char *s, size_t size, FILE *f, long end)
+{
+	const long at = ftell(f);
+	const int len = fgetc(f);
+	if (len == EOF || at + 1 + len > end)
+		return false;
+	fseek(f, at, SEEK_SET);
+	read_encrypted_pascal_string(s, size, f);
+	return true;
+}
+
 int upcoming_cube(int n)
 {
 	if (n <= 0)
@@ -4047,19 +4081,22 @@ int upcoming_cube(int n)
 	FILE *f = dir_fopen(data_dir(), episode_file, "rb");
 	if (f == NULL)
 		return 0;
+	fseek(f, 0, SEEK_END);
+	const long end = ftell(f);
+	fseek(f, 0, SEEK_SET);
 	char s[256];
 	int section = 0, cube = 0;
-	while (section < nextLevel && !feof(f))
+	while (section < nextLevel && script_line(s, sizeof(s), f, end))
 	{
-		read_encrypted_pascal_string(s, sizeof(s), f);
 		if (s[0] == '*')
 			++section;
 	}
 	// (as JE_loadMap reads "]?": the count at 4, the cubes at 7, 11, ...)
-	for (int lines = 0; lines < 2000 && !feof(f); ++lines)
+	for (int lines = 0; lines < 2000; ++lines)
 	{
 		strcpy(s, " ");
-		read_encrypted_pascal_string(s, sizeof(s), f);
+		if (!script_line(s, sizeof(s), f, end))
+			break;
 		if (s[0] != ']')
 			continue;
 		if (s[1] == 'L')
@@ -5705,7 +5742,8 @@ void JE_displayText(void)
 	JE_outCharGlow(JE_fontCenter(miscText[4], TINY_FONT), tempW, miscText[4]);
 	story_refresh();
 
-	do
+	bool released = false;  // (Tyrian3D: see below)
+	for (;;)
 	{
 		if (levelWarningDisplay)
 			JE_updateWarning(VGAScreen);
@@ -5716,7 +5754,15 @@ void JE_displayText(void)
 
 		wait_delay();
 
-	} while (!(JE_anyButton() || (frameCountMax == 0 && temp == 1) || ESCPressed));
+		// (Tyrian3D: a mouse or pad button already held as the text comes, firing as the level ended or as the warp orb
+		// was picked up, counts only once let go: it skipped the text at once, VAULT's arrival among them.)
+		const bool any = JE_anyButton();
+		if (any && (newkey || released))
+			break;
+		if ((frameCountMax == 0 && temp == 1) || ESCPressed)
+			break;
+		released = released || !(mousedown || joydown);
+	}
 	levelWarningDisplay = false;
 	story_end();
 }
@@ -7217,8 +7263,13 @@ void JE_eventSystem(void)
 	case 200:  // Tyrian3D: the level seen from the side (d1 1) or from above again (0)
 		l3d_sideways = eventRec[eventLoc-1].eventdat != 0;
 		l3d_side_decor = eventRec[eventLoc-1].eventdat2;
+		// (At least SIDE_AHEAD: enemies are made past the window's right edge rather than in the middle of it.)
 		l3d_field_ahead = eventRec[eventLoc-1].eventdat != 0 && eventRec[eventLoc-1].eventdat3 > 0
-		                  ? eventRec[eventLoc-1].eventdat3 * 10 : l3d_field_wide ? WIDE_AHEAD : 0;
+		                  ? SDL_max(eventRec[eventLoc-1].eventdat3 * 10, SIDE_AHEAD) : l3d_field_wide ? WIDE_AHEAD : 0;
+		break;
+
+	case 205:  // Tyrian3D: the level seen from behind the ship (d1 1) or from above again (0)
+		l3d_chase = eventRec[eventLoc-1].eventdat != 0;
 		break;
 
 	default:
@@ -7323,7 +7374,9 @@ void draw_boss_bar(void)
 
 		for (unsigned int e = 0; e < COUNTOF(enemy); e++)  // find most damaged
 		{
-			if (enemyAvail[e] != 1 && enemy[e].linknum == boss_bar[b].link_num)
+			// (Tyrian3D: not its wrecks, enemyAvail 2: a boss gone to wrecks kept its bar up at its last hit's armour,
+			// REEF's GYGES in the middle of the level until the next boss's bar)
+			if (enemyAvail[e] == 0 && enemy[e].linknum == boss_bar[b].link_num)
 				if (enemy[e].armorleft < armor)
 					armor = enemy[e].armorleft;
 		}
@@ -7347,8 +7400,7 @@ void draw_boss_bar(void)
 		if (SDL_getenv("TYR3D_LOG_BOSS") != NULL && armor != logged[b])
 		{
 			logged[b] = armor;
-			printf("boss: bar %u link %d armor %u\n", b, boss_bar[b].link_num, armor);
-		}
+			printf("boss: bar %u link %d armor %u\n", b, boss_bar[b].link_num, armor);		}
 	}
 
 	unsigned int bars = (boss_bar[0].link_num != 0 ? 1 : 0)

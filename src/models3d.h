@@ -26,7 +26,6 @@ typedef struct
 	float yaw, pitch, roll;   // degrees, applied to face the model up the screen
 	bool keep_origin;         // drawn at its own origin (pieces of one object), not centred in height
 	bool flame;               // its glowing materials drawn added to what is behind (fire as glowing gas, not lumps)
-	bool face;                // seen from the side (sideways levels) it faces the camera as from above, not on its side
 } M3DModel;
 
 typedef enum

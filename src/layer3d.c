@@ -21,6 +21,7 @@
 
 bool l3d_enabled = false;
 bool l3d_sideways = false;
+bool l3d_chase = false;
 int l3d_side_decor = 0;
 Uint32 l3d_level_frame = 0;
 int l3d_field_ahead = 0;

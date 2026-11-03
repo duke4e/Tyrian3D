@@ -50,6 +50,11 @@ bool player_shot_move_and_draw(
 	JE_byte *out_chain, JE_byte *out_playerNum,
 	JE_word *out_special_radiusw, JE_word *out_special_radiush);
 
+/** Tyrian3D: how far past power 11 the shots player_shot_create makes are (0-4, weapon_overclock): each step 25 %
+ * harder (and so through more, as a shot goes on with what an enemy's armour leaves of it) and 10 % quicker to
+ * fire again. Set by the caller round the call. */
+extern unsigned int player_shot_overclock;
+
 /** Creates a player shot. */
 JE_integer player_shot_create(
 	JE_word portnum, uint shot_i, JE_word px, JE_word py,

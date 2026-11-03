@@ -55,6 +55,15 @@ def layout():
     return sections, entries, section
 
 
+def story_text(stage):
+    """A stage's message before its level, as the originals give theirs: over a picture (]P, as
+    every ]W of theirs; else it showed over the screen before it, the store's old map or the black
+    after a level), a warning ("Warning:" first: ]Wy, the alarm) or a story text (]Wn)."""
+    lines = stage["warning"]
+    kind = "]Wy 01[" if lines[0].startswith("Warning") else "]Wn 03["
+    return [f"]P {story.WARNING_PICTURE:03d}[", kind] + lines + ["#"]
+
+
 def script(levels):
     """levels6.dat: for each main stage a shop section (its cubes, the planet map's one
     destination, the items), then the level's section (a warning before it); a secret stage's level
@@ -93,7 +102,7 @@ def script(levels):
             previous = []
         lines += [f"*{section} SECTION - Episode 6 {'Stage %d' % number if kind == 'main' else kind.title()}"]
         if stage.get("warning"):
-            lines += ["]Wy 01["] + stage["warning"] + ["#"]
+            lines += story_text(stage)
         if kind == "secret":
             parent = next(j for j, s in enumerate(all_stages) if s["level"] == stage["parent"])
             assert not all_stages[parent].get("secret"), "a level with a secret level hides no cube"
@@ -160,10 +169,13 @@ def level_entries(level, importer):
     letter = level["shapes"].upper().encode("latin1")
     head = letter + letter + struct.pack("<3H", 1, 1, 1) + struct.pack("<H", 0)
     events = level["events"]
-    sheets = {v for e in events if e["t"] == 0 and e["type"] == 5 for v in (e["d1"], e["d2"], e["d3"], e["d4"])}
+    sheets = set()
     body = struct.pack("<H", len(events))
     for e in events:
         d1 = e["d1"]
+        if e["type"] == 5:
+            # (the sheets loaded from here on: THE HOARD changes them for each boss)
+            sheets = {e["d1"], e["d2"], e["d3"], e["d4"]}
         if e["type"] == 12 and "ep" in e:
             d1 = importer.enemy_block(e["ep"], d1)
         elif (e["type"] in waves.SPAWNS and "ep" in e and isinstance(e["ep"], int) and d1 > 0
@@ -203,6 +215,9 @@ def main():
             if e.get("warp"):
                 assert e["warp"] in sections, f"{level['name']}: no secret level {e['warp']}"
                 e["d1"] = importer.custom(e.pop("ep"), e["d1"], value=10000 + sections[e.pop("warp")])
+            elif e.get("value"):
+                # (a pickup that gives a special weapon: compose.courier_events)
+                e["d1"] = importer.custom(e.pop("ep"), e["d1"], value=e.pop("value"))
     entries = []
     for level in levels:
         entries += level_entries(level, importer)

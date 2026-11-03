@@ -100,25 +100,59 @@ class Source:
         last = max(bars, key=lambda e: e["t"])
         return {v for v in (last["d1"], last["d2"]) if v}
 
-    def boss(self):
+    def boss(self, stages=False):
         """The boss block: its time (the first event of it) and events (times relative to it), or
-        None. It starts at the boss enemies' first spawn, or the warning before it."""
+        None. It starts at the boss enemies' first spawn, or the warning before it.
+
+        stages: a boss fought in stages taken whole (DREAD-NOT's five parts, ASSASSIN's two; the
+        user, 2026-11-03, of GRAVITRON: "ne mogu ubiti glavnoga"): the bars before its last one, from
+        its block on, and the links its jumps look for (70) are the boss's too, and its jumps from one
+        stage to the next and round a stage (70, 54; 71, where the map stops for it) are kept, their
+        targets as far into the block ("jump", for compose.place). Without them only its last part
+        came, shot at only when its stages' time had run out."""
         links = self.boss_links()
         if not links:
             return None
-        spawn_times = [e["t"] for e in self.events if e["type"] in SPAWNS and e["d4"] in links and e["t"] < 60000]
-        if not spawn_times:
+
+        def first(links):
+            spawn_times = [e["t"] for e in self.events if e["type"] in SPAWNS and e["d4"] in links and e["t"] < 60000]
+            if not spawn_times:
+                return None
+            start = min(spawn_times)
+            warning = [e["t"] for e in self.events if e["type"] == 16 and start - 400 <= e["t"] <= start]
+            return min(warning + [start])
+
+        def linked(e):
+            return e["d4"] if e["type"] in CUSTOM_SPAWNS else by_link(e)
+
+        start = first(links)
+        if start is None:
             return None
-        start = min(spawn_times)
-        warning = [e["t"] for e in self.events if e["type"] == 16 and start - 400 <= e["t"] <= start]
-        start = min(warning + [start])
+        staged = False
+        while stages:
+            end = max(e["t"] for e in self.events if e["t"] < 60000 and linked(e) in links)
+            more = set()
+            for e in self.events:
+                if start <= e["t"] <= end and e["type"] == 79:
+                    more |= {v for v in (e["d1"], e["d2"]) if v}
+                elif start <= e["t"] <= end and e["type"] == 70 and e["d2"]:
+                    more |= {v for v in (e["d2"], e["d3"] & 0xFF, e["d4"]) if v}
+            if more <= links:
+                break
+            links, staged = links | more, True
+            start = first(links)
+        end = max(e["t"] for e in self.events if e["t"] < 60000 and linked(e) in links)
         block = []
         for e in self.events:
             if e["t"] < start or e["t"] >= 60000:
                 continue
-            link = e["d4"] if e["type"] in CUSTOM_SPAWNS else by_link(e)
-            if link in links or e["type"] in BOSS_SCRIPT and e["type"] != 2 or e["type"] == 39 and e["d1"] in links:
+            if linked(e) in links or e["type"] in BOSS_SCRIPT and e["type"] != 2 or e["type"] == 39 and e["d1"] in links:
                 block.append(dict(e, t=e["t"] - start))
+            elif staged and e["type"] in (54, 70, 71) and e["t"] <= end and (e["type"] != 70 or e["d2"]):
+                if e["type"] == 54 and e["d1"] == -1:
+                    block.append(dict(e, t=e["t"] - start))  # (a return)
+                elif start <= e["d1"] <= end:
+                    block.append(dict(e, t=e["t"] - start, jump=e["d1"] - start))
         return dict(start=start, events=block, links=links)
 
     def waves(self, max_gap=40, max_count=16, span=1500, ground=False):
@@ -158,7 +192,7 @@ class Source:
         out = []
         for i, w in enumerate(waves):
             links = spawned[i]
-            evs = sorted(w["spawns"] + attached[i], key=lambda e: e["t"])
+            evs = sorted(w["spawns"] + attached[i] + self.arch_parts(w["spawns"]), key=lambda e: e["t"])
             evs = [dict(e, t=e["t"] - w["start"]) for e in evs]
             enemies = [e["d1"] for e in w["spawns"]]
             # (Sheets: of the enemies, what they launch or leave, and what the wave's events put in.)
@@ -168,6 +202,50 @@ class Source:
                             enemies=enemies, count=len(enemies), length=max(e["t"] for e in evs),
                             armor=sum(min(self.enemies[x]["armor"], 100) for x in enemies if x in self.enemies),
                             banks=sorted(sheets)))
+        return out
+
+    # The tan rock arch of SURFACE and DESERTRUN (assets/models/models.cfg): its top row (162, 164, the span's 166, 168,
+    # 170, the right leg's 241) over its bottom row (the left foot 198, 200, 202, the span's 204, 206, 208, 279, the
+    # right feet 281, 282), 24 pixels a column, the span's bottom piece 38 sprites on from its top one.
+    ARCH_TOP = (162, 164, 166, 168, 170)
+    ARCH_SPAN = (166, 168, 170)
+
+    def arch_parts(self, spawns):
+        """What a wave's rock arches lack of themselves, as top enemies made with them: the originals make an arch's
+        feet now and then on the ground (layer 1: a wave leaves them out) and stand something else in its middle
+        (SURFACE's gun hut, on a link its ground enemies use too: a wave leaves it out), so in a new level an arch
+        stood in two halves (ROOST, COLLECTOR). The feet are made at the top layer with the rest, the middle bridged
+        with the span's columns."""
+        def graphic(e):
+            en = self.enemies.get(e["d1"])
+            return (en["shapebank"], en["egraphic"][0]) if en and e["type"] in TOP_SPAWNS else (None, None)
+
+        legs = [e for e in spawns if graphic(e)[1] == 241]
+        out = []
+        for leg in legs:
+            bank = graphic(leg)[0]
+            ids = {}
+            for number, en in sorted(self.enemies.items()):
+                if en["shapebank"] == bank and not en["xmove"] and not en["ymove"]:
+                    ids.setdefault(en["egraphic"][0], number)
+            same = [e for e in spawns if e["t"] == leg["t"] and graphic(e)[0] == bank]
+            have = {(graphic(e)[1], e["d2"]) for e in same}
+            top = [e["d2"] for e in same if graphic(e)[1] in self.ARCH_TOP and e["d2"] < leg["d2"]]
+            if not top:
+                continue
+            row, low = leg["d5"], leg["d5"] + 28
+
+            def part(number, x, y):
+                if number in ids and (number, x) not in have:
+                    out.append(dict(leg, d1=ids[number], d2=x, d5=y))
+
+            for k, x in enumerate(range(max(top) + 24, leg["d2"], 24)):
+                span = self.ARCH_SPAN[min(k, 2)]
+                part(span, x, row)
+                part(span + 38, x, low)
+            for number, x in ((198, min(top) - 24), (281, leg["d2"] + 24), (282, leg["d2"] + 36)):
+                if not any(graphic(e)[1] == number for e in same):
+                    part(number, x, low)
         return out
 
     def map_grid(self):

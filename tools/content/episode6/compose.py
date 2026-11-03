@@ -18,6 +18,7 @@ COURIER_LINK = 40         # the secret couriers' (waves get links 1-39)
 DATA_CUBE = 512           # the item data's data cube (value 1; sheet 21, always there)
 WARP_ORB = 593            # a warp orb (sheet 20); the build gives each secret level its own
 WARP_SHEET = 20
+SPECIAL_PICKUP = 1296     # a special weapon's pickup (sheet 26, always there); the build sets which special
 
 
 def event(t, type_, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0, ep=None):
@@ -77,8 +78,10 @@ def place(template, start, links, ep):
             e["d1"] = start + template["loop"][1] + 2
         elif jump == "loop":
             e["d1"] = start + template["loop"][0]
-        elif jump is not None and e["type"] == 57:
-            e["d1"] = start + jump  # (the boss's own jump when it dies: boss_jumps)
+        elif isinstance(jump, int):
+            e["d1"] = start + jump  # (the boss's own jumps: when it dies, boss_jumps; its stages, waves.Source.boss)
+        elif jump == "gone":
+            e["gone"] = True  # (its target, past the level's end, set by expand)
         if e["d4"] in mapping and (e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS or W.by_link(e) is not None):
             e["d4"] = mapping[e["d4"]]
         if e["type"] == 39:
@@ -90,10 +93,16 @@ def place(template, start, links, ep):
         if e["type"] == 70 and e["d2"]:
             e["d2"] = mapping.get(e["d2"], e["d2"])
             e["d4"] = mapping.get(e["d4"], e["d4"])
+            if e["d3"]:  # (a third link, a signed byte in the file: DREAD-NOT's 141 is -115)
+                d3 = mapping.get(e["d3"] & 0xFF, e["d3"] & 0xFF)
+                e["d3"] = d3 - 256 if d3 > 127 else d3
         if e["type"] in ENEMY_D1:
             e["ep"] = ep
             if e["type"] in (33, 45) and e["d1"] in (512, 513):
                 # An original's data cube: episode 6's cubes are its own (story.py).
+                e["d1"], e["ep"] = 396, 5
+            elif e["type"] in W.SPAWNS and W.tyrdata.load_items(ep)["enemies"].get(e["d1"], {}).get("value") == 1:
+                # (an original's cube made as an enemy: TYRIAN X's boss's 53; a coin instead)
                 e["d1"], e["ep"] = 396, 5
         out.append(e)
     return out
@@ -107,13 +116,20 @@ def expand(level):
     sources = {}
     placed = []
     end = None
+    boss_block = None
     for p in sorted(level["placements"], key=lambda p: p["start"]):
         key = (p["episode"], p["name"])
         if key not in sources:
             sources[key] = W.Source(*key)
         source = sources[key]
         if p["kind"] == "boss":
-            template = dict(source.boss(), length=CLOCK_END - p["start"])
+            template = dict(source.boss(stages=True), length=CLOCK_END - p["start"])
+            if level.get("banks"):
+                # (Its parts on a sheet the level doesn't load would be there unseen, shot at blind:
+                # DREAD-NOT's four guns in GRAVITRON. Left out, their stage's jump finds them gone.)
+                loaded = set(level["banks"]) | {21, 26}
+                template["events"] = [e for e in template["events"] if e["type"] not in W.SPAWNS or
+                                      source.enemies[e["d1"]]["shapebank"] in loaded]
             template["events"] = template["events"] + boss_speeds(source, template, speed_at(level["events"], p["start"])) + \
                 boss_jumps(source, template)
             if not any(e["type"] in (36, 57) for e in template["events"]):
@@ -121,7 +137,10 @@ def expand(level):
                 # ends once it is gone.)
                 first = min(e["t"] for e in template["events"] if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS)
                 template["events"].append(event(first + 1, 36))
+            template["events"] = shorter_invulnerable(template["events"], source)
+            template["events"] = sorted(template["events"] + boss_gone(template, p.get("flip")), key=lambda e: e["t"])
             end = boss_end(source, template, p["start"])
+            boss_block = (source, template, p["start"])
         elif p["kind"] == "midboss":
             template = midboss_template(source, p)
         else:
@@ -132,10 +151,21 @@ def expand(level):
         if p.get("drop"):
             events = with_drops(events, p["drop"])
         placed += events
+    if boss_block:
+        placed += escorts(level, *boss_block, links)
     own = [dict(e, t=max(e["t"], end)) if end is not None and e["type"] == 11 else e for e in level["events"]]
+    # What a boss's end does (boss_gone) lies well past the level's end, reached only by its jumps.
+    if any("gone" in e for e in placed):
+        past = max(e["t"] for e in own + placed if "gone" not in e) + 1000
+        for e in placed:
+            mark = e.pop("gone", None)
+            if mark is False:
+                e["t"] = past   # (what it does)
+            elif mark:
+                e["d1"] = past  # (a look for the boss that jumps there)
     head = [e for e in own if e["t"] == 0]
     rest = [e for e in own if e["t"] > 0]
-    return with_small_adjust(head + sorted(rest + placed, key=lambda e: e["t"]))
+    return counted_skips(with_small_adjust(head + sorted(rest + placed, key=lambda e: e["t"])))
 
 
 def speed_at(events, t):
@@ -229,6 +259,149 @@ def boss_end(source, boss, start):
     return start + (min(ends[0], max(targets) + 150) if targets else ends[0])
 
 
+FLIP_LONGEST = 900  # clock the screen stays turned over at most while a boss is fought (EYESPY's: 930)
+
+
+def boss_gone(boss, flip=False):
+    """What an original's boss (a block at the level's end) does once it is gone: its wrecks sent
+    down off the screen (pieces its pattern holds in place stayed as wrecks, holding up its end
+    when clear, 36, until the level's last event: REEF's IXMUCANE, DEEP ICE's ASSASSIN, 20 s and
+    more of nothing), its bar taken down. flip: the screen upside down while it is fought, as
+    EYESPY's boss turns it (the user, 2026-11-03, of ROOST's turn by the clock: "totalno bezveze"):
+    a danger message, the turn once it is in place (100 after its last enemy is made), back once
+    it is gone, or after FLIP_LONGEST; none if it is gone before. It is looked for every 25 from
+    its last enemy on (70: its links dead) with a jump to those events, past the level's end,
+    which return (54 -1), so none of the boss's own events is passed over (its pattern moving the
+    wrecks again in between: sent down again at the next look). None for a boss of more than
+    three links (70 looks for three: DREAD-NOT's stages end the level their own way)."""
+    links = sorted(boss["links"])
+    if len(links) > 3:
+        return []
+    a, b, c = (links + [0, 0])[:3]
+    made = max(e["t"] for e in boss["events"] if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS)
+    end = max(e["t"] for e in boss["events"])
+    at = made + 100
+    looks = {t: dict(event(t, 70, d1=-1, d2=a, d3=c - 256 if c > 127 else c, d4=b), jump="gone")
+             for t in range(at - 75, end + 600, 25)}
+    out = list(looks.values())
+    done = [event(0, 20, d4=link) for link in links] + [event(0, 19, d2=3, d4=link) for link in links] + [event(0, 79)]
+    if flip:
+        # (the turn after the look at its time, which passes it by when the boss is gone)
+        out = [e for e in out if e["t"] <= at] + [event(at - 40, 16, d1=MESSAGE_DANGER, d2=30),
+                                                   event(at, 64, d1=9, d2=1, d3=1),
+                                                   event(at + FLIP_LONGEST, 64, d1=9, d2=0)] + \
+            [e for e in out if e["t"] > at]
+        done.insert(0, event(0, 64, d1=9, d2=0))
+    return out + [dict(e, gone=False) for e in done + [event(0, 54, d1=-1)]]
+
+
+MAX_INVULNERABLE = 350  # clock a boss's part may stand unshootable unless a stage before it holds it there
+
+
+def shorter_invulnerable(events, source):
+    """A boss block's events with its parts shootable sooner: a part made unshootable (armour 255 in its data or
+    its spawn, or set so by 25) and made shootable later by 25 waits at most MAX_INVULNERABLE, unless a jump of its
+    pattern lies between (a stage that must be cleared first: ASSASSIN's second, DREAD-NOT's stages): the 25 and the
+    bar that comes with it (79 on its link) come sooner (the user, 2026-11-03: "skratiti vrijeme glavnih kad su
+    besmrtni, osim ako nemaju neki event koji to opravdava"; BRAINIAC's brain stood unshootable 1000 clock)."""
+    jumps = [e["t"] for e in events if e["type"] in (54, 70, 71)]
+    since, moves = {}, {}
+    for e in sorted(events, key=lambda e: e["t"]):
+        link = e["d4"]
+        if not link:
+            continue
+        if e["type"] in W.SPAWNS:
+            en = source.enemies.get(e["d1"])
+            if en and en["armor"] == 255:
+                since.setdefault(link, e["t"])
+        elif e["type"] in W.CUSTOM_SPAWNS and e["d6"] == 255:
+            since.setdefault(link, e["t"])
+        elif e["type"] == 25:
+            if e["d1"] >= 255:
+                since.setdefault(link, e["t"])
+                continue
+            t0 = since.pop(link, None)
+            if t0 is not None and e["t"] - t0 > MAX_INVULNERABLE and not any(t0 < j <= e["t"] for j in jumps):
+                moves[(e["t"], link)] = t0 + MAX_INVULNERABLE
+    out = []
+    for e in events:
+        to = moves.get((e["t"], e["d4"])) if e["type"] == 25 else None
+        if e["type"] == 79:
+            to = next((v for (t, link), v in moves.items() if t == e["t"] and link in (e["d1"], e["d2"])), None)
+        out.append(dict(e, t=to) if to is not None else e)
+    return sorted(out, key=lambda e: e["t"])
+
+
+# The boss's escorts (the user, 2026-11-03: "glavnima dodat neke začine tipa razni protivnici koji ponavljaju neku
+# patternu, štite glavne, gnjave igrača"): waves round it while it is fought, the same few in turn, from ESCORT_FIRST
+# after its last part is made, every ESCORT_EVERY, ESCORT_COUNT of them; each skipped once it is gone (its last
+# links set ESCORT_FLAG as they die, 60; each wave's events behind a 61 that skips them when it is set).
+ESCORT_FLAG = 10  # (GYGES's script uses 1 and 2)
+ESCORT_FIRST, ESCORT_EVERY, ESCORT_COUNT = 120, 420, 6
+ESCORT_COIN = 393  # 75 credits an escort
+
+
+def escort_waves(level, source, boss):
+    """The waves that escort a boss: its own level's from round its fight (its escorts there), else the new level's
+    own small ones; those the level's sheets show, two at most."""
+    banks = set(level.get("banks") or []) | {21, 26}
+
+    def fits(w, most):
+        return set(w["banks"]) <= banks and 2 <= w["count"] <= most and w["length"] <= 600 and             not set(w["links"]) & set(boss["links"])
+    own = [w for w in source.waves() if -600 <= w["start"] - boss["start"] <= 2500 and fits(w, 10)]
+    if len(own) < 2:
+        seen = set()
+        for p in level["placements"]:
+            if p["kind"] != "wave" or (p["episode"], p["name"], p["index"]) in seen:
+                continue
+            seen.add((p["episode"], p["name"], p["index"]))
+            w = W.Source(p["episode"], p["name"]).waves(ground=p.get("ground", False))[p["index"]]
+            if fits(w, 8):
+                own.append(w)
+    rnd = random.Random(level["name"])
+    return rnd.sample(own, min(2, len(own))) if own else []
+
+
+def escorts(level, source, boss, start, links):
+    """The escorts' events (see escort_waves), placed; and the boss's last links marked (60) as it is made."""
+    waves = escort_waves(level, source, boss)
+    if not waves:
+        return []
+    made = max(e["t"] for e in boss["events"] if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS)
+    out = [event(start + made + 2, 60, d1=ESCORT_FLAG, d2=1, d4=link) for link in sorted(source.boss_links())]
+    for k in range(ESCORT_COUNT):
+        t = start + made + ESCORT_FIRST + k * ESCORT_EVERY
+        placed = with_drops(place(waves[k % len(waves)], t, links, source.episode), ESCORT_COIN)
+        # (Only what makes its enemies is skipped: those already made keep their moves.)
+        by_tick = defaultdict(list)
+        for e in placed:
+            by_tick[e["t"]].append(e)
+        for tick in sorted(by_tick):
+            making = [e for e in by_tick[tick] if e["type"] in W.SPAWNS | {33, 45}]
+            if any(e["type"] in W.SPAWNS for e in making):
+                group = f"escort{k}@{tick}"
+                out.append(dict(event(tick, 61, d1=ESCORT_FLAG, d2=1), _skip=group))
+                out += [dict(e, _group=group) for e in making]
+            out += [e for e in by_tick[tick] if not any(e is m for m in making) or
+                    not any(m["type"] in W.SPAWNS for m in making)]
+    return out
+
+
+def counted_skips(events):
+    """The escorts' skips (61) counted as the events finally stand (with_small_adjust may have set an adjustment
+    among them), their marks taken off."""
+    out = [dict(e) for e in events]
+    for i, e in enumerate(out):
+        group = e.pop("_skip", None)
+        if group is None:
+            continue
+        last = max(j for j in range(i + 1, len(out)) if out[j].get("_group") == group)
+        e["d3"] = last - i
+    for e in out:
+        e.pop("_group", None)
+    return out
+
+
 def with_small_adjust(events):
     """The events with the small enemies' adjustment (26) set before every 1x1 enemy as its
     original made it ("adjust", waves.Source: on; off for the rest), and set again at every
@@ -268,6 +441,7 @@ def with_small_adjust(events):
 # --- Gimmicks (docs/plans/2026-10-09-epizoda-6.md, 7) --------------------------------------------
 
 HOLD_LOOP = 600  # clock of a siege's round of waves
+SIDE_AHEAD = 340  # seen from the side, how far the playfield reaches ahead (event 200's d3 x 10; tyrian2.c SIDE_AHEAD)
 MIDBOSS_DROP = {36, 11, 4, 83, 2, 30, 53, 34, 35, 46}  # a boss block's level-ending and speed events
 MESSAGE_BEHIND, MESSAGE_BOSS, MESSAGE_AFTERBURNER, MESSAGE_DANGER, MESSAGE_BONUS = 1, 2, 7, 8, 9
 
@@ -299,13 +473,29 @@ def midboss_template(source, p):
     speeds; its level-ending events left out."""
     boss = source.boss()
     stop, loop_from, loop_to = p["loop"]
-    events = [dict(e) for e in boss["events"] if e["type"] not in MIDBOSS_DROP and e["t"] <= loop_to
+    events = [dict(e) for e in shorter_invulnerable(boss["events"], source) if e["type"] not in MIDBOSS_DROP and e["t"] <= loop_to
               and not (e["type"] == 79 and not e["d1"] and not e["d2"])]  # (its bar stays up)
     links = sorted(boss["links"])
     a, b = links[0], (links[1] if len(links) > 1 else 0)
     b1, b2, b3 = p["speeds"]
     if not any(e["type"] == 16 for e in events):
         events.insert(0, event(0, 16, d1=MESSAGE_BOSS))
+    if p.get("dark"):
+        # Lights out while it is fought (only the ship's spotlight), from where the map stops until it is gone.
+        events.append(event(stop, 64, d1=6, d2=1, d3=1))
+    if p.get("side"):
+        # Seen from the side while it is fought (event 200: asteroids along the edges), from before it is made.
+        events.insert(0, event(0, 200, d1=1, d2=1, d3=SIDE_AHEAD // 10))
+    if p.get("chase"):
+        # Seen from behind the ship while it is fought (Tyrian3D event 205: the chase camera).
+        events.insert(0, event(0, 205, d1=1))
+    if p.get("flip"):
+        # The screen upside down while it is fought (as EYESPY's boss turns it), from where the map
+        # stops (unless it is gone by then, all of it made: out at once) until it is gone.
+        made = max(e["t"] for e in events if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS)
+        events += [event(stop - 40, 16, d1=MESSAGE_DANGER, d2=30)] + \
+            ([dict(event(stop, 70, d1=-1, d2=a, d4=b), jump="exit")] if stop > made else []) + \
+            [event(stop, 64, d1=9, d2=1, d3=1)]
     events += [event(stop, 2), event(stop, 53)]
     # Out as soon as the boss is gone (looked for every 50), else round again. The jumps' targets
     # are set by place() (it makes the times absolute).
@@ -313,6 +503,20 @@ def midboss_template(source, p):
     events += [dict(event(loop_to, 70, d1=-1, d2=a, d4=b), jump="exit"),
                dict(event(loop_to, 54, d1=-1), jump="loop"),
                event(loop_to + 2, 2, d1=b1, d2=b2, d3=b3), event(loop_to + 2, 53, d1=99)]
+    # Its wrecks go: pieces stopped in place (GYGES's sky ones, eyc 0) stayed on the screen as
+    # wrecks for the rest of the level, holding up its end when clear (36) until its last event.
+    # Every slot of its links (wrecks too) sent down off the screen, and its bar taken down.
+    for link in (a, b) if b else (a,):
+        events += [event(loop_to + 2, 20, d4=link), event(loop_to + 2, 19, d2=3, d4=link)]
+    events.append(event(loop_to + 2, 79))
+    if p.get("flip"):
+        events.append(event(loop_to + 2, 64, d1=9, d2=0))
+    if p.get("dark"):
+        events.append(event(loop_to + 2, 64, d1=6, d2=0))
+    if p.get("side"):
+        events.append(event(loop_to + 2, 200, d1=0))
+    if p.get("chase"):
+        events.append(event(loop_to + 2, 205, d1=0))
     events.sort(key=lambda e: e["t"])
     return dict(events=events, links=links, length=loop_to + 2, loop=(loop_from, loop_to))
 
@@ -396,10 +600,15 @@ def courier_events(t, prize, kinds, rnd):
     (episode, number, enemy) the level's sheets show."""
     ep, number, _ = rnd.choice(kinds)
     left = rnd.random() < 0.5
+    speed = 2 if prize.startswith("special") else 3  # (a special's courier slower: it is meant to be found)
     out = [event(t, 15, d1=number, d2=-24 if left else 268, d4=COURIER_LINK, d5=44, ep=ep),
-           event(t, 20, d1=0, d2=0, d4=COURIER_LINK), event(t, 19, d1=3 if left else -3, d2=0, d4=COURIER_LINK)]
+           event(t, 20, d1=0, d2=0, d4=COURIER_LINK), event(t, 19, d1=speed if left else -speed, d2=0, d4=COURIER_LINK)]
     if prize == "cube":
         out.append(event(t, 33, d1=DATA_CUBE, d4=COURIER_LINK, ep=5))
+    elif prize.startswith("special"):
+        # A special weapon to pick up (its value 32100 + the special: mainint.c), made by the build from the item
+        # data's own (episode 5's 1296, the two-player sheet's pickup) as SPECIAL_PICKUP's copy.
+        out.append(dict(event(t, 33, d1=SPECIAL_PICKUP, d4=COURIER_LINK, ep=5), value=32100 + int(prize.split(":", 1)[1])))
     else:
         out.append(dict(event(t, 33, d1=WARP_ORB, d4=COURIER_LINK, ep=5), warp=prize.split(":", 1)[1]))
     return out
@@ -426,6 +635,100 @@ def courier_kinds(wave_sources, banks):
     return [(ep, n, en) for (ep, n), en in sorted(kinds.items())]
 
 
+def screen_top(row):
+    """The clock at which a layer 1 row comes to the screen's top (the clock follows layer 1: curLoc)."""
+    return 28 * (291 - row)
+
+
+def map_rows(grid, letter):
+    """Each layer 1 row's mean brightness and how much it varies (0-255), from its tiles' pixels."""
+    import numpy as np
+    import preview
+    pal = preview.palette().astype(float)
+    lum = pal @ np.array([0.299, 0.587, 0.114])
+    tiles, cache = preview.tiles(letter), {}
+
+    def tile(s):
+        if s not in cache:
+            img = tiles.get(s)
+            cache[s] = (0.0, 0.0) if img is None else (float(lum[img].mean()), float(lum[img].std()))
+        return cache[s]
+    mean = [float(np.mean([tile(s)[0] for s in row])) for row in grid]
+    vary = [float(np.std([tile(s)[0] for s in row]) + np.mean([tile(s)[1] for s in row])) for row in grid]
+    return mean, vary
+
+
+BURST_ROWS = 22   # a rush's stretch of map (616 pixels: at twice the speed, about 300 clock of real time)
+DARK_ROWS = 30    # a dark stretch's
+
+
+def best_stretch(score, rows, lo, hi, taken):
+    """The stretch of `rows` rows (top row, bottom row) between rows lo and hi with the lowest mean score, clear of
+    the taken clock windows, or None."""
+    best = None
+    for top in range(lo, hi - rows):
+        bottom = top + rows
+        t0, t1 = screen_top(bottom), screen_top(top)
+        if any(t0 < b and a < t1 for a, b in taken):
+            continue
+        value = float(sum(score[top:bottom])) / rows
+        if best is None or value < best[0]:
+            best = (value, top, bottom)
+    return best and best[1:]
+
+
+def map_gimmicks(g, grid, letter, ground, start, boss_time, windows):
+    """The gimmicks that follow the map (the user, 2026-11-03: "eventi (ubrzanje, torch svijetlo) nek započinju i
+    staju kad ima smisla a ne ovak na random, tj. nek prate nešto što se događa na mapi"), as clock windows: bursts
+    "map" (bursts_map of them): rushes along the map's most open stretches (even, the fewest ground enemies), from as
+    the stretch comes in at the top until before it ends; dark "map": lights out over its darkest stretch, from as it
+    reaches the middle of the screen until it has passed it. (dark "midboss" or "hold": while the mid-level boss or
+    the siege is fought: compose, midboss_template.)"""
+    g = dict(g)
+    if g.get("bursts") != "map" and g.get("dark") != "map":
+        return g
+    mean, vary = map_rows(grid, letter)
+    busy = [0.0] * len(grid)
+    for e in ground:
+        r = 291 - (e["t"] + 8) // 28
+        for k in range(max(0, r - 1), min(len(grid), r + 2)):
+            busy[k] += 1
+    lo, hi = max(2, 292 - (boss_time - 500) // 28), 292 - (start + 300) // 28  # (rows: hi comes first)
+    taken = [(a, b) for a, b, *_ in windows]
+    if g.get("dark") == "map":
+        stretch = best_stretch(mean, DARK_ROWS, lo, hi, taken)
+        g["dark"] = []
+        if stretch:
+            top, bottom = stretch
+            g["dark"] = [(screen_top(bottom) + 92, screen_top(top) + 92)]
+            taken += g["dark"]
+    if g.get("bursts") == "map":
+        score = [v + 8 * b for v, b in zip(vary, busy)]
+        g["bursts"] = []
+        for _ in range(g.get("bursts_map", 1)):
+            stretch = best_stretch(score, BURST_ROWS, lo, hi, taken)
+            if not stretch:
+                break
+            top, bottom = stretch
+            window = (screen_top(bottom) + 40, screen_top(top) - 120, 2)
+            g["bursts"].append(window)
+            taken.append((window[0] - 200, window[1] + 200))
+    return g
+
+
+def timed_list(value):
+    """A gimmick's clock windows ([] when it is given another way: "map", "midboss", "hold")."""
+    return value if isinstance(value, list) else []
+
+
+def timed_flips(g):
+    """The level's stretches upside down by the clock (flip [(from, to)]; flip "boss" or "midboss":
+    while that boss is fought, as EYESPY's boss turns the screen: the user, 2026-11-03, ROOST's
+    turn by the clock came "for no reason")."""
+    flip = g.get("flip", [])
+    return flip if isinstance(flip, list) else []
+
+
 def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
     """The level's gimmicks as events (and an ambush's waves as placements)."""
     out = []
@@ -435,16 +738,17 @@ def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
         for t, prize in g["couriers"]:
             out += courier_events(t, prize, kinds, rnd)
     b1, b2, b3 = speeds
-    for t0, t1, factor in g.get("bursts", []):
+    for t0, t1, factor in timed_list(g.get("bursts")):
         # Afterburners: the level rushes, every layer faster by factor (their ratios kept, so the
         # upper layers last as long; events keep to the map).
         out += [event(t0 - 80, 16, d1=MESSAGE_AFTERBURNER, d2=30),
                 event(t0, 2, d1=b1 * factor, d2=b2 * factor, d3=b3 * factor), event(t1, 2, d1=b1, d2=b2, d3=b3)]
-    for t0, t1 in g.get("dark", []):
+    for t0, t1 in timed_list(g.get("dark")):
         # Lights out: only a spotlight round the ship (BRAINIAC, ASSASSIN).
         out += [event(t0, 64, d1=6, d2=1, d3=1), event(t1, 64, d1=6, d2=0)]
-    for t0, t1 in g.get("flip", []):
-        # The screen upside down (LAVA RUN, EYESPY), a warning first.
+    for t0, t1 in timed_flips(g):
+        # The screen upside down (LAVA RUN, EYESPY), a warning first. (Turned by a boss: its block's,
+        # boss_gone and midboss_template.)
         out += [event(t0 - 80, 16, d1=MESSAGE_DANGER, d2=30), event(t0, 64, d1=9, d2=1, d3=1), event(t1, 64, d1=9, d2=0)]
     for t, (ep, name) in g.get("ambush", []):
         # Enemies from behind (a wave of an original that has them come up from the bottom).
@@ -459,23 +763,44 @@ def gimmick_events(g, speeds, wave_sources, banks, rnd, placements):
     return out
 
 
+SCENERY_WAVES = 3  # waves of nothing to shoot (SURFACE's rock arches) a level at most, with its density's pace
+DISTINCT_WAVES = 9  # kinds of waves a level at most, with its density's pace (they come round again)
+
+
+def shootable(source, index, w):
+    """How many of a wave's enemies can be shot (not its scenery: SURFACE's rock arches)."""
+    return sum(1 for e in w["events"] if e["type"] in W.SPAWNS and 0 < source.enemies.get(e["d1"], {}).get("armor", 0) < 255)
+
+
 def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, density=None,
             intensity=lambda f: 0.4 + 0.6 * f, start=150, ground_waves=False, wealth=10000, gimmicks=None,
-            speeds=(1, 2, 3), ground_sheets=2):
+            speeds=(1, 2, 3), ground_sheets=2, letter=None, target=None, keep_ground=None, need_sheets=()):
     """The level's own events and its placements (see expand). grid: the new layer 1 map (rows of
-    shapes). density(row) -> chance of a ground enemy on a suitable tile there. intensity(fraction
-    of the level) -> how dense the waves come (0-1)."""
+    shapes), letter its tile set. density(row) -> chance of a ground enemy on a suitable tile there.
+    intensity(fraction of the level) -> how big the waves come (0-1). target: (from, to) the waves'
+    enemies per 1000 clock as the level goes on (the episodes' density: generate.py waves_target), else
+    the waves' old pace. keep_ground: the ground enemies' events kept from the level as it was (its
+    terrain is levelled under them) instead of placed anew. need_sheets: sheets the boss's parts launch
+    or leave from that its own enemies don't come from (FLEET's covers' hunters in DELI RUIN, 15;
+    ASSASSIN's middle piece's launches in DEEP ICE, 10), kept for them."""
     rnd = random.Random(seed)
     events = []
     placements = []
 
     # The boss, and the enemy sheets everything must share.
-    boss = boss_source.boss()
+    boss = boss_source.boss(stages=True)
     banks = set()
     for e in boss["events"]:
         if e["type"] in W.SPAWNS:
             banks.add(boss_source.enemies[e["d1"]]["shapebank"])
+    banks |= set(need_sheets)
+    for e in keep_ground or []:
+        # (the kept ground enemies' sheets, first: they stand where the terrain is levelled for them)
+        for part in range(4 if e["type"] == 12 else 1):
+            banks |= W.sheets_of(W.tyrdata.load_items(e["ep"])["enemies"], e["d1"] + part)
     placements.append(dict(kind="boss", episode=boss_source.episode, name=boss_source.name, start=boss_time))
+    if (gimmicks or {}).get("flip") == "boss":
+        placements[-1]["flip"] = True
 
     # A boss in the middle of the level (its sheets before the waves'): the map stops while it is
     # fought, so the clock runs ahead of the map by the fight's length from then on (shift).
@@ -494,12 +819,16 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
                 banks.add(b)
         placements.append(dict(kind="midboss", episode=ep, name=name, start=at, loop=[stop, loop_from, loop_to],
                                speeds=list(speeds)))
+        if gimmicks.get("flip") == "midboss":
+            placements[-1]["flip"] = True
+        if gimmicks.get("dark") == "midboss":
+            placements[-1]["dark"] = True
         assert all(b in banks for b in mid_banks), f"{name}'s sheets {mid_banks} do not fit with {banks}"
         # (Waves' events never in its loop: they would come round again with it.)
         windows.append((at - 200, at + loop_to + 2 + 150, at + loop_from))
         # The map stands from at + stop until the fight is over (the clock at at + loop_to + 2).
         shift_from, shift = at + stop, loop_to + 2 - stop
-        for t0, t1, *_ in gimmicks.get("bursts", []) + gimmicks.get("dark", []) + gimmicks.get("flip", []) + \
+        for t0, t1, *_ in timed_list(gimmicks.get("bursts")) + timed_list(gimmicks.get("dark")) + timed_flips(gimmicks) + \
                 [(t, t + 600) for t, _ in gimmicks.get("ambush", [])] + \
                 [(t, t + 200) for t, _ in gimmicks.get("couriers", [])]:
             assert t1 < at - 200 or t0 > at + loop_to + 2, "a gimmick during the mid-level boss"
@@ -542,7 +871,7 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         assert not gimmicks.get("midboss"), "a siege and a mid-level boss in one level"
         loop_from, loop_to = at + 20, at + HOLD_LOOP
         exit_ = loop_to + 10
-        short = [x for x in templates if x[2]["length"] <= HOLD_LOOP // 3 and x[2]["count"] >= 3]
+        short = [x for x in templates if x[2]["length"] <= HOLD_LOOP // 3 and x[2]["count"] >= 3] or             [x for x in templates if x[2]["length"] <= HOLD_LOOP // 2 and x[2]["count"] >= 2]
         for k in range(3):
             source, index, w = rnd.choice(short)
             placements.append(dict(kind="wave", episode=source.episode, name=source.name, index=index,
@@ -552,11 +881,28 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
                 event(at, 67, d1=1, d2=exit_, d3=seconds * 35 // 100), event(loop_to, 54, d1=loop_from),
                 event(exit_ - 2, 16, d1=4, d2=30), event(exit_, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]),
                 event(exit_, 53, d1=99)]
+        if gimmicks.get("dark") == "hold":
+            # (the power cut while it lasts: only the ship's spotlight)
+            hold[1:1] = [event(at, 64, d1=6, d2=1, d3=1)]
+            hold.append(event(exit_, 64, d1=6, d2=0))
         windows.append((at - 200, exit_ + 150, loop_from))
         shift_from, shift = at, exit_ - at
 
+    # The ground enemies (placed now: the gimmicks that follow the map keep clear of them).
+    if keep_ground is None:
+        ground = place_ground(grid, ground_sources, banks, start, boss_time - shift, rnd, density)
+        for e in ground:
+            if e["t"] >= shift_from:
+                e["t"] += shift  # the map stood still for the mid-level boss
+    else:
+        ground = [dict(e) for e in keep_ground]
+    if letter:
+        gimmicks = map_gimmicks(gimmicks, grid, letter, ground, start, boss_time, windows)
+
     t = start
     end = boss_time - 350
+    scenery_left = SCENERY_WAVES
+    distinct = set()
     while t < end:
         inside = [w for w in windows if w[0] <= t < w[1]]
         if inside:
@@ -566,21 +912,37 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
         level = intensity(f)
         # Bigger waves as it gets harder; a pause after each, shorter as it gets harder.
         bound = min([w[2] for w in windows if w[0] > t] + [end + 400])
-        fitting = [x for x in templates if x[2]["count"] <= 3 + level * 10 and x[2]["length"] < bound - t]
+        fitting = [x for x in templates if x[2]["count"] <= (4 if target else 3) + level * 10 and
+                   x[2]["length"] < bound - t and (not target or shootable(*x) or scenery_left > 0)]
         if not fitting:
             later = [w[1] for w in windows if w[0] > t]
             if later:
                 t = min(later)
                 continue
             break
+        if target and len(distinct) >= DISTINCT_WAVES:
+            # (the waves seen so far again, once there are DISTINCT_WAVES kinds: more kinds of enemies would bring in
+            # more of other episodes' weapons than the episode's item data has room for)
+            again = [x for x in fitting if (x[0].episode, x[0].name, x[1]) in distinct]
+            fitting = again or fitting
         source, index, w = rnd.choice(fitting)
+        distinct.add((source.episode, source.name, index))
         placement = dict(kind="wave", episode=source.episode, name=source.name, index=index, start=t)
         if ground_waves:
             placement["ground"] = True
         placements.append(placement)
         placement["_count"] = w["count"]
         spawn_span = max(e["t"] for e in w["events"] if e["type"] in W.SPAWNS)
-        t += spawn_span + int(rnd.uniform(90, 260) * (1.3 - level))
+        if target:
+            # As many enemies a stretch as the episodes before have by this point (waves may overlap): the wave's
+            # enemies that can be shot (not its scenery: SURFACE's rock arches).
+            real = shootable(source, index, w)
+            if not real:
+                scenery_left -= 1
+            want = target[0] + (target[1] - target[0]) * f
+            t += max(int(max(real, 1) * 1000 / want * rnd.uniform(0.8, 1.2)), spawn_span // 2 + 40)
+        else:
+            t += spawn_span + int(rnd.uniform(90, 260) * (1.3 - level))
 
     # Credits: most waves' enemies leave coins, worth what makes the level's wealth in all.
     wave_enemies = sum(p.get("_count", 0) for p in placements)
@@ -592,10 +954,6 @@ def compose(grid, wave_sources, boss_source, ground_sources, boss_time, seed, de
     # Stationary ground enemies where the map has a place for them: on tiles (or 2x2 blocks of
     # tiles) that carry an enemy in most of the places the originals have them (turret pads,
     # emplacements, bunkers painted into the tileset), not on any tile one once stood on.
-    ground = place_ground(grid, ground_sources, banks, start, boss_time - shift, rnd, density)
-    for e in ground:
-        if e["t"] >= shift_from:
-            e["t"] += shift  # the map stood still for the mid-level boss
     events += [e for e in ground if not any(w0 <= e["t"] < w1 for w0, w1 in calm)]
     events += gimmick_events(gimmicks, speeds, wave_sources, banks, rnd, placements) + hold
 

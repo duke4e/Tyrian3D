@@ -13,7 +13,10 @@ sidekicks 33-37).
 # the data cube a courier of its level leaves (shown in the next shop when it was picked up).
 # kind "secret": a level only a warp orb leads to (its parent's), back to the stage after its
 # parent; kind "bonus": a level after the one before it, without a shop. Their cubes (secret ones,
-# picked up in them) show in the next shop.
+# picked up in them) show in the next shop. Few have a message (the user, 2026-11-03, of one before
+# nearly every level: "sad već zbilja imamo previše tih warninga u ovoj epizodi"): VAULT's, where the
+# orb took you; MIGRATION's, the dragons and the first flight seen from the side; THE CORE's, the end.
+WARNING_PICTURE = 5  # what the messages show over (]P): the planet in space, as nearly all the originals' do
 STAGES = [
     dict(level="dig_site", planet=8, cubes=[1], secret=[13], warning=None, shop=[
         " Ship   3 14 16", " WeapF  1 3 13 48 49", " WeapR  0 9 10 52 53", " Power  3 4", " Engine 1",
@@ -21,8 +24,7 @@ STAGES = [
     dict(level="reef", planet=8, cubes=[2, 9], secret=[14], warning=None, shop=[
         " Ship   4 5 16", " WeapF  8 13 17 50", " WeapR  0 9 18 28 52", " Power  4 5", " Engine 1",
         " Opt1   0 16 13 14 35", " Opt2   0 20 13 14 36", " Armor  1 2 3", " Shield 5 6 8"]),
-    dict(level="grey_moon", planet=12, cubes=[3], warning=["Warning:", "The grey moon's base answers no hails.",
-                                                           "Its guns are already turning."], shop=[
+    dict(level="grey_moon", planet=12, cubes=[3], warning=None, shop=[
         " Ship   5 6 2", " WeapF  3 27 42 51", " WeapR  0 21 22 30 53", " Power  5", " Engine 1",
         " Opt1   0 7 8 9 37", " Opt2   0 7 8 9 37", " Armor  1 2 3", " Shield 6 7 9"]),
     dict(level="vault", kind="secret", parent="grey_moon", cubes=[], secret=[21, 22],
@@ -40,20 +42,16 @@ STAGES = [
     dict(level="deep_ice", planet=14, cubes=[5], secret=[17], warning=None, shop=[
         " Ship   7 6 2", " WeapF  5 20 27 50 51", " WeapR  0 29 21 22 52", " Power  6", " Engine 1",
         " Opt1   0 12 17 25 37", " Opt2   0 12 26 27 37", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="glacier", planet=14, cubes=[6], secret=[18], warning=["Warning:", "Hazudra Collector signal ahead.",
-                                                         "It has noticed you."], shop=[
+    dict(level="glacier", planet=14, cubes=[6], secret=[18], warning=None, shop=[
         " Ship   7 12 2", " WeapF  5 18 19 20 27", " WeapR  0 21 28 29 53", " Power  6", " Engine 1",
         " Opt1   0 12 25 28 33 35", " Opt2   0 12 26 28 34 36", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="collector", planet=16, cubes=[11], secret=[19], warning=["Warning:", "The Collector's ship. It is larger",
-                                                            "than any fleet you have seen."], shop=[
+    dict(level="collector", planet=16, cubes=[11], secret=[19], warning=None, shop=[
         " Ship   7 12 13", " WeapF  5 18 19 20 27 50", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 35", " Opt2   0 12 22 26 28 36", " Armor  1 2 3", " Shield 10 11"]),
-    dict(level="crustgate", planet=6, cubes=[7, 8], secret=[20], warning=["Warning:", "Gravitron readings off every scale.",
-                                                             "The crust is opening."], shop=[
+    dict(level="crustgate", planet=6, cubes=[7, 8], secret=[20], warning=None, shop=[
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
-    dict(level="gravitron", planet=6, cubes=[24], secret=[26], warning=[
-        "Warning:", "Gravitron shaft ahead: from here the crust's", "tunnels run sideways."], shop=[
+    dict(level="gravitron", planet=6, cubes=[24], secret=[26], warning=None, shop=[
         " Ship   7 12 13", " WeapF  5 18 20 27 42 48", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
         " Opt1   0 12 22 25 28 37", " Opt2   0 12 22 26 28 37", " Armor  1 2 3", " Shield 11"]),
     dict(level="the_core", planet=6, cubes=[12], warning=["Warning:", "Gravitron core ahead.",
@@ -62,9 +60,13 @@ STAGES = [
         " Opt1   0 12 22 25 28 33 37", " Opt2   0 12 22 26 28 34 37", " Armor  1 2 3", " Shield 11"]),
 ]
 
-STAGES.append(dict(level="invaders", kind="bonus", cubes=[], warning=[
-    "The core holds. On the way up, the wreck of", "the Collector's hangar still launches drones",
-    "in rows. One last sweep."]))
+STAGES.append(dict(level="invaders", kind="bonus", cubes=[], warning=None))  # (">>> Bonus Level <<<" in it)
+# The last two (generate.py): STARFALL, the Collector's fleet chased low over the farmland, seen from behind the
+# ship; THE HOARD, its bosses one after another. Their shops sell the best the episode has.
+LAST_SHOP = [" Ship   7 12 13", " WeapF  5 18 20 27 42 48 50 51", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
+             " Opt1   0 12 22 25 28 33 35 37", " Opt2   0 12 22 26 28 34 36 37", " Armor  1 2 3", " Shield 11"]
+STAGES.append(dict(level="starfall", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
+STAGES.append(dict(level="the_hoard", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
 
 # The data cubes: (face sprite, title, header, lines). ~word~ highlights a word, as in the game.
 CUBES = [

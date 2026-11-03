@@ -89,6 +89,10 @@ void p3d_smoulder(float x, float y, float height, float scale, float strength);
 // flung out tumbling, falling to the ground (the game's own explosions burst round it, its fire and light).
 void p3d_ship_destroyed(float x, float y, float height);
 
+// Tyrian3D's Nova (special stype 19, varz.c): its shock racing out from the ship to `reach` (game pixels) in `life`
+// frames, round the ship on the screen: a white-violet ring, a flash at its heart and sparks thrown out with it.
+void p3d_nova(float x, float y, float height, float reach, int life);
+
 // The force fields of enemies that push or pull the ship (their "weapons" 251, 253-255), shown as
 // they act: a repulsor's rings and sparks racing out, a magnet's sparks flowing in, a short range
 // magnet's sparks streaming sideways. pulse: a ring with it (callers space them out).

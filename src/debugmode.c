@@ -440,7 +440,7 @@ static void loadout_keys(void)
 		items->weapon[REAR_WEAPON].id = (JE_byte)next_port(items->weapon[REAR_WEAPON].id, 1);
 	const int power_step = pressed(SDL_SCANCODE_APOSTROPHE) - pressed(SDL_SCANCODE_SEMICOLON);
 	for (int w = 0; w < 2; ++w)
-		items->weapon[w].power = (JE_byte)SDL_clamp(items->weapon[w].power + power_step, 1, 11);
+		items->weapon[w].power = (JE_byte)SDL_clamp(items->weapon[w].power + power_step, 1, WEAPON_POWER_OVERCLOCK);
 	if (pressed(SDL_SCANCODE_7))
 		items->sidekick[LEFT_SIDEKICK] = (JE_byte)next_sidekick(items->sidekick[LEFT_SIDEKICK]);
 	if (pressed(SDL_SCANCODE_8))
