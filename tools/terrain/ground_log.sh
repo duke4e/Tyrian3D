@@ -14,7 +14,7 @@ OUT="$ROOT/export/terrain"
 mkdir -p "$OUT"
 LOG="$OUT/ground_run.txt"
 : > "$OUT/ground_all.txt"
-cd "$ROOT/build/game"
+cd "${TYR3D_GAME_DIR:-$ROOT/build/game}"  # (TYR3D_GAME_DIR: another build's folder, e.g. build/dev)
 python3 "$ROOT/tools/levels.py" | while read -r section name; do
 	if [ -n "$ONLY" ] && ! printf '%s\n' $ONLY | grep -qxF "$section"; then
 		continue

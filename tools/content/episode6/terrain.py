@@ -8,17 +8,20 @@ are built. Maps of earlier versions of the levels (episode 6's entries no level 
 taken out, with their assets.
 
 usage: <python with numpy, scipy and PIL> tools/content/episode6/terrain.py [level...]
-       (the game built; levels by name, default all)
+       (the game built; levels by name, default all; TYR3D_GAME_DIR: the game's folder to run, default
+       build/game, e.g. build/dev while the game in build/game is being played)
 """
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-GAME = os.path.join(ROOT, "build", "game")
+GAME = os.environ.get("TYR3D_GAME_DIR") or os.path.join(ROOT, "build", "game")
+EXE = os.path.join(GAME, "tyrian3d.exe" if os.name == "nt" else "tyrian3d")
 SETTINGS = os.path.join(ROOT, "tools", "terrain", "levels.json")
 sys.path.insert(0, HERE)
 import build  # noqa: E402
@@ -40,7 +43,7 @@ def export_maps(section):
     env = dict(os.environ, SDL_AUDIO_DRIVER="dummy", TYR3D_WINDOWED="1", TYR3D_START=section, TYR3D_EXIT_AFTER="80",
                TYR3D_EXPORT_MAPS=os.path.join(ROOT, "export", "maps"),
                TYR3D_SIDES_WRITE=os.path.join(ROOT, "assets", "sides"))
-    out = subprocess.run(["./tyrian3d"], cwd=GAME, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
+    out = subprocess.run([EXE], cwd=GAME, env=env, capture_output=True, text=True, stdin=subprocess.DEVNULL).stdout
     return {int(b): h for b, h in re.findall(r"background (\d): map (?:written|already exported) to .*map_([0-9a-f]{16})\.json", out)}
 
 
@@ -92,8 +95,9 @@ def main(names):
     if not built:
         return 0
     sections_ = " ".join(found[n] for n in names)
-    subprocess.run([os.path.join(ROOT, "tools", "terrain", "ground_log.sh"), "60"] + sections_.split(), check=True,
-                   stdout=subprocess.DEVNULL)
+    # (bash by the PATH: on Windows CreateProcess finds System32's, WSL's, before Git's)
+    subprocess.run([shutil.which("bash") or "bash", os.path.join(ROOT, "tools", "terrain", "ground_log.sh"), "60"] + sections_.split(), check=True,
+                   stdout=subprocess.DEVNULL, env=dict(os.environ, TYR3D_GAME_DIR=GAME))
     ground = [h for h in built if settings[h].get("background", 1) == 1]
     if ground:  # (the clean ground first: the terrain and the vegetation are made on it)
         subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_cleanground.py")] + ground, check=True)

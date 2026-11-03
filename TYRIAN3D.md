@@ -291,7 +291,12 @@ data, so it isn't in the repository. The game finds those files in the content d
 Its levels are generated anew, the original levels only their inspiration
 (`tools/content/episode6/generate.py`, run with a Python that has numpy and PIL): the maps from
 the tiles of originals of the same look, by a plan of the level's design (`mapsynth.py`: each
-tile follows its neighbours as the originals have them, row by row, nothing copied), the events
+tile follows its neighbours as the originals have them, row by row, nothing copied). The looks are the originals'
+least used ones (of their maps grouped by the tiles they show, SAVARA's sea has five levels, the asteroids' nine,
+DELIANI's three): DIG SITE has SURFACE's desert, REEF CORAL's reef, GREY MOON ASSASSIN's grey rock and ice (without
+the brown ground its level starts on, `map_rows`), VAULT BRAINIAC's halls, ROOST GYGES' hive (its walls on layer 3
+along a winding channel, `channel`) and CRUSTGATE SIDE EXIT's glowing crust and crags; their ground enemies are those
+of the same originals, and their weather, water and gulls go with the look (`assets/models/terrain.cfg`). The events
 from the originals' waves placed anew along a difficulty curve, stationary ground enemies on tiles
 that suit them, a boss at the end (bosses fought in stages taken whole, their stages' links and jumps with them:
 GRAVITRON's DREAD-NOT, DEEP ICE's ASSASSIN; once it is dead, its wrecks are sent down off the screen and its bar
@@ -977,13 +982,13 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   down the screen at every depth between the ground and the camera, so the air itself shows depth; over the
   lava (LAVA RUN, LAVA EXIT, CORE, THE CORE, CRUSTGATE, MINERS, the GBC's LAVA I and II) embers rise from
   the ground, flickering and fading as they climb; over the meadows and jungles (TORM, BOTANY A and B,
-  ROOST, the GBC's JUNGLE and JUNGLE II) pollen floats low and glints; over the deserts (DESERTRUN, SURFACE, the GBC's
+  the GBC's JUNGLE and JUNGLE II) pollen floats low and glints; over the deserts (DESERTRUN, SURFACE, DIG SITE, the GBC's
   DESERT and OASIS) sand blows in pale streaks low over the ground; over WINDY autumn leaves are blown along,
-  fluttering; in CORAL (under the sea: its eels and submarines) bubbles rise from the floor, wobbling; in open space (the starfield on) faint dust streams by
+  fluttering; in CORAL and REEF (under the sea: CORAL's eels and submarines) bubbles rise from the floor, wobbling; in open space (the starfield on) faint dust streams by
   at every depth as the ship flies on. Five bands of heights, each spread over what the camera sees there;
   Effects only.
 - **Gulls** (`render_gpu.c` `add_bird_batch`; `assets/models/terrain.cfg` "birds <level>"): over the sea levels
-  (SAVARA, DIG SITE, REEF) a few flocks of gulls fly in a loose V each, their own heading and height,
+  (SAVARA) a few flocks of gulls fly in a loose V each, their own heading and height,
   beating their wings and gliding by turns, their shadows on the water; Effects only.
 - **Overscan.** Sprites can be seen above the original top edge, so in 3D mode the game also draws
   enemies into 64 extra rows above the screen. A shot the game drops as it leaves the screen's top flies on in the 3D
@@ -1203,7 +1208,11 @@ Models are built in Blender by Python scripts in `tools/blender/models`, using t
 Materials take the colour an up-facing surface should show in the game, so sprite colours can be
 used directly. Better, `tyrkit.material(palette=<index>)` takes a palette index: the game then
 colours the material from the current palette, as it does the sprites, so models follow the
-level's palette, fades and filters (such materials are named `<name>@<index>`).
+level's palette, fades and filters (such materials are named `<name>@<index>`). Those named
+`<name>water@<index>` are water: with Effects their darker shades are the procedural water the ground's rivers and
+seas are (its colour, waves and glints, a little of their own shading through: `render_gpu.c` `water_shade`), their
+light ones keep their colours over it (the waterfall's curtain of TORM and BONUS: its light strands and foam over the
+rivers' own water, where it was a glassy grey-blue between them).
 `tools/blender/sprite_profile.py` lists a sprite's silhouette and palette indices, from sheets
 exported by `TYR3D_EXTRACT` (in the levels' palette, `tools/blender/palette_levels.txt`). The
 export reverses the triangles' winding (`tools/blender/glb_winding.py`):

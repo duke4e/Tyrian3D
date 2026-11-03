@@ -576,51 +576,6 @@
   "background": 3,
   "solid": true
  },
- "ab4a71c04f24fa0a": {
-  "classes": 6,
-  "heights": {},
-  "forest": "palm",
-  "materials": {
-   "#0c2638": 0,
-   "#09202e": 0,
-   "#183d54": 0,
-   "#6e5028": 8,
-   "#555550": 14,
-   "#1e5019": 12
-  },
-  "level": "DIG SITE"
- },
- "23055b45e5a3bc37": {
-  "classes": 6,
-  "heights": {},
-  "forest": "palm",
-  "materials": {
-   "#0c2638": 0,
-   "#09202e": 0,
-   "#173b53": 0,
-   "#6e5028": 8,
-   "#555550": 14,
-   "#1e5019": 12
-  },
-  "level": "REEF"
- },
- "af99da768a8d4b58": {
-  "classes": 6,
-  "heights": {},
-  "void": "hole",
-  "level": "GREY MOON"
- },
- "1488ca36be4ce111": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#004502": 0,
-   "#173a51": -14,
-   "#5a5a5a": "~",
-   "#0a140a": "~"
-  },
-  "level": "ROOST"
- },
  "702bc783600308be": {
   "classes": 6,
   "heights": {},
@@ -632,16 +587,6 @@
   "heights": {},
   "void": "hole",
   "level": "COLLECTOR"
- },
- "de65f1651beb1fe4": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#400200": -6,
-   "#963e32": 12,
-   "#500f08": "~"
-  },
-  "level": "CRUSTGATE"
  },
  "f7fa8afdb1980dde": {
   "classes": 6,
@@ -670,25 +615,10 @@
   },
   "level": "DELI RUIN"
  },
- "3f660e703ba6e6ce": {
-  "level": "CRUSTGATE",
-  "background": 2,
-  "solid": true
- },
  "9388c04c43df14b2": {
   "level": "THE CORE",
   "background": 2,
   "solid": true
- },
- "985b895aea23dda1": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1926": 0,
-   "#1c2935": 10,
-   "#162330": "~"
-  },
-  "level": "VAULT"
  },
  "0f43f5f0bf5bd42f": {
   "classes": 6,
@@ -1000,5 +930,73 @@
   "level": "HARVEST",
   "background": 3,
   "vegetation": true
+ },
+ "ccddb6ecda72e9f4": {
+  "classes": 6,
+  "heights": {},
+  "palms": true,
+  "materials": {
+   "#8c755e": 0,
+   "#43443e": 16,
+   "#2d240f": 12
+  },
+  "level": "DIG SITE"
+ },
+ "79d27e430535fa0d": {
+  "classes": 6,
+  "heights": {},
+  "void": "hole",
+  "detail": 6,
+  "softness": 4,
+  "roads": false,
+  "materials": {
+   "#3c6c82": 10,
+   "#8e3b2f": "~"
+  },
+  "level": "REEF"
+ },
+ "65c1525e145ff7dc": {
+  "classes": 6,
+  "heights": {},
+  "void": "hole",
+  "level": "GREY MOON"
+ },
+ "ca85ba2e1518665f": {
+  "classes": 6,
+  "heights": {},
+  "void": "hole",
+  "level": "VAULT"
+ },
+ "0f14c974318da016": {
+  "level": "VAULT",
+  "background": 2,
+  "solid": true
+ },
+ "4281f7b4c12367b6": {
+  "classes": 6,
+  "heights": {},
+  "void": -36,
+  "level": "ROOST"
+ },
+ "035c529b8759fe56": {
+  "level": "ROOST",
+  "background": 2,
+  "solid": true
+ },
+ "3251886469792a85": {
+  "level": "ROOST",
+  "background": 3,
+  "solid": true
+ },
+ "97abe7c06c727ea5": {
+  "classes": 6,
+  "heights": {},
+  "rolling": 12,
+  "level": "CRUSTGATE"
+ },
+ "cd8d4bfe63495b67": {
+  "level": "CRUSTGATE",
+  "background": 2,
+  "solid": true
  }
 }

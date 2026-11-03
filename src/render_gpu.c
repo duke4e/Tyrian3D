@@ -125,6 +125,7 @@ typedef struct
 	uint32_t material_count;
 	BTBHGPUModelMaterialInfo materials[16];
 	int palette_index[16];  // per material: the palette index that colours it, or -1
+	bool water[16];         // per material: water ("<name>water@<index>"), see water_shade
 	float center[3];
 	float half[3];    // half the size of its bounds, model units
 	float footprint;  // larger of width and depth, model units
@@ -4670,7 +4671,10 @@ static float srgb_to_linear(Uint8 value);
 static void read_palette_materials(const char *path, LoadedModel *loaded)
 {
 	for (size_t m = 0; m < COUNTOF(loaded->palette_index); ++m)
+	{
 		loaded->palette_index[m] = -1;
+		loaded->water[m] = false;
+	}
 
 	cgltf_options options;
 	memset(&options, 0, sizeof(options));
@@ -4682,9 +4686,20 @@ static void read_palette_materials(const char *path, LoadedModel *loaded)
 		const char *name = data->materials[i].name;
 		const char *at = name != NULL ? SDL_strrchr(name, '@') : NULL;
 		if (at != NULL && SDL_isdigit((unsigned char)at[1]))
+		{
 			loaded->palette_index[i + 1] = SDL_clamp(SDL_atoi(at + 1), 0, 255);
+			loaded->water[i + 1] = at - name >= 5 && SDL_strncmp(at - 5, "water", 5) == 0;
+		}
 	}
 	cgltf_free(data);
+}
+
+// A water material's shade that is the procedural water (set_glints) the rivers round it are, their colour, waves
+// and glints: its darker ones (a waterfall's curtain, TORM's and BONUS's: it looked a glassy grey-blue between rivers
+// of dark water); its light ones (the strands of light running down it, the foam) keep their own colours over it.
+static bool water_shade(const Uint8 rgb[3])
+{
+	return 0.299f * rgb[0] + 0.587f * rgb[1] + 0.114f * rgb[2] < 128.0f;
 }
 
 static Uint8 palette_albedo(Uint8 value)
@@ -4990,6 +5005,13 @@ static void add_object_batches(const L3DFrame *frame, const Uint32 colors[256], 
 						b->albedo_green = palette_albedo(c[1]);
 						b->albedo_blue = palette_albedo(c[2]);
 						palette_emission_of(b, c, loaded->palette_index[m]);
+						if (loaded->water[m] && water_shade(c) && settings3d.effects)
+						{
+							b->unlit_enabled = 1;  // (as the ground's water: the procedural water lights itself)
+							b->emission_red = b->emission_green = b->emission_blue = 0;
+							set_glints(b, white_texture);
+							b->surface_parameters1[3] = 0.6f;  // (the curtain's own shading: its gaps darker)
+						}
 					}
 				}
 				if (b->albedo_alpha < 255)  // see-through materials (glass)

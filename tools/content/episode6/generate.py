@@ -46,8 +46,14 @@ def originals():
     return _originals
 
 
-def maps_of(names, layer):
-    return [originals()[n]["maps"][layer] for n in names]
+def maps_of(names, layer, rows=None):
+    """The originals' maps of a layer; rows: (first, last) of layer 1's rows to take (a layer of 600 rows twice
+    those), as ASSASSIN's map without the brown ground its level starts on."""
+    maps = [originals()[n]["maps"][layer] for n in names]
+    if rows:
+        k = len(maps[0]) // 300
+        maps = [m[rows[0] * k:rows[1] * k] for m in maps]
+    return maps
 
 
 def noise(seed, scale=1.0):
@@ -97,6 +103,24 @@ def zones(zone_list, seed, scale=1.0, clear=None, share=0.6):
     return make_bias
 
 
+def channel(seed, half=3.0, swing=2.5, period=90.0):
+    """A bias for an upper layer of walls (GYGES' hive): walls along both sides, a channel winding up
+    between them (only the layer's empty tiles), about half tiles either side of its middle."""
+    def make_bias(model, grids):
+        base = {sources.EMPTY}
+
+        def bias(t, x, y):
+            middle = 6.5 + swing * math.sin(y / period * 2 * math.pi + seed)
+            d = abs(x - middle) - half - math.sin(y / 17.0 + seed)
+            if -1.5 <= d <= 1.0:
+                return 1.0  # (the walls' edges: any tile, so the walls can close and open)
+            if t in base:
+                return 1.0 if d < 0 else 0.15
+            return 0.02 if d < 0 else 1.0
+        return bias
+    return make_bias
+
+
 def make(design):
     """A level from a design dict (see the levels below)."""
     name = design["name"]
@@ -110,7 +134,7 @@ def make(design):
                                [[0] * 15 for _ in range(600)]])
     if design.get("original_maps"):
         return finish(design, original_maps(*design["original_maps"]))
-    grids = maps_of(design["map"], 0)
+    grids = maps_of(design["map"], 0, design.get("map_rows"))
     model = Model(grids, max_tiles=LAYER_TILES[0])
     slug = name.lower().replace(" ", "_")
     if design.get("keep_map") or EVENTS_ONLY:
@@ -159,11 +183,12 @@ def upper_layer(design, k):
     if not names:
         return [[0] * columns for _ in range(rows)]
     source = design.get(f"layer{k + 1}_from", k + 1) - 1
-    m = Model(maps_of(names, source), max_tiles=LAYER_TILES[k] - 1)
+    sources_ = maps_of(names, source, design.get("map_rows"))
+    m = Model(sources_, max_tiles=LAYER_TILES[k] - 1)
     upper_bias = design.get(f"bias{k + 1}")
-    width = min(columns, len(maps_of(names, source)[0][0]))  # (layer 2's 14 columns as layer 3: one left empty)
+    width = min(columns, len(sources_[0][0]))  # (layer 2's 14 columns as layer 3: one left empty)
     grid, stats = generate(m, rows, width, design.get("seed", 1) + k,
-                           bias=upper_bias(m, maps_of(names, source)) if upper_bias else None)
+                           bias=upper_bias(m, sources_) if upper_bias else None)
     print(design["name"], f"layer {k + 1}", dict(stats))
     return [row + [0] * (columns - width) for row in grid]
 
@@ -251,7 +276,8 @@ def finish(design, layers):
     # (Of the effects, lava, water and the spotlight: the blurs and the upside-down screen show as
     # flat slabs in the 3D view.)
     look_events = [dict(e) for e in look.events if e["t"] == 0 and e["type"] in LOOK_EVENTS and
-                   not (e["type"] == 64 and e["d1"] not in (1, 2, 6))]
+                   not (e["type"] == 64 and e["d1"] not in (1, 2, 6)) and
+                   not (e["type"] == 64 and e["d1"] in design.get("look_without_effects", ()))]
     if design.get("speeds"):
         look_events = [e for e in look_events if e["type"] not in (2, 3)]
         b1, b2, b3 = design["speeds"]
@@ -384,105 +410,93 @@ def make_hoard(design):
 
 
 # Materials by tileset (reference colours; "space" is the blank tiles), the base material objects
-# stand on, and the kinds of objects by their main material.
-SAVARA_MATS = dict(materials={"water": (12, 38, 56), "sand": (110, 80, 40), "rock": (85, 85, 80), "jungle": (30, 80, 25)},
-                   base="water", kinds={"rock": "building", "sand": "island", "jungle": "island"})
-ASTEROID_MATS = dict(materials={"space": (0, 0, 0), "rock": (90, 90, 90), "dark": (35, 35, 35), "rust": (82, 44, 42)},
-                     base="space", kinds={"rock": "station", "dark": "station", "rust": "station"})
-DELI_MATS = dict(materials={"floor": (12, 25, 38), "plate": (28, 41, 53), "lamp": (90, 40, 40)},
-                 base="floor", kinds={"plate": "building", "lamp": "building"})
-TORM_MATS = dict(materials={"grass": (0, 69, 2), "water": (23, 58, 81), "rock": (90, 90, 90), "dark": (10, 20, 10)},
-                 base="grass", kinds={"rock": "cliff", "water": "pond", "dark": "cliff"})
+# stand on, and the kinds of objects by their main material. (The looks the episode's levels take are
+# the originals' least used ones, the user, 2026-11-03: "dosadni tilesetovi - ... koristiti one koji se
+# najmanje put koriste", "ne moraju biti nužno kompletni tilesetovi, ima lookova koji rade neku
+# distinkciju": of the originals' maps grouped by the tiles they show, SAVARA's look has five levels,
+# the asteroids' nine, DELIANI's three; SURFACE's desert, CORAL's reef, ASSASSIN's grey rock,
+# BRAINIAC's halls, GYGES' hive and SIDE EXIT's crags one to three.)
+DESERT_MATS = dict(materials={"sand": (140, 117, 94), "rock": (67, 68, 62), "shade": (45, 36, 15)},
+                   base="sand", kinds={"rock": "rock", "shade": "rock"})
+REEF_MATS = dict(materials={"space": (0, 0, 1), "reef": (60, 108, 130), "coral": (142, 59, 47)},
+                 base="space", kinds={"reef": "reef", "coral": "reef"})
+MOON_MATS = dict(materials={"space": (0, 0, 0), "rock": (98, 96, 90), "pale": (159, 148, 139), "dust": (77, 66, 52)},
+                 base="space", kinds={"rock": "rock", "pale": "rock", "dust": "rock"})
+HALL_MATS = dict(materials={"space": (0, 0, 0), "wall": (78, 62, 88), "slate": (48, 59, 68)},
+                 base="space", kinds={"wall": "building", "slate": "building"})
 ICE_MATS = dict(materials={"cliff": (48, 29, 6), "ice": (105, 160, 171), "deep": (73, 112, 138), "dark": (31, 63, 85)},
                 base="cliff", kinds={"ice": "ice", "deep": "ice", "dark": "ice"})
 SNOW_MATS = dict(materials={"snow": (105, 160, 171), "rock": (80, 80, 80), "deep": (73, 112, 138)},
                  base="snow", kinds={"rock": "rock", "deep": "rock"})
 SPACE_MATS = dict(materials={"space": (0, 0, 0), "hull": (50, 48, 45), "light": (90, 85, 80)},
                   base="space", kinds={"hull": "ship", "light": "ship"})
-LAVA_MATS = dict(materials={"lava": (64, 2, 0), "crust": (150, 62, 50), "ember": (80, 15, 8)},
-                 base="crust", kinds={"lava": "pool", "ember": "pool"})
 CORE_MATS = dict(materials={"floor": (74, 34, 22), "hot": (130, 22, 8), "dark": (40, 15, 10)},
                  base="floor", kinds={"hot": "vent", "dark": "vent"})
 
 # The 3D terrain of the new maps (tools/terrain/levels.json settings; "materials": heights by the
 # surfaces' colours, tools/terrain/make_terrain.py), by tileset.
-SAVARA_TERRAIN = {"classes": 6, "heights": {}, "forest": "palm",
-                  "materials": {"#0c2638": 0, "#09202e": 0, "#6e5028": 8, "#555550": 14, "#1e5019": 12}}
+DESERT_TERRAIN = {"classes": 6, "heights": {}, "palms": True, "materials": {"#8c755e": 0, "#43443e": 16, "#2d240f": 12}}
+REEF_TERRAIN = {"classes": 6, "heights": {}, "void": "hole", "detail": 6, "softness": 4, "roads": False,
+                "materials": {"#3c6c82": 10, "#8e3b2f": "~"}}
 ASTEROID_TERRAIN = {"classes": 6, "heights": {}, "void": "hole"}
 DELI_TERRAIN = {"classes": 6, "heights": {}, "materials": {"#0c1926": 0, "#1c2935": 10, "#162330": "~"}}
-TORM_TERRAIN = {"classes": 6, "heights": {}, "materials": {"#004502": 0, "#173a51": -14, "#5a5a5a": "~", "#0a140a": "~"}}
+HALL_TERRAIN = {"classes": 6, "heights": {}, "void": "hole", "solid_upper": [2]}
+HIVE_TERRAIN = {"classes": 6, "heights": {}, "void": -36, "solid_upper": True}
 ICE_TERRAIN = {"classes": 6, "heights": {}, "rolling": 6, "solid_upper": True}
 SNOW_TERRAIN = {"classes": 6, "heights": {}, "rolling": 10}
 SPACE_TERRAIN = {"classes": 6, "heights": {}, "void": "hole"}
-LAVA_TERRAIN = {"classes": 6, "heights": {}, "materials": {"#400200": -6, "#963e32": 12, "#500f08": "~"},
-                "solid_upper": True}
+CRAG_TERRAIN = {"classes": 6, "heights": {}, "rolling": 12, "solid_upper": True}
 CORE_TERRAIN = {"classes": 6, "heights": {}, "rolling": 10, "solid_upper": True}
 
-SAVARA = [(1, "SAVARA"), (1, "SAVARA V"), (3, "SAVARA Y"), (5, "SAVARA"), (4, "SAVARA IV")]
-ASTEROIDS = [(1, "ASTEROID1"), (1, "ASTEROID2"), (5, "AST ROCK")]
+DESERT = [(4, "SURFACE"), (4, "DESERTRUN")]
 DELI = [(1, "DELIANI"), (3, "New Deli")]
+HALLS = [(4, "BRAINIAC")]
 ICE = [(3, "IXMUCANE"), (3, "CAMANIS")]
 SNOW = [(4, "ICE EXIT"), (3, "CAMANIS")]
-LAVA = [(4, "LAVA RUN"), (4, "LAVA EXIT")]
 
 
 def dig_site(p):
-    """Open sea and islets, a jungle continent on the left with buildings off it, the dig site: a
-    great island (a landmark of the originals), a field of pillars and bunkers, open water for the
-    boss."""
-    p.calm(256, 296, 25, 6, 13).want_objects({"island", "building"}, 256, 296, 3, cols=(6, 13))
-    p.coast(196, 252, -1, 6, "sand").coast(200, 248, -1, 4, "jungle")
-    p.calm(196, 250, 25, 8, 13).want_objects({"building"}, 196, 250, 3, cols=(8, 13))
-    p.calm(136, 192, 25).want_objects({"island"}, 136, 192, 1, min_core=150)
-    p.calm(95, 132, 25).want_objects({"building"}, 95, 132, 6)
-    return p.fill(0, 88, "water")
+    """Desert (SURFACE's): outcrops of rock thickening up the level, the excavation's walls across the
+    sand, the dig site: a field of outcrops in a walled pit, open sand for the boss."""
+    p.scatter(210, 296, 16, 2, "rock").scatter(140, 210, 22, 2, "rock").scatter(150, 296, 24, 1, "shade")
+    p.band(250, 2, "rock", 0, 6, strict=False).band(226, 2, "rock", 7, 13, strict=False)
+    p.band(178, 2, "rock", 0, 13, strict=False).band(128, 2, "rock", 0, 13, strict=False)
+    p.scatter(132, 176, 14, 2, "shade", cols=(1, 12))
+    p.calm(95, 124, 1).want_objects({"rock"}, 95, 124, 5)
+    return p.fill(0, 88, "sand")
 
 
 def reef(p):
-    """A long coast on the right with jungle, reefs of rock and bunkers off it, a sea fort (a
-    landmark of the originals) between, open water for the boss."""
-    p.coast(110, 292, 1, 5, "sand").coast(120, 285, 1, 3, "jungle")
-    p.calm(220, 292, 25, 0, 8).want_objects({"building"}, 220, 292, 4, cols=(0, 7))
-    p.calm(168, 214, 25).want_objects({"building"}, 168, 214, 1, min_core=60)
-    p.calm(110, 165, 25, 0, 8).want_objects({"building"}, 110, 165, 4, cols=(0, 7))
-    return p.fill(0, 92, "water")
+    """A reef (CORAL's): walls of reef along both sides, coral on them, islets of reef in the deep
+    water between, open water for the boss."""
+    p.coast(100, 296, -1, 4, "reef").coast(100, 296, 1, 4, "reef")
+    p.blob(250, 7, 10, 2.5, "reef").blob(170, 6, 8, 3, "reef")
+    p.scatter(110, 296, 14, 2, "coral", cols=(0, 13))
+    p.calm(200, 226, 497, 4, 9).want_objects({"reef"}, 200, 226, 2, cols=(4, 9))
+    p.calm(120, 150, 497, 4, 9).want_objects({"reef"}, 120, 150, 2, cols=(4, 9))
+    return p.fill(0, 92, "space")
 
 
 def grey_moon(p):
-    """Asteroid fields thickening, stations and wrecks between them, open space for the boss."""
+    """The grey moon (ASSASSIN's rock): fields of rock thickening, a great mass in the middle, open
+    space for the boss."""
     p.scatter(200, 295, 10, 3, "rock").scatter(120, 200, 18, 3, "rock")
     p.blob(160, 7, 18, 4, "rock")
-    p.calm(230, 296, 1).want_objects({"station"}, 230, 296, 4)
-    p.calm(90, 140, 1).want_objects({"station"}, 90, 140, 4)
+    p.calm(230, 296, 1).want_objects({"rock"}, 230, 296, 4)
+    p.calm(90, 140, 1).want_objects({"rock"}, 90, 140, 4)
     return p.fill(0, 80, "space")
 
 
 def vault(p):
-    """The grey moon's vault: strongrooms of plating either side of corridors, lamps along them,
-    a hall at the end."""
+    """The grey moon's vault (BRAINIAC's halls): strongrooms of walls either side of shafts, blocks
+    of slate along them, a hall at the end."""
     for k, r0 in enumerate(range(50, 290, 46)):
         if k % 2:
-            p.rect(r0, r0 + 28, 0, 5, "plate").rect(r0 + 8, r0 + 36, 9, 13, "plate")
+            p.rect(r0, r0 + 28, 0, 5, "wall").rect(r0 + 8, r0 + 36, 9, 13, "wall")
         else:
-            p.rect(r0, r0 + 30, 0, 3, "plate").rect(r0 + 4, r0 + 26, 6, 13, "plate")
-        p.scatter(r0, r0 + 36, 4, 1, "lamp", cols=(1, 12))
-    return p.fill(0, 40, "floor")
-
-
-def roost_bias(model, grids):
-    """Jungle: a river winding up the level, a lake in the middle, open ground for the boss."""
-    mats = preview.materials("x", TORM_MATS["materials"], list(model.count))
-
-    def want(x, y):
-        rx = 7 + 4.2 * math.sin(y / 23.0) + 1.5 * math.sin(y / 7.3 + 1)
-        width = 1.4 + 0.8 * math.sin(y / 31.0) + (3.5 if 150 < y < 180 else 0)
-        if y < 60:
-            width = 0.6
-        return "water" if abs(x - rx) < width else "grass"
-
-    def bias(t, x, y):
-        return (0.05 + mats[t][want(x, y)]) ** 2
-    return bias
+            p.rect(r0, r0 + 30, 0, 3, "wall").rect(r0 + 4, r0 + 26, 6, 13, "wall")
+        p.scatter(r0, r0 + 36, 4, 1, "slate", cols=(1, 12))
+    return p.fill(0, 40, "space")
 
 
 def glacier(p):
@@ -496,12 +510,6 @@ def collector(p):
     p.rect(150, 296, 0, 3, "hull").rect(100, 230, 10, 13, "hull")
     p.calm(100, 296, 20, 4, 9).want_objects({"ship"}, 100, 296, 6, cols=(4, 9))
     return p.fill(0, 80, "space")
-
-
-def crustgate(p):
-    """Crust over lava: lava rivers, the gate's opening at the end."""
-    p.river(120, 296, 3, "lava", centre=4, swing=2.5, period=50).river(100, 260, 2.5, "lava", centre=10, swing=2, period=40)
-    return p.fill(0, 80, "lava", strict=False)
 
 
 def the_core(p):
@@ -525,17 +533,19 @@ def the_core(p):
 # couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level),
 # hold (clock, seconds): a siege, the map stopped, waves round and round until the level timer ends.
 LEVELS = [
-    dict(name="DIG SITE", terrain=SAVARA_TERRAIN, shapes="y", song=33, seed=4, map=SAVARA, layer2=SAVARA[:4], plan=dig_site, **SAVARA_MATS,
-         waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=SAVARA[:4], boss_time=6100,
-         look=(1, "SAVARA"), speeds=(1, 2, 3), wealth=12000,
+    dict(name="DIG SITE", terrain=DESERT_TERRAIN, shapes=")", song=33, seed=4, map=DESERT, plan=dig_site, **DESERT_MATS,
+         waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=DESERT, boss_time=6100,
+         look=(4, "SURFACE"), speeds=(1, 2, 3), wealth=12000,
          gimmicks=dict(ambush=[(2900, (3, "CAMANIS"))], bursts="map", couriers=[(3600, "cube")])),
-    dict(name="REEF", terrain=SAVARA_TERRAIN, shapes="y", song=21, seed=31, map=SAVARA, layer2=SAVARA[:4], plan=reef, **SAVARA_MATS,
-         waves=[(2, "GYGES"), (2, "GRYPHON")], boss=(3, "IXMUCANE"), ground=SAVARA[:4], boss_time=5600,
-         look=(4, "SAVARA IV"), speeds=(1, 2, 3), wealth=15000,
+    dict(name="REEF", terrain=REEF_TERRAIN, shapes="z", song=21, seed=31, map=[(5, "CORAL")], plan=reef, **REEF_MATS,
+         waves=[(2, "GYGES"), (2, "GRYPHON")], boss=(3, "IXMUCANE"), ground=[(5, "CORAL")], boss_time=5600,
+         look=(5, "CORAL"), speeds=(1, 2, 3), wealth=15000,
          gimmicks=dict(midboss=((2, "GYGES"), 2600), ambush=[(4400, (2, "GRYPHON"))], couriers=[(1800, "cube")])),
-    dict(name="GREY MOON", terrain=ASTEROID_TERRAIN, shapes="z", song=1, seed=41, map=ASTEROIDS, layer2=ASTEROIDS[:2], layer3=ASTEROIDS[:2],
-         plan=grey_moon, **ASTEROID_MATS, waves=[(4, "SAVARA IV"), (5, "SAVARA")], boss=(2, "TORM"),
-         ground=ASTEROIDS, boss_time=6200, look=(1, "ASTEROID1"), wealth=18000,
+    # (ASSASSIN's rock; not its ice, layer 2, which the 3D view shows as clouds over most of the screen; the look,
+    # its star field, ASTEROID1's: ASSASSIN's has its spotlight.)
+    dict(name="GREY MOON", terrain=ASTEROID_TERRAIN, shapes="z", song=1, seed=41, map=[(1, "ASSASSIN")], map_rows=(0, 272),
+         plan=grey_moon, **MOON_MATS, waves=[(4, "SAVARA IV"), (5, "SAVARA")], boss=(2, "TORM"),
+         ground=[(1, "ASSASSIN")], boss_time=6200, look=(1, "ASTEROID1"), wealth=18000,
          gimmicks=dict(bursts="map", bursts_map=2, midboss=((1, "ASTEROID2"), 3000),
                        couriers=[(4100, "warp:vault")]), ground_sheets=0),
     dict(name="DELI RUIN", terrain=DELI_TERRAIN, shapes="z", song=14, seed=91, map=DELI, layer2=DELI, layer3=DELI,
@@ -543,9 +553,11 @@ LEVELS = [
          look=(1, "DELIANI"), speeds=(1, 2, 2), wealth=21000, need_sheets=[15],
          gimmicks=dict(dark="hold", ambush=[(4300, (3, "New Deli"))], couriers=[(2900, "cube")],
                        hold=(1100, 40))),
-    dict(name="ROOST", terrain=TORM_TERRAIN, shapes="x", song=28, seed=51, map=[(2, "TORM")], bias=roost_bias,
-         waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "TORM")], boss_time=6300,
-         look=(2, "TORM"), wealth=24000,
+    # (GYGES' hive: its floor, the islands of hive over it on layer 2 and its walls on layer 3.)
+    dict(name="ROOST", terrain=HIVE_TERRAIN, shapes="x", song=28, seed=51, map=[(2, "GYGES")], layer2=[(2, "GYGES")],
+         layer3=[(2, "GYGES")], bias2=zones([(0, 600, 0.25)], 52, scale=1.5), bias3=channel(53),
+         waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "GYGES")],
+         boss_time=6300, look=(2, "GYGES"), speeds=(1, 2, 2), wealth=24000,
          gimmicks=dict(ambush=[(2200, (4, "LAVA RUN"))], flip="boss", couriers=[(1400, "special:49"), (2800, "cube")])),
     dict(name="DEEP ICE", terrain=dict(ICE_TERRAIN, solid_upper=[2]), keep_map=True, remake=[3], shapes="w", song=14, seed=61,
          map=ICE, layer2=[(3, "IXMUCANE")], layer3=[(4, "ICE EXIT")], layer3_from=2,
@@ -561,9 +573,12 @@ LEVELS = [
          boss=(4, "BRAINIAC"), boss_time=5600, look=(3, "FLEET"), intensity=lambda f: 0.55 + 0.45 * f,
          wealth=34000, gimmicks=dict(bursts="map", ambush=[(3200, (4, "LAVA EXIT"))],
                                      couriers=[(2600, "cube")])),
-    dict(name="CRUSTGATE", terrain=LAVA_TERRAIN, shapes=")", song=17, seed=81, map=LAVA, layer2=LAVA, plan=crustgate, **LAVA_MATS,
-         waves=[(2, "MARKERS"), (2, "MISTAKES")], boss=(4, "ICE EXIT"), ground=LAVA, boss_time=6000,
-         look=(4, "LAVA RUN"), wealth=38000,
+    # (SIDE EXIT's crust: its glowing veins, the crags over them on layer 2; without its lava effect: with it the
+    # game at the default detail, processorType 3, leaves layer 2 out, tyrian2.c's "smoothies[1-1]".)
+    dict(name="CRUSTGATE", terrain=CRAG_TERRAIN, shapes=")", song=17, seed=81, map=[(4, "SIDE EXIT")], layer2=[(4, "SIDE EXIT")],
+         bias2=zones([(0, 600, 0.4)], 82, scale=1.5), look_without_effects=(1,),
+         waves=[(2, "MARKERS"), (2, "MISTAKES")], boss=(4, "ICE EXIT"), ground=[(4, "SIDE EXIT")], boss_time=6000,
+         look=(4, "SIDE EXIT"), wealth=38000,
          gimmicks=dict(midboss=((5, "MINERS"), 1800), flip="midboss", bursts="map",
                        couriers=[(2800, "cube")])),
     dict(name="THE CORE", terrain=CORE_TERRAIN, shapes=")", song=23, seed=111, map=[(4, "CORE")], layer2=[(4, "CORE")], plan=the_core,
@@ -582,9 +597,9 @@ LEVELS = [
          intensity=lambda f: 0.55 + 0.45 * f, gimmicks=dict(couriers=[(2500, "cube")], bursts="map")),
     # Secret and bonus levels (story.py places them: VAULT behind GREY MOON's warp orb, INVADERS after
     # THE CORE).
-    dict(name="VAULT", terrain=DELI_TERRAIN, shapes="z", song=18, seed=121, map=DELI, layer2=DELI, plan=vault, **DELI_MATS,
-         waves=[(3, "BONUS"), (3, "New Deli")], boss=(1, "ASTEROID2"), ground=DELI, boss_time=6200,
-         look=(1, "DELIANI"), speeds=(1, 2, 2), intensity=lambda f: 0.3 + 0.4 * f, wealth=60000,
+    dict(name="VAULT", terrain=HALL_TERRAIN, shapes=")", song=18, seed=121, map=HALLS, layer2=HALLS, layer3=HALLS, plan=vault,
+         **HALL_MATS, waves=[(3, "BONUS"), (3, "New Deli")], boss=(1, "ASTEROID2"), ground=HALLS, boss_time=6200,
+         look=(4, "BRAINIAC"), speeds=(1, 2, 2), intensity=lambda f: 0.3 + 0.4 * f, wealth=60000,
          gimmicks=dict(couriers=[(2000, "cube"), (4400, "cube")], bursts="map")),
     dict(name="INVADERS", kind="invaders", maps_of="collector", shapes="w", song=41, seed=3, look=(3, "FLEET")),
     # The episode's last two (the user, 2026-11-03: "ovo bi mogla biti zadnja 2 levela ep 6: starfox like level - ne
