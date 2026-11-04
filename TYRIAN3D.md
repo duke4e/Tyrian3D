@@ -193,6 +193,13 @@ TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
 
 ## New content
 
+**Checkpoints.** In a one-player full game the long levels (their events going on past clock 4500: the middle; past
+9000: the thirds) have checkpoints: "Checkpoint" shows as one is passed, and the ship lost after it plays the level
+again from its start unseen and unwaited, its recorded input played back (the debug flight's recording: the level
+launched as its script launched it, without the shop and texts, `tyrian2.c` `launch_again`), to there, so the ship
+is where it was with what it had, a moment unhurt, and plays on (`debugmode.c` `checkpoint_restart`). Not in network
+games, demos, timed battles, rogue runs, arcade or two-player play.
+
 New items live in the item data's free slots, so the original ones stay as they are: weapons
 819-999, weapon ports 48-60, sidekicks 33-37, specials 49-54. `assets/content/items.cfg` lists them
 (the format is in `src/content.h`); the game reads it each time it loads the item data
@@ -836,7 +843,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level); `TYR3D_PROFILE=gpu` also the GPU's time for each 3D frame (`3d gpu:` median, mean and most of the last 300, from its submission to its completion, each frame waited for first, which slows the game a little) and for each frame the modern UI draws (`ui gpu:`: the store with its pad's or simulator's scene, Destruct, the jukebox, the menus). For A/B costs: a debug flight paused on one frame (`TYR3D_DEBUG=1 TYR3D_DEBUG_SEEK=<tick>`, `` TYR3D_TEST_KEYS=90:` ``) presents the same scene again and again |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
-| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
+| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_GODMODE_UNTIL=<clock>`: until the level's clock is there, to test a checkpoint) (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
 | `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |

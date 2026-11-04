@@ -17,7 +17,11 @@
 #include "mainint.h"
 #include "mtrand.h"
 #include "nortsong.h"
+#include "network.h"
 #include "palette.h"
+#include "params.h"
+#include "rogue.h"
+#include "tyrian2.h"
 #include "picload.h"
 #include "vga256d.h"
 #include "varz.h"
@@ -267,6 +271,63 @@ static bool snapshot_wanted = false;
 static char last_snapshot[64];
 static Uint64 last_snapshot_time = 0;
 
+/* --- Checkpoints ------------------------------------------------------------------------- */
+
+// Tyrian3D: checkpoints in the long levels (the user, 2026-11-04: "možemo na dužim levelima dodati checkpointove?"),
+// on the debug flight's recording: a one-player full game records its input from the level's start as the debug
+// flight does; past a checkpoint (the middle of a level whose events go on past CHECKPOINT_LONG clock, the thirds of
+// one past twice that) a death plays the level again from its start, its recorded input played back unseen and
+// unwaited to the checkpoint's tick, so the ship is there as it was (its savings, what it had shot down), and the game
+// goes on from there, the ship a moment unhurt. Not in network games, demos, timed battles, rogue runs, arcade or two-
+// player play, nor the debug flight (which rewinds its own way).
+#define CHECKPOINT_LONG 4500
+static bool checkpoints = false;   // recording for them (the level began in a game that has them)
+static bool relaunching = false;   // the level starting again for one (checkpoint_relaunch)
+static int checkpoint_tick = 0;    // the last one passed (0: none yet)
+static int checkpoint_marks[2], checkpoint_mark_count = -1;  // their clocks (-1: not yet found)
+
+static bool checkpoints_allowed(void)
+{
+	return !debug_flight && !isNetworkGame && !play_demo && !record_demo && !timedBattleMode && !rogue_run &&
+	       !onePlayerAction && !twoPlayerMode && !superTyrian && superArcadeMode == SA_NONE;
+}
+
+// Recording, for the debug flight or the checkpoints.
+static bool recording(void)
+{
+	return debug_flight || checkpoints;
+}
+
+static void checkpoint_marks_find(void)
+{
+	const int last = level_last_event_clock();
+	checkpoint_mark_count = 0;
+	if (last > 2 * CHECKPOINT_LONG)
+	{
+		checkpoint_marks[checkpoint_mark_count++] = last / 3;
+		checkpoint_marks[checkpoint_mark_count++] = last * 2 / 3;
+	}
+	else if (last > CHECKPOINT_LONG)
+		checkpoint_marks[checkpoint_mark_count++] = last / 2;
+}
+
+// quiet: playing back towards the last one (those passed on the way are passed again, unsaid)
+static void checkpoint_tick_check(bool quiet)
+{
+	if (checkpoint_mark_count < 0)
+		checkpoint_marks_find();
+	for (int k = 0; k < checkpoint_mark_count; ++k)
+		if (curLoc >= checkpoint_marks[k] && checkpoint_marks[k] > 0 && (quiet || (checkpoint_tick < tick && player[0].is_alive)))
+		{
+			checkpoint_marks[k] = 0;  // (passed)
+			if (quiet)
+				continue;
+			checkpoint_tick = tick;
+			JE_drawTextWindow("Checkpoint");
+			printf("checkpoint: %s tick %d clock %d\n", levelName, tick, curLoc);
+		}
+}
+
 static void apply_speed(void)
 {
 	nortsong_time_scale = 1.0f / speeds[speed];
@@ -280,12 +341,18 @@ static void set_replay(bool on)
 
 bool debug_flight_replaying(void)
 {
-	return debug_flight && replay_to >= 0 && tick < replay_to;
+	return recording() && replay_to >= 0 && tick < replay_to;
 }
 
 void debug_flight_level_start(void)
 {
-	if (!debug_flight)
+	if (!restart)
+	{
+		checkpoints = checkpoints_allowed();
+		checkpoint_tick = 0;
+	}
+	checkpoint_mark_count = -1;
+	if (!recording())
 		return;
 	if (start.rng == NULL)
 		start.rng = malloc(mt_state_size());
@@ -297,13 +364,19 @@ void debug_flight_level_start(void)
 
 	if (restart && start.valid)
 	{
-		// The level again as it began; its input played back to the rewind's moment.
+		// The level again as it began; its input played back to the rewind's moment. (A checkpoint's: as the script
+		// launched it, the ships and the random numbers then: tyrian2.c launch_again.)
 		restart = false;
 		start.again = true;
-		memcpy(player, start.players, sizeof(start.players));
-		mt_load(start.rng);
-		difficultyLevel = start.difficulty;
-		mainLevel = start.section;
+		if (checkpoints)
+			relaunching = true;
+		else
+		{
+			memcpy(player, start.players, sizeof(start.players));
+			mt_load(start.rng);
+			difficultyLevel = start.difficulty;
+			mainLevel = start.section;
+		}
 		set_replay(replay_to > 0);
 	}
 	else
@@ -334,7 +407,7 @@ void debug_flight_level_start(void)
 
 bool debug_flight_field_wide(bool wide)
 {
-	if (!debug_flight)
+	if (!recording())
 		return wide;
 	if (start.again)
 		return start.field_wide;
@@ -344,7 +417,25 @@ bool debug_flight_field_wide(bool wide)
 
 bool debug_flight_restarting(void)
 {
-	return debug_flight && restart;
+	return recording() && restart;
+}
+
+bool checkpoint_relaunch(void)
+{
+	const bool was = relaunching;
+	relaunching = false;
+	return was;
+}
+
+bool checkpoint_restart(void)
+{
+	if (!checkpoints || checkpoint_tick <= 0 || !start.valid || !all_players_dead())
+		return false;
+	replay_to = checkpoint_tick;
+	pause_after_replay = false;
+	restart = true;
+	printf("checkpoint: %s again from tick %d\n", levelName, checkpoint_tick);
+	return true;
 }
 
 static void rewind_by(int ticks)
@@ -461,19 +552,33 @@ static void loadout_keys(void)
 
 void debug_flight_tick(void)
 {
-	if (!debug_flight)
+	if (!recording())
 		return;
 	++tick;
 	if (replay_to >= 0)
 	{
 		if (tick < replay_to)
+		{
+			if (checkpoints)
+				checkpoint_tick_check(true);
 			return;
+		}
 		// There: the recording goes on from here.
 		set_replay(false);
 		recorded = SDL_min(recorded, replay_to);
 		replay_to = -1;
 		paused = pause_after_replay;
 		pause_after_replay = false;
+		if (checkpoints)  // (back at a checkpoint: a moment unhurt; it, passed again, unsaid)
+		{
+			player[0].invulnerable_ticks = SDL_max(player[0].invulnerable_ticks, 100);
+			checkpoint_tick_check(true);
+		}
+	}
+	if (!debug_flight)
+	{
+		checkpoint_tick_check(false);
+		return;
 	}
 
 	common_keys();
@@ -498,7 +603,7 @@ void debug_flight_tick(void)
 
 void debug_flight_input(int player_number, Player *p, JE_integer *accel_x, JE_integer *accel_y)
 {
-	if (!debug_flight || tick < 0 || tick >= MAX_TICKS || player_number < 1 || player_number > 2 || inputs[0] == NULL)
+	if (!recording() || tick < 0 || tick >= MAX_TICKS || player_number < 1 || player_number > 2 || inputs[0] == NULL)
 		return;
 	DebugInput *in = &inputs[player_number - 1][tick];
 	if (debug_flight_replaying())

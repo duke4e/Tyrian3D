@@ -35,6 +35,12 @@ bool debug_picker_from_environment(void);
 void debug_flight_level_start(void);
 // At start_level: true when the level restarts (a rewind) rather than ending.
 bool debug_flight_restarting(void);
+// At start_level, the ship lost: true when the level plays again to its last checkpoint passed (then
+// debug_flight_restarting too). Tyrian3D's checkpoints in the long levels, on the debug flight's recording.
+bool checkpoint_restart(void);
+// In JE_loadMap: true (once) when the level starts again for a checkpoint: it is launched as it was (tyrian2.c
+// launch_again), without the script.
+bool checkpoint_relaunch(void);
 // The playfield's width (l3d_field_wide) for the level starting: as it began when it starts again
 // for a rewind (the input played back was played on it; a change of the setting or the view in
 // between waits for the next level).

@@ -2180,8 +2180,9 @@ start_level:
 
 	printf("level over: %s, cash %lu\n", levelName, player[0].cash);  // Tyrian3D: for logs and sweeps
 
-	// Tyrian3D: the debug flight rewinds by restarting the level (debugmode.h).
-	if (debug_flight_restarting())
+	// Tyrian3D: the debug flight rewinds by restarting the level, and a ship lost past a checkpoint plays it again to
+	// there (debugmode.h).
+	if (debug_flight_restarting() || checkpoint_restart())
 		goto start_level_first;
 
 	// Tyrian3D: a rogue run picks the next level itself, or ends (rogue.h).
@@ -4167,6 +4168,56 @@ int upcoming_cube(int n)
 	return cube;
 }
 
+// Tyrian3D: the level as its script launched it, for a checkpoint's restart (debugmode.h checkpoint_restart): its
+// line and what the script set for it, and the ships, the difficulty and the random numbers as it began, so the
+// level starts again as it did without the script's shop and texts, its recorded input played back on it.
+static struct
+{
+	bool valid;
+	JE_byte mainLevel, nextLevel, saveLevel, levelSong, lvlFileNum;
+	char levelName[11];
+	JE_boolean bonus, normal_bonus, galaga, last_bank, extra;
+	Player players[2];
+	JE_byte difficulty;
+	void *rng;
+} launch;
+
+static void launch_remember(void)
+{
+	if (launch.rng == NULL && (launch.rng = malloc(mt_state_size())) == NULL)
+		return;
+	launch = (typeof(launch)){ true, mainLevel, nextLevel, saveLevel, levelSong, lvlFileNum, "", bonusLevelCurrent,
+	                           normalBonusLevelCurrent, galagaMode, useLastBank, extraGame, { player[0], player[1] },
+	                           difficultyLevel, launch.rng };
+	SDL_strlcpy(launch.levelName, levelName, sizeof(launch.levelName));
+	mt_save(launch.rng);
+}
+
+static bool launch_again(void)
+{
+	if (!checkpoint_relaunch() || !launch.valid)
+		return false;
+	mainLevel = launch.mainLevel, nextLevel = launch.nextLevel, saveLevel = launch.saveLevel;
+	levelSong = launch.levelSong, lvlFileNum = launch.lvlFileNum;
+	SDL_strlcpy(levelName, launch.levelName, sizeof(levelName));
+	bonusLevelCurrent = launch.bonus, normalBonusLevelCurrent = launch.normal_bonus;
+	galagaMode = launch.galaga, useLastBank = launch.last_bank, extraGame = launch.extra;
+	memcpy(player, launch.players, sizeof(launch.players));
+	difficultyLevel = launch.difficulty;
+	mt_load(launch.rng);
+	loadLevelOk = true;
+	return true;
+}
+
+// Tyrian3D: the clock of the level's last event (its length, about: debugmode.c's checkpoints).
+int level_last_event_clock(void)
+{
+	int last = 0;
+	for (int e = 0; e < maxEvent && e < EVENT_MAXIMUM; ++e)
+		last = SDL_max(last, (int)eventRec[e].eventtime);
+	return last;
+}
+
 // (The mini-game's weapons, kit_restore.)
 static void kit_restore(void)
 {
@@ -4212,7 +4263,7 @@ new_game:
 
 	gameLoaded = false;
 
-	if (!play_demo)
+	if (!play_demo && !launch_again())  // (Tyrian3D: a checkpoint's restart skips the script)
 	{
 		do
 		{
@@ -4891,6 +4942,7 @@ new_game:
 			fclose(ep_f);
 
 		} while (!loadLevelOk);
+		launch_remember();
 	}
 
 	if (play_demo)

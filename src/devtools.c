@@ -292,7 +292,9 @@ void dev_level_tick(void)
 
 bool dev_godmode(void)
 {
-	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL;
+	// (TYR3D_GODMODE_UNTIL=<clock>: only until the level's clock reaches that, as for a checkpoint's test)
+	const char *until = SDL_getenv("TYR3D_GODMODE_UNTIL");
+	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL || (until != NULL && curLoc < SDL_atoi(until));
 }
 
 void dev_balance(const char *what, int value)
