@@ -30,6 +30,7 @@
 #include "settings3d.h"
 #include "particles3d.h"
 #include "models3d.h"
+#include "rail.h"
 #include "rogue.h"
 #include "secrets.h"
 #include "volume3d.h"
@@ -2137,6 +2138,7 @@ void JE_main(void)
 	int lastEnemyOnScreen;
 
 	kit_saved = kit_this_level = false;
+	rail_next_level = false;
 	custom_then_gbc = false;  // (a game begun or loaded: not Camanis 2 on its way to episode 7)
 
 	/* NOTE: BEGIN MAIN PROGRAM HERE AFTER LOADING A GAME OR STARTING A NEW ONE */
@@ -2263,6 +2265,13 @@ start_level_first:
 
 	if (mainLevel == 0)  // if quit itemscreen
 		return;          // back to titlescreen
+
+	// Tyrian3D: a level flown on the rail (the script's ]r[): its own game in 3D, then the level's end as ever.
+	if (rail_next_level)
+	{
+		rail_play();
+		goto start_level;
+	}
 
 	if (!play_demo)
 		mouseSetRelative(true);
@@ -4486,6 +4495,10 @@ new_game:
 						for (uint i = 0; i < COUNTOF(player[0].items.sidekick); ++i)
 							player[0].items.sidekick[i] = 0;           // None
 						player[0].items.special = 0;                   // None
+						break;
+
+					case 'r':  // Tyrian3D: the next level flown on the rail, as Star Fox flies (rail.h)
+						rail_next_level = true;
 						break;
 
 					case 'I': /*Load Items Available Information*/

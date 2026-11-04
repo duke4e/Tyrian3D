@@ -61,6 +61,7 @@ typedef enum
 	UI_SCREEN_CREDITS,     // the credits rolling (UICredits)
 	UI_SCREEN_ROGUE,       // the rogue mode's screens (UIRogue)
 	UI_SCREEN_DESTRUCT,    // Destruct, the secret artillery duel: its pages and its HUD (UIDestruct)
+	UI_SCREEN_RAIL,        // a level flown on the rail (rail.h): its HUD over its 3D view (UIRail)
 	UI_SCREEN_SECRETS,     // the secrets found and still locked (UISecrets, secrets.c)
 	UI_SCREEN_ENDING,      // the game's ending animation as a 3D scene (jukebox3d.h), nothing over it
 	UI_SCREEN_SHOP,        // the store between levels (game_menu.c), its pages (UIShop.page)
@@ -441,6 +442,21 @@ typedef struct
 	char help_footer[80];
 } UIDestruct;
 
+// A level flown on the rail (rail.c): its HUD.
+typedef struct
+{
+	float shield, armor, boost;  // 0-1
+	long score;
+	int hits, bombs, power;      // enemies shot down; the bombs left; the lasers' power (1-11)
+	float boss;                  // the boss's armor left (0-1), or -1 while there is none
+	char boss_name[24];
+	char message[64];            // a line in the middle (a formation down, an item, the boss)
+	float message_alpha;
+	char level[16];
+	float title_alpha;           // the level's name, at the start
+	bool paused, leave_asked;    // paused; and asked whether to leave (Esc again)
+} UIRail;
+
 // The secrets (the title's Secrets: secrets.c): their kinds as tabs, how many of each are found of how many,
 // all; the rows are the menu's items (label: its name or "???", value: what or where it is, value2: a share
 // found or "", owned: found, hint: how it was found or where to look).
@@ -493,6 +509,7 @@ typedef struct
 	UICredits credits;
 	UIRogue rogue;
 	UIDestruct destruct;
+	UIRail rail;
 	UISecrets secrets;
 } UIMenu;
 

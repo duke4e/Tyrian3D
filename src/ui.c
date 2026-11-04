@@ -4210,6 +4210,80 @@ static void build_destruct_hud(const UIMenu *m)
 	key_hints(keys, (int)COUNTOF(keys), L.safe.x + L.safe.w / 2, L.window.h - U(18) - key_hints_height(), ALIGN_CENTRE);
 }
 
+// A level flown on the rail (rail.c): the score and the hits at the top left, the shield, the armor, the boost, the
+// lasers' power and the bombs at the bottom left, the boss's armor at the top, a line in the middle, the level's name
+// as it starts; paused, a card.
+static void build_rail_hud(const UIMenu *m)
+{
+	const UIRail *r = &m->rail;
+	const float cap = CAP_ITEM(), small = CAP_SMALL(), key = CAP_KEY();
+	// The score and the hits.
+	{
+		const float pw = U(300), ph = U(108);
+		const Box p = { snap(L.safe.x + U(24)), U(20), snap(pw), ph };
+		panel(p, U(14), PANEL_SOLID);
+		char score[32];
+		grouped((unsigned long)SDL_max(r->score, 0L), score, sizeof(score));
+		text(FONT_SEMIBOLD, "SCORE", p.x + U(24), p.y + U(14), key, C_DIM, ALIGN_LEFT);
+		text_graded(FONT_BOLD, score, p.x + U(24), p.y + U(14) + key + U(8), cap * 1.5f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_LEFT, true);
+		char hits[16];
+		snprintf(hits, sizeof(hits), "%d", r->hits);
+		text(FONT_SEMIBOLD, "HITS", p.x + p.w - U(24), p.y + U(14), key, C_DIM, ALIGN_RIGHT);
+		text_graded(FONT_BOLD, hits, p.x + p.w - U(24), p.y + U(14) + key + U(8), cap * 1.5f, C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_RIGHT,
+		            true);
+	}
+	// The ship.
+	{
+		const float pw = U(420), ph = U(176);
+		const Box p = { snap(L.safe.x + U(24)), snap(L.window.h - U(24) - ph), snap(pw), ph };
+		panel(p, U(14), PANEL_SOLID);
+		const float gh = U(30), lw = SDL_max(U(110), small * 5.4f);
+		const Box in = inset(p, U(22));
+		labelled_gauge((Box){ in.x, in.y, in.w, gh }, lw, "SHIELD", r->shield, (Colour){ 0.35f, 0.75f, 1.0f, 1 });
+		labelled_gauge((Box){ in.x, in.y + gh + U(6), in.w, gh }, lw, "ARMOR", r->armor,
+		               r->armor > 0.3f ? (Colour){ 1.0f, 0.55f, 0.25f, 1 } : (Colour){ 0.95f, 0.3f, 0.25f, 1 });
+		labelled_gauge((Box){ in.x, in.y + 2 * (gh + U(6)), in.w, gh }, lw, "BOOST", r->boost, (Colour){ 0.95f, 0.82f, 0.4f, 1 });
+		const float py = in.y + 3 * (gh + U(6)) + U(4);
+		text(FONT_SEMIBOLD, "LASERS", in.x, py + U(2), small, C_DIM, ALIGN_LEFT);
+		const float pip = SDL_max(U(12), L.px * 4);
+		pips(in.x + lw, py + U(4), 11, SDL_clamp(r->power, 0, 11), pip, pip * 0.5f, C_GREEN);
+		char bombs[16];
+		snprintf(bombs, sizeof(bombs), "BOMBS  %d", r->bombs);
+		text(FONT_BOLD, bombs, in.x + in.w, py, small, r->bombs > 0 ? C_CREAM : C_FAINT, ALIGN_RIGHT);
+	}
+	// The boss.
+	if (r->boss >= 0)
+	{
+		const float pw = SDL_min(U(720), L.safe.w * 0.5f), ph = U(70);
+		const Box p = { snap(L.safe.x + (L.safe.w - pw) / 2), U(20), snap(pw), ph };
+		panel(p, U(14), PANEL_SOLID);
+		text(FONT_SEMIBOLD, r->boss_name, p.x + U(24), p.y + U(12), key, C_DIM, ALIGN_LEFT);
+		bar((Box){ p.x + U(24), p.y + U(12) + key + U(10), p.w - U(48), U(16) }, r->boss, (Colour){ 0.92f, 0.32f, 0.25f, 1 }, true);
+	}
+	// A line in the middle; the level's name at the start.
+	if (r->message[0] != '\0' && r->message_alpha > 0)
+		text_graded(FONT_BOLD, r->message, L.safe.x + L.safe.w / 2, snap(L.window.h * 0.3f), cap * 1.3f,
+		            with_alpha(C_GOLD_TOP, r->message_alpha), with_alpha(C_GOLD_BOTTOM, r->message_alpha), ALIGN_CENTRE, true);
+	if (r->title_alpha > 0)
+		text_graded(FONT_BOLD, r->level, L.safe.x + L.safe.w / 2, snap(L.window.h * 0.4f), CAP_TITLE() * 1.6f,
+		            with_alpha(C_GOLD_TOP, r->title_alpha), with_alpha(C_GOLD_BOTTOM, r->title_alpha), ALIGN_CENTRE, true);
+	// Paused.
+	if (r->paused)
+	{
+		const char *title = r->leave_asked ? "Leave the level?" : "Paused";
+		const char *line = r->leave_asked ? "Esc again leaves it; any other key goes on" : "Any key goes on; Esc leaves the level";
+		const float bw = SDL_max(text_w(FONT_BOLD, title, CAP_TITLE()), text_w(FONT_MEDIUM, line, small)) + U(140);
+		const float bh = CAP_TITLE() + small + U(90);
+		const Box b = { snap(L.safe.x + (L.safe.w - bw) / 2), snap(L.window.h * 0.36f), snap(bw), snap(bh) };
+		panel(b, U(18), PANEL_GLASS);
+		text_graded(FONT_BOLD, title, b.x + b.w / 2, b.y + U(30), CAP_TITLE(), C_GOLD_TOP, C_GOLD_BOTTOM, ALIGN_CENTRE, true);
+		text(FONT_MEDIUM, line, b.x + b.w / 2, b.y + U(30) + CAP_TITLE() + U(24), small, C_TAN, ALIGN_CENTRE);
+		const KeyHint keys[] = { { KEY_TEXT, "Fire", "Lasers" }, { KEY_TEXT, "Mode", "Bomb" }, { KEY_TEXT, "Sidekicks", "Brake, boost" },
+		                         { KEY_TEXT, "Left Left", "Roll" } };
+		key_hints(keys, (int)COUNTOF(keys), L.safe.x + L.safe.w / 2, L.window.h - U(18) - key_hints_height(), ALIGN_CENTRE);
+	}
+}
+
 // The secrets: a panel with how many are found, their kinds as tabs (each with its share), the kind's rows
 // (found: its name and a FOUND badge; locked: "???"), what the selected one is or where to look.
 static void build_secrets(const UIMenu *m)
@@ -4333,7 +4407,8 @@ void ui_build_screen(const UIView *view)
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.08f }, (Colour){ 0, 0, 0, 0.3f });
 	else if (published.kind != UI_SCREEN_TITLE && published.kind != UI_SCREEN_JUKEBOX && published.kind != UI_SCREEN_ENDING &&
 	         published.kind != UI_SCREEN_CREDITS &&
-	         published.kind < UI_SCREEN_SHOP && !(published.kind == UI_SCREEN_DESTRUCT && published.destruct.page == UI_DESTRUCT_PLAY))
+	         published.kind < UI_SCREEN_SHOP && published.kind != UI_SCREEN_RAIL &&
+	         !(published.kind == UI_SCREEN_DESTRUCT && published.destruct.page == UI_DESTRUCT_PLAY))
 		rect(picture_box(), (Colour){ 0, 0, 0, 0.25f }, (Colour){ 0, 0, 0, 0.4f });
 	static int gallery = -1;
 	if (gallery < 0)
@@ -4383,6 +4458,9 @@ void ui_build_screen(const UIView *view)
 		break;
 	case UI_SCREEN_DESTRUCT:
 		build_destruct(&published);
+		break;
+	case UI_SCREEN_RAIL:
+		build_rail_hud(&published);
 		break;
 	case UI_SCREEN_SECRETS:
 		build_secrets(&published);

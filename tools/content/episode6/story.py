@@ -63,11 +63,11 @@ STAGES = [
 # (kit: flown with the mini-game's weapons, as the originals' mini-games are, the ship's own back after it: ]k[,
 # tyrian2.c kit_restore)
 STAGES.append(dict(level="invaders", kind="bonus", cubes=[], warning=None, kit=True))  # (">>> Bonus Level <<<" in it)
-# The last two (generate.py): STARFALL, the Collector's fleet chased low over the farmland, seen from behind the
-# ship; THE HOARD, its bosses one after another. Their shops sell the best the episode has.
+# The last two (generate.py): STARFALL, the Collector's fleet chased low over the farmland, flown on the rail as Star
+# Fox flies (rail: ]r[, src/rail.c; its level's events unused); THE HOARD, its bosses one after another. Their shops sell the best the episode has.
 LAST_SHOP = [" Ship   7 12 13", " WeapF  5 18 20 27 42 48 50 51", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
              " Opt1   0 12 22 25 28 33 35 37", " Opt2   0 12 22 26 28 34 36 37", " Armor  1 2 3", " Shield 11"]
-STAGES.append(dict(level="starfall", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
+STAGES.append(dict(level="starfall", planet=6, cubes=[], warning=None, shop=LAST_SHOP, rail=True))  # (src/rail.c)
 STAGES.append(dict(level="the_hoard", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
 STAGES.append(dict(level="hoard_ii", planet=6, cubes=[], warning=None, shop=LAST_SHOP))  # (THE HOARD's second half)
 

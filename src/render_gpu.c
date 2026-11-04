@@ -21,6 +21,7 @@
 #include "palette.h"
 #include "pcxmast.h"
 #include "particles3d.h"
+#include "rail.h"
 #include "picload.h"
 #include "file.h"
 #include "paths3d.h"
@@ -147,6 +148,7 @@ static void forget_model_icons(void);
 static void forget_jukebox_scene(void);
 static void forget_destruct_scene(void);
 static bool present_destruct(void);
+static void forget_rail_scene(void);
 static float cloud_noise(float x, float z, float cell, Uint32 seed);
 
 static Uint32 screen_rgba[SCREEN_W * SCREEN_H];
@@ -904,6 +906,7 @@ void rgpu_shutdown(void)
 	forget_ui_textures();
 	forget_jukebox_scene();
 	forget_destruct_scene();
+	forget_rail_scene();
 
 	if (device != NULL)
 		btbh_gpu_device_destroy(device);
@@ -13901,6 +13904,438 @@ static bool present_destruct(void)
 	return true;
 }
 
+/* --- A level flown on the rail (rail.h) ---------------------------------------------------------- */
+
+#define RAIL_SLOTS 8
+static struct
+{
+	int chunk;
+	unsigned int generation;
+	BTBHGPUCustomMesh *mesh;
+	BTBHGPUTexture *texture;
+} rail_slots[RAIL_SLOTS];
+static BTBHGPUTexture *rail_sky = NULL, *rail_haze = NULL;
+
+static void forget_rail_scene(void)
+{
+	// (The window's.)
+	memset(rail_slots, 0, sizeof(rail_slots));
+	rail_sky = rail_haze = NULL;
+}
+
+// sRGB to linear, for the instances' colours.
+static float rail_linear(float c)
+{
+	return c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
+}
+
+// A model at a world point, turned (yaw, pitch, roll: degrees) and scaled: a piece of one object (keep_origin) at its
+// own origin, anything else centred on its bounds, its size its game size times the scale.
+static void rail_model(const RailObject *o, const Uint32 colors[256], Uint8 *casts, bool shadows, int *instance_count,
+                       int *batch_count)
+{
+	const LoadedModel *loaded = o->model >= 0 && o->model < m3d_model_count ? get_model(o->model) : NULL;
+	if (loaded == NULL || loaded->footprint <= 0)
+		return;
+	const M3DModel *model = &m3d_models[o->model];
+	const Mat4 chain[] = { mat4_translation(o->x, o->y, o->z), mat4_rotation(1, o->yaw), mat4_rotation(0, o->pitch),
+	                       mat4_rotation(2, o->roll) };
+	const Mat4 placement = mat4_chain((int)COUNTOF(chain), chain);
+	const int first_instance = *instance_count, first_batch = *batch_count;
+	if (model->keep_origin)
+		add_showcase_model(o->model, &placement, 0, o->scale, colors, instance_count, batch_count);
+	else
+		add_showcase_model(o->model, &placement, (model->size > 0 ? model->size : loaded->footprint) * o->scale, 1, colors,
+		                   instance_count, batch_count);
+	if (o->flash > 0.01f && *instance_count > first_instance)
+		for (int k = 0; k < 3; ++k)
+			instances[first_instance * 24 + 16 + k] = 1.0f + o->flash * 1.8f;
+	for (int b = first_batch; b < *batch_count; ++b)
+		casts[b] = shadows && o->shadow;
+}
+
+// The rail's scene over the whole window, its HUD over it; false if it couldn't be drawn.
+static bool present_rail(void)
+{
+	BTBHGPUWindowReport frame;
+	if (!begin_frame(&frame))
+		return true;
+	hud_quad_count = 0;
+	canvas_fade[3] = 0;
+	shown_view.valid = false;
+	const float w = (float)frame.logical_width, h = (float)frame.logical_height;
+	const RailView *v = rail_view();
+
+	// The camera.
+	const float *forward = v->forward, *up = v->up;
+	const float right[3] = { forward[1] * up[2] - forward[2] * up[1], forward[2] * up[0] - forward[0] * up[2],
+	                         forward[0] * up[1] - forward[1] * up[0] };
+	const float aspect = w / SDL_max(h, 1.0f), t = tanf(v->fov_degrees * (float)M_PI / 360.0f);
+	Mat4 view = mat4_identity();
+	float dots[3] = { 0, 0, 0 };
+	for (int i = 0; i < 3; ++i)
+	{
+		view.m[i * 4 + 0] = right[i];
+		view.m[i * 4 + 1] = up[i];
+		view.m[i * 4 + 2] = forward[i];
+		view.m[i * 4 + 3] = 0;
+		dots[0] += right[i] * v->position[i];
+		dots[1] += up[i] * v->position[i];
+		dots[2] += forward[i] * v->position[i];
+	}
+	view.m[12] = -dots[0];
+	view.m[13] = -dots[1];
+	view.m[14] = -dots[2];
+	view.m[15] = 1;
+	const float near_plane = 2.0f, far_plane = 9000.0f;
+	Mat4 projection = { { 0 } };
+	projection.m[0] = 1.0f / (t * aspect);
+	projection.m[5] = 1.0f / t;
+	projection.m[10] = far_plane / (far_plane - near_plane);
+	projection.m[11] = 1.0f;
+	projection.m[14] = -near_plane * far_plane / (far_plane - near_plane);
+	const Mat4 view_projection = mat4_mul(&projection, &view);
+
+	// The pictures: the sky's gradient, the haze's (opaque at its foot, clear at its top).
+	if (rail_sky == NULL)
+	{
+		Uint32 sky[256], haze[64];
+		for (int y = 0; y < 256; ++y)
+		{
+			const float f = SDL_powf(y / 255.0f, 1.6f);
+			Uint8 c[4];
+			for (int k = 0; k < 3; ++k)
+				c[k] = (Uint8)(255 * (v->sky_top[k] + (v->sky_horizon[k] - v->sky_top[k]) * f));
+			c[3] = 255;
+			memcpy(&sky[y], c, 4);
+		}
+		for (int y = 0; y < 64; ++y)
+		{
+			const Uint8 a = (Uint8)(255 * SDL_clamp((y - 6) / 50.0f, 0.0f, 1.0f));
+			haze[y] = 0x00ffffffu | (Uint32)a << 24;
+		}
+		rail_sky = destruct_texture(sky, 1, 256);
+		rail_haze = destruct_texture(haze, 1, 64);
+	}
+
+	int instance_count = 0, batch_count = 0;
+	static Uint8 casts_shadow[MAX_BATCHES];
+	memset(casts_shadow, 0, sizeof(casts_shadow));
+	const bool shadows = shadows_enabled();
+	sync_model_cache();
+
+	// The sky: a wall far ahead, the horizon's colour at its foot.
+	{
+		const float far_away = 6000.0f;
+		const float cx = v->position[0], cz = v->position[2] - far_away;
+		const float a[3] = { cx - 24000, 9000, cz }, b3[3] = { cx + 24000, 9000, cz }, d[3] = { cx - 24000, -400, cz };
+		const Mat4 m = destruct_quad(a, b3, d);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 1.0f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->albedo_texture = rail_sky;
+			b->unlit_enabled = 1;
+			b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+		}
+	}
+	// The ground's chunks in view (their meshes and pictures made again when the rail has made them anew).
+	for (int k = v->chunk_first; k <= v->chunk_last; ++k)
+	{
+		D3Mesh mesh;
+		const Uint32 *rgba;
+		int tw, th;
+		const unsigned int made = rail_ground_chunk(k, &mesh, &rgba, &tw, &th);
+		if (made == 0)
+			continue;
+		int slot = -1;
+		for (int s = 0; s < RAIL_SLOTS && slot < 0; ++s)
+			if (rail_slots[s].chunk == k && rail_slots[s].generation != 0)
+				slot = s;
+		if (slot < 0)
+		{
+			// The slot of a chunk out of view.
+			for (int s = 0; s < RAIL_SLOTS && slot < 0; ++s)
+				if (rail_slots[s].generation == 0 || rail_slots[s].chunk < v->chunk_first || rail_slots[s].chunk > v->chunk_last)
+					slot = s;
+			if (slot < 0)
+				continue;
+			rail_slots[slot].generation = 0;
+		}
+		if (rail_slots[slot].generation != made)
+		{
+			rail_slots[slot].mesh = destruct_mesh(rail_slots[slot].mesh, &mesh);
+			if (rail_slots[slot].texture != NULL)
+				btbh_gpu_texture_destroy(rail_slots[slot].texture);
+			BTBHGPUTextureReport report;
+			rail_slots[slot].texture = btbh_gpu_window_texture_create_rgba8_ex(window, (const uint8_t *)rgba, (uint32_t)tw, (uint32_t)th, 1,
+			                                                                     BTBH_GPU_TEXTURE_FILTER_LINEAR, BTBH_GPU_TEXTURE_WRAP_MIRROR,
+			                                                                     BTBH_GPU_TEXTURE_COLOR_SPACE_SRGB, &report);
+			if (rail_slots[slot].texture == NULL)
+				fprintf(stderr, "warning: rail ground texture: %s\n", report.message);
+			rail_slots[slot].chunk = k;
+			rail_slots[slot].generation = made;
+		}
+		if (rail_slots[slot].mesh == NULL || rail_slots[slot].texture == NULL)
+			continue;
+		const Mat4 m = mat4_identity();
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(rail_slots[slot].mesh, &m, 1.0f, &instance_count, &batch_count);
+		if (b != NULL)
+		{
+			b->albedo_texture = rail_slots[slot].texture;
+			b->unlit_enabled = 1;  // (shaded in its vertices, as the 3D view's terrain)
+			casts_shadow[batch_count - 1] = shadows;
+		}
+	}
+	// The shadows of what flies, soft dark patches on the ground.
+	for (int i = 0; i < v->shadow_count; ++i)
+	{
+		const RailShadow *sh = &v->shadows[i];
+		const float r = sh->size / 2;
+		const float a[3] = { sh->x - r, sh->y, sh->z - r }, b3[3] = { sh->x + r, sh->y, sh->z - r }, d[3] = { sh->x - r, sh->y, sh->z + r };
+		const Mat4 m = destruct_quad(a, b3, d);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 1.0f, &instance_count, &batch_count);
+		if (b == NULL)
+			break;
+		float *instance = instances + (instance_count - 1) * 24;
+		instance[16] = instance[17] = instance[18] = 0;
+		instance[19] = sh->alpha;
+		b->albedo_texture = particle_texture;
+		b->unlit_enabled = 1;
+		b->transparency_enabled = 1;
+		b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
+		b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+	}
+	// The plants.
+	const B3DVegetation *veg = b3d_vegetation();
+	if (veg != NULL && v->plant_count > 0)
+	{
+		make_plant_meshes(veg, -1, 0, rgb_palette);
+		for (int kind = 0; kind < B3D_PLANT_KINDS && batch_count < MAX_BATCHES; ++kind)
+		{
+			if (plant_meshes.meshes[kind] == NULL)
+				continue;
+			const int first = instance_count;
+			for (int i = 0; i < v->plant_count && instance_count < MAX_INSTANCES; ++i)
+			{
+				const RailPlant *p = &v->plants[i];
+				if (p->kind != kind)
+					continue;
+				const float turn = p->turn * (float)M_PI / 180.0f, c = cosf(turn), sn = sinf(turn), k = p->size;
+				const float wind = sinf(glint_time * 1.6f + p->x * 0.045f + p->z * 0.03f) * 0.6f + sinf(glint_time * 3.7f + p->x * 0.11f) * 0.25f;
+				const float bend = (kind == B3D_GRASS ? 0.35f : kind == B3D_PALM ? 0.05f : 0.015f) * wind;
+				const Mat4 world = { .m = { c * k, 0, -sn * k, 0, bend * k, k, bend * 0.4f * k, 0, sn * k, 0, c * k, 0, p->x, p->y, p->z, 1 } };
+				write_instance_world(instances + instance_count * 24, &world, p->shade);
+				++instance_count;
+			}
+			if (instance_count == first)
+				continue;
+			casts_shadow[batch_count] = shadows && kind != B3D_GRASS;
+			BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+			init_batch(b);
+			b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+			b->custom_mesh = plant_meshes.meshes[kind];
+			b->first_instance = (uint32_t)first;
+			b->instance_count = (uint32_t)(instance_count - first);
+			b->albedo_texture = white_texture;
+			b->unlit_enabled = 1;
+			b->ssao_mode = kind == B3D_GRASS ? BTBH_GPU_SCENE_SSAO_RECEIVE_ONLY : BTBH_GPU_SCENE_SSAO_FULL;
+		}
+	}
+	// The ship, the enemies, the boss.
+	for (int i = 0; i < v->object_count; ++i)
+		rail_model(&v->objects[i], rgb_palette, casts_shadow, shadows, &instance_count, &batch_count);
+	// The haze: walls across the flight, further and further ahead, each veiling a little more of the ground behind it
+	// (their tops clear, so the sky shows over them).
+	{
+		enum { HAZE_WALLS = 18 };
+		const float alpha = 1.0f - SDL_powf(0.04f, 1.0f / HAZE_WALLS);
+		const float haze[3] = { rail_linear(v->haze[0]), rail_linear(v->haze[1]), rail_linear(v->haze[2]) };
+		for (int i = 0; i < HAZE_WALLS && batch_count < MAX_BATCHES; ++i)
+		{
+			const float d = v->haze_near + (v->haze_far - v->haze_near) * (i + 0.5f) / HAZE_WALLS;
+			const float z = v->position[2] - d, half = d * t * aspect * 1.6f + 400;
+			const float top = 120 + d * 0.16f;
+			const float a[3] = { v->position[0] - half, top, z }, b3[3] = { v->position[0] + half, top, z },
+			            dd[3] = { v->position[0] - half, -200, z };
+			const Mat4 m = destruct_quad(a, b3, dd);
+			BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 1.0f, &instance_count, &batch_count);
+			if (b == NULL)
+				break;
+			float *instance = instances + (instance_count - 1) * 24;
+			memcpy(instance + 16, haze, sizeof(haze));
+			instance[19] = alpha;
+			b->albedo_texture = rail_haze;
+			b->unlit_enabled = 1;
+			b->transparency_enabled = 1;
+			b->blend_mode = BTBH_GPU_SCENE_BLEND_ALPHA;
+			b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+		}
+	}
+	// The glows: shots, engines, reticles, items.
+	for (int kind = 0; kind < RAIL_GLOW_KINDS; ++kind)
+	{
+		const int first = instance_count;
+		for (int i = 0; i < v->glow_count; ++i)
+			if (v->glows[i].kind == kind)
+				destruct_glow_at(v->glows[i].x, v->glows[i].y, v->glows[i].z, v->glows[i].size, v->glows[i].colour, NULL,
+				                 &instance_count);
+		destruct_glow_batch(first, instance_count - first, kind == RAIL_GLOW_RING ? ring_texture : particle_texture, &batch_count);
+	}
+	// The effects: smoke blended, fire, sparks and shock waves added.
+	{
+		const D3Particle *particles;
+		const int count = rail_particles(&particles);
+		for (int kind = 0; kind < D3P_KINDS && batch_count < MAX_BATCHES; ++kind)
+		{
+			const int first = instance_count;
+			for (int i = 0; i < count && instance_count < MAX_INSTANCES; ++i)
+			{
+				const D3Particle *p = &particles[i];
+				if (p->kind != kind)
+					continue;
+				const float f = SDL_clamp(p->age / SDL_max(p->life, 1.0f), 0.0f, 1.0f);
+				const float angle = kind == D3P_SMOKE || kind == D3P_FIRE ? p->life * 2.39996f + p->age * 0.03f : 0.0f;
+				Mat4 m = mat4_identity();
+				m.m[0] = cosf(angle) * p->size;
+				m.m[1] = sinf(angle) * p->size;
+				m.m[4] = -sinf(angle) * p->size;
+				m.m[5] = cosf(angle) * p->size;
+				m.m[10] = p->size;
+				m.m[12] = p->x;
+				m.m[13] = p->y;
+				m.m[14] = p->z;
+				float *instance = instances + instance_count * 24;
+				write_instance_world(instance, &m, 1.0f);
+				for (int c = 0; c < 4; ++c)
+					instance[16 + c] = p->colour[c] + (p->end_colour[c] - p->colour[c]) * f;
+				++instance_count;
+			}
+			if (instance_count == first)
+				continue;
+			BTBHGPUSceneGeometryBatch *b = &batches[batch_count++];
+			init_batch(b);
+			b->kind = BTBH_GPU_SCENE_GEOMETRY_CUSTOM_MESH;
+			b->custom_mesh = billboard_mesh;
+			b->first_instance = (uint32_t)first;
+			b->instance_count = (uint32_t)(instance_count - first);
+			b->albedo_texture = kind == D3P_SMOKE || kind == D3P_FIRE ? fire_texture : kind == D3P_RING ? ring_texture : particle_texture;
+			b->billboard_mode = BTBH_GPU_SCENE_BILLBOARD_FRONT;
+			b->unlit_enabled = 1;
+			b->transparency_enabled = 1;
+			b->blend_mode = kind == D3P_SMOKE || kind == D3P_DEBRIS ? BTBH_GPU_SCENE_BLEND_ALPHA : BTBH_GPU_SCENE_BLEND_ADDITIVE;
+		}
+	}
+
+	BTBHGPUSceneLighting lighting;
+	memset(&lighting, 0, sizeof(lighting));
+	lighting.spot_falloff = 1.0f;
+	lighting.spot_inner_cutoff = 0.92388f;
+	lighting.spot_outer_cutoff = 0.70711f;
+	lighting.spot_range = 50.0f;
+	lighting.ambient_red = 0.6f;
+	lighting.ambient_green = 0.66f;
+	lighting.ambient_blue = 0.8f;
+	lighting.ambient_energy = 0.6f;
+	float sun[3] = { v->sun[0], v->sun[1], v->sun[2] };
+	const float sun_length = sqrtf(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+	for (int i = 0; i < 3; ++i)
+		sun[i] /= sun_length;
+	lighting.directional_x = sun[0];
+	lighting.directional_y = sun[1];
+	lighting.directional_z = sun[2];
+	lighting.directional_energy = 3.4f;
+	lighting.directional_red = 1.0f;
+	lighting.directional_green = 0.94f;
+	lighting.directional_blue = 0.84f;
+	set_environment(&lighting);
+	for (int i = 0; i < 27; ++i)
+		lighting.irradiance_sh[i] *= 0.3f;
+	if (shadows)
+	{
+		// The sun's shadow in a box about the ship.
+		btbh_gpu_window_scene_set_directional_shadow_size(window, 2048, 2048);
+		lighting.directional_shadow_enabled = 1;
+		lighting.directional_shadow_softness = 1.0f;
+		const float radius = 520.0f, depth = 1400.0f;
+		const float hint[3] = { 0, 0, -1 };
+		float sr[3] = { hint[1] * sun[2] - hint[2] * sun[1], hint[2] * sun[0] - hint[0] * sun[2], hint[0] * sun[1] - hint[1] * sun[0] };
+		const float rl = sqrtf(sr[0] * sr[0] + sr[1] * sr[1] + sr[2] * sr[2]);
+		for (int i = 0; i < 3; ++i)
+			sr[i] /= rl;
+		const float su[3] = { sun[1] * sr[2] - sun[2] * sr[1], sun[2] * sr[0] - sun[0] * sr[2], sun[0] * sr[1] - sun[1] * sr[0] };
+		Mat4 sv = mat4_identity();
+		float sd[3] = { 0, 0, 0 };
+		for (int i = 0; i < 3; ++i)
+		{
+			const float eye = v->shadow_centre[i] - sun[i] * depth;
+			sv.m[i * 4 + 0] = sr[i];
+			sv.m[i * 4 + 1] = su[i];
+			sv.m[i * 4 + 2] = sun[i];
+			sv.m[i * 4 + 3] = 0;
+			sd[0] += sr[i] * eye;
+			sd[1] += su[i] * eye;
+			sd[2] += sun[i] * eye;
+		}
+		sv.m[12] = -sd[0];
+		sv.m[13] = -sd[1];
+		sv.m[14] = -sd[2];
+		sv.m[15] = 1;
+		Mat4 sp = { { 0 } };
+		sp.m[0] = 1.0f / radius;
+		sp.m[5] = 1.0f / radius;
+		sp.m[10] = 1.0f / (2 * depth);
+		sp.m[15] = 1.0f;
+		const Mat4 shadow = mat4_mul(&sp, &sv);
+		memcpy(lighting.directional_shadow_view_projection, shadow.m, sizeof(shadow.m));
+	}
+	for (int i = 0; i < v->light_count && lighting.point_light_count < BTBH_GPU_SCENE_POINT_LIGHTS; ++i)
+		memcpy(lighting.point_lights[lighting.point_light_count++], v->lights[i], sizeof(v->lights[i]));
+
+	BTBHGPUScenePost post;
+	Uint32 render_w, render_h;
+	scene_post(&post, &frame, &render_w, &render_h);
+	scene_ssao(&post, 1.0f);
+	post.exposure = v->fade;
+
+	// The panels' glass: the scene blurred, made again each frame.
+	if (scene_blur_targets(w, h))
+	{
+		frost_texture = scene_blur[SCENE_BLUR_STEPS - 1];
+		cover_map[0] = cover_map[1] = 0;
+		cover_map[2] = w;
+		cover_map[3] = h;
+		blur_ready = true;
+	}
+	BTBHGPUSceneReport report;
+	const bool drawn = btbh_gpu_window_scene_present_instances_with_visibility(window,
+	        shader_paths[SH_MODEL_VERT], shader_paths[SH_ANIMATED_MODEL_VERT],
+	        shader_paths[SH_SHADOW_FAST_VERT], shader_paths[SH_SHADOW_FAST_FRAG],
+	        shader_paths[SH_SHADOW_VERT], shader_paths[SH_ANIMATED_SHADOW_VERT], shader_paths[SH_SHADOW_FRAG],
+	        shader_paths[SH_MODEL_FRAG], shader_paths[SH_MODEL_UNSHADOWED_FRAG],
+	        shader_paths[SH_POST_VERT], shader_paths[SH_POST_FRAG],
+	        shader_format, render_w, render_h,
+	        view_projection.m, right, up, v->position,
+	        &lighting, &post, instances, (uint32_t)instance_count, (uint32_t)instance_count, batches, NULL, casts_shadow, (uint32_t)batch_count,
+	        2, 2, 5, 255, &report) == BTBH_GPU_OK;
+	if (!drawn)
+		fprintf(stderr, "warning: rail scene failed: %s\n", report.message);
+	if (drawn && blur_ready)
+	{
+		BTBHGPUTextureReport capture_report;
+		scene_capture = btbh_gpu_window_capture_pending_scene_texture(window, &capture_report);
+		if (scene_capture == NULL)
+			blur_ready = false;
+	}
+	else
+		blur_ready = false;
+
+	const UIView ui_view = { .w = w, .h = h, .pixel = 1.0f / text_density, .picture = { 0, 0, w, h } };
+	ui_build_screen(&ui_view);
+	present_canvas(NULL, 0, false, !drawn, &frame);
+	blur_ready = false;
+	return true;
+}
+
 void rgpu_present_ui_again(void)
 {
 	ahead = 1;
@@ -14223,6 +14658,9 @@ static void present_ui(const RGPUShowcase *scene)
 {
 	// Destruct in 3D (destruct3d.h): its field, its units and shots, its screens over them.
 	if (ui_published_is(UI_SCREEN_DESTRUCT) && destruct3d_active() && present_destruct())
+		return;
+	// A level flown on the rail (rail.h): its scene, its HUD over it.
+	if (ui_published_is(UI_SCREEN_RAIL) && rail_active() && present_rail())
 		return;
 	BTBHGPUWindowReport frame;
 	if (!begin_frame(&frame))

@@ -339,9 +339,8 @@ fast; shot down, it leaves a data cube (shown in the next shop after the stage's
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
 at the end of episode 1, flown as the originals' mini-games are with the Atomic RailGun alone (script `]k[`: the
 ship's own weapons, sidekicks and special back before the next shop or level, `tyrian2.c` `kit_restore`); then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
-(HARVEST's own maps, so its terrain, trees and clean ground; `original_maps`), seen from behind the ship the whole
-way (Tyrian3D event 205, the chase camera; no 2D look of its own), episode 5's squadrons and GEM WAR's dragons;
-and THE HOARD and HOARD II (`make_hoard`), over open space, the Collector's hoard: every boss of the game one after
+(HARVEST's own maps, so its terrain and plants; `original_maps`), flown on the rail as Star Fox 64 flies (below; script
+`]r[`, its 2D level's events unused); and THE HOARD and HOARD II (`make_hoard`), over open space, the Collector's hoard: every boss of the game one after
 another as mid-level bosses (`HOARD_BOSSES`: the originals' levels with one, the same boss once, 29 and BRAINIAC),
 each with the last of its approach and its own defences and pattern (`compose.midboss_template`'s `trim`: some bring
 their level's whole boss stretch), a mechanic with every other one (lights out, upside down, from behind the ship,
@@ -890,6 +889,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | The maps' clean ground is left out: the objects, wrecks and palms painted into the map stay in the ground under their models, and no stand-ins are drawn |
+| `TYR3D_RAIL_DUMP=<dir>` | A level flown on the rail (`rail.c`): each chunk of its ground's texture as it is made, `chunk_<k>.bmp` |
 | `TYR3D_LOG_OBJECTS=1` | With frame dumps, print every 3D object of each dumped frame: its model, its look (sheet and sprite), where on the screen, its layer, the events that made it (time and link) and whether it is a stand-in |
 | `TYR3D_LOG_STANDINS=1` | Every 30th frame, print the stand-ins shown on the screen (their look, placeholder or own model, where on the screen and on the map, as the `.std` has it, and the nearest enemy) and how many are covered by their enemies (with frame dumps, `dump:` lines say which 3D frame a dump is) |
 | `TYR3D_DARK_LIGHTING=0` | Spotlight levels show the game's lit cone as an overlay, instead of being dark and lit by the ship's lamp |
@@ -978,6 +978,29 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   cover it, so it is complete. Filter effects (water, blur, darkening) write their changes back
   into the layer that owns each pixel. The level's colour filter is applied per layer, as a
   palette remap.
+- **Levels flown on the rail** (`src/rail.c`, `rail.h`; the script's `]r[` before a level's `]L` line; episode 6's
+  STARFALL: `story.py` `rail`, `build.py`). A game of its own in 3D, as Star Fox 64 flies, with no 2D view: the level
+  is loaded as ever (its maps, their HD tiles, terrain and plants), then flown instead of played. The ship goes on a
+  rail into the window, low over the ground seen from behind it, the camera following it softly and leaning into the
+  rail's turns; it moves across the window and up and down (the keys, a joystick, the mouse), fires twin lasers along
+  its nose (their power the front gun's, 1-11, raised by blue capsules; one laser below 3, blue from 6), and with a
+  rear gun homing missiles as well; the sidekick keys brake and boost (the boost gauge), the mode key drops a bomb (two,
+  three with a special: everything near ahead goes), a double tap left or right rolls it (shots glance off). The
+  ground: background 1's map with its generated columns and, PLATEAU higher where it has tiles, background 3's (HARVEST's
+  meadows over its machinery, mirrored from its own columns), each with its terrain's relief, built in chunks along the
+  flight (40 rows, its HD tiles at two texels a pixel, mipmapped) a few rows a tick; the maps go on mirrored end to
+  end as long as the flight goes, and beside it. Its plants are the 3D view's (nearest first, grass only near), shaded
+  as the 3D view's terrain is (unlit, the sun baked into its vertices), soft shadows under what flies; haze walls across
+  the flight veil the far ground into a sky wall's gradient. The level is a list of waves by the flight's tick (70 a
+  second, whatever the display's pace; `WAVES`): fighters in Vs at the ship, across ahead of it, up from behind it and
+  round, standing ahead strafing, diving from high; turrets and domes in the meadows; mines; rings that restore the
+  shield and the armor, capsules, bombs, cash, some left by a formation's last fighter (a whole formation down: +500).
+  Then the boss, SAVARA's big red jet built from its seven pieces as SAVARA's events place them: up from behind over the
+  ship, round at it, firing fans, launching fighters, and at half its armor charging. The HUD (`ui.c`
+  `build_rail_hud`): score and hits, shield, armor, boost, the lasers' power, bombs, the boss's armor, a line in the
+  middle; P pauses, Esc pauses and asks, Esc again leaves the level. It ends as the level would: through, the cash it
+  earned the player's with 25 a hit, its enemies' share the results'; lost, as a ship lost in a level. Plan and what is
+  left (lock-on charge shots, flying through arches, checkpoints, voices): `docs/plans/2026-11-04-starfox.md`.
 - **Background maps** (`src/background3d.c`). The game draws only the background tiles that fit
   on its screen; the tilted camera sees much more. So the 3D view draws the three background maps
   itself, as tiles on each background's plane, for the whole area the camera sees (up to 640
