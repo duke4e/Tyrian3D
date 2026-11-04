@@ -357,7 +357,9 @@ space with the stars in depth and rocks along the window's top and bottom edges
 enemies are made there, shots and the ship go there), at least 340 (`tyrian2.c` `SIDE_AHEAD`) so
 enemies are made past the window's right edge, not in the middle of it; the sidekicks mounted in front follow the
 ship there too (they stopped at the screen's top, a third of the way across), and the planet in the deep turns with
-the view, its poles up the window as in the other levels. The
+the view, its poles up the window as in the other levels. While a boss's bar shows, the view eases back as far as
+puts the boss in the window's middle (at most 140 pixels; the game stops one near the screen's top, a quarter of
+the way across), the ship kept in view (`l3d_side_shift`, `l3d_ship_top`). The
 generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the

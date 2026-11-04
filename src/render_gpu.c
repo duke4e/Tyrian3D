@@ -2955,7 +2955,8 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float height = -t * depth;
 
 	const float bottom[3] = { l3d_field_x() + half_width, reference_height,
-	                          turned ? (float)-l3d_field_ahead : chase ? L3D_PLAYFIELD_H + CHASE_BEHIND : L3D_PLAYFIELD_H };
+	                          turned ? (float)-l3d_field_ahead : chase ? L3D_PLAYFIELD_H + CHASE_BEHIND
+	                          : L3D_PLAYFIELD_H + (sideways ? l3d_side_shift : 0.0f) };  // (from the side: a boss mid-window)
 	Camera3D camera;
 	for (int i = 0; i < 3; ++i)
 		camera.position[i] = bottom[i] - (height * up[i] + depth * forward[i]);

@@ -214,6 +214,12 @@ extern int l3d_side_decor;
 // ship may go there. Episode 6's side-scrolling levels, so the playfield fills the view turned on
 // its side.
 extern int l3d_field_ahead;
+// Seen from the side (l3d_sideways), how far back the view stands (game pixels): it eases back while a boss's bar
+// shows, so the boss, stopped near the screen's top, stands in the window's middle (tyrian2.c; the ship stays in view:
+// l3d_ship_top).
+extern float l3d_side_shift;
+// The highest the ship goes (game y): the playfield's top, or seen from the side the window's edge as the view stands.
+static inline int l3d_ship_top(void) { return 10 - l3d_field_ahead + (l3d_sideways ? (int)l3d_side_shift : 0); }
 
 // The wide playfield (settings3d.playfield_wide in the 3D view, set as a level starts): the game
 // plays in the whole width it draws (game x 0-319, the original shows 24-287) with the maps held

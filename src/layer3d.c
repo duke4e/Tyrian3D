@@ -25,6 +25,7 @@ bool l3d_chase = false;
 int l3d_side_decor = 0;
 Uint32 l3d_level_frame = 0;
 int l3d_field_ahead = 0;
+float l3d_side_shift = 0;
 bool l3d_field_wide = false;
 int l3d_view_x = L3D_PLAYFIELD_X;
 bool l3d_capturing = false;

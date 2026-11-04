@@ -4592,7 +4592,7 @@ static bool pointer_ship_position(int playerNum_, float *x, float *y)
 		return false;
 	// (the ship's centre is 7 pixels in; the bounds as JE_playerMovement's, the wide playfield's)
 	*x = SDL_clamp(px - 7, 40.0f - l3d_field_left(), 256.0f + l3d_field_right());
-	*y = SDL_clamp(py - 7, 10.0f - l3d_field_ahead, (float)ship_max_y(playerNum_));
+	*y = SDL_clamp(py - 7, (float)l3d_ship_top(), (float)ship_max_y(playerNum_));
 	return true;
 }
 
@@ -5494,8 +5494,8 @@ redo:
 				this_player->y = 160;
 		}
 
-		if (this_player->y < 10 - l3d_field_ahead)
-			this_player->y = 10 - l3d_field_ahead;
+		if (this_player->y < l3d_ship_top())
+			this_player->y = l3d_ship_top();
 
 		// Tyrian3D: a ship the keyboard (or anything but the direct mouse) moved takes the pointer
 		// along, so the ship doesn't jump when the mouse moves again.

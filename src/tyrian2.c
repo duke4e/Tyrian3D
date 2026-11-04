@@ -1059,6 +1059,8 @@ static bool prespawned[EVENT_MAXIMUM];
 // Seen from the side (event 200), the playfield reaches at least this far ahead: a 16:9 window, seen from straight above
 // with the playfield's width as tall as the window, shows 535 game pixels across from 6 % in, to 351 above the screen.
 #define SIDE_AHEAD 340
+#define SIDE_BOSS_SHIFT 140.0f  // (l3d_side_shift while a boss is fought: at most)
+#define SIDE_VIEW_HALF 267.0f   // (the window's middle from its near edge, about: SIDE_AHEAD's 535 across)
 static int prespawn_rise = 0;   // made by prespawn_events: this far above where the event puts it,
 static int prespawn_ticks = 0;  // this many ticks ahead of its time
 
@@ -2594,6 +2596,7 @@ start_level_first:
 	l3d_sideways = SDL_getenv("TYR3D_SIDEWAYS") != NULL;  // (dev: any level from the side)
 	l3d_side_decor = l3d_sideways ? SDL_atoi(SDL_getenv("TYR3D_SIDEWAYS")) - 1 : 0;
 	l3d_chase = SDL_getenv("TYR3D_CHASE") != NULL;  // (dev: any level from behind the ship)
+	l3d_side_shift = 0;
 	// (not for the demos: they replay inputs on the original playfield)
 	l3d_field_wide = debug_flight_field_wide(settings3d.view_3d && settings3d.playfield_wide && !isNetworkGame &&
 	                                         !play_demo && !record_demo);
@@ -4047,6 +4050,24 @@ draw_player_shot_loop_end:
 
 	l3d_phase(L3D_HUD);  // (Tyrian3D: the game's displays, which the modern HUD shows its own way)
 	draw_boss_bar();
+	// Tyrian3D: seen from the side, the view eases back while a boss's bar shows (the user: "jel možemo na
+	// sidescrolling levelima glavne imati na sredini ekrana?"), as far as puts the boss (its pieces' middle) in the
+	// window's middle, at most SIDE_BOSS_SHIFT: the game stops one near the screen's top, a quarter of the way across.
+	{
+		float want = 0;
+		const int link = boss_bar[0].link_num != 0 ? boss_bar[0].link_num : boss_bar[1].link_num;
+		if (l3d_sideways && link != 0)
+		{
+			int sum = 0, count = 0;
+			for (int i = 0; i < 100; ++i)
+				if (enemyAvail[i] == 0 && enemy[i].linknum == link)
+					sum += enemy[i].ey + 14, ++count;
+			// (the window's middle: SIDE_VIEW_HALF ahead of its near edge, the playfield's bottom plus the shift)
+			if (count > 0)
+				want = SDL_clamp((float)sum / count - L3D_PLAYFIELD_H + SIDE_VIEW_HALF, 0.0f, SIDE_BOSS_SHIFT);
+		}
+		l3d_side_shift += (want - l3d_side_shift) * 0.03f;
+	}
 
 	JE_inGameDisplays();
 
