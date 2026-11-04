@@ -103,7 +103,7 @@ def carried_settings(settings, original, fallback):
     out["heights"] = {}
     if s.get("heights"):
         info, rgb, opaque = mt.load_map(h)
-        _, labels, _ = mt.classify(rgb, s["classes"])
+        _, labels, _ = mt.classify(rgb, s["classes"], centroids=mt.frozen(h, s["classes"]))
         materials = {}
         for c in range(s["classes"]):
             height = s["heights"].get(str(c), 0)  # (the classes it doesn't list are ground, at 0)

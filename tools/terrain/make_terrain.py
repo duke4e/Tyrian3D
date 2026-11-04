@@ -22,12 +22,19 @@ than half in a slope or over a cliff.
 usage: <python with numpy, scipy and PIL> tools/terrain/make_terrain.py classify <map hash>...
        ... make_terrain.py build <map hash>...      (or "all": every map in levels.json)
        ... make_terrain.py sheets                   (contact sheets of the built terrain)
+       ... make_terrain.py freeze <map hash>...     (or "all": keep the maps' classes as they are now)
 
 classify writes export/terrain/<map>_classes.png (the map beside its classes, numbered, with how
 many standing enemies each holds) for choosing the heights; build writes the asset and
 export/terrain/<map>_relief.png (the map lit by its terrain, with its enemies and their tracks). The
 game's ground stands at height 0: classes where ground enemies stand stay at 0; raised ground
 (plateaus, mountains, walls) goes up to TERRAIN_MAX, chasms down to -TERRAIN_MAX.
+
+The classes are found by k-means on the map as exported, the generated side columns included, so new
+side columns (src/background3d.c SIDE_CACHE_VERSION) would find other classes, numbered otherwise;
+freeze keeps each map's classes (their centres) in tools/terrain/centroids.json, which classify and
+build then use, so the heights stay with their surfaces. Freeze with the map exported with the side
+columns its heights were chosen on, before exporting it with new ones.
 
 levels.json, by map: "classes" (how many), "heights" ({class: height or "~"}), and optionally
 "softness" (how far cliffs spread, pixels), "detail" (relief of the surface's detail), "rolling"
@@ -69,6 +76,7 @@ OUT = os.path.join(ROOT, "assets", "terrain")
 REVIEW = os.path.join(ROOT, "export", "terrain")
 GROUND = os.path.join(REVIEW, "ground.txt")
 LEVELS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "levels.json")
+CENTROIDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "centroids.json")
 
 SAMPLE = 2           # game pixels per height sample
 TERRAIN_MAX = 60     # heights are stored as signed bytes, in game pixels
@@ -129,14 +137,18 @@ def features(rgb):
                            ndimage.gaussian_filter(lum, 6) * 1.5])
 
 
-def classify(rgb, k, fit=None):
+def classify(rgb, k, fit=None, centroids=None):
     """Classes of the map's pixels; fit: the map the classes are found on (the map as exported, so a map's
-    classes keep their numbers when its clean-up changes; rgb is then the clean ground)."""
+    classes keep their numbers when its clean-up changes; rgb is then the clean ground); centroids: the
+    classes' centres as frozen (freeze), in place of finding them."""
     lum, feat = features(rgb)
     flat = feat.reshape(-1, feat.shape[2])
-    fit_flat = flat if fit is None else features(fit)[1].reshape(-1, feat.shape[2])
-    np.random.seed(1)
-    centroids, _ = kmeans2(fit_flat[::13], k, seed=1, minit="++")
+    if centroids is not None:
+        centroids = np.array(centroids, np.float32)
+    else:
+        fit_flat = flat if fit is None else features(fit)[1].reshape(-1, feat.shape[2])
+        np.random.seed(1)
+        centroids, _ = kmeans2(fit_flat[::13], k, seed=1, minit="++")
     labels = np.empty(flat.shape[0], np.int32)
     for start in range(0, flat.shape[0], 1 << 20):  # in chunks: the distances are k times the map
         chunk = flat[start:start + (1 << 20)]
@@ -171,6 +183,12 @@ def void_mask(rgb):
 def settings(name):
     levels = json.load(open(LEVELS)) if os.path.exists(LEVELS) else {}
     return levels.get(name, {"classes": 5, "heights": {}})
+
+
+def frozen(name, k):
+    """The map's classes' centres as frozen (freeze), if they are, for k classes."""
+    centres = (json.load(open(CENTROIDS)) if os.path.exists(CENTROIDS) else {}).get(name)
+    return centres if centres is not None and len(centres) == k else None
 
 
 _log = None
@@ -682,7 +700,7 @@ def solid_clearance(name, shape, background):
 def cmd_classify(name):
     info, rgb, _ = load_map(name)
     s = settings(name)
-    lum, labels, centroids = classify(rgb, s["classes"])
+    lum, labels, centroids = classify(rgb, s["classes"], centroids=frozen(name, s["classes"]))
     standing, _ = ground_enemies(name)
     on = np.zeros(s["classes"], int)
     for x, y, _ in standing:
@@ -767,7 +785,7 @@ def heights(name, rgb, opaque, info, s, fit=None):
         standing, _ = ground_enemies(name)
         hole |= solid_clearance(name, h.shape, info["background"])
         return h, hole, standing
-    lum, labels, _ = classify(rgb, s["classes"], fit)
+    lum, labels, _ = classify(rgb, s["classes"], fit, frozen(name, s["classes"]))
     target = np.zeros(labels.shape, np.float32)
     inherit = np.zeros(labels.shape, bool)
     class_heights = dict(s["heights"])
@@ -870,6 +888,23 @@ def cmd_build(name):
           f"{100 * holes.mean():.0f}% holes, {len(standing)} standing enemies")
 
 
+def cmd_freeze(names):
+    """Keeps the maps' classes as they are found now (their centres, in centroids.json, a map a line)."""
+    centres = json.load(open(CENTROIDS)) if os.path.exists(CENTROIDS) else {}
+    for name in names:
+        s = settings(name)
+        if "classes" not in s:
+            continue  # (a solid's or plants' entry: no classes)
+        info, rgb, _ = load_map(name)
+        if info["background"] > 1 and not s.get("ground"):
+            continue
+        _, _, found = classify(rgb, s["classes"])
+        centres[name] = [[float(f"{v:.6g}") for v in c] for c in found]
+        print(f"{name} ({info.get('level', '?').strip()} bg{info['background']}): {len(found)} classes frozen")
+    with open(CENTROIDS, "w") as f:
+        f.write("{\n" + ",\n".join(f" {json.dumps(k)}: {json.dumps(centres[k])}" for k in sorted(centres)) + "\n}\n")
+
+
 def cmd_sheets():
     """The built reliefs four to a sheet (export/terrain/sheets/relief_NN.png), by level name."""
     levels = json.load(open(LEVELS))
@@ -895,12 +930,15 @@ def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "sheets":
         cmd_sheets()
         return 0
-    if len(sys.argv) < 3 or sys.argv[1] not in ("classify", "build"):
+    if len(sys.argv) < 3 or sys.argv[1] not in ("classify", "build", "freeze"):
         print(__doc__)
         return 1
     names = sys.argv[2:]
     if names == ["all"]:
         names = sorted(json.load(open(LEVELS)).keys())
+    if sys.argv[1] == "freeze":
+        cmd_freeze(names)
+        return 0
     read_ground_log(names)  # (the log in one pass for all of them)
     for name in names:
         (cmd_classify if sys.argv[1] == "classify" else cmd_build)(name)

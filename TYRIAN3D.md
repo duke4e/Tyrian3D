@@ -1011,11 +1011,25 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   recorded, so the tiles line up with the game's own drawing, and scrolling further up follows
   the map's wrap points. Beside the map, 16 columns on each side are generated from the map's
   own tiles by wave function collapse (`src/wfc.c`): which tile may stand next to which is
-  learned from the map, and the columns next to it must fit its edge. They are made ahead of
+  learned from the map, and the columns next to it must fit its edge. Which of the fitting tiles
+  each cell gets follows a guide, so that the map's large features go on beyond its edge rather
+  than stop there: the map mirrored at the edge, sheared along the slant of what meets the edge
+  (a river or a cliff that leaves the map at a slant goes on straight instead of turning back),
+  warped by smooth noise the more the further out (no mirror image), each tile weighed by how
+  often the map uses it and how much it looks like the guide's tile there (colours averaged over
+  4 x 4 pixel blocks, mirrored where the guide is). So water stays water and land land, shores
+  and plateaus close beyond the edge, and the map's rare pieces (pipes, buildings) turn up only
+  where the edge leaves no other choice. The columns are solved in bands of 24 rows, each a few
+  rows further than it keeps so that the next goes on from it, and the solver undoes choices that
+  lead to a contradiction, so no band breaks off from the one above or from the map (until
+  2026-11-04, `SIDE_CACHE_VERSION` 5, the tiles were weighed by their use alone: grid-like crests,
+  water and islands stopping short at the edge, bands cut off straight). They are made ahead of
   time for every level (`tools/precompute_sides.sh`, into `assets/sides`); a map without them
   gets them when it loads, kept in `tyrian3d-sides` in the user's directory. Further out the
   map continues mirrored; everything beyond the map slowly darkens. `TYR3D_SIDES=mirror`
-  mirrors only, for comparison.
+  mirrors only, for comparison. The terrain covers the generated columns too, so new sides want
+  the terrain, clean ground and vegetation made again (`make_terrain.py`'s classes are frozen
+  in `tools/terrain/centroids.json`, so the heights stay with their surfaces).
   Inside the playfield the captured layer is drawn over the tiles. Backgrounds that the game
   filters (lava, water, ice) cannot be tiles, since the filters blur and waver across tile edges:
   they are composed on the CPU for the area the camera sees and run through the game's own
@@ -1392,7 +1406,7 @@ before downloading).
 | `tools/upscale_sfx.py` | Upscales the sound effects and voices with AudioSR into the data's `sfx` directory (run with AudioSR's Python) |
 | `tools/hd_sheets.py` | Puts the upscaled atlases back together as 4x sprite sheets (`data/hd/sheets/<sheet>.hd`) for the HD volumes, and copies the upscaled HUD panels to `data/hd` |
 | `tools/sprite_reference.py` | An enemy type's reference picture for modelling: every animation frame from the 4x upscales, beside the original |
-| `tools/terrain/make_terrain.py` | Terrain for the background maps: `classify` sorts an exported ground map's pixels into surfaces (a review image in `export/terrain`), `build` writes `assets/terrain/<map>.ter` from the settings in `tools/terrain/levels.json` (class heights, chasms where space is black, backgrounds 2 and 3 as solids, or with `"ground": true` a background 2 that covers the whole ground under its enemies as the ground itself; level pads under what stands and gentle roads along what moves, as far as the terrain drawn under them reaches, so their models stand flat; solids clear round what the models cover) and a relief image to review (with the enemies' tracks), `sheets` puts the reliefs on contact sheets (needs numpy, scipy, PIL) |
+| `tools/terrain/make_terrain.py` | Terrain for the background maps: `classify` sorts an exported ground map's pixels into surfaces (a review image in `export/terrain`), `build` writes `assets/terrain/<map>.ter` from the settings in `tools/terrain/levels.json` (class heights, chasms where space is black, backgrounds 2 and 3 as solids, or with `"ground": true` a background 2 that covers the whole ground under its enemies as the ground itself; level pads under what stands and gentle roads along what moves, as far as the terrain drawn under them reaches, so their models stand flat; solids clear round what the models cover) and a relief image to review (with the enemies' tracks), `sheets` puts the reliefs on contact sheets, `freeze` keeps the maps' classes as they are found now in `tools/terrain/centroids.json` (k-means on the map with its generated columns: new columns would number them otherwise), which `classify` and `build` then use (needs numpy, scipy, PIL) |
 | `tools/fix_macho_tls.py` | Makes pip's scipy load on macOS 27 (its modules' zero-fill thread-local sections carry a file offset the new dyld refuses): clears the offsets and signs the modules again. The terrain tools' Python is a venv in `~/Library/Caches/Tyrian3D/tools-venv` (numpy, scipy, Pillow from pip, then this over its `site-packages`) |
 | `tools/terrain/make_cleanground.py` | Clean ground (replaces `make_erasures.py`): for the ground maps, the art painted under and round the ground enemies (wrecks, housings, stumps, the objects themselves, their copies where none stands) and the painted palms, erased and filled with the map's own ground round them, where a model takes its place, into `assets/terrain/<map>.era`; the stand-ins shown there while no enemy covers the place into `assets/terrain/<map>.std`; review pictures `export/terrain/<map>_clean.png` and `export/terrain/standins.txt` (what stands in for each look). Overrides (paintings that stay, stand-in looks, maps left alone) in `tools/terrain/cleanground.json`. Run it before `make_terrain.py build` and `make_vegetation.py`, which take the clean ground. Episode 6's and the custom episodes' maps are cleaned with what the game's own maps teach about their tilesets, not teaching them |
 | `tools/terrain/footprints.py` | What the ground enemies' models cover of the ground seen from above (their triangles as the renderer turns and scales them), for the clean ground and the vegetation's keep-out; `check` compares them with the renderer's `groundmodel:` boxes |
@@ -1403,7 +1417,7 @@ before downloading).
 | `tools/tiles_hd.py` | HD background tiles that still tile: whole exported maps (`tools/export_maps.sh`) through an ESRGAN model, every tile the per-pixel median of its upscales among its real neighbours, quantized to the palette ramps it uses (palette effects keep working); writes `data/hd/tiles/<tileset>.hdt`, which the game loads with the maps (atlas and terrain at 4x), and its pictures to look at and kept medians to `upscale/out/tiles`. `--requantize` writes them again from the kept medians; `--add` makes only the shapes the kept medians lack (maps exported since, a custom episode's) and keeps the rest. Tiles are per tileset and shape, so generated maps get them too |
 | `tools/upscale_sprites.py` | Upscales the sprite atlases 4x with an ESRGAN model (`.pth`, e.g. from OpenModelDB), with alpha (run with a Python that has torch) |
 | `tools/setup_tools_venv.sh` | Makes the tools' Python (numpy, scipy, Pillow, torch: `~/Library/Caches/Tyrian3D/tools-venv`) and fetches the ESRGAN model 4x-Fatality (`~/Library/Caches/Tyrian3D/esrgan`); downloads ~180 MB |
-| `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides` |
+| `tools/precompute_sides.sh` | Generates the columns beside every level's background maps into `assets/sides`, all of them anew in place of what is there (`TYR3D_GAME_DIR`: the game's folder to run, as for `each_level.sh`; default `build/game`) |
 | `tools/content/make_items.py` | Writes `assets/content/items.cfg`, the new weapons and sidekicks, by rules from the original data (see New content) |
 | `tools/content/make_rogue.py` | Writes `assets/content/rogue.cfg`: the rogue mode's acts (levels, bosses found by their boss bars), the items its cards offer (the shops' lists, tiered by price) and its unlocks |
 | `tools/content/episode6/build.py`, `tools/content/tyrformat.py` | Episode 6 in the game's formats (the encrypted script and data cubes, the level file with the episode's item data); run at build time |

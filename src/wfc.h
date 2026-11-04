@@ -4,8 +4,9 @@
  * Rules say which tile kinds may stand to the right of and below each kind, and how often each
  * kind should appear; they are usually learned from an example grid (wfc_learn). The solver fills
  * a grid so that every pair of neighbours follows the rules, starting with the most constrained
- * cells. The grid can be bound to fixed kinds just outside it: a column to its left or right and
- * a row above it.
+ * cells, and undoes choices that lead to a contradiction. The grid can be bound to fixed kinds
+ * just outside it: a column to its left or right and a row above it. Each cell can weigh the kinds
+ * its own way (a guide).
  */
 #ifndef WFC_H
 #define WFC_H
@@ -42,11 +43,16 @@ static inline bool wfc_has_any(const WFCSet *s)
 // Learns the rules from an example grid of kinds (row by row; negative entries are skipped).
 void wfc_learn(WFCRules *rules, int kinds, const int *grid, int rows, int columns);
 
+// Which of a column of kinds (edge, rows of it) a column right of it (or left of it) can follow,
+// row by row: the kinds where it can't are replaced by -1. Returns how many.
+int wfc_fit_edge(const WFCRules *rules, int *edge, int rows, bool right_of_it);
+
 // Fills out (rows x columns kinds, row by row). left/right: per row, the kind just outside the
 // grid on that side, or -1 for none (either may be NULL). above: the row just above the grid, or
-// NULL. Returns false if it ran into a contradiction (out is then undefined); another seed may
-// succeed.
+// NULL. weights: each cell's own weight for each kind (rows x columns x rules->kinds, cell by
+// cell), in place of the rules' weights, or NULL. Returns false if it could not get past
+// contradictions (out is then undefined); another seed may succeed.
 bool wfc_solve(const WFCRules *rules, int rows, int columns, const int *left, const int *right, const int *above,
-               uint32_t seed, int *out);
+               const float *weights, uint32_t seed, int *out);
 
 #endif /* WFC_H */

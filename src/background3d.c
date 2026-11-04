@@ -170,9 +170,15 @@ static Uint8 **row_above(const L3DBackground *b, Uint8 **position, int width)
 /*
  * Beyond its sides the map continues with columns that wave function collapse (wfc.h) generates
  * from the map's own tiles: the tiles' neighbours in the map say which may stand next to which,
- * and the columns next to the map must fit its edge. They are made once per map, the same every
- * time (the seed comes from the map). Further out, and in bands of rows the solver could not
- * fill, the map continues mirrored.
+ * and the columns next to the map must fit its edge. Which of the tiles that fit a cell is chosen
+ * follows a guide: the map mirrored at its edge (as TYR3D_SIDES=mirror shows it), sheared along
+ * the slant of what meets the edge and warped by smooth noise the more the further out, so that its
+ * large features (water, land, rock, the cliffs and walls across it) go on beyond the edge and close
+ * there rather than stop, without the mirror's symmetry or its tiles turned round. Each tile is weighted by how often the map uses it and by how much it looks
+ * like the guide's tile there (their colours, averaged in blocks), so common tiles of the right
+ * look fill the sides and the map's rare pieces turn up only where the edge leaves no other choice.
+ * They are made once per map, the same every time (the seed comes from the map). Further out, and
+ * in bands of rows the solver could not fill, the map continues mirrored.
  */
 #define SIDE_COLUMNS 16
 #define SIDE_BAND_ROWS 24
@@ -197,26 +203,165 @@ static int tile_kind(const MapSet *m, const Uint8 *data)
 	return m->tile_count;
 }
 
-// Solves one side in bands of rows, each bound to the map's edge and to the band above it.
-// Returns how many bands the solver could not fill.
-static int make_side(const WFCRules *rules, const int *edge, int rows, bool left_side, uint32_t seed,
-                     Sint16 (*out)[SIDE_COLUMNS])
+// A tile's look for the guide: its colours averaged in blocks of 4 x 4 pixels (premultiplied by
+// how opaque the block is, which is the fourth value; 0-255).
+#define LOOK_W (B3D_TILE_W / 4)
+#define LOOK_H (B3D_TILE_H / 4)
+#define LOOK_SCALE 300.0f  // the mean squared difference of two looks' blocks that weighs a tile 1/e
+
+typedef float TileLook[LOOK_H][LOOK_W][4];
+
+static void tile_look(int set, const MapSet *m, int kind, bool mirrored, TileLook look)
 {
+	const SDL_Color *palette = palettes[pcxpal[3 - 1]];  // the levels' palette
+	memset(look, 0, sizeof(TileLook));
+	for (int y = 0; y < B3D_TILE_H; ++y)
+		for (int x = 0; x < B3D_TILE_W; ++x)
+		{
+			const int tx = mirrored ? B3D_TILE_W - 1 - x : x;
+			const Uint8 index = kind < m->tile_count ? m->first_tile[kind * m->tile_stride + y * B3D_TILE_W + tx] : 0;
+			if (index == 0 && set != 1)
+				continue;  // (colour 0 of backgrounds 2 and 3 is clear)
+			float *block = look[y / 4][x / 4];
+			block[0] += palette[index].r / 16.0f;
+			block[1] += palette[index].g / 16.0f;
+			block[2] += palette[index].b / 16.0f;
+			block[3] += 255 / 16.0f;
+		}
+}
+
+// Smooth value noise, about -1 to 1, for warping the guide.
+static float lattice_value(Uint32 seed, int x, int y)
+{
+	Uint32 h = seed ^ ((Uint32)x * 0x27d4eb2du) ^ ((Uint32)y * 0x165667b1u);
+	h ^= h >> 15;
+	h *= 0x85ebca6bu;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35u;
+	h ^= h >> 16;
+	return h / 2147483648.0f - 1.0f;
+}
+
+static float smooth_noise(Uint32 seed, float x, float y)
+{
+	const int x0 = (int)floorf(x), y0 = (int)floorf(y);
+	float fx = x - x0, fy = y - y0;
+	fx = fx * fx * (3 - 2 * fx);
+	fy = fy * fy * (3 - 2 * fy);
+	const float top = lattice_value(seed, x0, y0) + (lattice_value(seed, x0 + 1, y0) - lattice_value(seed, x0, y0)) * fx;
+	const float bottom = lattice_value(seed, x0, y0 + 1) +
+	                     (lattice_value(seed, x0 + 1, y0 + 1) - lattice_value(seed, x0, y0 + 1)) * fx;
+	return top + (bottom - top) * fy;
+}
+
+typedef struct
+{
+	const WFCRules *rules;
+	const int *grid;        // the map's kinds, row by row
+	int width, rows;
+	const float *likeness;  // [(map kind * 2 + mirrored) * kinds + kind]: each kind's weight where the guide has that tile
+	const float *slope[2];  // per row, the left and the right edge's (see edge_slope)
+	Uint32 seed;
+} SideGuide;
+
+// How the map's features run where they meet an edge, per row: rows (up the map) per column
+// inwards, smoothed. A plain mirror turns a river or a cliff that meets the edge at a slant back
+// on itself; the guide is sheared by twice the slope instead, so that it goes on straight.
+#define SLOPE_SPAN 4      // rows above and below compared
+#define SLOPE_MAX 2       // rows per column
+#define SLOPE_SMOOTH 10   // rows above and below averaged
+
+static void edge_slope(const int *grid, int width, int rows, const float (*colour)[4], bool left_side, float *slope)
+{
+	int *best = malloc(sizeof(int) * rows);
+	if (best == NULL)
+	{
+		memset(slope, 0, sizeof(float) * rows);
+		return;
+	}
+	for (int r = 0; r < rows; ++r)
+	{
+		// How unlike the edge's column the next three columns are, shifted by each slope.
+		float unlike[2 * SLOPE_MAX + 1] = { 0 };
+		for (int d = -SLOPE_MAX; d <= SLOPE_MAX; ++d)
+			for (int k = 1; k <= 3; ++k)
+				for (int t = -SLOPE_SPAN; t <= SLOPE_SPAN; ++t)
+				{
+					const int r0 = SDL_clamp(r + t, 0, rows - 1), rk = SDL_clamp(r + t - d * k, 0, rows - 1);
+					const int c0 = left_side ? 0 : width - 1, ck = left_side ? k : width - 1 - k;
+					const float *a = colour[grid[r0 * width + c0]], *b = colour[grid[rk * width + ck]];
+					for (int v = 0; v < 4; ++v)
+						unlike[d + SLOPE_MAX] += (a[v] - b[v]) * (a[v] - b[v]);
+				}
+		// A slant only where it fits clearly better than none.
+		best[r] = 0;
+		for (int d = -SLOPE_MAX; d <= SLOPE_MAX; ++d)
+			if (unlike[d + SLOPE_MAX] < 0.6f * unlike[SLOPE_MAX] && unlike[d + SLOPE_MAX] < unlike[best[r] + SLOPE_MAX])
+				best[r] = d;
+	}
+	for (int r = 0; r < rows; ++r)
+	{
+		float sum = 0;
+		for (int t = -SLOPE_SMOOTH; t <= SLOPE_SMOOTH; ++t)
+			sum += best[SDL_clamp(r + t, 0, rows - 1)];
+		slope[r] = sum / (2 * SLOPE_SMOOTH + 1);
+	}
+	free(best);
+}
+
+// The map's tile that guides a side's cell, `out` columns from the map's edge (0: next to it),
+// and whether the guide shows it mirrored.
+static int guide_kind(const SideGuide *g, bool left_side, int row, int out, bool *mirrored)
+{
+	const Uint32 seed = g->seed ^ (left_side ? 0x68e31da4u : 0xb5297a4du);
+	const float warp = (float)SDL_min(out, 10);
+	const float x = out / 12.0f, y = row / 16.0f;
+	const float shear = SDL_clamp(g->slope[left_side ? 0 : 1][row] * (2 * out + 1), -24.0f, 24.0f);
+	const int r = SDL_clamp(row - (int)lroundf(shear - warp * 0.7f * smooth_noise(seed, x, y)), 0, g->rows - 1);
+	const int o = SDL_max(0, out + (int)lroundf(warp * 0.3f * smooth_noise(seed ^ 0x9e3779b9u, x, y)));
+	const int c = left_side ? -1 - o : g->width + o;
+	const int period = floor_div(c, g->width);
+	*mirrored = (period & 1) != 0;
+	int column = c - period * g->width;
+	if (*mirrored)
+		column = g->width - 1 - column;
+	return g->grid[r * g->width + column];
+}
+
+#define SIDE_LOOKAHEAD_ROWS 6  // rows a band is solved past its end
+
+// Solves one side in bands of rows, each bound to the map's edge and to the band above it, and
+// solved a few rows further than it keeps, so that the band below can go on from it.
+// Returns how many bands the solver could not fill.
+static int make_side(const SideGuide *g, const int *edge, bool left_side, Uint32 seed, Sint16 (*out)[SIDE_COLUMNS])
+{
+	const int kinds = g->rules->kinds;
+	static float weights[(SIDE_BAND_ROWS + SIDE_LOOKAHEAD_ROWS) * SIDE_COLUMNS * WFC_MAX_KINDS];
 	int failed = 0;
-	int band[SIDE_BAND_ROWS * SIDE_COLUMNS];
+	int band[(SIDE_BAND_ROWS + SIDE_LOOKAHEAD_ROWS) * SIDE_COLUMNS];
 	int above[SIDE_COLUMNS];
 	bool have_above = false;
-	for (int r0 = 0; r0 < rows; r0 += SIDE_BAND_ROWS)
+	for (int r0 = 0; r0 < g->rows; r0 += SIDE_BAND_ROWS)
 	{
-		const int n = SDL_min(SIDE_BAND_ROWS, rows - r0);
+		const int n = SDL_min(SIDE_BAND_ROWS, g->rows - r0);
+		const int solve = SDL_min(SIDE_BAND_ROWS + SIDE_LOOKAHEAD_ROWS, g->rows - r0);
+		for (int r = 0; r < solve; ++r)
+			for (int c = 0; c < SIDE_COLUMNS; ++c)
+			{
+				bool mirrored;
+				const int guide = guide_kind(g, left_side, r0 + r, left_side ? SIDE_COLUMNS - 1 - c : c, &mirrored);
+				memcpy(&weights[(r * SIDE_COLUMNS + c) * kinds], &g->likeness[(guide * 2 + mirrored) * kinds],
+				       sizeof(float) * kinds);
+			}
+
 		// A few seeds bound to the map's edge and the band above, then a few free of the band above,
 		// then a few free of the edge (a seam is less visible than a mirrored band).
 		bool solved = false;
 		for (int attempt = 0; attempt < 24 && !solved; ++attempt)
 		{
 			const int *bound_edge = attempt < 16 ? edge + r0 : NULL;
-			solved = wfc_solve(rules, n, SIDE_COLUMNS, left_side ? NULL : bound_edge, left_side ? bound_edge : NULL,
-			                   have_above && (attempt < 8 || attempt >= 16) ? above : NULL,
+			solved = wfc_solve(g->rules, solve, SIDE_COLUMNS, left_side ? NULL : bound_edge, left_side ? bound_edge : NULL,
+			                   have_above && (attempt < 8 || attempt >= 16) ? above : NULL, weights,
 			                   seed ^ (Uint32)(r0 * 2654435761u) ^ (Uint32)(attempt * 40503u), band);
 		}
 		for (int r = 0; r < n; ++r)
@@ -236,7 +381,7 @@ static int make_side(const WFCRules *rules, const int *edge, int rows, bool left
 // user's directory, where sides made while playing go. TYR3D_SIDES_WRITE=<dir> writes new ones
 // there instead (for precomputing). The files are zlib-compressed rows of Sint16 kinds, each row
 // the left side's columns, then the right side's.
-#define SIDE_CACHE_VERSION 5
+#define SIDE_CACHE_VERSION 6
 
 static bool side_file_path(const char *dir, Uint64 hash, char *path, size_t size)
 {
@@ -332,10 +477,16 @@ static void make_sides(int set, const MapSet *m, MapSides *sides)
 		return;
 
 	const int rows = SDL_min(m->rows, SIDE_MAX_ROWS);
+	const int kinds = m->tile_count + 1;
 	int *grid = malloc(sizeof(int) * rows * m->width);
 	int *left_edge = malloc(sizeof(int) * rows), *right_edge = malloc(sizeof(int) * rows);
 	WFCRules *rules = malloc(sizeof(WFCRules));
-	if (grid != NULL && left_edge != NULL && right_edge != NULL && rules != NULL)
+	float *likeness = malloc(sizeof(float) * kinds * 2 * kinds);
+	TileLook *looks = malloc(sizeof(TileLook) * kinds * 2);
+	float (*colour)[4] = malloc(sizeof(float[4]) * kinds);
+	float *slope = malloc(sizeof(float) * rows * 2);
+	if (grid != NULL && left_edge != NULL && right_edge != NULL && rules != NULL && likeness != NULL && looks != NULL &&
+	    colour != NULL && slope != NULL)
 	{
 		// FNV-1a of the map and of the settings, for the seed and the cache.
 		Uint64 hash = 14695981039346656037ull;
@@ -353,21 +504,54 @@ static void make_sides(int set, const MapSet *m, MapSides *sides)
 		if (!load_sides(hash, rows, sides))
 		{
 			const Uint64 start = SDL_GetTicksNS();
-			wfc_learn(rules, m->tile_count + 1, grid, rows, m->width);
+			wfc_learn(rules, kinds, grid, rows, m->width);
 
-			// The map's edge binds the columns beside it, unless a tile there never has a
-			// neighbour on that side in the map (it is only ever at the edge): nothing could fit.
+			// Each kind's weight where the guide has each tile, as it is and mirrored: how often the
+			// map uses it, less the more it looks unlike the guide's tile.
+			for (int k = 0; k < kinds; ++k)
+			{
+				tile_look(set, m, k, false, looks[k * 2]);
+				tile_look(set, m, k, true, looks[k * 2 + 1]);
+				for (int v = 0; v < 4; ++v)
+				{
+					colour[k][v] = 0;
+					for (int y = 0; y < LOOK_H; ++y)
+						for (int x = 0; x < LOOK_W; ++x)
+							colour[k][v] += looks[k * 2][y][x][v] / (LOOK_W * LOOK_H);
+				}
+			}
+			for (int g = 0; g < kinds * 2; ++g)
+				for (int k = 0; k < kinds; ++k)
+				{
+					float difference = 0;
+					for (int y = 0; y < LOOK_H; ++y)
+						for (int x = 0; x < LOOK_W; ++x)
+							for (int v = 0; v < 4; ++v)
+							{
+								const float d = looks[k * 2][y][x][v] - looks[g][y][x][v];
+								difference += d * d;
+							}
+					difference /= LOOK_W * LOOK_H;
+					likeness[g * kinds + k] = rules->weight[k] * (expf(-difference / LOOK_SCALE) + 1e-4f);
+				}
+
+			// The map's edge binds the columns beside it, where a column can follow it (not where
+			// a tile there never has a neighbour on that side in the map, or no column of tiles
+			// could stand beside the edge's run).
 			for (int r = 0; r < rows; ++r)
 			{
-				const int left = grid[r * m->width], right = grid[r * m->width + m->width - 1];
-				left_edge[r] = wfc_has_any(&rules->left[left]) ? left : -1;
-				right_edge[r] = wfc_has_any(&rules->right[right]) ? right : -1;
+				left_edge[r] = grid[r * m->width];
+				right_edge[r] = grid[r * m->width + m->width - 1];
 			}
+			const int unbound = wfc_fit_edge(rules, left_edge, rows, false) + wfc_fit_edge(rules, right_edge, rows, true);
 			const Uint32 seed = (Uint32)(hash ^ (hash >> 32));
-			const int failed = make_side(rules, left_edge, rows, true, seed, sides->left) +
-			                   make_side(rules, right_edge, rows, false, seed ^ 0x9e3779b9u, sides->right);
-			printf("background %d: sides generated in %.0f ms (%d of %d bands mirrored)\n", set,
-			       (SDL_GetTicksNS() - start) / 1e6, failed, 2 * ((rows + SIDE_BAND_ROWS - 1) / SIDE_BAND_ROWS));
+			edge_slope(grid, m->width, rows, (const float(*)[4])colour, true, slope);
+			edge_slope(grid, m->width, rows, (const float(*)[4])colour, false, slope + rows);
+			const SideGuide guide = { rules, grid, m->width, rows, likeness, { slope, slope + rows }, seed };
+			const int failed = make_side(&guide, left_edge, true, seed, sides->left) +
+			                   make_side(&guide, right_edge, false, seed ^ 0x9e3779b9u, sides->right);
+			printf("background %d: sides generated in %.0f ms (%d of %d bands mirrored, %d rows apart from the edge)\n",
+			       set, (SDL_GetTicksNS() - start) / 1e6, failed, 2 * ((rows + SIDE_BAND_ROWS - 1) / SIDE_BAND_ROWS), unbound);
 			save_sides(hash, rows, sides);
 		}
 	}
@@ -375,6 +559,10 @@ static void make_sides(int set, const MapSet *m, MapSides *sides)
 	free(left_edge);
 	free(right_edge);
 	free(rules);
+	free(likeness);
+	free(looks);
+	free(colour);
+	free(slope);
 }
 
 static const MapSides *sides_for(int set, const MapSet *m)

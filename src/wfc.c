@@ -11,6 +11,11 @@ static void set_add(WFCSet *s, int kind)
 	s->bits[kind / 64] |= (uint64_t)1 << (kind % 64);
 }
 
+static void set_remove(WFCSet *s, int kind)
+{
+	s->bits[kind / 64] &= ~((uint64_t)1 << (kind % 64));
+}
+
 static bool set_has(const WFCSet *s, int kind)
 {
 	return (s->bits[kind / 64] >> (kind % 64)) & 1;
@@ -74,6 +79,9 @@ void wfc_learn(WFCRules *rules, int kinds, const int *grid, int rows, int column
 		}
 }
 
+// How many choices the solver may undo, per cell, before it gives up.
+#define WFC_STEPS_BACK_PER_CELL 4
+
 // A small, fast generator (xorshift32).
 static uint32_t next_random(uint32_t *state)
 {
@@ -92,6 +100,34 @@ static WFCSet supported(const WFCSet *rule_sets, const WFCSet *cell, int kinds)
 		if (set_has(cell, k))
 			set_or(&out, &rule_sets[k]);
 	return out;
+}
+
+int wfc_fit_edge(const WFCRules *rules, int *edge, int rows, bool right_of_it)
+{
+	// Down the column beside the edge, what each row's cell may be given those above it (on a
+	// single column, that some cell is left for every row means the whole column can be filled).
+	WFCSet may = { { 0 } };
+	for (int k = 0; k < rules->kinds; ++k)
+		if (rules->weight[k] > 0)
+			set_add(&may, k);
+	int unbound = 0;
+	for (int r = 0; r < rows; ++r)
+	{
+		if (edge[r] >= 0 && edge[r] < rules->kinds)
+		{
+			WFCSet beside = may;
+			set_and(&beside, right_of_it ? &rules->right[edge[r]] : &rules->left[edge[r]]);
+			if (set_count(&beside) > 0)
+				may = beside;
+			else
+			{
+				edge[r] = -1;
+				++unbound;
+			}
+		}
+		may = supported(rules->down, &may, rules->kinds);
+	}
+	return unbound;
 }
 
 typedef struct
@@ -125,6 +161,12 @@ static bool narrow(Solver *s, int i, const WFCSet *allowed)
 		return false;
 	push(s, i);
 	return true;
+}
+
+static void clear_stack(Solver *s)
+{
+	while (s->stack_size > 0)
+		s->queued[s->stack[--s->stack_size]] = false;
 }
 
 static bool propagate(Solver *s)
@@ -164,7 +206,7 @@ static bool propagate(Solver *s)
 }
 
 bool wfc_solve(const WFCRules *rules, int rows, int columns, const int *left, const int *right, const int *above,
-               uint32_t seed, int *out)
+               const float *weights, uint32_t seed, int *out)
 {
 	const int n = rows * columns;
 	Solver s = { rules, rows, columns, malloc(sizeof(WFCSet) * n), malloc(sizeof(int) * n), calloc(n, sizeof(bool)), 0 };
@@ -191,7 +233,12 @@ bool wfc_solve(const WFCRules *rules, int rows, int columns, const int *left, co
 	ok = ok && propagate(&s);
 
 	// Collapse the cell with the fewest kinds left (ties at random) to one of them, chosen by
-	// weight, until all are decided.
+	// weight, until all are decided. A choice that leads to a contradiction is undone and its kind
+	// ruled out for that cell, going back further as needed (up to a number of steps back).
+	WFCSet *saved = malloc(sizeof(WFCSet) * (size_t)n * n);  // the cells before each choice still standing
+	int *chosen_cell = malloc(sizeof(int) * n), *chosen_kind = malloc(sizeof(int) * n);
+	int depth = 0, steps_back = 0;
+	ok = ok && saved != NULL && chosen_cell != NULL && chosen_kind != NULL;
 	while (ok)
 	{
 		int best = -1, best_count = 0;
@@ -212,23 +259,41 @@ bool wfc_solve(const WFCRules *rules, int rows, int columns, const int *left, co
 		if (best < 0)
 			break;
 
+		const float *weight = weights != NULL ? weights + (size_t)best * rules->kinds : rules->weight;
 		float total = 0;
 		for (int k = 0; k < rules->kinds; ++k)
 			if (set_has(&s.cells[best], k))
-				total += rules->weight[k];
+				total += weight[k];
 		float pick = (next_random(&random) / 4294967296.0f) * total;
 		int chosen = -1;
 		for (int k = 0; k < rules->kinds; ++k)
 			if (set_has(&s.cells[best], k))
 			{
 				chosen = k;
-				if ((pick -= rules->weight[k]) < 0)
+				if ((pick -= weight[k]) < 0)
 					break;
 			}
+		memcpy(saved + (size_t)depth * n, s.cells, sizeof(WFCSet) * n);
+		chosen_cell[depth] = best;
+		chosen_kind[depth] = chosen;
+		++depth;
 		WFCSet one = { { 0 } };
 		set_add(&one, chosen);
 		ok = narrow(&s, best, &one) && propagate(&s);
+		while (!ok && depth > 0 && steps_back < WFC_STEPS_BACK_PER_CELL * n)
+		{
+			++steps_back;
+			--depth;
+			memcpy(s.cells, saved + (size_t)depth * n, sizeof(WFCSet) * n);
+			clear_stack(&s);
+			WFCSet others = s.cells[chosen_cell[depth]];
+			set_remove(&others, chosen_kind[depth]);
+			ok = narrow(&s, chosen_cell[depth], &others) && propagate(&s);
+		}
 	}
+	free(saved);
+	free(chosen_cell);
+	free(chosen_kind);
 
 	for (int i = 0; ok && i < n; ++i)
 		for (int k = 0; k < rules->kinds; ++k)
