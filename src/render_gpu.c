@@ -2915,7 +2915,7 @@ static void ndc_slopes(const Camera3D *camera, const float ndc[2], float slope[2
 
 /*
  * World space: X = game x, Y = height above the ground, Z = game y (towards the bottom of the
- * screen). The camera looks towards -Z and down by the tilt angle (towards +Z upside down: fit_camera).
+ * screen). The camera looks towards -Z and down by the tilt angle (rolled half round upside down: fit_camera).
  *
  * The camera is fitted so that the playfield's bottom edge, at the player's height, spans the
  * playfield viewport exactly; the perspective then reveals extra world towards the top.
@@ -2929,11 +2929,12 @@ static void ndc_slopes(const Camera3D *camera, const float ndc[2], float slope[2
 #define CHASE_BEHIND 32.0f
 #define CHASE_AHEAD 2400.0f
 
-// upside_down shows the playfield top for bottom, as the game flips it on upside-down levels: turned half round, seen
-// from beyond its top edge (the playfield's top, l3d_field_ahead above the screen, spanning the rectangle's bottom)
-// looking down it the other way, so left and right are turned too (the controls with them: controls_move). (Mirrored
-// top for bottom, as it was, the view looked up through the ground, the near side at the top, and every surface but
-// the models, mirrored back for it, was lit from behind: everything inside out.) sideways turns it clockwise into the
+// upside_down shows the playfield top for bottom, as the game flips it on upside-down levels: the view rolled half round
+// about where it looks, so its picture is the usual one upside down, the ship near at the top, what comes far off at
+// the bottom, and left and right are turned too (the controls with them: controls_move). (Mirrored top for bottom,
+// the view looked up through the ground and everything was lit from behind; turned half round, seen from beyond the
+// playfield's top looking down it the other way, what came was near and big at the bottom, the ship far and small at
+// the top, and the planets, their poles up the usual view, showed a pole.) sideways turns it clockwise into the
 // rectangle (which is then as tall as the playfield is wide), so the level scrolls from left to right.
 static Camera3D fit_camera(float reference_height, float viewport_aspect, const float ndc_rect[4], bool upside_down,
                            bool sideways, bool chase)
@@ -2946,10 +2947,9 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float t = tanf(rgpu_camera.fov_degrees * (float)M_PI / 360.0f);
 	const float c = cosf(theta), s = sinf(theta);
 
-	const bool turned = upside_down && !sideways && !chase;
-	const float forward[3] = { 0, -c, turned ? s : -s };
-	const float up[3] = { 0, s, turned ? c : -c };
-	const float right[3] = { turned ? -1.0f : 1.0f, 0, 0 };
+	const bool turned = upside_down && !sideways;
+	const float forward[3] = { 0, -c, -s };
+	const float up[3] = { 0, s, -c };
 
 	// Camera-space depth and height of the bottom edge's centre (the playfield's: wide or the
 	// original's, l3d_field_x/w).
@@ -2958,26 +2958,30 @@ static Camera3D fit_camera(float reference_height, float viewport_aspect, const 
 	const float height = -t * depth;
 
 	const float bottom[3] = { l3d_field_x() + half_width, reference_height,
-	                          turned ? (float)-l3d_field_ahead : chase ? L3D_PLAYFIELD_H + CHASE_BEHIND
+	                          chase ? L3D_PLAYFIELD_H + CHASE_BEHIND
 	                          : L3D_PLAYFIELD_H + (sideways ? l3d_side_shift : 0.0f) };  // (from the side: a boss mid-window)
 	Camera3D camera;
 	for (int i = 0; i < 3; ++i)
 		camera.position[i] = bottom[i] - (height * up[i] + depth * forward[i]);
+	// (Rolled, the bottom edge spans the rectangle's top.)
+	const float roll = turned ? -1.0f : 1.0f;
+	const float right[3] = { roll, 0, 0 };
+	for (int i = 0; i < 3; ++i)
+		camera.up[i] = roll * up[i];
 	memcpy(camera.right, right, sizeof(right));
-	memcpy(camera.up, up, sizeof(up));
 
 	Mat4 view = { { 0 } };
 	for (int i = 0; i < 3; ++i)
 	{
 		view.m[i * 4 + 0] = right[i];
-		view.m[i * 4 + 1] = up[i];
+		view.m[i * 4 + 1] = camera.up[i];
 		view.m[i * 4 + 2] = forward[i];
 	}
 	float dot_r = 0, dot_u = 0, dot_f = 0;
 	for (int i = 0; i < 3; ++i)
 	{
 		dot_r += right[i] * camera.position[i];
-		dot_u += up[i] * camera.position[i];
+		dot_u += camera.up[i] * camera.position[i];
 		dot_f += forward[i] * camera.position[i];
 	}
 	view.m[12] = -dot_r;
@@ -3083,7 +3087,8 @@ static int shade_quads(HudQuad *out, int max, float (*pts)[3], int n, float clip
 static void add_outside_shade(const Camera3D *camera, float reference, float clip_x, float window_w, float window_h)
 {
 	const float top = (float)-l3d_field_ahead, x0 = (float)l3d_field_x(), x1 = (float)(l3d_field_x() + l3d_field_w());
-	const float game[4][2] = { { x0, top }, { x1, top }, { x1, L3D_PLAYFIELD_H }, { x0, L3D_PLAYFIELD_H } };
+	const float bottom = (float)(L3D_PLAYFIELD_H + l3d_field_behind());
+	const float game[4][2] = { { x0, top }, { x1, top }, { x1, bottom }, { x0, bottom } };
 	float p[4][2], centre[2] = { 0, 0 };
 	for (int i = 0; i < 4; ++i)
 	{

@@ -4581,7 +4581,7 @@ static JE_integer pointer_placed_x = -1000, pointer_placed_y = -1000;
 // The ship's bounds, as JE_playerMovement keeps it in them.
 static int ship_max_y(int playerNum_)
 {
-	return isNetworkGame && playerNum_ == 1 ? 154 : 160;
+	return (isNetworkGame && playerNum_ == 1 ? 154 : 160) + l3d_field_behind();
 }
 
 // Where the pointer puts the ship (its top left, as the game keeps it, within its bounds).
@@ -4629,8 +4629,8 @@ static bool twin_key(SDL_Scancode key)
 	return true;
 }
 
-// Tyrian3D: upside down (starShowVGASpecialCode 1), the 3D view turns the playfield half round rather than
-// mirroring it top for bottom as the game does (rgpu fit_camera), so left and right are turned in it too.
+// Tyrian3D: upside down (starShowVGASpecialCode 1), the 3D view is rolled half round rather than mirrored top for
+// bottom as the game does (rgpu fit_camera), so left and right are turned in it too.
 static bool view_turned(void)
 {
 	return l3d_enabled && starShowVGASpecialCode == 1 && !l3d_sideways;
@@ -5483,16 +5483,8 @@ redo:
 			constantLastX = -constantLastX;
 		}
 
-		if (isNetworkGame && playerNum_ == 1)
-		{
-			if (this_player->y > 154)
-				this_player->y = 154;
-		}
-		else
-		{
-			if (this_player->y > 160)
-				this_player->y = 160;
-		}
+		if (this_player->y > ship_max_y(playerNum_))
+			this_player->y = ship_max_y(playerNum_);
 
 		if (this_player->y < l3d_ship_top())
 			this_player->y = l3d_ship_top();

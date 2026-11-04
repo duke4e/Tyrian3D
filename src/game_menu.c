@@ -1934,7 +1934,7 @@ void JE_itemScreen(void)
 				if (curMenu != MENU_LOAD_SAVE)
 				{
 					if (keysactive[SDL_SCANCODE_S] && (keysactive[SDL_SCANCODE_LALT] || keysactive[SDL_SCANCODE_RALT]) &&
-					    custom_episode == 0)  // Tyrian3D: a custom episode isn't saved (episodes.h)
+					    (custom_episode == 0 || custom_then_gbc))  // Tyrian3D: a custom episode isn't saved (episodes.h)
 					{
 						if (curMenu == MENU_DATA_CUBE_SUB ||
 						    curMenu == MENU_DATA_CUBES)
@@ -3984,7 +3984,7 @@ void JE_menuFunction(JE_byte select)
 			quikSave = false;
 			break;
 		case 3:
-			if (custom_episode != 0)  // Tyrian3D: a custom episode isn't saved (episodes.h)
+			if (custom_episode != 0 && !custom_then_gbc)  // Tyrian3D: a custom episode isn't saved (episodes.h; JE_saveGame)
 			{
 				JE_playSampleNum(S_SPRING);
 				break;

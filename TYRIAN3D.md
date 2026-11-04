@@ -159,10 +159,11 @@ clear (event 36), an item standing still drifts down past the ship and away (REE
 for 40 seconds), whatever the playfield (not in network games or demos). A boss gone to wrecks takes its bar down
 (they kept it up at their last hit's armour), and a mouse or pad button already held as a story text comes counts
 only once let go (firing as the warp orb was picked up skipped VAULT's text at once).
-On upside-down levels (LAVA RUN, EYESPY, episode 6's flips) the 3D view turns the playfield half round, seen from
-beyond its top looking down it the other way, and turns the controls' left and right with it (`render_gpu.c`
+On upside-down levels (LAVA RUN, EYESPY, episode 6's flips) the 3D view is rolled half round, the usual picture
+upside down (the ship near at the top), and turns the controls' left and right with it (`render_gpu.c`
 `fit_camera`, `mainint.c` `view_turned`); mirrored top for bottom as the game draws it, the view looked up through
-the ground and everything but the models was lit from behind.
+the ground and everything but the models was lit from behind, and seen from beyond the playfield's top looking down
+it the other way, what came was near and big, the ship far and small, and a planet showed its pole.
 What lies outside the playfield shows darkened, dimmed enemies coming or leaving included. The enemies still to come
 are shown coming before the game makes them (`tyrian2.c` `draw_coming_enemies`), not those an event 66 skips on the
 difficulty played (2026-10-29: shown, episode 7's Normal and Hard enemies came down on Easy and vanished where they'd
@@ -298,7 +299,10 @@ own formats by `tools/content/episode6/build.py` into `assets/content/episode6` 
 data, so it isn't in the repository. The game finds those files in the content directory
 (`dir_fopen`), lists the episode in the episode menu and plays it like the others; a full game goes on to it after episode 5
 (`last_episode()`). At its end the game asks where next (`menus.c` `episode6EndSelect`, one player, with the GBC levels
-and Camanis 2 there): the bonus level Camanis 2 and then episode 7 (`custom_then_gbc`), or episode 1 again.
+and Camanis 2 there): the bonus level Camanis 2 and then episode 7 (`custom_then_gbc`), or episode 1 again. Camanis 2
+on its way to episode 7 can be saved in its shop, unlike other custom episodes: the save is marked in its slot's
+unused second high score (`config.c` `CAMANIS_SAVE`), listed as episode 6's, and loads as Camanis 2 going on to
+episode 7.
 
 Its levels are generated anew, the original levels only their inspiration
 (`tools/content/episode6/generate.py`, run with a Python that has numpy and PIL): the maps from
@@ -368,7 +372,9 @@ enemies are made past the window's right edge, not in the middle of it; the side
 ship there too (they stopped at the screen's top, a third of the way across), and the planet in the deep turns with
 the view, its poles up the window as in the other levels. While a boss's bar shows, the view eases back as far as
 puts the boss in the window's middle (at most 140 pixels; the game stops one near the screen's top, a quarter of
-the way across), the ship kept in view (`l3d_side_shift`, `l3d_ship_top`). The
+the way across), the ship kept in view and the playfield going on below the screen's bottom as far, so the ship
+reaches the window's left edge and shots and enemies live there (`l3d_side_shift`, `l3d_ship_top`,
+`l3d_field_behind`; the ship stopped a quarter of the way in). The
 generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the
@@ -767,7 +773,7 @@ menus show, else the folder's. Start New Game's episode menu lists them after th
 ("Custom: <name>"; not in a network game), and so does the debug flight. One is played as episode N
 with every file of its folder standing in for the data's of that name (`dir_fopen`; the shapes,
 music and pictures it doesn't have are the game's). It isn't saved (Save Game in its shop does
-nothing: a save would load as the original episode N), has no high score (the board would be
+nothing: a save would load as the original episode N; but Camanis 2 after episode 6), has no high score (the board would be
 episode N's) and its end (`]Q`) goes back to the title screen. `TYR3D_START=<folder>:<section>`
 starts one in a test run, and `tools/levels.py` lists their sections that way, so the tools that go
 through every level (`each_level.sh`, `ground_log.sh`, `review.sh`) take them too.

@@ -22,6 +22,7 @@
 #include "file.h"
 #include "joystick.h"
 #include "loudness.h"
+#include "mainint.h"
 #include "mtrand.h"
 #include "nortsong.h"
 #include "opentyr.h"
@@ -385,11 +386,17 @@ static void pitems_to_playeritems(PlayerItems *items, JE_PItemsType pItems, JE_b
 	items->ship                     = pItems[11];
 }
 
+// Tyrian3D: a save of Camanis 2 on its way to episode 7 (custom_then_gbc, chosen at episode 6's end), in its slot's
+// unused second high score; shown as episode 6's.
+#define CAMANIS_SAVE 0x43324D37
+
 void JE_saveGame(JE_byte slot, const char *name)
 {
-	// Tyrian3D: a custom episode isn't saved: it would load as the original episode (episodes.h).
-	if (custom_episode != 0)
+	// Tyrian3D: a custom episode isn't saved: it would load as the original episode (episodes.h). Camanis 2 on its way
+	// to episode 7 is (the user, 2026-11-04: "ne mogu snimiti prije camanis 2 custom levela"), marked as such.
+	if (custom_episode != 0 && !custom_then_gbc)
 		return;
+	saveFiles[slot-1].highScore2 = custom_episode != 0 ? CAMANIS_SAVE : 0;
 
 	saveFiles[slot-1].initialDifficulty = initialDifficulty;
 	saveFiles[slot-1].gameHasRepeated = gameHasRepeated;
@@ -415,7 +422,11 @@ void JE_saveGame(JE_byte slot, const char *name)
 	memcpy(&saveFiles[slot-1].levelName, &lastLevelName, sizeof(lastLevelName));
 	saveFiles[slot-1].cubes  = lastCubeMax;
 
-	if (strcmp(lastLevelName, "Completed") == 0)
+	if (custom_episode != 0)
+	{
+		saveFiles[slot-1].episode = 6;
+	}
+	else if (strcmp(lastLevelName, "Completed") == 0)
 	{
 		temp = episodeNum - 1;
 		if (temp < 1)
@@ -521,7 +532,13 @@ void JE_loadGame(JE_byte slot)
 		/* Increment episode.  The last episode goes to 1. */
 	}
 
-	JE_initEpisode(episode);
+	// Tyrian3D: Camanis 2 on its way to episode 7 (JE_saveGame), its folder there.
+	const int camanis = saveFiles[slot-1].highScore2 == CAMANIS_SAVE ? custom_episode_find("camanis2") : 0;
+	custom_then_gbc = camanis != 0;
+	if (camanis != 0)
+		custom_episode_start(camanis);
+	else
+		JE_initEpisode(episode);
 	saveLevel = mainLevel;
 	memcpy(&lastLevelName, &levelName, sizeof(levelName));
 }

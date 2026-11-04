@@ -822,7 +822,7 @@ static bool draw_gbc_look(unsigned int i)
 	for (unsigned int k = 0; k < gbc_look_parts[i]; ++k)
 	{
 		GbcLookPart *p = &gbc_look[i][k];
-		if (enemy[i].ey + p->dy <= enemy_model_top(i) || enemy[i].ey + p->dy >= 200)
+		if (enemy[i].ey + p->dy <= enemy_model_top(i) || enemy[i].ey + p->dy >= 200 + l3d_field_behind())
 			continue;  // off screen
 		draw_gbc_look_part(p, x0 + p->dx, y0 + p->dy, GBC_LOOK_KEY(i, k), p->forecast, enemy[i].filter, vx, vy,
 		                   enemy_group[i], enemy_group_link[i]);
@@ -865,7 +865,7 @@ static bool draw_enemy_model(unsigned int i)
 	if (look.model == M3D_SPRITE)
 		return false;
 
-	if (enemy[i].ey <= enemy_model_top(i) || enemy[i].ey >= 200)
+	if (enemy[i].ey <= enemy_model_top(i) || enemy[i].ey >= 200 + l3d_field_behind())
 		return true;  // off screen
 
 	// Both 1x1 and 2x2 sprites are centred on (ex + 6, ey + 7).
@@ -1843,7 +1843,7 @@ void JE_drawEnemy(int enemyOffset) // actually does a whole lot more than just d
 				goto enemy_gone;
 
 			enemy[i].ey += enemy[i].eyc;
-			if (enemy[i].ey < -112 - l3d_field_ahead || enemy[i].ey > 190)
+			if (enemy[i].ey < -112 - l3d_field_ahead || enemy[i].ey > 190 + l3d_field_behind())
 				goto enemy_gone;
 
 			goto enemy_still_exists;
@@ -2200,7 +2200,8 @@ void JE_main(void)
 
 	kit_saved = kit_this_level = false;
 	rail_next_level = false;
-	custom_then_gbc = false;  // (a game begun or loaded: not Camanis 2 on its way to episode 7)
+	if (custom_episode == 0)
+		custom_then_gbc = false;  // (a game begun or loaded: not Camanis 2 on its way to episode 7, unless loaded so)
 
 	/* NOTE: BEGIN MAIN PROGRAM HERE AFTER LOADING A GAME OR STARTING A NEW ONE */
 
@@ -3529,7 +3530,7 @@ draw_player_shot_loop_end:
 					}
 				}
 
-				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 || enemyShot[z].sy <= -14 - l3d_field_ahead || enemyShot[z].sx > 275 + l3d_field_right() || enemyShot[z].sx <= -l3d_field_left())
+				if (enemyShot[z].duration-- == 0 || enemyShot[z].sy > 190 + l3d_field_behind() || enemyShot[z].sy <= -14 - l3d_field_ahead || enemyShot[z].sx > 275 + l3d_field_right() || enemyShot[z].sx <= -l3d_field_left())
 				{
 					enemyShotAvail[z] = true;
 				}
@@ -3733,7 +3734,7 @@ draw_player_shot_loop_end:
 			}
 			explosions[j].y += explosions[j].deltaY;
 
-			if (explosions[j].y > 200 - 14)
+			if (explosions[j].y > 200 - 14 + l3d_field_behind())
 			{
 				explosions[j].ttl = 0;
 			}

@@ -220,6 +220,9 @@ extern int l3d_field_ahead;
 extern float l3d_side_shift;
 // The highest the ship goes (game y): the playfield's top, or seen from the side the window's edge as the view stands.
 static inline int l3d_ship_top(void) { return 10 - l3d_field_ahead + (l3d_sideways ? (int)l3d_side_shift : 0); }
+// How far below the screen's bottom the playfield goes on (the ship, the shots, the enemies): seen from the side, as far
+// as the view stands back, so the ship reaches the window's near edge (l3d_side_shift) while a boss is fought.
+static inline int l3d_field_behind(void) { return l3d_sideways ? (int)l3d_side_shift : 0; }
 
 // The wide playfield (settings3d.playfield_wide in the 3D view, set as a level starts): the game
 // plays in the whole width it draws (game x 0-319, the original shows 24-287) with the maps held

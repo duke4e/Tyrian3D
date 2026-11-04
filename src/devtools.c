@@ -1004,10 +1004,12 @@ void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 			snprintf(path, sizeof(path), "%s/frame_%06ld.bmp", dump_dir, frame);
 			SDL_SaveBMP(surface, path);
 			SDL_DestroySurface(surface);
-			// To find what TYR3D_LOG_ENEMIES, TYR3D_LOG_CLIP and TYR3D_LOG_STANDINS report by 3D frame.
+			// To find what TYR3D_LOG_ENEMIES, TYR3D_LOG_CLIP, TYR3D_LOG_STANDINS and TYR3D_LOG_EVENTS report by 3D frame
+			// (and where the ship is in the game).
 			if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL || SDL_getenv("TYR3D_LOG_CLIP") != NULL ||
-			    SDL_getenv("TYR3D_LOG_STANDINS") != NULL)
-				printf("dump: frame %ld is 3D frame %u\n", frame, l3d_frame_number);
+			    SDL_getenv("TYR3D_LOG_STANDINS") != NULL || SDL_getenv("TYR3D_LOG_EVENTS") != NULL)
+				printf("dump: frame %ld is 3D frame %u, the ship at %d %d\n", frame, l3d_frame_number, player[0].x,
+				       player[0].y);
 			// TYR3D_LOG_OBJECTS: the objects of each dumped frame, to tell what a model on the screen is.
 			if (SDL_getenv("TYR3D_LOG_OBJECTS") != NULL)
 				for (int o = 0; o < l3d_frame.object_count; ++o)

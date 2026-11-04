@@ -24,6 +24,7 @@
 #include "fonthand.h"
 #include "joystick.h"
 #include "keyboard.h"
+#include "mainint.h"
 #include "mouse.h"
 #include "network.h"
 #include "nortsong.h"
@@ -554,6 +555,7 @@ bool episodeSelect(void)
 
 				fade_black(10);
 
+				custom_then_gbc = false;
 				if (selectedIndex >= episodeCount)
 				{
 					custom_episode_start((int)(selectedIndex - episodeCount) + 1);
