@@ -3271,6 +3271,23 @@ static void plane_footprint_world(const Camera3D *camera, float height, float fa
 	}
 }
 
+// How steeply the window's slantest ray comes down: the sine of its angle with the ground (at least 0.2). What stands
+// up off a plane shows up to its height over this beyond where the plane leaves the window.
+static float plane_grazing(const Camera3D *camera)
+{
+	float least = 1.0f;
+	for (int corner = 0; corner < 4; ++corner)
+	{
+		const float ndc[2] = { (corner & 1) ? 1.0f : -1.0f, (corner & 2) ? 1.0f : -1.0f };
+		float slope[2], ray[3];
+		ndc_slopes(camera, ndc, slope);
+		for (int i = 0; i < 3; ++i)
+			ray[i] = camera->forward[i] + camera->right[i] * slope[0] + camera->up[i] * slope[1];
+		least = SDL_min(least, -ray[1] / sqrtf(ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2]));
+	}
+	return SDL_max(least, 0.2f);
+}
+
 // The part of the horizontal plane at the given height that the window shows (the playfield
 // and everything around it), as a rectangle {x0, z0, x1, z1} in game screen coordinates.
 static void plane_footprint(const Camera3D *camera, float height, float rect[4])
@@ -10582,7 +10599,9 @@ static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, cons
 
 	const float height = heights[frame->star_layer] - stars_below_layer() - NEBULA_DEPTH * rgpu_camera.height_scale;
 	float rect[4];
-	plane_footprint_world(camera, height, -BACKGROUND_AHEAD, rect);
+	// (All the window shows of their plane, as far up as the tilted view reaches it: only as far as the map is drawn,
+	// they came round in the window's upper half. From behind the ship it reaches the horizon.)
+	plane_footprint_world(camera, height, l3d_chase ? -BACKGROUND_AHEAD : -20000.0f, rect);
 	if (rect[0] > rect[2] || rect[1] >= rect[3])
 		return;
 	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
@@ -10594,13 +10613,15 @@ static void add_nebula_batch(const L3DFrame *frame, const Camera3D *camera, cons
 	{
 		const Uint32 seed = hash32(level + (Uint32)i * 977u);
 		const float size = w * (0.35f + 0.45f * hash_unit(seed + 1));
-		// (Each comes round again past the far end, out of sight: the span is the view and a patch.)
-		const float span = h + size;
-		const float cx = rect[0] + hash_unit(seed + 2) * w;
-		const float cz = rect[1] - size / 2 + fmodf(hash_unit(seed + 3) * span + scroll, span);
 		const float turn = hash_unit(seed + 4) * 6.2832f, stretch = 0.7f + 0.6f * hash_unit(seed + 5);
 		const float c = cosf(turn), sn = sinf(turn);
 		const float sx = size * stretch, sz = size / stretch;
+		// (Each comes round again past the far end, out of sight: the span is the view and the patch, as far as its
+		// corners reach along z once it is turned.)
+		const float reach = (fabsf(sn) * sx + fabsf(c) * sz) / 2;
+		const float span = h + 2 * reach;
+		const float cx = rect[0] + hash_unit(seed + 2) * w;
+		const float cz = rect[1] - reach + fmodf(hash_unit(seed + 3) * span + scroll, span);
 
 		Mat4 transform = mat4_identity();
 		transform.m[0] = c * sx;
@@ -10960,12 +10981,15 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 		return;
 	const float w = rect[2] - rect[0], h = rect[3] - rect[1];
 	const float radius = w * (0.11f + 0.08f * hash_unit(level + 1));
+	// (Its halo reaches 1.25 radii round it, and standing up off its plane it shows beyond where the plane leaves the
+	// window, the further the slanter the view's rays: it comes round once that far out of sight.)
+	const float reach = 1.25f * radius / plane_grazing(&shown_view.camera);
 	// Down the screen at a tenth of the stars' pace, a long gap before it comes round; first seen up the view.
-	const float span = h + 2 * radius + h;
+	const float span = h + 2 * reach + h;
 	const float drift = (deep_star_scroll - scroll_start + (2.0f + starfield_speed) * ahead) * 0.1f;
 	const float cx = rect[0] + w * (0.2f + 0.6f * hash_unit(level + 2));
-	const float cz = rect[1] - radius + fmodf(radius + h * 0.35f + drift, span);
-	if (cz - radius > rect[3] || cz + radius < rect[1])
+	const float cz = rect[1] - reach + fmodf(reach + h * 0.35f + drift, span);
+	if (cz - reach > rect[3] || cz + reach < rect[1])
 		return;
 
 	float ax[3], ay[3], az[3];

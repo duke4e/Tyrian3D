@@ -489,6 +489,65 @@ static void gbc_pool_forget(const struct JE_SingleEnemyType *e)
 	gbc_pooled[e - enemy] = false;
 }
 
+// Tyrian3D: tougher enemies (episode 6's HOARD levels make their bosses five times as tough: tools/content/episode6
+// compose.py fight_template): event 206 makes link d4's d1 times as tough (0 or 1: as they were; d4 0: every link as
+// it was), a hit on one taking a d1-th of its damage, what is left over carried to its next (by slot).
+static Uint8 link_toughness[256];
+static Uint8 toughness_carry[100];
+static bool toughness_armored[100];  // (an armour event set its armour: set_event_armor)
+static bool toughness_launched[100];  // (launched by one of its link: as tough as it ever was, DREAD-NOT's pods)
+
+static void toughness_forget(const struct JE_SingleEnemyType *e)
+{
+	toughness_carry[e - enemy] = 0;
+	toughness_armored[e - enemy] = false;
+	toughness_launched[e - enemy] = false;
+}
+
+// An armour event's (25, 47) armour for enemy i, but never more than a tougher one has left once an armour event has set
+// it (ASSASSIN's second stage sets its boss's each time round its loops: five times as tough, it came back whole
+// before it could be brought down).
+static void set_event_armor(unsigned int i, int armor)
+{
+	if (link_toughness[enemy[i].linknum] > 1 && toughness_armored[i] && enemy[i].armorleft < 255 && armor < 255 &&
+	    armor > enemy[i].armorleft)
+		return;
+	toughness_armored[i] = true;
+	enemy[i].armorleft = (JE_byte)armor;
+}
+
+// Tyrian3D dev: where the boss bars' most damaged enemy that can be shot is (the window's x): TYR3D_AUTOPILOT=aim
+// flies under it.
+bool boss_bar_enemy_x(int *x)
+{
+	int least = 255;
+	for (unsigned int b = 0; b < COUNTOF(boss_bar); ++b)
+		for (unsigned int i = 0; boss_bar[b].link_num != 0 && i < COUNTOF(enemy); ++i)
+			if (enemyAvail[i] == 0 && enemy[i].linknum == boss_bar[b].link_num && enemy[i].armorleft < least)
+			{
+				least = enemy[i].armorleft;
+				*x = enemy[i].ex + enemy[i].mapoffset;
+			}
+	return least < 255;
+}
+
+// What a hit of `damage` on enemy i takes off it.
+int tough_damage(unsigned int i, int damage)
+{
+	const int k = link_toughness[enemy[i].linknum];
+	if (k <= 1 || damage <= 0 || toughness_launched[i])
+		return damage;
+	const int total = damage + toughness_carry[i];
+	toughness_carry[i] = (Uint8)(total % k);
+	return total / k;
+}
+
+// Tyrian3D: event 207's jump (0: none), made once the screen is clear, or CLEAR_JUMP_LATE ticks after the boss bars'
+// links are gone (wrecks or scenery that never leave it): a HOARD fight's end where its level ended when clear (36).
+#define CLEAR_JUMP_LATE 350
+static JE_word clear_jump = 0;
+static int clear_jump_wait = 0;
+
 static bool gbc_in_pool(unsigned int i)
 {
 	return episodeNum == EPISODE_GBC && gbc_pooled[i] && enemyAvail[i] != 1;
@@ -1088,6 +1147,7 @@ static bool prespawn_passes(int type)
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
 	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204:
+	case 206: case CHECKPOINT_EVENT: case MARK_EVENT:
 		return true;
 	default:
 		return false;
@@ -1164,7 +1224,7 @@ static void prespawn_events(void)
 		return;
 	// Not while what comes next may never come: a jump when the screen is clear (a return, the
 	// level's end) or when a boss dies.
-	if (returnActive || readyToEndLevel || boss_jump_armed())
+	if (returnActive || readyToEndLevel || boss_jump_armed() || clear_jump != 0)
 		return;
 	// Links whose enemies an event before the one being looked at changes (made at their time).
 	int changed_links[16], changed_count = 0;
@@ -2112,6 +2172,7 @@ enemy_still_exists:
 						    enemy[i].linknum < 100)
 						{
 							e->linknum = enemy[i].linknum;
+							toughness_launched[e - enemy] = true;  // (Tyrian3D)
 						}
 					}
 				}
@@ -2381,6 +2442,8 @@ start_level_first:
 
 	bonusLevel = false;
 	readyToEndLevel = false;
+	memset(link_toughness, 0, sizeof(link_toughness));  // (Tyrian3D)
+	clear_jump = 0;
 	firstGameOver = true;
 	eventLoc = 1;
 	curLoc = 0;
@@ -3150,6 +3213,8 @@ level_loop:
 						const bool pooled = gbc_in_pool(b) && armorleft < 255;
 						if (pooled)
 							armorleft = gbc_pool_left();
+						else
+							damage = tough_damage(b, damage);  // (Tyrian3D: a tougher enemy)
 
 						temp = enemy[b].linknum;
 						if (temp == 0)
@@ -3810,6 +3875,22 @@ draw_player_shot_loop_end:
 		returnActive = false;
 	}
 
+	// (Tyrian3D: event 207's jump)
+	if (clear_jump != 0)
+	{
+		const bool bars = boss_bar[0].link_num != 0 || boss_bar[1].link_num != 0;
+		const bool gone = bars && (boss_bar[0].link_num == 0 || !link_there(boss_bar[0].link_num)) &&
+		                  (boss_bar[1].link_num == 0 || !link_there(boss_bar[1].link_num));
+		clear_jump_wait = gone ? clear_jump_wait + 1 : 0;
+		if ((enemyOnScreen == 0 && !enemyStillExploding) || clear_jump_wait > CLEAR_JUMP_LATE)
+		{
+			const JE_word to = clear_jump;
+			clear_jump = 0;
+			JE_eventJump(to);
+			eventLoc++;  // (made here, not by an event: the event before its target isn't run again)
+		}
+	}
+
 	/*-------      DEbug      ---------*/
 	debugTime = SDL_GetTicks();
 	tempW = lastmouse_but;
@@ -4261,6 +4342,16 @@ int level_last_event_clock(void)
 	for (int e = 0; e < maxEvent && e < EVENT_MAXIMUM; ++e)
 		last = SDL_max(last, (int)eventRec[e].eventtime);
 	return last;
+}
+
+// Tyrian3D: the clocks of the level's own checkpoints (event 208), at most `most` of them: how many.
+int level_checkpoint_clocks(int *clocks, int most)
+{
+	int count = 0;
+	for (int e = 0; e < maxEvent && e < EVENT_MAXIMUM && count < most; ++e)
+		if (eventRec[e].eventtype == CHECKPOINT_EVENT)
+			clocks[count++] = eventRec[e].eventtime;
+	return count;
 }
 
 // (The mini-game's weapons, kit_restore.)
@@ -6156,6 +6247,7 @@ uint JE_makeEnemy(struct JE_SingleEnemyType *enemy, Uint16 eDatI, Sint16 uniqueS
 	enemy->size = enemyDat[eDatI].esize;
 	enemy->linknum = 0;
 	gbc_pool_forget(enemy);  // (Tyrian3D)
+	toughness_forget(enemy);
 	enemy->edamaged = enemyDat[eDatI].dani < 0;
 	enemy->enemydie = enemyDat[eDatI].eenemydie;
 
@@ -6883,9 +6975,9 @@ void JE_eventSystem(void)
 			if (eventRec[eventLoc-1].eventdat4 == 0 || enemy[temp].linknum == eventRec[eventLoc-1].eventdat4)
 			{
 				if (galagaMode)
-					enemy[temp].armorleft = roundf(eventRec[eventLoc-1].eventdat * (difficultyLevel / 2));
+					set_event_armor(temp, roundf(eventRec[eventLoc-1].eventdat * (difficultyLevel / 2)));
 				else
-					enemy[temp].armorleft = eventRec[eventLoc-1].eventdat;
+					set_event_armor(temp, eventRec[eventLoc-1].eventdat);
 			}
 		}
 		break;
@@ -7122,7 +7214,7 @@ void JE_eventSystem(void)
 		for (temp = 0; temp < 100; temp++)
 		{
 			if (eventRec[eventLoc-1].eventdat4 == 0 || enemy[temp].linknum == eventRec[eventLoc-1].eventdat4)
-				enemy[temp].armorleft = eventRec[eventLoc-1].eventdat;
+				set_event_armor(temp, eventRec[eventLoc-1].eventdat);
 		}
 		break;
 
@@ -7480,6 +7572,22 @@ void JE_eventSystem(void)
 
 	case 205:  // Tyrian3D: the level seen from behind the ship (d1 1) or from above again (0)
 		l3d_chase = eventRec[eventLoc-1].eventdat != 0;
+		break;
+
+	case 206:  // Tyrian3D: link d4's enemies d1 times as tough (tough_damage); d4 0: every link as it was
+		if (eventRec[eventLoc-1].eventdat4 == 0)
+			memset(link_toughness, 0, sizeof(link_toughness));
+		else
+			link_toughness[eventRec[eventLoc-1].eventdat4] = (Uint8)SDL_clamp(eventRec[eventLoc-1].eventdat, 0, 50);
+		break;
+
+	case CHECKPOINT_EVENT:  // Tyrian3D: a checkpoint here (debugmode.c checkpoint_marks_find: looked for as the level starts)
+	case MARK_EVENT:        // Tyrian3D: nothing (what a jump made outside the events, a boss's death's, runs again)
+		break;
+
+	case 207:  // Tyrian3D: a jump to d1 once the screen is clear (or the boss long gone: clear_jump); 0: none
+		clear_jump = (JE_word)SDL_max(0, eventRec[eventLoc-1].eventdat);
+		clear_jump_wait = 0;
 		break;
 
 	default:

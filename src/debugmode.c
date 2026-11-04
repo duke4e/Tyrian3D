@@ -239,7 +239,7 @@ void debug_flight_from_environment(void)
 /* --- Flying -------------------------------------------------------------------------------- */
 
 #define TICKS_PER_SECOND 35
-#define MAX_TICKS (TICKS_PER_SECOND * 60 * 30)  // half an hour of a level
+#define MAX_TICKS (TICKS_PER_SECOND * 60 * 90)  // an hour and a half of a level (episode 6's HOARD fights are long)
 #define REWIND_TICKS (TICKS_PER_SECOND * 5)
 
 typedef struct
@@ -276,7 +276,8 @@ static Uint64 last_snapshot_time = 0;
 // Tyrian3D: checkpoints in the long levels (the user, 2026-11-04: "možemo na dužim levelima dodati checkpointove?"),
 // on the debug flight's recording: a one-player full game records its input from the level's start as the debug
 // flight does; past a checkpoint (the middle of a level whose events go on past CHECKPOINT_LONG clock, the thirds of
-// one past twice that) a death plays the level again from its start, its recorded input played back unseen and
+// one past twice that; or where the level's own events 208 put them: episode 6's HOARD, one at every fight but its
+// first) a death plays the level again from its start, its recorded input played back unseen and
 // unwaited to the checkpoint's tick, so the ship is there as it was (its savings, what it had shot down), and the game
 // goes on from there, the ship a moment unhurt. Not in network games, demos, timed battles, rogue runs, arcade or two-
 // player play, nor the debug flight (which rewinds its own way).
@@ -284,7 +285,7 @@ static Uint64 last_snapshot_time = 0;
 static bool checkpoints = false;   // recording for them (the level began in a game that has them)
 static bool relaunching = false;   // the level starting again for one (checkpoint_relaunch)
 static int checkpoint_tick = 0;    // the last one passed (0: none yet)
-static int checkpoint_marks[2], checkpoint_mark_count = -1;  // their clocks (-1: not yet found)
+static int checkpoint_marks[32], checkpoint_mark_count = -1;  // their clocks (-1: not yet found)
 
 static bool checkpoints_allowed(void)
 {
@@ -301,7 +302,9 @@ static bool recording(void)
 static void checkpoint_marks_find(void)
 {
 	const int last = level_last_event_clock();
-	checkpoint_mark_count = 0;
+	checkpoint_mark_count = level_checkpoint_clocks(checkpoint_marks, (int)COUNTOF(checkpoint_marks));
+	if (checkpoint_mark_count > 0)
+		return;
 	if (last > 2 * CHECKPOINT_LONG)
 	{
 		checkpoint_marks[checkpoint_mark_count++] = last / 3;

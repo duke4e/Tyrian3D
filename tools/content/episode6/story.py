@@ -63,13 +63,14 @@ STAGES = [
 # (kit: flown with the mini-game's weapons, as the originals' mini-games are, the ship's own back after it: ]k[,
 # tyrian2.c kit_restore)
 STAGES.append(dict(level="invaders", kind="bonus", cubes=[], warning=None, kit=True))  # (">>> Bonus Level <<<" in it)
-# The last two (generate.py): STARFALL, the Collector's fleet chased low over the farmland, flown on the rail as Star
-# Fox flies (rail: ]r[, src/rail.c; its level's events unused); THE HOARD, its bosses one after another. Their shops sell the best the episode has.
+# The last ones (generate.py): STARFALL, the Collector's fleet chased low over the farmland, flown on the rail as Star
+# Fox flies (rail: ]r[, src/rail.c; its level's events unused); THE HOARD in three, its bosses one after another. Their shops sell the best the episode has.
 LAST_SHOP = [" Ship   7 12 13", " WeapF  5 18 20 27 42 48 50 51", " WeapR  0 21 28 29 52 53", " Power  6", " Engine 1",
              " Opt1   0 12 22 25 28 33 35 37", " Opt2   0 12 22 26 28 34 36 37", " Armor  1 2 3", " Shield 11"]
 STAGES.append(dict(level="starfall", planet=6, cubes=[], warning=None, shop=LAST_SHOP, rail=True))  # (src/rail.c)
 STAGES.append(dict(level="the_hoard", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
-STAGES.append(dict(level="hoard_ii", planet=6, cubes=[], warning=None, shop=LAST_SHOP))  # (THE HOARD's second half)
+STAGES.append(dict(level="hoard_ii", planet=6, cubes=[], warning=None, shop=LAST_SHOP))  # (THE HOARD's second part)
+STAGES.append(dict(level="hoard_iii", planet=6, cubes=[], warning=None, shop=LAST_SHOP))  # (and its last)
 
 # The specials each shop sells (the shop's 10th list, " Spec": game_menu.c shop_has_specials, mainint.c
 # special_shop_cost; the user, 2026-11-04: "u 6. epizodi bi zapravo u shop i mogli dodati speciale tipa flare"), 0 for
@@ -80,6 +81,7 @@ SPECIALS = {
     "roost": [0, 6, 2, 7], "migration": [0, 2, 7, 8], "deep_ice": [0, 7, 8, 45], "glacier": [0, 8, 45, 13],
     "collector": [0, 13, 14, 47], "crustgate": [0, 14, 47, 40], "gravitron": [0, 40, 41, 49], "the_core": [0, 40, 49, 48],
     "starfall": [0, 49, 48], "the_hoard": [0, 49, 48], "hoard_ii": [0, 49, 48],
+    "hoard_iii": [0, 49, 48],
 }
 
 # The data cubes: (face sprite, title, header, lines). ~word~ highlights a word, as in the game.

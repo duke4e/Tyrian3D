@@ -194,7 +194,8 @@ TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
 ## New content
 
 **Checkpoints.** In a one-player full game the long levels (their events going on past clock 4500: the middle; past
-9000: the thirds) have checkpoints: "Checkpoint" shows as one is passed, and the ship lost after it plays the level
+9000: the thirds; or where the level's events 208 put them: episode 6's HOARD levels, one at every fight but the
+first) have checkpoints: "Checkpoint" shows as one is passed, and the ship lost after it plays the level
 again from its start unseen and unwaited, its recorded input played back (the debug flight's recording: the level
 launched as its script launched it, without the shop and texts, `tyrian2.c` `launch_again`), to there, so the ship
 is where it was with what it had, a moment unhurt, and plays on (`debugmode.c` `checkpoint_restart`). Not in network
@@ -338,15 +339,19 @@ fast; shot down, it leaves a data cube (shown in the next shop after the stage's
 `]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
 at the end of episode 1, flown as the originals' mini-games are with the Atomic RailGun alone (script `]k[`: the
-ship's own weapons, sidekicks and special back before the next shop or level, `tyrian2.c` `kit_restore`); then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
+ship's own weapons, sidekicks and special back before the next shop or level, `tyrian2.c` `kit_restore`); then the last ones: STARFALL, the Collector's fleet chased low over Tyrian's farmland
 (HARVEST's own maps, so its terrain and plants; `original_maps`), flown on the rail as Star Fox 64 flies (below; script
-`]r[`, its 2D level's events unused); and THE HOARD and HOARD II (`make_hoard`), over open space, the Collector's hoard: every boss of the game one after
-another as mid-level bosses (`HOARD_BOSSES`: the originals' levels with one, the same boss once, 29 and BRAINIAC),
-each with the last of its approach and its own defences and pattern (`compose.midboss_template`'s `trim`: some bring
-their level's whole boss stretch), a mechanic with every other one (lights out, upside down, from behind the ship,
-from the side, a rush before it), episodes 1-3's bosses in THE HOARD (New Deli's its last), episodes 4-5's in HOARD
-II, a siege, then BRAINIAC (two levels: an event's clock it jumps to is a signed 16-bit number, so a level's events
-end by 32767; the game's table holds 5000 events, `EVENT_MAXIMUM`, the original's 2500); the sheets change for each
+`]r[`, its 2D level's events unused); and THE HOARD, HOARD II and HOARD III (`make_hoard`), over open space, the
+Collector's hoard: every boss of the game one after another (`HOARD_BOSSES`: the originals' levels with one, the same
+boss once, 29 and BRAINIAC last), each with its whole encounter as its level has it (`compose.encounter`,
+`fight_template`: from a little before its warning to its level's end, its stages, shields, escorts and scripted
+enemies, its own map stops and jumps; not the map's ground enemies, its level's settings or end), its boss five
+times as tough (Tyrian3D event 206), each fight over once its boss is gone (where its level ended when the screen was
+clear, event 207: a jump once it is clear), the next one's sheets loaded at once; a mechanic with every other one
+(lights out, upside down, from behind the ship, from the side); episodes 1-2's bosses in THE HOARD, episode 3's and
+4's first in HOARD II, the rest in HOARD III (three levels: an event's clock it jumps to is a signed 16-bit number,
+so a level's events end by 32767, and the encounters take some 84000; the game's table holds 5000 events,
+`EVENT_MAXIMUM`, the original's 2500); the sheets change for each
 fight (event 5: `build.py` checks each enemy against the sheets loaded where it is made), and the weapons of the
 bosses' enemies that find no slot in the item data are episode 5's most like them (`enemydata.nearest_weapon`). ROOST's first courier carries the Nova (special 49: the pickup
 of episode 5's 1296 worth 32149, `courier_events` "special:49", slower than the cube couriers). Its shops sell specials too: a shop's 10th list (` Spec` in its `]I` block,
@@ -849,7 +854,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_LOG_ENEMIES=1` | Print each enemy type on screen with its sprite sheet and index, for `models.cfg` (and, with frame dumps, which dump is which 3D frame) |
 | `TYR3D_PROFILE=1` | Print the cost of 3D presentation, and of presenting the game's other screens (menus, the store, the screens over a level); `TYR3D_PROFILE=gpu` also the GPU's time for each 3D frame (`3d gpu:` median, mean and most of the last 300, from its submission to its completion, each frame waited for first, which slows the game a little) and for each frame the modern UI draws (`ui gpu:`: the store with its pad's or simulator's scene, Destruct, the jukebox, the menus). For A/B costs: a debug flight paused on one frame (`TYR3D_DEBUG=1 TYR3D_DEBUG_SEEK=<tick>`, `` TYR3D_TEST_KEYS=90:` ``) presents the same scene again and again |
 | `TYR3D_START=<episode>:<section>` | Start a game at a level section, skipping the menus (see `tools/levels.py`); `<custom episode folder>:<section>` starts a custom episode's |
-| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_GODMODE_UNTIL=<clock>`: until the level's clock is there, to test a checkpoint) (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
+| `TYR3D_AUTOPILOT=1`, `TYR3D_GODMODE=1` | The ship weaves and fires by itself; the player takes no damage (`TYR3D_GODMODE_UNTIL=<clock>`: until the level's clock is there, to test a checkpoint) (`TYR3D_AUTOPILOT=nofire`: it never fires, so enemies live to be looked at; `park`: held in the bottom left corner, never firing, as `tools/gbc/boss_rom.py` flies the GBC's bosses, out of the way of what sweeps the screen; `aim`: under the boss bar's enemy while there is one, so a test runs through episode 6's HOARD fights). With `TYR3D_START` the autopilot steers in place of constant play's drift and held buttons (until 2026-10-25 the drift cancelled its steering and held the ship at the left edge, x 23, and fired with `nofire` too: ground logs, reviews and sweeps made with the autopilot before then flew there, so `tools/terrain/ground_log.sh` may log more after) |
 | `TYR3D_SEED=<n>` | With `TYR3D_START`: the game's random seed (default 1; runs with the autopilot repeat frame for frame) |
 | `TYR3D_MUSIC=midi\|opl` | The music through the SoundFont as MIDI, or on the emulated AdLib chip (default: the setting, Sound → Music). The player's chip writes become MIDI as they come (`music_midi.c`): a note while its channel's key is on, its loudness from the chip's total level, key scale level and envelope (the decay to the sustain level and, with a decaying envelope, on to silence while the key is held: a note that fades out on the chip ends there); instruments whose MIDI program is 128 and up are drums, the General MIDI drum note (program - 128) on the drum channel (Loudness's MIDI drums: hi-hats, snares, bass drums, cymbals) |
 | `TYR3D_DEBUG_MIDI=1` | Print each MIDI note as it starts with the chip's registers for it (level, envelope) |

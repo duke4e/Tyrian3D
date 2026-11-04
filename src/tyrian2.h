@@ -38,6 +38,9 @@ extern boss_bar_t boss_bar[2];
 
 extern char tempStr[31];
 extern JE_byte itemAvail[10][10], itemAvailMax[10];
+#define CHECKPOINT_EVENT 208  // Tyrian3D: a checkpoint at its clock
+#define MARK_EVENT 209        // Tyrian3D: nothing (before a jump's target: a jump made outside the events runs it again)
+int level_checkpoint_clocks(int *clocks, int most);  // Tyrian3D: the level's own checkpoints' clocks (event 208)
 int level_last_event_clock(void);  // Tyrian3D: the clock of the level's last event  // (the 10th list, Tyrian3D: the specials, ITEM_LIST_SPECIAL)
 
 void JE_createNewEventEnemy(JE_byte enemytypeofs, JE_word enemyoffset, Sint16 uniqueShapeTableI);
@@ -74,6 +77,8 @@ bool JE_searchFor(JE_byte PLType, JE_byte* out_index);
 bool gbc_piece_link(int link);
 bool gbc_takes_along(int link, unsigned int dying, unsigned int other);
 int gbc_pool_hit(unsigned int i, int damage);
+int tough_damage(unsigned int i, int damage);
+bool boss_bar_enemy_x(int *x);
 bool gbc_pool_takes(unsigned int dying, unsigned int other);
 void JE_eventSystem(void);
 

@@ -15,6 +15,7 @@
 #include "params.h"
 #include "player.h"
 #include "sprite.h"
+#include "tyrian2.h"
 #include "varz.h"
 #include "video.h"
 #include "volume3d.h"
@@ -683,7 +684,12 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	// (Across the wide playfield's 16-288 when it is on. TYR3D_AUTOPILOT=park: held in the bottom left corner,
 	// never firing, as tools/gbc/boss_rom.py flies the GBC's bosses: out of their way, so they live their loops.)
 	const bool park = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "park") == 0;
-	const int target_x = park ? 0 : l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
+	int target_x = park ? 0 : l3d_field_wide ? 152 + (int)(128 * SDL_sin(t * 0.9)) : 140 + (int)(100 * SDL_sin(t * 0.9));
+	// (TYR3D_AUTOPILOT=aim: under the boss bars' enemy while there is one, weaving a little: episode 6's HOARD fights
+	// run through in a test.)
+	int boss_x;
+	if (SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "aim") == 0 && boss_bar_enemy_x(&boss_x))
+		target_x = boss_x + (int)(36 * SDL_sin(t * 1.7));
 	const int target_y = park ? 999 : 140 + (int)(25 * SDL_sin(t * 0.37));
 
 	if (x < target_x - speed)

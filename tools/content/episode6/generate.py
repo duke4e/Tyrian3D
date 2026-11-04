@@ -302,106 +302,45 @@ def finish(design, layers):
     return level
 
 
-def boss_sheets(source):
-    """The sheets an original's boss needs (its parts', and what they launch or leave)."""
-    boss = source.boss()
-    out = set()
-    for e in boss["events"]:
-        if e["type"] in waves.SPAWNS:
-            out |= waves.sheets_of(source.enemies, e["d1"])
-    return out - {21, 26}
-
-
-def episode_enemies(but):
-    """The enemies (episode, number) the episode's other levels make (as they stand in levels/): in the episode's
-    item data already, with their weapons (whose slots, for other episodes' enemies, are full)."""
-    out = set()
-    for f in sorted(os.listdir(OUT)):
-        level = json.load(open(os.path.join(OUT, f)))
-        if level["name"] == but or not level.get("placements"):
-            continue
-        out |= {(e["ep"], e["d1"]) for e in compose.expand(level) if e["type"] in waves.SPAWNS and "ep" in e}
-    return out
-
-
-HOARD_LEAD = 400  # clock from a fight's sheets to its boss (two of its own level's waves in between)
-HOARD_GAP = 150   # clock from a boss gone to the next fight's sheets
-HOARD_APPROACH = 500  # clock of a boss's approach kept before the map stops (some bring the whole stretch of their level
-                       # before it: HARVEST's 9580, UNDERDELI's, CAMANIS', CORAL's: the level's clock runs out at 65535)
+HOARD_GAP = 30  # clock between a fight's end (its wrecks gone: compose.FIGHT_GONE) and the next one's sheets
 
 
 def make_hoard(design):
-    """THE HOARD, the episode's last level (the user, 2026-11-03: "level samo sa svim bossevima, jedan za drugim + na
-    kojemu idemo all in - da uguramo sve što igra nudi kao one off mehanike"): over open space, the Collector's
-    hoard, its bosses one after another, each fought as a mid-level boss (the map stops, its pattern loops until it
-    is gone), two waves of its own level before it, and with each a mechanic of the game's (fights: flip, dark, side,
-    chase; bursts before; a siege before the last), the sheets changed for each (event 5: four at a time), the last
-    one the level's boss."""
-    rnd = random.Random(design["seed"])
+    """THE HOARD and its sequels, the episode's last levels (the user, 2026-11-03: "level samo sa svim bossevima, jedan
+    za drugim + na kojemu idemo all in - da uguramo sve što igra nudi kao one off mehanike"; 2026-11-04, of the first
+    take, each boss's last 500 clock looping with two waves of other levels between: "pojavi se glavni, ubijemo ga za
+    sekundu, pa onda ništa/čekanje, pa nekoliko protivnika, i tako u krug"): over open space, the Collector's hoard,
+    its bosses one after another, each with its whole encounter as its level has it, its shields, escorts and
+    scripted enemies too, five times as tough (compose.fight_template), the next one's sheets loaded as soon as it is
+    gone (event 5: the boss's first), a checkpoint there (event 208: the user, 2026-11-04, "jesmo dodali checkpointove
+    na velike levele?"), with each a mechanic of the game's (fights: flip, dark, side, chase); the level ends after
+    the last."""
     speeds = tuple(design["speeds"])
     events, placements = [], []
     t, first, banks = 150, None, None
-    known = episode_enemies(design["name"])
     for fight in design["fights"]:
         source = waves.Source(*fight["boss"])
-        sheets = boss_sheets(source)
-        # (its waves those of the level of the episode it is fought in: their enemies, and their weapons, are in
-        # the episode already; none of their scenery, SURFACE's rock arches: they floated in its open space)
-        own = [(s, i, w) for s in (waves.Source(*k) for k in fight["waves"])
-               for i, w in enumerate(s.waves()) if 3 <= w["count"] <= 10 and w["length"] <= 400 and
-               all((s.episode, e["d1"]) in known and s.enemies.get(e["d1"], {}).get("armor", 0) > 0
-                   for e in w["events"] if e["type"] in waves.SPAWNS)]
-        for b, _ in Counter(b for _, _, w in own for b in w["banks"]).most_common():
-            if len(sheets) < 4:
-                sheets.add(b)
-        fitting = [(s, i, w) for s, i, w in own if set(w["banks"]) <= sheets | {21, 26}]
-        banks = sorted(sheets)[:4]
+        boss, others = compose.encounter_sheets(source, compose.encounter(source))
+        banks = (boss + others)[:4]
         load = compose.event(t, 5, *(banks + [0] * 4)[:2], d3=(banks + [0] * 4)[2], d4=(banks + [0] * 4)[3])
         if first is None:
             first = dict(load, t=0)
         else:
-            events.append(load)
-        if fight.get("burst"):
-            events += [compose.event(t + 10, 16, d1=compose.MESSAGE_AFTERBURNER, d2=30),
-                       compose.event(t + 90, 2, d1=speeds[0] * 2, d2=speeds[1] * 2, d3=speeds[2] * 2),
-                       compose.event(t + HOARD_LEAD - 60, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2])]
-        for k in range(2 if fitting else 0):
-            s, index, w = rnd.choice(fitting)
-            placements.append(dict(kind="wave", episode=s.episode, name=s.name, index=index,
-                                   start=t + 40 + k * 200, drop=compose.pick_coin(rnd, 250)))
-        at = t + HOARD_LEAD
-        if fight.get("siege"):
-            # A siege first: the map stops, the waves come round until the level timer runs out.
-            loop_from, loop_to = at + 20, at + compose.HOLD_LOOP
-            exit_ = loop_to + 10
-            for k in range(3):
-                s, index, w = rnd.choice(fitting)
-                placements.append(dict(kind="wave", episode=s.episode, name=s.name, index=index,
-                                       start=loop_from + k * (compose.HOLD_LOOP // 3)))
-            events += [compose.event(at - 80, 16, d1=compose.MESSAGE_DANGER, d2=30), compose.event(at, 2),
-                       compose.event(at, 53), compose.event(at, 67, d1=1, d2=exit_, d3=fight["siege"] * 35 // 100),
-                       compose.event(loop_to, 54, d1=loop_from), compose.event(exit_ - 2, 16, d1=4, d2=30),
-                       compose.event(exit_, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]), compose.event(exit_, 53, d1=99)]
-            at = exit_ + 250
-        if fight.get("last"):
-            placements.append(dict(kind="boss", episode=source.episode, name=source.name, start=at))
-            break
-        stop, loop_from, loop_to = compose.midboss_span(source)
-        trim = max(0, stop - HOARD_APPROACH)
-        stop, loop_from, loop_to = stop - trim, loop_from - trim, loop_to - trim
-        placements.append(dict(kind="midboss", episode=source.episode, name=source.name, start=at, trim=trim,
-                               loop=[stop, loop_from, loop_to], speeds=list(speeds),
-                               **{k: True for k in ("flip", "dark", "side", "chase") if fight.get(k)}))
-        t = at + loop_to + 2 + HOARD_GAP
+            events += [compose.event(t, compose.CHECKPOINT), load]
+        p = dict(kind="fight", episode=source.episode, name=source.name, start=t + 10, banks=banks, speeds=list(speeds),
+                 **{k: True for k in ("flip", "dark", "side", "chase") if fight.get(k)})
+        placements.append(p)
+        t = p["start"] + compose.fight_template(source, p)["length"] + HOARD_GAP
     look = waves.Source(*design["look"])
     look_events = [dict(e) for e in look.events if e["t"] == 0 and e["type"] in LOOK_EVENTS and
                    e["type"] not in (1, 2, 3, 8, 9, 64)]
     head = [compose.event(0, 2, d1=speeds[0], d2=speeds[1], d3=speeds[2]), first, compose.event(0, 13),
             compose.event(0, 9), compose.event(0, 1, d1=0)]
     blank = design["blank"]
+    assert t < 32000, f"{design['name']}: {t} clock (events jump by signed 16-bit clocks)"
     return dict(name=design["name"], song=design["song"], shapes=design["shapes"],
                 maps=[[[blank] * 14 for _ in range(300)], [[0] * 14 for _ in range(600)], [[0] * 15 for _ in range(600)]],
-                events=look_events + head + sorted(events, key=lambda e: e["t"]) + [compose.event(compose.CLOCK_END - 50, 11)],
+                events=look_events + head + sorted(events, key=lambda e: e["t"]) + [compose.event(t, 11)],
                 placements=placements, banks=banks, terrain=None, open_space=True)
 
 
@@ -537,32 +476,25 @@ def the_core(p):
 # while that boss is fought),
 # couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level),
 # hold (clock, seconds): a siege, the map stopped, waves round and round until the level timer ends.
-# THE HOARD's and HOARD II's fights (the user, 2026-11-04: "zadnji level, nek je sa baš svim bossevima iz igre
-# (uključujući i njihove obrane i konfiguracije)"; two levels: an event's clock it jumps to (54, 70) is a signed
-# 16-bit number, so a level's events end by 32767): every boss of episodes 1-5 (the originals' levels with one, those of the same
-# boss once: TYRIAN's and TYRIAN X's, SAVARA's and SAVARA Y's, TORM's and the BOTANYs', ICE EXIT's and ICESECRET's,
-# episode 5's two SAVARAs'), each with its own stage's defences and pattern (compose.midboss_span), in the episodes'
-# order, BRAINIAC's last after a siege; a mechanic of the game's with every other one (lights out, upside down, from
-# behind the ship, from the side, a rush before it); their waves those of the episode's levels the episode has.
+# THE HOARD's fights (the user, 2026-11-04: "zadnji level, nek je sa baš svim bossevima iz igre (uključujući i njihove
+# obrane i konfiguracije)"; three levels: an event's clock it jumps to (54, 70) is a signed 16-bit number, so a level's
+# events end by 32767, and the bosses' whole encounters take some 84000): every boss of episodes 1-5 (the originals'
+# levels with one, those of the same boss once: TYRIAN's and TYRIAN X's, SAVARA's and SAVARA Y's, TORM's and the
+# BOTANYs', ICE EXIT's and ICESECRET's, episode 5's two SAVARAs'), in the episodes' order, BRAINIAC's last; a mechanic
+# of the game's with every other one (lights out, upside down, from behind the ship, from the side).
 HOARD_BOSSES = [(1, "TYRIAN"), (1, "ASTEROID1"), (1, "ASTEROID2"), (1, "SAVARA"), (1, "DELIANI"), (1, "ASSASSIN"),
                 (1, "SAVARA V"), (2, "TORM"), (2, "GYGES"), (2, "GEM WAR"), (3, "IXMUCANE"), (3, "CAMANIS"),
                 (3, "FLEET"), (3, "New Deli"), (4, "SURFACE"), (4, "CORE"), (4, "ICE EXIT"), (4, "HARVEST"),
                 (4, "UNDERDELI"), (4, "SAVARA IV"), (4, "DREAD-NOT"), (4, "LAVA EXIT"), (4, "APPROACH"),
-                (5, "ASTEROIDS"), (5, "SAVARA"), (5, "AST ROCK"), (5, "MINERS"), (5, "CORAL"), (5, "FRUIT")]
-HOARD_MECHANICS = [{}, dict(dark=True), {}, dict(flip=True), {}, dict(chase=True), {}, dict(side=True), {},
-                   dict(burst=True)]
-HOARD_WAVES = [(3, "CAMANIS"), (2, "GYGES"), (4, "SAVARA IV"), (4, "SURFACE"), (3, "BONUS"), (4, "LAVA EXIT")]
-
-
-HOARD_SPLIT = 14  # THE HOARD: episodes 1-3's bosses, New Deli's its last; HOARD II: episodes 4-5's, then BRAINIAC's
+                (5, "ASTEROIDS"), (5, "SAVARA"), (5, "AST ROCK"), (5, "MINERS"), (5, "CORAL"), (5, "FRUIT"),
+                (4, "BRAINIAC")]
+HOARD_MECHANICS = [{}, dict(dark=True), {}, dict(flip=True), {}, dict(chase=True), {}, dict(side=True)]
+HOARD_PARTS = [(0, 10), (10, 19), (19, 30)]  # THE HOARD: episodes 1-2's; HOARD II: 3's and 4's first; HOARD III: the rest
 
 
 def hoard_fights(part):
-    fights = [dict(boss=b, waves=[HOARD_WAVES[k % len(HOARD_WAVES)]], **HOARD_MECHANICS[k % len(HOARD_MECHANICS)])
-              for k, b in enumerate(HOARD_BOSSES)]
-    if part == 1:
-        return fights[:HOARD_SPLIT - 1] + [dict(fights[HOARD_SPLIT - 1], last=True)]
-    return fights[HOARD_SPLIT:] + [dict(boss=(4, "BRAINIAC"), waves=[(4, "SURFACE"), (4, "LAVA EXIT")], siege=30, last=True)]
+    fights = [dict(boss=b, **HOARD_MECHANICS[k % len(HOARD_MECHANICS)]) for k, b in enumerate(HOARD_BOSSES)]
+    return fights[slice(*HOARD_PARTS[part - 1])]
 
 
 LEVELS = [
@@ -652,6 +584,8 @@ LEVELS = [
          speeds=(1, 2, 1), fights=hoard_fights(1)),
     dict(name="HOARD II", kind="hoard", shapes=")", blank=21, song=35, seed=171, look=(4, "LAVA EXIT"),
          speeds=(1, 2, 1), fights=hoard_fights(2)),
+    dict(name="HOARD III", kind="hoard", shapes=")", blank=21, song=35, seed=181, look=(4, "LAVA EXIT"),
+         speeds=(1, 2, 1), fights=hoard_fights(3)),
 ]
 
 

@@ -82,7 +82,9 @@ def place(template, start, links, ep):
             e["d1"] = start + jump  # (the boss's own jumps: when it dies, boss_jumps; its stages, waves.Source.boss)
         elif jump == "gone":
             e["gone"] = True  # (its target, past the level's end, set by expand)
-        if e["d4"] in mapping and (e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS or W.by_link(e) is not None):
+        if "jump2" in e:
+            e["d2"] = start + e.pop("jump2")  # (a level timer's: fight_template)
+        if e["d4"] in mapping and (e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS | {TOUGH} or W.by_link(e) is not None):
             e["d4"] = mapping[e["d4"]]
         if e["type"] == 39:
             e["d1"] = mapping.get(e["d1"], e["d1"])
@@ -143,6 +145,8 @@ def expand(level):
             boss_block = (source, template, p["start"])
         elif p["kind"] == "midboss":
             template = midboss_template(source, p)
+        elif p["kind"] == "fight":
+            template = fight_template(source, p)
         else:
             template = source.waves(ground=p.get("ground", False))[p["index"]]
             template = dict(template, events=without_still_tops(source, template["events"],
@@ -525,6 +529,198 @@ def midboss_template(source, p):
         events.append(event(loop_to + 2, 205, d1=0))
     events.sort(key=lambda e: e["t"])
     return dict(events=events, links=links, length=loop_to + 2, loop=(loop_from, loop_to))
+
+
+# THE HOARD's fights (the user, 2026-11-04: "iskopirati kompletne scenarije boss encountera iz svih levela. najčešće se
+# radilo o nekom skriptiranom eventu gdje je bilo više toga za napraviti, dal se radilo o nekakvom štitu od protivnika
+# (npr brainiac), ili nekim specifičnim protivnicima"; "dignuti health za x5"): each boss's whole encounter as its
+# level has it, from a little before its warning to its level's end, what comes with it too (its shields, escorts,
+# the enemies its script makes, its stages, its own map stops and jumps), but the map's own (ground) enemies, the
+# level's settings and its end; the boss's links FIGHT_TOUGH times as tough (Tyrian3D event 206).
+FIGHT_APPROACH = 200  # clock of a boss's approach a fight takes with it, before its warning or first part
+FIGHT_TOUGH = 5
+FIGHT_LOOK = 25       # clock between the looks for a fight's boss gone, once its level has run out
+FIGHT_GONE = 120      # clock after its boss is gone to its end (its wrecks sent away; the next fight's sheets)
+TOUGH, CLEAR_JUMP, CHECKPOINT, MARK = 206, 207, 208, 209  # Tyrian3D events: links made tougher; a jump once the
+                                                          # screen is clear; a checkpoint (debugmode.c); nothing
+# Events a fight leaves out: the level's settings (stars, sheets, random enemies, layers' order, palette, difficulty,
+# the map's position and wraps), its end (11 and 36, made the fight's), and the skips by difficulty, flag or players
+# (all of it comes: their counts would no longer hold). (Not the map's stops until the screen is clear, 4 and 83:
+# ASTEROID1's boss holds the map so, and its clock with it.)
+FIGHT_KEEP_OUT = {1, 3, 5, 8, 9, 11, 13, 14, 21, 22, 26, 28, 29, 34, 35, 37, 42, 43, 44, 46, 48, 61, 63, 65, 66,
+                  72, 73, 77, 78, 80, 81, 82, 84, 85}
+FIGHT_JUMPS = {38, 54, 67, 70, 71}  # (their target: d1; 67's d2)
+
+
+def encounter(source):
+    """An original's boss encounter: from FIGHT_APPROACH before its boss's warning (or first part, by the bars of its
+    stages and the parts made from 1100 before the first of them, as BRAINIAC's and TORM's come down to their places: levels make enemies of those links early on too) to
+    its level's end (its first 11 after the boss's last part is made; its last event if none). start, end (clock in
+    its level), links (its stages'), final (its last bar's)."""
+    boss = source.boss(stages=True)
+    links = set(boss["links"])
+    bars = [e["t"] for e in source.events if e["type"] == 79 and e["t"] < 60000 and {e["d1"], e["d2"]} & links]
+    first_bar = min(bars)
+    made = [e["t"] for e in source.events if e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS and e["d4"] in links and
+            first_bar - 1100 <= e["t"] < 60000]
+    start = min(made + [first_bar])
+    start = min([e["t"] for e in source.events if e["type"] == 16 and start - 400 <= e["t"] <= start] + [start])
+    start = max(0, start - FIGHT_APPROACH)
+    last_made = max(made + [first_bar])
+    ends = [e["t"] for e in source.events if e["type"] == 11 and last_made <= e["t"] < 60000]
+    end = min(ends) if ends else max(e["t"] for e in source.events if e["t"] < 60000)
+    return dict(start=start, end=end, links=links, final=source.boss_links())
+
+
+def fight_sheets_of(enemies, number, seen=None):
+    """W.sheets_of, with what an enemy launches though its data never has it launch: the script makes it (31's
+    launch rate: CAMANIS's 216 and 218 launch 596, of sheet 8, its fourth). (Without a rate, a launch type up to 20 is
+    the speed it is aimed at the ship with when it is launched itself: 596's 4.)"""
+    seen = set() if seen is None else seen
+    if number in seen or number not in enemies:
+        return set()
+    seen.add(number)
+    e = enemies[number]
+    out = {e["shapebank"]}
+    launched = e["elaunchtype"] % 1000 if number <= 1000 else e["elaunchtype"]
+    for other in (launched if e["elaunchfreq"] or launched > 20 else 0, e["eenemydie"]):
+        if 0 < other:
+            out |= fight_sheets_of(enemies, other, seen)
+    return out - {21, 26}
+
+
+def encounter_sheets(source, enc):
+    """The sheets an encounter's enemies need, the boss's first, then the others' by how many of them need each."""
+    boss = Counter()
+    others = Counter()
+    for e in source.events:
+        if enc["start"] <= e["t"] <= enc["end"] and e["type"] in W.SPAWNS | W.CUSTOM_SPAWNS | {33, 59, 68}:
+            if e["type"] in W.CUSTOM_SPAWNS:
+                need = {e["d3"]} - {21, 26}
+            elif e["d1"] > 0:
+                need = set().union(*(fight_sheets_of(source.enemies, e["d1"] + k) for k in range(4 if e["type"] == 12 else 1)))
+            else:
+                continue
+            (boss if e["d4"] in enc["links"] else others).update(need)
+    return [b for b, _ in boss.most_common()], [b for b, _ in others.most_common() if b not in boss]
+
+
+def fight_template(source, p):
+    """A boss's encounter (see encounter) as a block of a level whose map is open space (THE HOARD): its events but
+    FIGHT_KEEP_OUT, the ground enemies not of its boss and the enemies whose sheets the fight hasn't loaded (p["banks"]),
+    its jumps' targets as far into it (those before it its start, past it its hold), its parts' unshootable stretches
+    shortened (shorter_invulnerable); its level's end (11) and what
+    comes after the encounter a hold until the boss's last bar's links are gone (the clock running), then the fight's
+    end; its end when clear (36) a jump to the fight's end once the screen is clear (or the boss long gone, 207). At its
+    end its wrecks are sent away, its bars, toughness, effects, death jump and timer taken off, and the map goes on at
+    the level's speeds (p["speeds"]). p's mechanics as midboss_template's (flip, dark, side, chase)."""
+    enc = encounter(source)
+    s, e_ = enc["start"], enc["end"]
+    links, final = enc["links"], enc["final"]
+    loaded = set(p["banks"]) | {21, 26, 0}
+    window = [e for e in source.events if s <= e["t"] <= e_]
+
+    def fits(e):
+        if e["type"] in W.CUSTOM_SPAWNS:
+            return e["d3"] in loaded
+        parts = range(4 if e["type"] == 12 else 1)
+        return all(fight_sheets_of(source.enemies, e["d1"] + k) <= loaded for k in parts)
+
+    def taken(e):
+        # (sky and top enemies; ground ones only the boss's: the others stood on its level's map)
+        if e["type"] in W.CUSTOM_SPAWNS:
+            return fits(e)
+        sky = e["type"] not in W.GROUND_SPAWNS or e["type"] == 12 and e["d6"] in (2, 3)
+        return fits(e) and (sky or e["d4"] in links)
+
+    kept_links = set(links) | {e["d4"] for e in window if e["type"] in W.SPAWNS and taken(e)}
+
+    def kept(ev):
+        kind = ev["type"]
+        if kind in (11, 36):
+            return True
+        if kind in FIGHT_KEEP_OUT or kind in W.SPAWNS | W.CUSTOM_SPAWNS and not taken(ev):
+            return False
+        if kind in (33, 45, 59, 68) and ev["d1"] > 0 and not fight_sheets_of(source.enemies, ev["d1"]) <= loaded:
+            return False
+        return kind in W.SPAWNS or W.by_link(ev) is None or W.by_link(ev) in kept_links
+
+    window = [ev for ev in window if kept(ev)]
+    # (Past its last event but its level's end, its hold: a level's end long after its boss, when the screen is
+    # clear (New Deli's, 4000 clock on), is no fight's.)
+    hold = max([ev["t"] for ev in window if ev["type"] != 11] + [s]) - s + 10
+    end = hold + 60
+
+    def target(t):
+        return 0 if t < s else t - s if t - s < hold else hold
+
+    events, effects = [], set()
+    starting = [ev for ev in source.events if ev["t"] < s and ev["type"] in (2, 53, 57)]
+    for kind in (2, 53, 57):
+        last = [ev for ev in starting if ev["type"] == kind]
+        if last and (kind != 57 or last[-1]["d1"] and s - last[-1]["t"] <= 600):
+            events.append(dict(last[-1], t=0, **({"jump": target(last[-1]["d1"])} if kind == 57 else {})))
+    for ev in window:
+        t, kind = ev["t"] - s, ev["type"]
+        if kind == 11:
+            events.append(dict(event(min(t, hold - 5), 54), jump=hold))
+            continue
+        if kind == 36:
+            events.append(dict(event(t, CLEAR_JUMP), jump=end))
+            continue
+        out = dict(ev, t=t)
+        if kind == 67:
+            out["jump2"] = target(ev["d2"])
+        elif kind in FIGHT_JUMPS | {57} and ev["d1"] not in (-1, 65535) and not (kind == 57 and not ev["d1"]):
+            out["jump"] = target(ev["d1"])
+        if kind == 64 and ev["d2"]:
+            effects.add(ev["d1"])
+        events.append(out)
+    events = shorter_invulnerable(events, source)
+    # (A boss's death's jump and the level timer's are made outside the events, so the game runs the event before their
+    # target again: nothing there, the last at its tick (BRAINIAC's pattern's loop came round again after its brain's
+    # death, for ever).)
+    events += [event(e["jump"] - 1, MARK) for e in events if e["type"] == 57 and "jump" in e]
+    # (and the clock running where a boss's death leads: its parts shootable sooner, shorter_invulnerable, BRAINIAC's brain
+    # went before its level stopped the map with the clock running, and its end, the map standing, stood still)
+    events += [event(e["jump"], 53) for e in events if e["type"] == 57 and "jump" in e]
+    events += [event(e["jump2"] - 1, MARK) for e in events if e["type"] == 67 and "jump2" in e]
+
+    a, b, c = (sorted(final) + [0, 0])[:3]
+    # The hold: the clock running, the boss's last stage looked for until it is gone.
+    events += [event(hold, 2, d1=0, d2=0, d3=0), event(hold, 53)]
+    events += [dict(event(t, 70, d1=-1, d2=a, d3=c, d4=b), jump=end) for t in range(hold + 1, end - 9, FIGHT_LOOK)]
+    events.append(dict(event(end - 10, 54), jump=hold + 1))
+    # Its toughness from its start; its mechanics.
+    events += [event(0, TOUGH, d1=FIGHT_TOUGH, d4=link) for link in sorted(links)]
+    made = [ev["t"] - s for ev in window if ev["type"] in W.SPAWNS | W.CUSTOM_SPAWNS and ev["d4"] in final]
+    there = min(made) + 100 if made else 0
+    if p.get("side"):
+        events.append(event(0, 200, d1=1, d2=1, d3=SIDE_AHEAD // 10))
+    if p.get("chase"):
+        events.append(event(0, 205, d1=1))
+    if p.get("dark"):
+        events.append(event(there, 64, d1=6, d2=1, d3=1))
+        effects.add(6)
+    if p.get("flip"):
+        events += [event(there - 40, 16, d1=MESSAGE_DANGER, d2=30), event(there, 64, d1=9, d2=1, d3=1)]
+        if there + FLIP_LONGEST < hold:
+            events.append(event(there + FLIP_LONGEST, 64, d1=9, d2=0))
+        effects.add(9)
+    # Its end.
+    b1, b2, b3 = p["speeds"]
+    done = [event(end, CLEAR_JUMP), event(end, 57), event(end, 67, d1=0), event(end, 79), event(end, 99, d1=0)]
+    for link in sorted(links):
+        done += [event(end, 20, d4=link), event(end, 19, d2=3, d4=link), event(end, TOUGH, d4=link)]
+    done += [event(end, 64, d1=fx, d2=0) for fx in sorted(effects)]
+    if p.get("side"):
+        done.append(event(end, 200, d1=0))
+    if p.get("chase"):
+        done.append(event(end, 205, d1=0))
+    # (on its tick: a jump there by 207 may find the clock standing)
+    done += [event(end, 2, d1=b1, d2=b2, d3=b3), event(end, 53, d1=99)]
+    events = sorted(events + done, key=lambda e: e["t"])
+    return dict(events=events, links=sorted(kept_links - {0}), length=end + FIGHT_GONE)
 
 
 # Credits: the coins and gems enemies can leave (the item data's enemies 390-399: 10, 25, 50, 75,
