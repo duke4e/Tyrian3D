@@ -986,7 +986,10 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   rail's turns; it moves across the window and up and down (the keys, a joystick, the mouse), fires twin lasers along
   its nose (their power the front gun's, 1-11, raised by blue capsules; one laser below 3, blue from 6), and with a
   rear gun homing missiles as well; the sidekick keys brake and boost (the boost gauge), the mode key drops a bomb (two,
-  three with a special: everything near ahead goes), a double tap left or right rolls it (shots glance off). The
+  three with a special: everything near ahead goes), a double tap left or right rolls it (shots glance off). Fire held
+  past `CHARGE_TICKS` (the lasers going on) glows at the nose and the reticle locks on the enemy (or the boss) it passes
+  over, ringed red; let go, the charge goes as a ball of green light homing at it and bursting on the first thing it
+  meets, hurting all within `BLAST` (several down at once: a hit more for each past the first). The
   ground: background 1's map with its generated columns and, PLATEAU higher where it has tiles, background 3's (HARVEST's
   meadows over its machinery, mirrored from its own columns), each with its terrain's relief, built in chunks along the
   flight (40 rows, its HD tiles at two texels a pixel, mipmapped) a few rows a tick; the maps go on mirrored end to
@@ -996,14 +999,16 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   second, whatever the display's pace; `WAVES`): fighters in Vs at the ship, across ahead of it, up from behind it and
   round, standing ahead strafing, diving from high; turrets and domes in the meadows; mines; rings that restore the
   shield and the armor, capsules, bombs, cash, some left by a formation's last fighter (a whole formation down: +500).
-  Then the boss, SAVARA's big red jet built from its seven pieces as SAVARA's events place them: up from behind over the
+  Two sets of stone arches stand across the rail (`ARCH_SETS`; the model `rail_arch`, `tools/modelkit/make_rail_arch.py`),
+  one after another and each a little to one side: through one, +100; through every one of a set, +1000 and a bomb;
+  into one's stone, hurt and thrown off. Then the boss, SAVARA's big red jet built from its seven pieces as SAVARA's events place them: up from behind over the
   ship, round at it, firing fans, launching fighters, and at half its armor charging. The HUD (`ui.c`
   `build_rail_hud`): score and hits, shield, armor, boost, the lasers' power, bombs, the boss's armor, a line in the
   middle; P pauses, Esc pauses and asks, Esc again leaves the level. Halfway (`CHECKPOINT_TICK`) a checkpoint: a ship
   lost after it flies on from there, whole, the enemies gone, the cash and the rest as they were there; low on armor,
   a warning and smoke from the ship. It ends as the level would: through, the cash it earned the player's with 25 a hit,
   its enemies' share the results'; lost before the checkpoint, as a ship lost in a level. Plan and what is left
-  (lock-on charge shots, flying through arches, more voices, other stretches): `docs/plans/2026-11-04-starfox.md`.
+  (radio voices, other stretches): `docs/plans/2026-11-04-starfox.md`.
 - **Background maps** (`src/background3d.c`). The game draws only the background tiles that fit
   on its screen; the tilted camera sees much more. So the 3D view draws the three background maps
   itself, as tiles on each background's plane, for the whole area the camera sees (up to 640

@@ -528,6 +528,9 @@ static void ground_end(void)
 #define LASER_LIFE 72
 #define ROLL_TICKS 34          // a barrel roll
 #define BOOST_MAX 100.0f
+#define CHARGE_TICKS 40        // fire held this long: a charged shot when it is let go
+#define BLAST 66.0f            // a charged shot's burst: what is this near is hurt
+#define BLAST_DAMAGE 12
 
 enum { K_JET, K_DELTA, K_GREEN, K_BROWN, K_PURPLE, K_TAN, K_POD, K_TURRET, K_DOME, K_MINE, K_BOSS, K_COUNT };
 
@@ -629,6 +632,25 @@ static const Wave WAVES[] = {
 #define BOSS_TICK T(114.0)
 #define CHECKPOINT_TICK T(56.0)  // a ship lost after it flies on from there (as the long levels' checkpoints)
 
+// Stone arches across the rail to fly through: sets of them one after another (from the haze ahead at their tick, gap
+// apart), each a little to one side (swing); through every one of a set, a bonus. An arch's opening is ARCH_INNER
+// either side of its middle, springing at ARCH_SPRING over its foot, its outer edge ARCH_OUTER
+// (tools/modelkit/make_rail_arch.py).
+#define ARCH_INNER 60.0f
+#define ARCH_OUTER 86.0f
+#define ARCH_SPRING 64.0f
+typedef struct
+{
+	int tick;
+	Uint8 count;
+	float gap, swing;
+} ArchSet;
+static const ArchSet ARCH_SETS[] = {
+	{ T(14.0), 6, 430, 64 },
+	{ T(58.0), 5, 400, 80 },
+};
+#define MAX_ARCHES 12
+
 typedef struct
 {
 	bool alive;
@@ -651,8 +673,8 @@ typedef struct
 	bool alive;
 	float x, y, d, vx, vy, vd;
 	int life;
-	Uint8 kind;                // a laser of the ship's (0), a homing missile (1); or the enemy's shot kind
-	int target;
+	Uint8 kind;                // a laser of the ship's (0), a homing missile (1), a charged shot (2); or the enemy's shot kind
+	int target;                // what it homes at: an enemy, -2 the boss, -1 nothing
 } Shot;
 
 #define MAX_SHOTS 96
@@ -670,6 +692,17 @@ typedef struct
 #define MAX_ITEMS 24
 static Item items[MAX_ITEMS];
 
+typedef struct
+{
+	bool alive, passed;
+	float x, z, foot;          // world: its middle's x and z, its foot's height
+	int set;
+} Arch;
+
+static Arch arches[MAX_ARCHES];
+static int next_arch_set = 0, arches_through[COUNTOF(ARCH_SETS)];
+static int arch_model = -1;
+
 static D3Particle particles[D3_MAX_PARTICLES];
 static int particle_count = 0;
 
@@ -683,6 +716,8 @@ static struct
 	int roll_way;
 	float boost;
 	int fire_wait, missile_wait;
+	int charge;                // ticks the fire has been held
+	int lock;                  // what the reticle locked on, held charged: an enemy + 1, -1 the boss, 0 nothing
 	int hit_ticks;             // since the last hit
 	int power;                 // the lasers' power (1-11)
 	int bombs;
@@ -1192,6 +1227,19 @@ static bool boss_hit_test(float x, float y, float d, float r)
 	return false;
 }
 
+static void boss_hurt(int damage)
+{
+	boss.armor -= damage;
+	boss.flash = 1;
+	if (boss.armor <= 0 && !boss.dying)
+	{
+		boss.dying = true;
+		boss.dying_ticks = 0;
+		for (int j = 0; j < MAX_ENEMY_SHOTS; ++j)
+			enemy_shots[j].alive = false;
+	}
+}
+
 static void boss_fire_fan(int n, float spread)
 {
 	for (int i = 0; i < n; ++i)
@@ -1437,9 +1485,12 @@ static Input read_input(void)
 			tx = boss.x, ty = boss.y;
 		else if (best != NULL)
 			tx = best->x, ty = best->y;
+		for (int i = 0; i < MAX_ARCHES; ++i)
+			if (arches[i].alive && !arches[i].passed && ship.z - arches[i].z > 0 && ship.z - arches[i].z < 600)
+				tx = arches[i].x - rail_x(arches[i].z), ty = arches[i].foot + 50;  // (through the arch ahead)
 		in.dx = clampf((tx - ship.x) / 30.0f, -1, 1);
 		in.dy = clampf((ty - ship.y) / 30.0f, -1, 1);
-		in.fire = true;
+		in.fire = tick % 150 < 130;  // (let go now and then: a charged shot)
 	}
 	return in;
 }
@@ -1504,11 +1555,110 @@ static void bomb(void)
 	for (int i = 0; i < MAX_ENEMY_SHOTS; ++i)
 		enemy_shots[i].alive = false;
 	if (boss.on && boss.entered && !boss.dying && boss.d < 1100)
-	{
-		boss.armor -= 60;
-		boss.flash = 1;
-	}
+		boss_hurt(60);
 	sound(7, S_EXPLOSION_22);
+}
+
+// While the charge is held the reticle locks on what it passes over: the enemy nearest the line along the nose (or the
+// boss), kept till it is gone.
+static void lock_on(void)
+{
+	if ((ship.lock > 0 && enemies[ship.lock - 1].alive) || (ship.lock < 0 && boss.on && !boss.dying))
+		return;
+	ship.lock = 0;
+	const float yaw = -ship.yaw * (float)M_PI / 180.0f, pitch = ship.pitch * (float)M_PI / 180.0f;
+	const float f[3] = { sinf(yaw) * cosf(pitch), sinf(pitch), cosf(yaw) * cosf(pitch) };
+	float best = 1;
+	for (int i = -1; i < MAX_ENEMIES; ++i)
+	{
+		float x, y, d, radius;
+		if (i < 0)
+		{
+			if (!boss.on || !boss.entered || boss.dying)
+				continue;
+			x = boss.x, y = boss.y, d = boss.d, radius = kinds[K_BOSS].radius;
+		}
+		else
+		{
+			const Enemy *e = &enemies[i];
+			if (!e->alive)
+				continue;
+			x = e->x, y = e->y, d = e->d, radius = kinds[e->kind].radius;
+		}
+		const float r[3] = { x - ship.x, y - ship.y, d };
+		const float along = r[0] * f[0] + r[1] * f[1] + r[2] * f[2];
+		if (d < 60 || d > 1500 || along < 60)
+			continue;
+		const float off[3] = { r[0] - f[0] * along, r[1] - f[1] * along, r[2] - f[2] * along };
+		const float miss = sqrtf(off[0] * off[0] + off[1] * off[1] + off[2] * off[2]) / (radius + 14 + along * 0.05f);
+		if (miss < best)
+		{
+			best = miss;
+			ship.lock = i < 0 ? -1 : i + 1;
+		}
+	}
+	if (ship.lock != 0)
+		sound(6, S_CLICK);
+}
+
+// Let go charged: a ball of light along the nose, homing at what the reticle locked on, bursting on what it meets.
+static void ship_charged(void)
+{
+	const float yaw = -ship.yaw * (float)M_PI / 180.0f, pitch = ship.pitch * (float)M_PI / 180.0f;
+	const float speed = 9.5f;
+	for (int i = 0; i < MAX_SHOTS; ++i)
+		if (!shots[i].alive)
+		{
+			shots[i] = (Shot){ true, ship.x, ship.y - 1, 12, sinf(yaw) * cosf(pitch) * speed, sinf(pitch) * speed,
+			                   cosf(yaw) * cosf(pitch) * speed, 170, 2, ship.lock > 0 ? ship.lock - 1 : ship.lock < 0 ? -2 : -1 };
+			sound(1, S_WEAPON_7);
+			return;
+		}
+}
+
+// A charged shot bursts: all near it hurt, a bonus for several shot down at once.
+static void burst(const Shot *s)
+{
+	float at[3];
+	world_of(s->x, s->y, s->d, at);
+	explode(at, 34);
+	D3Particle *p = spawn(D3P_RING, at, 16);
+	if (p != NULL)
+	{
+		p->size = 10;
+		p->grow = BLAST / 8;
+		paint(p, 1.6f, 4.2f, 1.4f, 1, 0, 0, 0, 0);
+	}
+	int down = 0;
+	for (int e = 0; e < MAX_ENEMIES; ++e)
+	{
+		Enemy *en = &enemies[e];
+		if (!en->alive)
+			continue;
+		const float dx = s->x - en->x, dy = s->y - en->y, dd = s->d - en->d, r = BLAST + kinds[en->kind].radius;
+		if (dx * dx + dy * dy + dd * dd < r * r)
+		{
+			en->flash = 1;
+			en->armor -= BLAST_DAMAGE;
+			if (en->armor <= 0)
+			{
+				enemy_down(en, true);
+				++down;
+			}
+		}
+	}
+	if (boss_hit_test(s->x, s->y, s->d, BLAST))
+		boss_hurt(BLAST_DAMAGE);
+	printf("rail: a charged shot burst at tick %d, %d down\n", tick, down);
+	if (down >= 2)
+	{
+		// (Each one past the first: a hit more, as Star Fox counts them.)
+		ship.hits += down - 1;
+		char text[32];
+		snprintf(text, sizeof(text), "Hit +%d", down - 1);
+		say(text, HZ * 2);
+	}
+	sound(7, S_EXPLOSION_11);
 }
 
 static void ship_tick(const Input *in)
@@ -1578,13 +1728,27 @@ static void ship_tick(const Input *in)
 	}
 	else
 		ship.roll = -ship.vx * 9;
-	// Firing.
+	// Firing: a press fires the lasers, and they go on while it is held; held long enough, a charge glows at the nose
+	// and the reticle locks on; let go, the charge goes.
 	if (ship.fire_wait > 0)
 		--ship.fire_wait;
 	if (in->fire && ship.fire_wait == 0)
 	{
 		ship_fire();
 		ship.fire_wait = ship.power >= 9 ? 5 : 7;
+	}
+	if (in->fire)
+	{
+		if (++ship.charge == CHARGE_TICKS)
+			sound(6, S_POWERUP);
+		if (ship.charge >= CHARGE_TICKS)
+			lock_on();
+	}
+	else
+	{
+		if (ship.charge >= CHARGE_TICKS)
+			ship_charged();
+		ship.charge = ship.lock = 0;
 	}
 	if (ship.missile_wait > 0)
 		--ship.missile_wait;
@@ -1646,6 +1810,55 @@ static void shots_tick(void)
 				}
 			}
 		}
+		else if (s->kind == 2)
+		{
+			// A charged shot turns hard at what it locked on, and bursts on the first thing it meets (or the ground, or
+			// at the end of its way).
+			float tx = 0, ty = 0, td = 0;
+			bool there = false;
+			if (s->target >= 0 && enemies[s->target].alive)
+				tx = enemies[s->target].x, ty = enemies[s->target].y, td = enemies[s->target].d, there = true;
+			else if (s->target == -2 && boss.on && !boss.dying)
+				tx = boss.x, ty = boss.y, td = boss.d, there = true;
+			if (there)
+			{
+				float dx = tx - s->x, dy = ty - s->y, dd = td - s->d;
+				const float l = sqrtf(dx * dx + dy * dy + dd * dd) + 0.01f;
+				s->vx += dx / l * 1.5f;
+				s->vy += dy / l * 1.5f;
+				s->vd += dd / l * 1.5f;
+				const float v = sqrtf(s->vx * s->vx + s->vy * s->vy + s->vd * s->vd);
+				if (v > 11)
+					s->vx *= 11 / v, s->vy *= 11 / v, s->vd *= 11 / v;
+			}
+			s->x += s->vx;
+			s->y += s->vy;
+			s->d += s->vd;
+			float at[3];
+			world_of(s->x, s->y, s->d, at);
+			D3Particle *p = spawn(D3P_GLOW, at, 14);
+			if (p != NULL)
+			{
+				p->size = 7;
+				p->drag = 0.9f;
+				fling(p, 0.4f);
+				paint(p, 1.2f, 3.6f, 1.2f, 1, 0.1f, 0.6f, 0.1f, 0);
+			}
+			bool meets = --s->life <= 0 || s->d > FAR || s->y < ground_height(at[0], at[2]) + 2 ||
+			             boss_hit_test(s->x, s->y, s->d, 6);
+			for (int e = 0; e < MAX_ENEMIES && !meets; ++e)
+			{
+				const Enemy *en = &enemies[e];
+				const float r = kinds[en->kind].radius + 6, dx = s->x - en->x, dy = s->y - en->y, dd = s->d - en->d;
+				meets = en->alive && dx * dx + dy * dy + dd * dd < r * r;
+			}
+			if (meets)
+			{
+				s->alive = false;
+				burst(s);
+			}
+			continue;
+		}
 		const float ox = s->x, oy = s->y, od = s->d;
 		s->x += s->vx;
 		s->y += s->vy;
@@ -1690,8 +1903,7 @@ static void shots_tick(void)
 			if (s->alive && boss_hit_test(x, y, d, 3))
 			{
 				s->alive = false;
-				boss.armor -= damage;
-				boss.flash = 1;
+				boss_hurt(damage);
 				sound(3, S_ENEMY_HIT);
 				float at[3];
 				world_of(x, y, d, at);
@@ -1700,13 +1912,6 @@ static void shots_tick(void)
 				{
 					p->size = 12;
 					paint(p, 4, 3, 1.5f, 1, 0, 0, 0, 0);
-				}
-				if (boss.armor <= 0)
-				{
-					boss.dying = true;
-					boss.dying_ticks = 0;
-					for (int j = 0; j < MAX_ENEMY_SHOTS; ++j)
-						enemy_shots[j].alive = false;
 				}
 			}
 		}
@@ -1889,6 +2094,94 @@ static void plants_in(float z_far, float z_near)
 	}
 }
 
+/* --- The arches --- */
+
+static void arch_set_begin(int set)
+{
+	const ArchSet *a = &ARCH_SETS[set];
+	arches_through[set] = 0;
+	for (int k = 0; k < a->count; ++k)
+		for (int i = 0; i < MAX_ARCHES; ++i)
+			if (!arches[i].alive)
+			{
+				Arch *arch = &arches[i];
+				arch->alive = true;
+				arch->passed = false;
+				arch->set = set;
+				arch->z = ship.z - (FAR - 60) - k * a->gap;
+				arch->x = rail_x(arch->z) + a->swing * sinf(k * 1.1f + set * 2.0f);
+				// (Its foot at the lower of its pillars' ground: they go into it.)
+				arch->foot = SDL_min(ground_height(arch->x - (ARCH_INNER + ARCH_OUTER) / 2, arch->z),
+				                     ground_height(arch->x + (ARCH_INNER + ARCH_OUTER) / 2, arch->z)) - 2;
+				break;
+			}
+}
+
+// The ship through an arch's plane this tick (from z_before): through its opening, a hit on it, or past it beside.
+static void arches_tick(float z_before)
+{
+	for (int i = 0; i < MAX_ARCHES; ++i)
+	{
+		Arch *a = &arches[i];
+		if (!a->alive)
+			continue;
+		if (ship.z - a->z < -200)
+		{
+			a->alive = false;
+			continue;
+		}
+		if (a->passed || ship.dead_ticks > 0 || ended != 0 || !(z_before > a->z && ship.z <= a->z))
+			continue;
+		a->passed = true;
+		const float u = rail_x(ship.z) + ship.x - a->x, v = ship.y - a->foot - ARCH_SPRING;
+		const float inner = ARCH_INNER - SHIP_RADIUS * 0.7f, outer = ARCH_OUTER + SHIP_RADIUS * 0.7f;
+		const bool through = v < 0 ? fabsf(u) < inner : u * u + v * v < inner * inner;
+		const bool on = v < 0 ? fabsf(u) < outer : u * u + v * v < outer * outer;
+		const ArchSet *set = &ARCH_SETS[a->set];
+		char text[48];
+		printf("rail: %s an arch of set %d at tick %d (%.0f across its middle, %.0f over its spring)\n",
+		       through ? "through" : on ? "into" : "past", a->set + 1, tick, u, v);
+		if (through)
+		{
+			player[0].cash += 100;
+			if (++arches_through[a->set] == set->count)
+			{
+				player[0].cash += 1000;
+				ship.hits += 2;
+				ship.bombs = SDL_min(ship.bombs + 1, 9);
+				say("All arches  +1000  +bomb", HZ * 3);
+				sound(7, S_POWERUP);
+			}
+			else
+			{
+				snprintf(text, sizeof(text), "Arch %d of %d", arches_through[a->set], set->count);
+				say(text, HZ * 3 / 2);
+				sound(7, S_ITEM);
+			}
+		}
+		else if (on)
+		{
+			// Into its stone: hurt, thrown off.
+			rail_hurt(8);
+			ship.vx = (u < 0 ? -1 : 1) * (fabsf(u) < (ARCH_INNER + ARCH_OUTER) / 2 ? -3.0f : 3.0f);  // (in, or out)
+			ship.vy = v > 0 ? -2.5f : 0;
+			float at[3];
+			world_of(ship.x, ship.y, -4, at);
+			for (int k = 0; k < 14; ++k)
+			{
+				D3Particle *p = spawn(D3P_GLOW, at, frange(10, 22));
+				if (p != NULL)
+				{
+					fling(p, frange(1, 3));
+					p->gravity = 0.08f;
+					p->size = frange(1.2f, 2.2f);
+					paint(p, 4, 3, 1.5f, 1, 1, 0.3f, 0.05f, 0);
+				}
+			}
+		}
+	}
+}
+
 static void build_view(void)
 {
 	view.object_count = view.glow_count = view.shadow_count = 0;
@@ -1946,12 +2239,47 @@ static void build_view(void)
 	if (ship.dead_ticks == 0 && ended == 0)
 	{
 		const float yaw = -ship.yaw * (float)M_PI / 180.0f, pitch = ship.pitch * (float)M_PI / 180.0f;
+		const bool locked = ship.lock != 0;
 		for (int k = 1; k <= 2; ++k)
 		{
 			const float dist = 160.0f * k;
 			float p[3];
 			world_of(ship.x + sinf(yaw) * dist, ship.y + sinf(pitch) * dist, cosf(yaw) * dist, p);
-			add_glow(p, k == 1 ? 13.0f : 18.0f, 0.25f, 1.1f, 0.35f, RAIL_GLOW_RING);
+			if (locked)
+				add_glow(p, k == 1 ? 13.0f : 18.0f, 1.4f, 0.3f, 0.2f, RAIL_GLOW_RING);
+			else
+				add_glow(p, k == 1 ? 13.0f : 18.0f, 0.25f, 1.1f, 0.35f, RAIL_GLOW_RING);
+		}
+		// The charge at the nose, growing; full, pulsing.
+		if (ship.charge > 8)
+		{
+			const float full = ship.charge >= CHARGE_TICKS ? 1.0f + 0.25f * sinf(tick * 0.5f) : 0.0f;
+			const float grow = SDL_min(ship.charge - 8, CHARGE_TICKS - 8) / (float)(CHARGE_TICKS - 8);
+			float p[3];
+			world_of(ship.x + sinf(yaw) * 16, ship.y - 1 + sinf(pitch) * 16, cosf(yaw) * 16, p);
+			add_glow(p, 3 + 5 * grow + 2 * full, 0.8f + full, 2.4f + full * 1.5f, 0.8f + full, RAIL_GLOW_DOT);
+		}
+		// What it locked on, ringed red.
+		if (ship.lock > 0 || (ship.lock < 0 && boss.on))
+		{
+			float p[3];
+			float size;
+			if (ship.lock > 0)
+			{
+				const Enemy *e = &enemies[ship.lock - 1];
+				world_of(e->x, e->y, e->d, p);
+				if (e->path == P_GROUND)
+					p[0] = rail_x(e->ground_z) + e->x, p[2] = e->ground_z;
+				size = kinds[e->kind].radius * 1.9f;
+			}
+			else
+			{
+				world_of(boss.x, boss.y, boss.d, p);
+				size = kinds[K_BOSS].radius * 1.6f;
+			}
+			const float pulse = 1.0f + 0.12f * sinf(tick * 0.4f);
+			add_glow(p, size * pulse, 3.4f, 0.5f, 0.3f, RAIL_GLOW_RING);
+			add_glow(p, size * 0.7f * pulse, 2.0f, 0.3f, 0.2f, RAIL_GLOW_RING);
 		}
 	}
 	// The enemies.
@@ -1976,6 +2304,15 @@ static void build_view(void)
 		add_object(kind_models[e->kind], at, yaw, pitch, e->roll, kinds[e->kind].scale, e->flash, true);
 		if (!kinds[e->kind].ground)
 			add_shadow(at, kinds[e->kind].radius);
+	}
+	// The arches, square to the rail.
+	for (int i = 0; i < MAX_ARCHES; ++i)
+	{
+		const Arch *a = &arches[i];
+		if (!a->alive || ship.z - a->z > FAR + 100)
+			continue;
+		const float pos[3] = { a->x, a->foot, a->z };
+		add_object(arch_model, pos, -atanf(rail_heading(a->z)) * 180.0f / (float)M_PI, 0, 0, 1, 0, true);
 	}
 	// The boss's pieces.
 	if (boss.on)
@@ -2007,6 +2344,16 @@ static void build_view(void)
 		const Shot *s = &shots[i];
 		if (!s->alive)
 			continue;
+		if (s->kind == 2)
+		{
+			// A charged shot: a ball of green light.
+			world_of(s->x, s->y, s->d, at);
+			const float pulse = 1.0f + 0.2f * sinf(s->life * 0.9f);
+			add_glow(at, 15 * pulse, 1.0f, 3.2f, 1.0f, RAIL_GLOW_DOT);
+			add_glow(at, 7, 4.0f, 5.0f, 4.0f, RAIL_GLOW_DOT);
+			add_glow(at, 22 * pulse, 0.5f, 1.8f, 0.5f, RAIL_GLOW_RING);
+			continue;
+		}
 		const bool blue = ship.power >= 6;
 		for (int k = 0; k < 5; ++k)
 		{
@@ -2099,6 +2446,7 @@ static void begin_level(void)
 	memset(shots, 0, sizeof(shots));
 	memset(enemy_shots, 0, sizeof(enemy_shots));
 	memset(items, 0, sizeof(items));
+	memset(arches, 0, sizeof(arches));
 	memset(&boss, 0, sizeof(boss));
 	particle_count = flash_light_count = 0;
 	memset(&ship, 0, sizeof(ship));
@@ -2112,7 +2460,7 @@ static void begin_level(void)
 	camera.x = 0;
 	camera.y = ship.y + 28;
 	camera.roll = 0;
-	tick = next_wave = kills = total = fade_from = 0;
+	tick = next_wave = next_arch_set = kills = total = fade_from = 0;
 	danger_said = false;
 	memset(&checkpoint, 0, sizeof(checkpoint));
 	ended = end_ticks = 0;
@@ -2122,6 +2470,7 @@ static void begin_level(void)
 		kind_models[k] = kinds[k].model != NULL ? m3d_find_model(kinds[k].model) : -1;
 	for (size_t p = 0; p < COUNTOF(BOSS_PIECES); ++p)
 		boss_models[p] = m3d_find_model(BOSS_PIECES[p].model);
+	arch_model = m3d_find_model("rail_arch");
 	// (TYR3D_RAIL_FROM=<tick>, dev: the flight from there, its waves before skipped.)
 	const char *from = SDL_getenv("TYR3D_RAIL_FROM");
 	if (from != NULL && SDL_atoi(from) > 0)
@@ -2130,6 +2479,8 @@ static void begin_level(void)
 		ship.z -= SPEED * tick;
 		while (next_wave < (int)COUNTOF(WAVES) && WAVES[next_wave].tick <= tick)
 			++next_wave;
+		while (next_arch_set < (int)COUNTOF(ARCH_SETS) && ARCH_SETS[next_arch_set].tick <= tick)
+			++next_arch_set;
 	}
 	const M3DAppearance look = m3d_ship_appearance(player[0].items.ship);
 	ship_model = look.model >= 0 ? look.model : m3d_find_model("talon");
@@ -2158,6 +2509,7 @@ static void back_to_checkpoint(void)
 	memset(shots, 0, sizeof(shots));
 	memset(enemy_shots, 0, sizeof(enemy_shots));
 	memset(items, 0, sizeof(items));
+	memset(arches, 0, sizeof(arches));
 	memset(&boss, 0, sizeof(boss));
 	particle_count = flash_light_count = 0;
 	const float boost = BOOST_MAX;
@@ -2178,6 +2530,9 @@ static void back_to_checkpoint(void)
 	total = checkpoint.total;
 	next_wave = checkpoint.next_wave;
 	tick = fade_from = CHECKPOINT_TICK;
+	next_arch_set = 0;
+	while (next_arch_set < (int)COUNTOF(ARCH_SETS) && ARCH_SETS[next_arch_set].tick <= tick)
+		++next_arch_set;
 	danger_said = false;
 	camera.x = 0;
 	camera.y = ship.y + 28;
@@ -2188,9 +2543,12 @@ static void back_to_checkpoint(void)
 static void level_tick(const Input *in)
 {
 	++tick;
+	const float z_before = ship.z;
 	ship.z -= ship.speed;
 	while (next_wave < (int)COUNTOF(WAVES) && WAVES[next_wave].tick <= tick)
 		spawn_wave(next_wave++);
+	while (next_arch_set < (int)COUNTOF(ARCH_SETS) && ARCH_SETS[next_arch_set].tick <= tick)
+		arch_set_begin(next_arch_set++);
 	if (tick == BOSS_TICK)
 		boss_begin();
 	if (tick == CHECKPOINT_TICK && ship.dead_ticks == 0)
@@ -2233,6 +2591,7 @@ static void level_tick(const Input *in)
 	boss_tick();
 	shots_tick();
 	items_tick();
+	arches_tick(z_before);
 	step_particles();
 	ground_tick(ship.z + CAMERA_BEHIND + 200, ship.z - FAR - 300);
 	if (message_ticks > 0)
