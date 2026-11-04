@@ -6020,7 +6020,10 @@ uint JE_makeEnemy(struct JE_SingleEnemyType *enemy, Uint16 eDatI, Sint16 uniqueS
 	enemy->filter = 0x00;
 
 	int tempValue = 0;
-	if (enemyDat[eDatI].value > 1 && enemyDat[eDatI].value < 10000)
+	// (Tyrian3D: not the coins and gems one picks up, armour 0: they are worth what they show, the difficulty's share
+	// only for what is shot down; on Hard a 5000 gem was 5625, the user, 2026-11-04, of episode 7: "svi kristali i
+	// novčiči daju čudne vrijednosti")
+	if (enemyDat[eDatI].value > 1 && enemyDat[eDatI].value < 10000 && enemyDat[eDatI].armor > 0)
 	{
 		switch (difficultyLevel)
 		{
