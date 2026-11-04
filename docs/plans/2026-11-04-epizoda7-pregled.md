@@ -43,3 +43,19 @@ kadar je samo tamnosiv (snimka, ne nužno greška).
 ## Predloženi redoslijed
 
 1, 8 (pomaci dijelova, isti uzrok), 2 (HD tileovi), 3 i 6 (rekonstrukcija karata), ostalo uz igranje.
+
+## Drugi prolaz (2026-11-04, dan)
+
+- **1 i 8 (DELICORE-ove prazne U-kućice):** nisu stand-inovi (DELICORE nema `.std`) ni pomaknuti dijelovi. To su
+  samostalni protivnici epizode 3 broj 212 (sprite B81, model `camanis_boss_81`: donji lijevi režanj Camanisova srca),
+  koje je prepoznavanje GBC protivnika (`tools/gbc/enemies.py`) izabralo za jedan DELICORE-ov tip (događaji 15 u 1371,
+  1395, 1491, 1539...). I sam 2D sprite B81 je prazna plava U-kućica, pa 3D model vjerno prati sprite. Je li izbor
+  dobar, vidi se tek uz GBC original: `data/gbc/Tyrian.gb` nije na ovom računalu. Ako nije, popravak je red u
+  `tools/gbc/enemy_overrides.json` (`"L01:<tip>"`) i ponovno pokretanje `tools/gbc/episode.py`. Turret u okrugloj jami
+  zaseban je protivnik. Objekte kadra ispisuje `TYR3D_LOG_OBJECTS=1`.
+- **2 (ljubičaste trake):** DELICORE i DELI CORE nemaju nijedan tile bez HD verzije (provjereno prema `z.hdt`). Trake
+  su ravni ljubičasti tileovi koje je sinteza karte (`tools/gbc/episode.py`, mapsynth) složila po GBC planu cijevi.
+  Ista je priroda nalaza 3, 4, 5, 6 i 7: svi traže ponovnu sintezu karata, a za nju GBC ROM.
+- **9 (TUNNEL):** zidovi solida i rupa sad uzimaju teksturu dublje s površine (piksel teksture na dva piksela dubine, do
+  ruba tilea; `render_gpu.c` `TERRAIN_WALL_INSET`), pa pokazuju uzorak površine umjesto razvučenog ruba. Uska rebra i
+  ploče koje lebde dio su karte.

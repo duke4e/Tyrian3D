@@ -890,6 +890,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | The maps' clean ground is left out: the objects, wrecks and palms painted into the map stay in the ground under their models, and no stand-ins are drawn |
+| `TYR3D_LOG_OBJECTS=1` | With frame dumps, print every 3D object of each dumped frame: its model, its look (sheet and sprite), where on the screen, its layer, the events that made it (time and link) and whether it is a stand-in |
 | `TYR3D_LOG_STANDINS=1` | Every 30th frame, print the stand-ins shown on the screen (their look, placeholder or own model, where on the screen and on the map, as the `.std` has it, and the nearest enemy) and how many are covered by their enemies (with frame dumps, `dump:` lines say which 3D frame a dump is) |
 | `TYR3D_DARK_LIGHTING=0` | Spotlight levels show the game's lit cone as an overlay, instead of being dark and lit by the ship's lamp |
 | `TYR3D_RC=off\|low\|high` | The radiance cascades: light of what glows spreads over the playfield (default low, with Effects) |
@@ -1036,7 +1037,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   terrain (TYRIAN's stone platforms three times as fast), so its raised ground and plants would stand up through
   their tops: the tops alone are drawn first and mark their pixels in the stencil, the ground and its plants aren't
   drawn there (as the game draws the solids over the ground), then the solids whole, their walls going down into the
-  ground as drawn; plants under a solid's top aren't drawn at all (`not_on_solids`, `under_solid`). The enemies of a layer the game draws after
+  ground as drawn (a wall, of a solid or a hole, is textured with its surface's pattern from a little way in, as deep as half
+  its height, not its edge stretched down: `TERRAIN_WALL_INSET`); plants under a solid's top aren't drawn at all (`not_on_solids`, `under_solid`). The enemies of a layer the game draws after
   a background stand above that background's plane (`layer_base`; background 3 drawn under the sky enemies
   is the layer `bg3-low`, below them). The camera is fitted so the playfield's bottom edge, at the player's height, fills the original
   playfield width; the projection is shifted onto the playfield's rectangle in the window, and

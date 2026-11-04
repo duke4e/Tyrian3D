@@ -6758,7 +6758,9 @@ static BTBHGPUCustomMesh *relief_mesh(int cell)
 #define TERRAIN_ROWS_CACHED 192
 // How far the ground's walls go down where it has holes (black space).
 #define TERRAIN_HOLE_DEPTH 21.0f
-// Samples in from a surface's edge that its walls take their colours from.
+// Samples in from a surface's edge that its walls take their colours from, at least; a deeper wall takes them from
+// further in (a texture pixel for each two of its depth, as far as the tile goes), so it shows the surface's
+// pattern rather than its edge stretched down into streaks (TUNNEL's solids).
 #define TERRAIN_WALL_INSET 3
 // Map rows a terrain texture holds (terrain_ring), more than are ever drawn at once; fewer with HD
 // tiles (the texture is b3d_hd_scale() times larger each way).
@@ -8044,6 +8046,7 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 	                           sun_direction[2] * sun_direction[2]);
 	const float light[3] = { -sun_direction[0] / length, -sun_direction[1] / length, -sun_direction[2] / length };
 	const float up = SDL_max(light[1], 0.0f);
+	const int wall_inset = SDL_clamp((int)(hole_depth / (2.0f * t->sample)), TERRAIN_WALL_INSET, SDL_max(per_x, per_y));
 	int vc = 0, ic = 0, lc = 0;
 	for (int c = 0; c < columns; ++c)
 	{
@@ -8087,7 +8090,7 @@ static BTBHGPUCustomMesh *build_terrain_row(const B3DTerrain *t, int set, int ma
 				{
 					static const int dx[8] = { 1, -1, 0, 0, 1, -1, 1, -1 }, dy[8] = { 0, 0, 1, -1, 1, 1, -1, -1 };
 					int step = 0;
-					for (int n = 1; n <= TERRAIN_WALL_INSET; ++n)
+					for (int n = 1; n <= wall_inset; ++n)
 					{
 						const int ni = i + dx[k] * n, nj = j + dy[k] * n;
 						if (ni < 0 || ni > per_x || nj < 0 || nj > per_y || terrain_hole(t, sx + dx[k] * n, sy + dy[k] * n))

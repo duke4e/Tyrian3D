@@ -1002,6 +1002,16 @@ void dev_on_frame_presented(const Uint8 *rgba, int width, int height, int pitch)
 			if (SDL_getenv("TYR3D_LOG_ENEMIES") != NULL || SDL_getenv("TYR3D_LOG_CLIP") != NULL ||
 			    SDL_getenv("TYR3D_LOG_STANDINS") != NULL)
 				printf("dump: frame %ld is 3D frame %u\n", frame, l3d_frame_number);
+			// TYR3D_LOG_OBJECTS: the objects of each dumped frame, to tell what a model on the screen is.
+			if (SDL_getenv("TYR3D_LOG_OBJECTS") != NULL)
+				for (int o = 0; o < l3d_frame.object_count; ++o)
+				{
+					const L3DObject *object = &l3d_frame.objects[o];
+					printf("object: frame %ld %s look %c%u at %.0f,%.0f layer %d group %u:%u standin %u\n", frame,
+					       object->model >= 0 && object->model < m3d_model_count ? m3d_models[object->model].name : "-",
+					       object->enemy_sheet ? object->enemy_sheet : '-', object->enemy_sprite, object->x, object->y,
+					       (int)object->layer, (unsigned)object->group, (unsigned)object->group_link, (unsigned)object->standin);
+				}
 		}
 	}
 
