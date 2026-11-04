@@ -37,6 +37,7 @@ extern JE_boolean jumpSection;
 extern JE_boolean useLastBank;
 
 extern bool pause_pressed, ingamemenu_pressed;
+extern bool custom_then_gbc;  // Tyrian3D: Camanis 2, chosen at episode 6's end, goes on to episode 7
 
 /*void JE_textMenuWait(JE_word waittime, JE_boolean dogamma);*/
 

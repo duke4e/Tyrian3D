@@ -581,6 +581,136 @@ bool episodeSelect(void)
 	}
 }
 
+// Tyrian3D: at episode 6's end, where the game goes on (the user, 2026-11-04: "na kraju ep 6 pitajmo dal želimo na
+// bonus level (camanis 2) i ep 7 ili na ep 1"): true for the bonus level Camanis 2 and then episode 7, false for
+// episode 1 (Esc too).
+bool episode6EndSelect(void)
+{
+	static const char *const texts[] = { "Bonus Level: Camanis 2, then Episode 7", "Back to Episode 1" };
+	static const char *const hints[] = {
+		"One more level on Camanis' ice, then the Game Boy Color's levels.",
+		"The full game again from the start, your ship and savings kept.",
+	};
+	const size_t count = COUNTOF(texts);
+	size_t selectedIndex = 0;
+
+	if (shopSpriteSheet.data == NULL)
+		JE_loadCompShapes(&shopSpriteSheet, '1');  // need mouse pointer sprites
+
+	const int xCenter = 320 / 2;
+	const int yMenuHeader = 20;
+	const int yMenuItems = 70;
+	const int dyMenuItems = 24;
+	const int hMenuItem = 13;
+	int wMenuItem[COUNTOF(texts)];
+	int xs[COUNTOF(texts)];
+	for (size_t i = 0; i < count; ++i)
+	{
+		wMenuItem[i] = JE_textWidth(texts[i], normal_font);
+		xs[i] = xCenter - wMenuItem[i] / 2;
+	}
+
+	bool restart = true;
+	for (; ; )
+	{
+		if (restart)
+		{
+			JE_loadPic(VGAScreen2, 2, false);
+			draw_font_hv_shadow(VGAScreen2, xCenter, yMenuHeader, "Where Next?", large_font, centered, 15, -3, false, 2);
+		}
+		memcpy(VGAScreen->pixels, VGAScreen2->pixels, (size_t)VGAScreen->pitch * VGAScreen->h);
+		for (size_t i = 0; i < count; ++i)
+			draw_font_hv_shadow(VGAScreen, xCenter, yMenuItems + dyMenuItems * (int)i, texts[i], normal_font, centered, 15,
+			                    -4 + (i == selectedIndex ? 2 : 0), false, 2);
+		publish_choices(UI_SCREEN_EPISODES, "Where Next?", texts, hints, count, selectedIndex, wMenuItem, xs, yMenuItems,
+		                dyMenuItems, hMenuItem, NULL, 0);
+
+		if (restart)
+		{
+			mouseCursor = MOUSE_POINTER_NORMAL;
+			fade_palette(colors, 10, 0, 255);
+			restart = false;
+		}
+
+		service_SDL_events(true);
+
+		JE_mouseStart();
+		JE_showVGA();
+		JE_mouseReplace();
+
+		bool mouseMoved = false;
+		do
+		{
+			SDL_Delay(16);
+
+			Uint16 oldMouseX = mouse_x;
+			Uint16 oldMouseY = mouse_y;
+
+			push_joysticks_as_keyboard();
+			service_SDL_events(false);
+
+			mouseMoved = mouse_x != oldMouseX || mouse_y != oldMouseY;
+		} while (!(newkey || newmouse || mouseMoved));
+
+		bool action = false;
+		bool cancel = false;
+
+		if (mouseMoved || newmouse)
+		{
+			for (size_t i = 0; i < count; ++i)
+			{
+				const int yMenuItem = yMenuItems + dyMenuItems * (int)i;
+				if (mouse_x >= xs[i] && mouse_x < xs[i] + wMenuItem[i] && mouse_y >= yMenuItem && mouse_y < yMenuItem + hMenuItem)
+				{
+					if (selectedIndex != i)
+					{
+						JE_playSampleNum(S_CURSOR);
+						selectedIndex = i;
+					}
+					if (newmouse && lastmouse_but == SDL_BUTTON_LEFT &&
+					    lastmouse_x >= xs[i] && lastmouse_x < xs[i] + wMenuItem[i] &&
+					    lastmouse_y >= yMenuItem && lastmouse_y < yMenuItem + hMenuItem)
+						action = true;
+					break;
+				}
+			}
+		}
+
+		if (newmouse)
+		{
+			if (lastmouse_but == SDL_BUTTON_RIGHT)
+				cancel = true;
+		}
+		else if (newkey)
+		{
+			switch (lastkey_scan)
+			{
+			case SDL_SCANCODE_UP:
+			case SDL_SCANCODE_DOWN:
+				JE_playSampleNum(S_CURSOR);
+				selectedIndex = 1 - selectedIndex;
+				break;
+			case SDL_SCANCODE_SPACE:
+			case SDL_SCANCODE_RETURN:
+				action = true;
+				break;
+			case SDL_SCANCODE_ESCAPE:
+				cancel = true;
+				break;
+			default:
+				break;
+			}
+		}
+
+		if (action || cancel)
+		{
+			JE_playSampleNum(action ? S_SELECT : S_SPRING);
+			fade_black(10);
+			return action && selectedIndex == 0;
+		}
+	}
+}
+
 bool difficultySelect(void)
 {
 	if (shopSpriteSheet.data == NULL)

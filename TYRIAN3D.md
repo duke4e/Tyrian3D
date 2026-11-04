@@ -287,7 +287,8 @@ own formats by `tools/content/episode6/build.py` into `assets/content/episode6` 
 `levels6.dat`, `cubetxt6.dat`), at build time when the game's data is there: it is made from that
 data, so it isn't in the repository. The game finds those files in the content directory
 (`dir_fopen`), lists the episode in the episode menu and plays it like the others; a full game goes on to it after episode 5
-(`last_episode()`).
+(`last_episode()`). At its end the game asks where next (`menus.c` `episode6EndSelect`, one player, with the GBC levels
+and Camanis 2 there): the bonus level Camanis 2 and then episode 7 (`custom_then_gbc`), or episode 1 again.
 
 Its levels are generated anew, the original levels only their inspiration
 (`tools/content/episode6/generate.py`, run with a Python that has numpy and PIL): the maps from
@@ -855,6 +856,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_SHIP=<1-18>` | With `TYR3D_START`: the player's ship, numbered as in the shop |
 | `TYR3D_PLAYFIELD=wide` or `original` | The playfield for the run (as the setting) |
 | `TYR3D_SIDEWAYS=<1-3>` | Every level seen from the side (as episode 6's side-scrolling levels; 2 and 3 add asteroids or crags along the edges) |
+| `TYR3D_EP6_END=camanis` | With `TYR3D_START`: at episode 6's end, on to Camanis 2 and episode 7 (a test run asks nothing; without it, episode 1) |
 | `TYR3D_CHASE=1` | Every level seen from behind the ship (as Tyrian3D event 205 shows a level: the camera low behind the playfield's bottom edge, `CHASE_TILT` degrees from straight down, looking up it) |
 | `TYR3D_DIFFICULTY=<n>` | With `TYR3D_START`: the difficulty (1 easy, 2 normal, the default, 3 hard, 4 impossible ...; `config.h`); episode 1's TYRIAN and SAVARA have maps of their own from Hard on |
 | `TYR3D_SHOP=1` | With `TYR3D_START`: the store between levels isn't skipped (start at the section before a level to see it) |

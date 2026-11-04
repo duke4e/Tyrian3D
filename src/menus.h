@@ -31,5 +31,6 @@ bool gameplaySelect(void);
 bool episodeSelect(void);
 bool difficultySelect(void);
 bool timedBattleSelect(void);
+bool episode6EndSelect(void);  // Tyrian3D: true: Camanis 2, then episode 7; false: episode 1
 
 #endif /* MENUS_H */

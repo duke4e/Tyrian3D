@@ -1247,14 +1247,18 @@ JE_longint JE_getValue(JE_byte itemType, JE_word itemNum)
 	return value;
 }
 
+// Tyrian3D: Camanis 2 chosen at episode 6's end (episode6EndSelect): its end goes on to episode 7.
+bool custom_then_gbc = false;
+
 void JE_nextEpisode(void)
 {
 	strcpy(lastLevelName, "Completed");
 
+	const bool camanis_ended = custom_episode != 0 && custom_then_gbc;
 	// Tyrian3D: a custom episode ends at the title screen (episodes.h), without a high score: its
 	// board would be the original episode's. (JE_loadMap goes back to the title, as when the
 	// store is quit.)
-	if (custom_episode != 0)
+	if (custom_episode != 0 && !camanis_ended)
 	{
 		gameLoaded = true;
 		mainLevel = 0;
@@ -1270,12 +1274,29 @@ void JE_nextEpisode(void)
 		return;
 	}
 
+	if (camanis_ended)
+	{
+		custom_then_gbc = false;
+		custom_episode = 0;
+		JE_initEpisode(EPISODE_GBC);
+	}
+	else
+	{
 	if (episodeNum == initial_episode_num && !gameHasRepeated && !isNetworkGame && !constantPlay)
 	{
 		JE_highScoreCheck();
 	}
 
 	unsigned int newEpisode = JE_findNextEpisode();
+
+	// Tyrian3D: after episode 6, the bonus level Camanis 2 and then episode 7, or episode 1 again (episode6EndSelect;
+	// one player, the GBC levels and Camanis 2 there).
+	// (TYR3D_EP6_END=camanis: that way in a test run, which asks nothing)
+	const int camanis = custom_episode_find("camanis2");
+	const bool to_camanis = episodeNum == 6 && jumpBackToEpisode1 && !twoPlayerMode && !isNetworkGame && camanis != 0 &&
+	                        episodeAvail[EPISODE_GBC - 1] &&
+	                        (constantPlay ? SDL_getenv("TYR3D_EP6_END") != NULL && strcmp(SDL_getenv("TYR3D_EP6_END"), "camanis") == 0
+	                                      : episode6EndSelect());
 
 	if (jumpBackToEpisode1)
 	{
@@ -1286,7 +1307,7 @@ void JE_nextEpisode(void)
 		}
 
 		// randomly give player the SuperCarrot
-		if ((mt_rand() % 6) == 0)
+		if (!to_camanis && (mt_rand() % 6) == 0)
 		{
 			player[0].items.ship = 2;                      // SuperCarrot
 			player[0].items.weapon[FRONT_WEAPON].id = 23;  // Banana Blast
@@ -1301,8 +1322,15 @@ void JE_nextEpisode(void)
 		}
 	}
 
-	if (newEpisode != episodeNum)
+	if (to_camanis)
+	{
+		custom_then_gbc = true;
+		gameHasRepeated = false;
+		custom_episode_start(camanis);
+	}
+	else if (newEpisode != episodeNum)
 		JE_initEpisode(newEpisode);
+	}
 
 	gameLoaded = true;
 	mainLevel = FIRST_LEVEL;
@@ -1313,12 +1341,15 @@ void JE_nextEpisode(void)
 	JE_clr256(VGAScreen);
 	memcpy(colors, palettes[6-1], sizeof(colors));
 
-	JE_dString(VGAScreen, JE_fontCenter(episode_name[episodeNum], SMALL_FONT_SHAPES), 130, episode_name[episodeNum], SMALL_FONT_SHAPES);
+	{
+		const char *name = custom_episode != 0 ? custom_episodes[custom_episode - 1].title : episode_name[episodeNum];
+		JE_dString(VGAScreen, JE_fontCenter(name, SMALL_FONT_SHAPES), 130, name, SMALL_FONT_SHAPES);
+	}
 	JE_dString(VGAScreen, JE_fontCenter(miscText[5-1], SMALL_FONT_SHAPES), 185, miscText[5-1], SMALL_FONT_SHAPES);
 
-	// Tyrian3D: the modern UI's card: "Episode 2: Treachery" as its number over its name.
+	// Tyrian3D: the modern UI's card: "Episode 2: Treachery" as its number over its name (a custom episode's title).
 	{
-		const char *name = episode_name[episodeNum];
+		const char *name = custom_episode != 0 ? custom_episodes[custom_episode - 1].title : episode_name[episodeNum];
 		const char *colon = strchr(name, ':');
 		char crumb[32] = "";
 		if (colon != NULL)

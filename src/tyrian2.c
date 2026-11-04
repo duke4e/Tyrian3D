@@ -2085,6 +2085,7 @@ void JE_main(void)
 	int lastEnemyOnScreen;
 
 	kit_saved = kit_this_level = false;
+	custom_then_gbc = false;  // (a game begun or loaded: not Camanis 2 on its way to episode 7)
 
 	/* NOTE: BEGIN MAIN PROGRAM HERE AFTER LOADING A GAME OR STARTING A NEW ONE */
 
