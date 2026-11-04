@@ -889,6 +889,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | The maps' clean ground is left out: the objects, wrecks and palms painted into the map stay in the ground under their models, and no stand-ins are drawn |
+| `TYR3D_RAIL_FROM=<tick>` | A level flown on the rail starts at that tick of its flight (70 a second), the waves before it skipped (the boss at 7980, the checkpoint at 3920) |
 | `TYR3D_RAIL_DUMP=<dir>` | A level flown on the rail (`rail.c`): each chunk of its ground's texture as it is made, `chunk_<k>.bmp` |
 | `TYR3D_LOG_OBJECTS=1` | With frame dumps, print every 3D object of each dumped frame: its model, its look (sheet and sprite), where on the screen, its layer, the events that made it (time and link) and whether it is a stand-in |
 | `TYR3D_LOG_STANDINS=1` | Every 30th frame, print the stand-ins shown on the screen (their look, placeholder or own model, where on the screen and on the map, as the `.std` has it, and the nearest enemy) and how many are covered by their enemies (with frame dumps, `dump:` lines say which 3D frame a dump is) |
@@ -998,9 +999,11 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   Then the boss, SAVARA's big red jet built from its seven pieces as SAVARA's events place them: up from behind over the
   ship, round at it, firing fans, launching fighters, and at half its armor charging. The HUD (`ui.c`
   `build_rail_hud`): score and hits, shield, armor, boost, the lasers' power, bombs, the boss's armor, a line in the
-  middle; P pauses, Esc pauses and asks, Esc again leaves the level. It ends as the level would: through, the cash it
-  earned the player's with 25 a hit, its enemies' share the results'; lost, as a ship lost in a level. Plan and what is
-  left (lock-on charge shots, flying through arches, checkpoints, voices): `docs/plans/2026-11-04-starfox.md`.
+  middle; P pauses, Esc pauses and asks, Esc again leaves the level. Halfway (`CHECKPOINT_TICK`) a checkpoint: a ship
+  lost after it flies on from there, whole, the enemies gone, the cash and the rest as they were there; low on armor,
+  a warning and smoke from the ship. It ends as the level would: through, the cash it earned the player's with 25 a hit,
+  its enemies' share the results'; lost before the checkpoint, as a ship lost in a level. Plan and what is left
+  (lock-on charge shots, flying through arches, more voices, other stretches): `docs/plans/2026-11-04-starfox.md`.
 - **Background maps** (`src/background3d.c`). The game draws only the background tiles that fit
   on its screen; the tilted camera sees much more. So the 3D view draws the three background maps
   itself, as tiles on each background's plane, for the whole area the camera sees (up to 640

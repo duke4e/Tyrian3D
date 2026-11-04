@@ -627,6 +627,7 @@ static const Wave WAVES[] = {
 	{ T(109.0), D_ARMOR, P_ITEM,   1,    0, 130,  0, 0, D_NONE },
 };
 #define BOSS_TICK T(114.0)
+#define CHECKPOINT_TICK T(56.0)  // a ship lost after it flies on from there (as the long levels' checkpoints)
 
 typedef struct
 {
@@ -687,6 +688,7 @@ static struct
 	int bombs;
 	int hits;                  // enemies shot down
 	int dead_ticks;            // exploding
+	int safe_ticks;            // back at the checkpoint: not hurt for a while
 	float shake;
 	int last_left, last_right; // the ticks the directions were last pressed (a double tap rolls)
 	bool held_left, held_right;
@@ -713,6 +715,15 @@ static int message_ticks = 0;
 static int ended = 0;          // 1 through, -1 lost
 static int end_ticks = 0;
 static bool paused = false, leave_asked = false;
+static int fade_from = 0;      // the tick the view faded in from (the start, a checkpoint)
+static bool danger_said = false;
+static struct
+{
+	bool reached;
+	float z;
+	ulong cash;
+	int power, bombs, hits, kills, total, next_wave;
+} checkpoint;
 
 static float rail_x(float z)
 {
@@ -1332,7 +1343,7 @@ static void rail_hurt(int damage)
 {
 	if (ship.dead_ticks > 0 || (ship.rolling > 0 && damage < 8) || ended != 0)
 		return;
-	if (dev_godmode())
+	if (dev_godmode() || ship.safe_ticks > 0)
 		damage = 0;
 	ship.hit_ticks = 0;
 	ship.shake = SDL_min(ship.shake + 1.2f, 3.0f);
@@ -2053,7 +2064,7 @@ static void build_view(void)
 	memcpy(view.lights, flash_light, sizeof(flash_light[0]) * (size_t)flash_light_count);
 	plants_in(cz - FAR, cz + 80);
 	// The fade: in at the start, out at the end.
-	view.fade = ended != 0 ? clampf(1.0f - (end_ticks - HZ * 4) / (float)HZ, 0, 1) : clampf(tick / 40.0f, 0, 1);
+	view.fade = ended != 0 ? clampf(1.0f - (end_ticks - HZ * 4) / (float)HZ, 0, 1) : clampf((tick - fade_from) / 40.0f, 0, 1);
 }
 
 static void publish_hud(void)
@@ -2101,7 +2112,9 @@ static void begin_level(void)
 	camera.x = 0;
 	camera.y = ship.y + 28;
 	camera.roll = 0;
-	tick = next_wave = kills = total = 0;
+	tick = next_wave = kills = total = fade_from = 0;
+	danger_said = false;
+	memset(&checkpoint, 0, sizeof(checkpoint));
 	ended = end_ticks = 0;
 	message_ticks = 0;
 	paused = leave_asked = false;
@@ -2109,6 +2122,15 @@ static void begin_level(void)
 		kind_models[k] = kinds[k].model != NULL ? m3d_find_model(kinds[k].model) : -1;
 	for (size_t p = 0; p < COUNTOF(BOSS_PIECES); ++p)
 		boss_models[p] = m3d_find_model(BOSS_PIECES[p].model);
+	// (TYR3D_RAIL_FROM=<tick>, dev: the flight from there, its waves before skipped.)
+	const char *from = SDL_getenv("TYR3D_RAIL_FROM");
+	if (from != NULL && SDL_atoi(from) > 0)
+	{
+		tick = fade_from = SDL_atoi(from);
+		ship.z -= SPEED * tick;
+		while (next_wave < (int)COUNTOF(WAVES) && WAVES[next_wave].tick <= tick)
+			++next_wave;
+	}
 	const M3DAppearance look = m3d_ship_appearance(player[0].items.ship);
 	ship_model = look.model >= 0 ? look.model : m3d_find_model("talon");
 	// The ship as the level would have it.
@@ -2128,6 +2150,41 @@ static void begin_level(void)
 	view.haze_far = FAR;
 }
 
+// A ship lost past the checkpoint flies on from there: the enemies gone, the ship whole, the cash and the rest as they
+// were there.
+static void back_to_checkpoint(void)
+{
+	memset(enemies, 0, sizeof(enemies));
+	memset(shots, 0, sizeof(shots));
+	memset(enemy_shots, 0, sizeof(enemy_shots));
+	memset(items, 0, sizeof(items));
+	memset(&boss, 0, sizeof(boss));
+	particle_count = flash_light_count = 0;
+	const float boost = BOOST_MAX;
+	memset(&ship, 0, sizeof(ship));
+	ship.z = checkpoint.z;
+	ship.y = 80;
+	ship.speed = SPEED;
+	ship.boost = boost;
+	ship.power = checkpoint.power;
+	ship.bombs = checkpoint.bombs;
+	ship.hits = checkpoint.hits;
+	ship.last_left = ship.last_right = -100;
+	ship.safe_ticks = HZ * 2;
+	player[0].cash = checkpoint.cash;
+	player[0].armor = player[0].initial_armor;
+	player[0].shield = player[0].shield_max;
+	kills = checkpoint.kills;
+	total = checkpoint.total;
+	next_wave = checkpoint.next_wave;
+	tick = fade_from = CHECKPOINT_TICK;
+	danger_said = false;
+	camera.x = 0;
+	camera.y = ship.y + 28;
+	say("Back at the checkpoint", HZ * 3);
+	printf("rail: back at the checkpoint (tick %d)\n", tick);
+}
+
 static void level_tick(const Input *in)
 {
 	++tick;
@@ -2136,7 +2193,40 @@ static void level_tick(const Input *in)
 		spawn_wave(next_wave++);
 	if (tick == BOSS_TICK)
 		boss_begin();
+	if (tick == CHECKPOINT_TICK && ship.dead_ticks == 0)
+	{
+		checkpoint = (typeof(checkpoint)){ true, ship.z, player[0].cash, ship.power, ship.bombs, ship.hits, kills, total, next_wave };
+		say("Checkpoint", HZ * 2);
+		sound(7, S_ITEM);
+	}
 	ship_tick(in);
+	if (ship.safe_ticks > 0)
+		--ship.safe_ticks;
+	// Low on armor: a warning, once, and smoke from the ship.
+	if (ship.dead_ticks == 0 && player[0].armor * 10 < player[0].initial_armor * 3)
+	{
+		if (!danger_said)
+		{
+			danger_said = true;
+			JE_playSampleNum(V_DANGER);
+			say("Armor low", HZ * 2);
+		}
+		if (tick % 3 == 0)
+		{
+			float at[3];
+			world_of(ship.x, ship.y + 2, -10, at);
+			D3Particle *p = spawn(D3P_SMOKE, at, frange(30, 50));
+			if (p != NULL)
+			{
+				p->vy = 0.2f;
+				p->vz = ship.speed * 0.8f;
+				p->size = 5;
+				p->grow = 0.25f;
+				p->drag = 0.98f;
+				paint(p, 0.12f, 0.11f, 0.1f, 0.55f, 0.15f, 0.15f, 0.15f, 0);
+			}
+		}
+	}
 	for (int i = 0; i < MAX_ENEMIES; ++i)
 		if (enemies[i].alive)
 			move_enemy(&enemies[i]);
@@ -2149,8 +2239,13 @@ static void level_tick(const Input *in)
 		--message_ticks;
 	if (ship.dead_ticks > 0 && ended == 0 && ship.dead_ticks > 90)
 	{
-		ended = -1;
-		end_ticks = 0;
+		if (checkpoint.reached)
+			back_to_checkpoint();
+		else
+		{
+			ended = -1;
+			end_ticks = 0;
+		}
 	}
 	if (ended != 0)
 		++end_ticks;
