@@ -324,8 +324,10 @@ def episode_enemies(but):
     return out
 
 
-HOARD_LEAD = 450  # clock from a fight's sheets to its boss (two of its own level's waves in between)
-HOARD_GAP = 200   # clock from a boss gone to the next fight's sheets
+HOARD_LEAD = 400  # clock from a fight's sheets to its boss (two of its own level's waves in between)
+HOARD_GAP = 150   # clock from a boss gone to the next fight's sheets
+HOARD_APPROACH = 500  # clock of a boss's approach kept before the map stops (some bring the whole stretch of their level
+                       # before it: HARVEST's 9580, UNDERDELI's, CAMANIS', CORAL's: the level's clock runs out at 65535)
 
 
 def make_hoard(design):
@@ -385,7 +387,9 @@ def make_hoard(design):
             placements.append(dict(kind="boss", episode=source.episode, name=source.name, start=at))
             break
         stop, loop_from, loop_to = compose.midboss_span(source)
-        placements.append(dict(kind="midboss", episode=source.episode, name=source.name, start=at,
+        trim = max(0, stop - HOARD_APPROACH)
+        stop, loop_from, loop_to = stop - trim, loop_from - trim, loop_to - trim
+        placements.append(dict(kind="midboss", episode=source.episode, name=source.name, start=at, trim=trim,
                                loop=[stop, loop_from, loop_to], speeds=list(speeds),
                                **{k: True for k in ("flip", "dark", "side", "chase") if fight.get(k)}))
         t = at + loop_to + 2 + HOARD_GAP
@@ -533,6 +537,34 @@ def the_core(p):
 # while that boss is fought),
 # couriers [(clock, "cube" or "warp:<level>")] (a secret data cube, or the warp orb to a secret level),
 # hold (clock, seconds): a siege, the map stopped, waves round and round until the level timer ends.
+# THE HOARD's and HOARD II's fights (the user, 2026-11-04: "zadnji level, nek je sa baš svim bossevima iz igre
+# (uključujući i njihove obrane i konfiguracije)"; two levels: an event's clock it jumps to (54, 70) is a signed
+# 16-bit number, so a level's events end by 32767): every boss of episodes 1-5 (the originals' levels with one, those of the same
+# boss once: TYRIAN's and TYRIAN X's, SAVARA's and SAVARA Y's, TORM's and the BOTANYs', ICE EXIT's and ICESECRET's,
+# episode 5's two SAVARAs'), each with its own stage's defences and pattern (compose.midboss_span), in the episodes'
+# order, BRAINIAC's last after a siege; a mechanic of the game's with every other one (lights out, upside down, from
+# behind the ship, from the side, a rush before it); their waves those of the episode's levels the episode has.
+HOARD_BOSSES = [(1, "TYRIAN"), (1, "ASTEROID1"), (1, "ASTEROID2"), (1, "SAVARA"), (1, "DELIANI"), (1, "ASSASSIN"),
+                (1, "SAVARA V"), (2, "TORM"), (2, "GYGES"), (2, "GEM WAR"), (3, "IXMUCANE"), (3, "CAMANIS"),
+                (3, "FLEET"), (3, "New Deli"), (4, "SURFACE"), (4, "CORE"), (4, "ICE EXIT"), (4, "HARVEST"),
+                (4, "UNDERDELI"), (4, "SAVARA IV"), (4, "DREAD-NOT"), (4, "LAVA EXIT"), (4, "APPROACH"),
+                (5, "ASTEROIDS"), (5, "SAVARA"), (5, "AST ROCK"), (5, "MINERS"), (5, "CORAL"), (5, "FRUIT")]
+HOARD_MECHANICS = [{}, dict(dark=True), {}, dict(flip=True), {}, dict(chase=True), {}, dict(side=True), {},
+                   dict(burst=True)]
+HOARD_WAVES = [(3, "CAMANIS"), (2, "GYGES"), (4, "SAVARA IV"), (4, "SURFACE"), (3, "BONUS"), (4, "LAVA EXIT")]
+
+
+HOARD_SPLIT = 14  # THE HOARD: episodes 1-3's bosses, New Deli's its last; HOARD II: episodes 4-5's, then BRAINIAC's
+
+
+def hoard_fights(part):
+    fights = [dict(boss=b, waves=[HOARD_WAVES[k % len(HOARD_WAVES)]], **HOARD_MECHANICS[k % len(HOARD_MECHANICS)])
+              for k, b in enumerate(HOARD_BOSSES)]
+    if part == 1:
+        return fights[:HOARD_SPLIT - 1] + [dict(fights[HOARD_SPLIT - 1], last=True)]
+    return fights[HOARD_SPLIT:] + [dict(boss=(4, "BRAINIAC"), waves=[(4, "SURFACE"), (4, "LAVA EXIT")], siege=30, last=True)]
+
+
 LEVELS = [
     dict(name="DIG SITE", terrain=DESERT_TERRAIN, shapes=")", song=33, seed=4, map=DESERT, plan=dig_site, **DESERT_MATS,
          waves=[(3, "CAMANIS"), (3, "SAWBLADES")], boss=(3, "TYRIAN X"), ground=DESERT, boss_time=6100,
@@ -617,13 +649,9 @@ LEVELS = [
          gimmicks=dict(bursts="map", bursts_map=2, ambush=[(3900, (5, "STATION"))])),
     # THE HOARD: see make_hoard.
     dict(name="THE HOARD", kind="hoard", shapes=")", blank=21, song=35, seed=161, look=(4, "LAVA EXIT"),
-         speeds=(1, 2, 1), fights=[
-             dict(boss=(3, "TYRIAN X"), waves=[(3, "CAMANIS"), (3, "SAWBLADES")]),          # DIG SITE's
-             dict(boss=(3, "IXMUCANE"), waves=[(2, "GYGES"), (2, "GRYPHON")], dark=True),  # REEF's
-             dict(boss=(2, "TORM"), waves=[(4, "SAVARA IV"), (5, "SAVARA")], flip=True, burst=True),  # GREY MOON's
-             dict(boss=(1, "SAVARA"), waves=[(4, "LAVA RUN"), (4, "SURFACE")], chase=True),  # ROOST's
-             dict(boss=(1, "ASTEROID2"), waves=[(3, "BONUS"), (3, "New Deli")], side=True, burst=True),  # VAULT's
-             dict(boss=(4, "BRAINIAC"), waves=[(4, "SURFACE"), (4, "LAVA EXIT")], siege=30, last=True)]),  # COLLECTOR's
+         speeds=(1, 2, 1), fights=hoard_fights(1)),
+    dict(name="HOARD II", kind="hoard", shapes=")", blank=21, song=35, seed=171, look=(4, "LAVA EXIT"),
+         speeds=(1, 2, 1), fights=hoard_fights(2)),
 ]
 
 

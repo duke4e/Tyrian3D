@@ -341,10 +341,15 @@ at the end of episode 1, flown as the originals' mini-games are with the Atomic 
 ship's own weapons, sidekicks and special back before the next shop or level, `tyrian2.c` `kit_restore`); then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
 (HARVEST's own maps, so its terrain, trees and clean ground; `original_maps`), seen from behind the ship the whole
 way (Tyrian3D event 205, the chase camera; no 2D look of its own), episode 5's squadrons and GEM WAR's dragons;
-and THE HOARD (`make_hoard`), over open space, the Collector's hoard: TYRIAN X, IXMUCANE (lights out), TORM (upside
-down), SAVARA (from behind the ship, 205), ASTEROID2 (from the side, 200) one after another as mid-level bosses, a
-rush before two of them, a siege, then BRAINIAC; the sheets change for each fight (event 5: `build.py` checks each
-enemy against the sheets loaded where it is made). ROOST's first courier carries the Nova (special 49: the pickup
+and THE HOARD and HOARD II (`make_hoard`), over open space, the Collector's hoard: every boss of the game one after
+another as mid-level bosses (`HOARD_BOSSES`: the originals' levels with one, the same boss once, 29 and BRAINIAC),
+each with the last of its approach and its own defences and pattern (`compose.midboss_template`'s `trim`: some bring
+their level's whole boss stretch), a mechanic with every other one (lights out, upside down, from behind the ship,
+from the side, a rush before it), episodes 1-3's bosses in THE HOARD (New Deli's its last), episodes 4-5's in HOARD
+II, a siege, then BRAINIAC (two levels: an event's clock it jumps to is a signed 16-bit number, so a level's events
+end by 32767; the game's table holds 5000 events, `EVENT_MAXIMUM`, the original's 2500); the sheets change for each
+fight (event 5: `build.py` checks each enemy against the sheets loaded where it is made), and the weapons of the
+bosses' enemies that find no slot in the item data are episode 5's most like them (`enemydata.nearest_weapon`). ROOST's first courier carries the Nova (special 49: the pickup
 of episode 5's 1296 worth 32149, `courier_events` "special:49", slower than the cube couriers). Its shops sell specials too: a shop's 10th list (` Spec` in its `]I` block,
 `story.SPECIALS`: the Repulsor and the Attractor first, the Flare, the fields and zones, the Nova and the Dragon
 Lightning last) makes the special an 8th part of the ship in the store, "Done" after it (`game_menu.c`

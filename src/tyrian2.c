@@ -78,7 +78,7 @@ boss_bar_t boss_bar[2];
 /* Level Event Data */
 JE_boolean quit, loadLevelOk;
 
-struct JE_EventRecType eventRec[EVENT_MAXIMUM]; /* [1..eventMaximum] */
+struct JE_EventRecType eventRec[EVENT_MAXIMUM + 1]; /* [1..eventMaximum] (Tyrian3D: + 1, the end marker after them) */
 JE_word levelEnemyMax;
 JE_word levelEnemyFrequency;
 JE_word levelEnemy[40]; /* [1..40] */
@@ -1614,6 +1614,21 @@ static bool out_of_reach(int i)
 	const int carried = i < 25 ? 0 : i < 50 || i >= 75 ? backMove : backMove3;
 	return enemy[i].ey + (enemy[i].size == 1 ? 28 : 14) <= -15 - l3d_field_ahead &&  // (shots: shots.c)
 	       enemy[i].eyc + enemy[i].fixedmovey + carried <= 0;
+}
+
+// Tyrian3D: whether a link's enemies are there, as event 70 looks: in episode 6 not a link's pieces that are all out of
+// reach and not coming down (THE HOARD's SURFACE: its last gate of six made above the screen after the map stopped,
+// which held the fight round and round with its boss gone); elsewhere as the original (JE_searchFor).
+static bool link_there(int link)
+{
+	if (!JE_searchFor((JE_byte)link, NULL))
+		return false;
+	if (episodeNum != 6)
+		return true;
+	for (int i = 0; i < 100; ++i)
+		if (enemyAvail[i] == 0 && enemy[i].linknum == link && !out_of_reach(i))
+			return true;
+	return false;
 }
 
 static bool stranded_enemy(int i)
@@ -4986,6 +5001,12 @@ new_game:
 	fread_u16_die(levelEnemy, levelEnemyMax, level_f);
 
 	fread_u16_die(&maxEvent, 1, level_f);
+	if (maxEvent > EVENT_MAXIMUM)  // (Tyrian3D: never past the table; the rest skipped)
+	{
+		fprintf(stderr, "warning: level %d has %u events, only the first %d are played\n", lvlFileNum, maxEvent, EVENT_MAXIMUM);
+	}
+	const JE_word events_in_file = maxEvent;
+	maxEvent = SDL_min(maxEvent, EVENT_MAXIMUM);
 	for (x = 0; x < maxEvent; x++)
 	{
 		fread_u16_die(&eventRec[x].eventtime, 1, level_f);
@@ -4997,6 +5018,7 @@ new_game:
 		fread_s8_die( &eventRec[x].eventdat6, 1, level_f);
 		fread_u8_die( &eventRec[x].eventdat4, 1, level_f);
 	}
+	fseek(level_f, (long)(events_in_file - maxEvent) * 11, SEEK_CUR);  // (Tyrian3D: those past the table)
 	eventRec[x].eventtime = 65500;  /*Not needed but just in case*/
 
 	/*debuginfo('Level loaded.');*/
@@ -7270,9 +7292,9 @@ void JE_eventSystem(void)
 			if (!found)
 				JE_eventJump(eventRec[eventLoc-1].eventdat);
 		}
-		else if (!JE_searchFor(eventRec[eventLoc-1].eventdat2, NULL) &&
-		         (eventRec[eventLoc-1].eventdat3 == 0 || !JE_searchFor(eventRec[eventLoc-1].eventdat3, NULL)) &&
-		         (eventRec[eventLoc-1].eventdat4 == 0 || !JE_searchFor(eventRec[eventLoc-1].eventdat4, NULL)))
+		else if (!link_there(eventRec[eventLoc-1].eventdat2) &&
+		         (eventRec[eventLoc-1].eventdat3 == 0 || !link_there(eventRec[eventLoc-1].eventdat3)) &&
+		         (eventRec[eventLoc-1].eventdat4 == 0 || !link_there(eventRec[eventLoc-1].eventdat4)))
 		{
 			JE_eventJump(eventRec[eventLoc-1].eventdat);
 		}

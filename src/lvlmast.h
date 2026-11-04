@@ -21,7 +21,7 @@
 
 #include "opentyr.h"
 
-#define EVENT_MAXIMUM 2500
+#define EVENT_MAXIMUM 5000  // (Tyrian3D: 2500 in the original; episode 6's THE HOARD, every boss of the game, has 4040)
 
 #define WEAP_END1    818
 #define WEAP_START2 1000

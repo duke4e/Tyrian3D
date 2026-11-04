@@ -213,7 +213,7 @@ def main():
     blast = out.weapon(blank(shotrepeat=0, sound=0, shipblastfilter=flare["shipblastfilter"], attack=[40] + [0] * 7,
                              del_=[4] + [255] * 7, sg=[flare["sg"][0]] + [0] * 7), "Nova blast")
     out.lines.append("# Nova: a shock racing out from the ship, wiping out enemy shots and hitting every enemy it reaches")
-    out.lines.append(f'special 49 name="Nova" itemgraphic=275 pwr=0 stype=19 wpn={blast}')
+    out.lines.append(f'special 49 name="Nova" graphic=275 pwr=0 stype=19 wpn={blast}')
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", newline="\n") as f:

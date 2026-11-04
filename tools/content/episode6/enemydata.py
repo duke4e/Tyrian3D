@@ -24,6 +24,7 @@ ENEMY_BANKS = ((0, tyrdata.ENEMY_END1), (tyrdata.ENEMY_START2, tyrdata.ENEMY_NUM
 # they fire); chain targets (a hit firing weapon n is attack 100+n) below 150.
 IMPORT_ENEMIES = range(1500, tyrdata.ENEMY_NUM + 1)
 ATTACK = 10  # the attack[8] bytes in a weapon record
+SPRITES = 58  # the sg[8] (u16) of its shots
 
 
 def item_data(episode):
@@ -93,6 +94,8 @@ def free_low_weapons(enemies=None):
 
 class Importer:
     """Episode 6's item data (episode 5's), enemies of other episodes brought into it."""
+
+    full = 0  # weapons that found no slot (as episode 5's most like them: nearest_weapon)
 
     def __init__(self, kept_enemies=None):
         """kept_enemies: episode 5's enemies episode 6 uses as they are (their weapons stay);
@@ -173,7 +176,11 @@ class Importer:
         key = (episode, number)
         if key not in self.weapon_map:
             free = [w for w in self.free_weapons if not chain or w < 150]
-            assert free, f"no free weapon slot ({len(set(self.weapon_map.values()))} brought in)"
+            if not free:
+                # No slot left (THE HOARD's every boss of the game): episode 5's that looks the most like it.
+                type(self).full += 1
+                self.weapon_map[key] = self.nearest_weapon(episode, number, chain)
+                return self.weapon_map[key]
             new = free[0]
             self.free_weapons.remove(new)
             self.weapon_map[key] = new  # first, for chains that come back to it
@@ -195,6 +202,21 @@ class Importer:
             self.weapon_content[record] = new
             self.data[self.weapons[new]:self.weapons[new] + WEAPON_SIZE] = record
         return self.weapon_map[key]
+
+    def nearest_weapon(self, episode, number, chain=False):
+        """Episode 5's weapon most like an episode's (its first shot's sprite the same, then its damage nearest; else
+        the same number's, as episode 7 leaves them)."""
+        record = self._weapon_record(episode, number)
+        sprite = struct.unpack_from("<H", record, SPRITES)[0]
+        best, best_gap = number, None
+        for w in range(1, 150 if chain else 252):
+            mine = bytes(self.data[self.weapons[w]:self.weapons[w] + WEAPON_SIZE])
+            if struct.unpack_from("<H", mine, SPRITES)[0] != sprite or sprite == 0:
+                continue
+            gap = abs(mine[ATTACK] - record[ATTACK]) + abs(mine[2] - record[2])  # (damage, then the repeat)
+            if best_gap is None or gap < best_gap:
+                best, best_gap = w, gap
+        return best
 
     def _enemy_record(self, episode, number):
         data, _, enemies = self._source(episode)

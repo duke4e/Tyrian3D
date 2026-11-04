@@ -475,6 +475,12 @@ def midboss_template(source, p):
     stop, loop_from, loop_to = p["loop"]
     events = [dict(e) for e in shorter_invulnerable(boss["events"], source) if e["type"] not in MIDBOSS_DROP and e["t"] <= loop_to
               and not (e["type"] == 79 and not e["d1"] and not e["d2"])]  # (its bar stays up)
+    trim = p.get("trim", 0)
+    if trim:
+        # (Only the last of its approach (THE HOARD's fights, generate.make_hoard: p's loop is reckoned from there): what
+        # it makes before that left out but the boss's own (its links'), its other events at its start, in their order.)
+        events = [dict(e, t=max(0, e["t"] - trim)) for e in events
+                  if e["t"] >= trim or e["type"] not in W.SPAWNS or e.get("d4") in boss["links"]]
     links = sorted(boss["links"])
     a, b = links[0], (links[1] if len(links) > 1 else 0)
     b1, b2, b3 = p["speeds"]

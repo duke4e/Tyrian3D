@@ -234,7 +234,7 @@ def main():
     tf.write_strings(os.path.join(OUT, "levels6.dat"), script(levels))
     tf.write_strings(os.path.join(OUT, "cubetxt6.dat"), cubes())
     print(f"{OUT}: {len(levels)} levels, {len(importer.enemy_map)} enemies and {len(importer.weapon_map)} weapons "
-          f"brought in")
+          f"brought in" + (f", {type(importer).full} as episode 5's most like them (no slot left)" if type(importer).full else ""))
     return 0
 
 
