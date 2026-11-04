@@ -52,6 +52,11 @@ PRIOR_WEIGHT = 0.12   # a tile's cost per -log of its use against the most used 
 EDGE_TILES = 2        # the tiles used at least this often that never stand beside themselves (shores' corners and edges)
 PAIR_COST = 4.0       # a pair of tiles side by side or above each other that no original has, in quarters off the plan, ...
 EDGE_NORM = 20.0      # ... times its edge's mismatch (Lab) over this, at most 1
+RARE_COUNT = 0        # a pair the originals have fewer times than this costs PAIR_COST * RARE_COST for each it lacks ...
+RARE_COST = 0.0       # ... of it (over RARE_COUNT): a platform cut straight off at a void (spec 'rare': (count, cost))
+# (the levels the review of 2026-11-04 found odd joins in: docs/plans/2026-11-04-epizoda7-pregled.md; ASTEROID2's
+# platforms cut off straight, LAVA II's river in pieces, TUNNEL's walls in ribs, ICE EXIT's river cut by panels)
+RARE = (12, 0.6)
 BP_ITERATIONS = 60    # belief propagation over the map before it is bettered row by row
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
@@ -76,7 +81,7 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 # The episode in the GBC game's Full Game order (found by playing it through in the emulator), with the
 # levels only its Arcade mode has (arcade) after one of their look. gbc: the GBC level (data/gbc/levels/Lnn_*); pc: the original level it
 # is a version of (its tiles, look, song); layers: the original whose backgrounds 2 and 3 its own follow (else pc's:
-# upper_layers); as_they_are: those of them taken as the original has them (FLEET's ships of many tiles came out of
+# upper_layers); as_they_are: those of them taken as the original has them (the DELIs' pipes came out flat strips; FLEET's ships of many tiles came out of
 # the synthesiser one in 150 rows, of seven); fills: how full those made are, where not as the original's (TYRIAN's
 # clouds as full as its, 0.38, hid half the playfield in 3D, and over the boss fight, where the map stands).
 LEVELS = [
@@ -84,29 +89,30 @@ LEVELS = [
          boss=(1, 'ASSASSIN')),
     dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')], boss=(1, 'ASTEROID2')),
     dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(4, 'ICE EXIT')),
-    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V')),
+    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V'), rare=RARE),
     dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA')),
     dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
     dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE')),
     dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES),
     dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES),
     dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')],
-         boss=(1, 'ASTEROID1')),
+         boss=(1, 'ASTEROID1'), rare=RARE),
     dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), space=True, stars=True, pool=[(3, 'STARGATE'), (1, 'BUBBLES')],
          boss=(1, 'ASSASSIN')),
     dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')], boss=(2, 'GEM WAR')),
     dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS'), pool=ICES),
-    dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES, boss=(4, 'DREAD-NOT')),
+    dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES, boss=(4, 'DREAD-NOT'),
+         rare=(5, 0.25)),
     dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], boss=(1, 'ASTEROID2'),
          gbc_boss=False),
     dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH')),
     dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), as_they_are=(3,), pool=[(3, 'FLEET')]),
-    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI')),
-    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE')),
-    dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS),
-    dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True, pool=DELIS, boss=(4, 'DREAD-NOT')),
+    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI'), rare=RARE),
+    dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE'), rare=RARE),
+    dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS, rare=RARE, as_they_are=(2, 3)),
+    dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True, pool=DELIS, boss=(4, 'DREAD-NOT'), rare=RARE, as_they_are=(2, 3)),
     dict(gbc=6, name='LAVA I', pc=(4, 'LAVA EXIT'), pool=LAVAS),
-    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN'), pool=LAVAS, boss=(4, 'CORE')),
+    dict(gbc=7, name='LAVA II', pc=(4, 'LAVA RUN'), pool=LAVAS, boss=(4, 'CORE'), rare=RARE),
     dict(gbc=24, name='FINALE', pc=(4, 'DREAD-NOT'), space=True, pool=[(4, 'DREAD-NOT'), (4, 'APPROACH')]),
 ]
 
@@ -314,14 +320,18 @@ def autotile(spec, img, grids, letter):
     idx = {t: i for i, t in enumerate(ids)}
     seen_h = np.zeros((T, T), bool)  # [left, right]
     seen_v = np.zeros((T, T), bool)  # [below, above]
+    count_h = np.zeros((T, T))
+    count_v = np.zeros((T, T))
     for a_, cnt in right.items():
-        for b_ in cnt:
+        for b_, c_ in cnt.items():
             if a_ in idx and b_ in idx:
                 seen_h[idx[a_], idx[b_]] = True
+                count_h[idx[a_], idx[b_]] = c_
     for a_, cnt in above.items():
-        for b_ in cnt:
+        for b_, c_ in cnt.items():
             if a_ in idx and b_ in idx:
                 seen_v[idx[a_], idx[b_]] = True
+                count_v[idx[a_], idx[b_]] = c_
     # (how badly an unseen pair's edge joins: the step in colour across it beyond the steps just inside either tile,
     # per pixel along it; two grasses join, grass beside the sea doesn't)
     tl = np.stack([lab(pal[tiles[t]].astype(np.float64)) if tiles.get(t) is not None else lab(np.zeros((28, 24, 3)))
@@ -333,8 +343,15 @@ def autotile(spec, img, grids, letter):
         return np.maximum(0, d - g).mean(-1)
     mis_h = mismatch(tl[:, :, -1], tl[:, :, -2], tl[:, :, 0], tl[:, :, 1])   # [left, right]
     mis_v = mismatch(tl[:, 0], tl[:, 1], tl[:, -1], tl[:, -2])               # [below, above]
-    cost_h = np.where(seen_h, 0.0, np.minimum(1.0, mis_h / EDGE_NORM))
-    cost_v = np.where(seen_v, 0.0, np.minimum(1.0, mis_v / EDGE_NORM))
+    # (a pair the originals have only a few times costs a little too, as much more as it is rarer: ASTEROID2's
+    # platforms cut straight off at the void, a join its originals have at a few edges, where they have rocky rims)
+    rare_count, rare_cost = spec.get('rare', (RARE_COUNT, RARE_COST))
+    rare_h = rare_cost * np.clip(1 - count_h / max(rare_count, 1), 0, 1) if rare_count else 0.0
+    rare_v = rare_cost * np.clip(1 - count_v / max(rare_count, 1), 0, 1) if rare_count else 0.0
+    # (and a pair they never have at least as much as the rarest they have)
+    unseen_least = rare_cost if rare_count else 0.0
+    cost_h = np.where(seen_h, rare_h, np.maximum(unseen_least, np.minimum(1.0, mis_h / EDGE_NORM)))
+    cost_v = np.where(seen_v, rare_v, np.maximum(unseen_least, np.minimum(1.0, mis_v / EDGE_NORM)))
     prior = -np.log(np.array([use[t] for t in ids], np.float64) / max(use[t] for t in ids))
     MISS, PAIR, PRIOR = 1.0, PAIR_COST, PRIOR_WEIGHT
     cands, unary = [], []

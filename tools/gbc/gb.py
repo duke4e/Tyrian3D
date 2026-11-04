@@ -1,12 +1,15 @@
-"""ctypes wrapper of gbemu.c (built on first use into build/gbc/libgbemu.dylib)."""
+"""ctypes wrapper of gbemu.c (built on first use into build/gbc: libgbemu.dylib with cc, or on Windows gbemu.dll with
+zig cc)."""
 import ctypes as C
 import os
+import shutil
 import subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-LIB = os.path.join(ROOT, 'build', 'gbc', 'libgbemu.dylib')
+WINDOWS = os.name == 'nt'
+LIB = os.path.join(ROOT, 'build', 'gbc', 'gbemu.dll' if WINDOWS else 'libgbemu.dylib')
 ROM = os.path.join(ROOT, 'data', 'gbc', 'Tyrian.gb')
 
 RIGHT, LEFT, UP, DOWN, A, B, SELECT, START = (1 << i for i in range(8))
@@ -16,7 +19,13 @@ def _lib():
     src = os.path.join(HERE, 'gbemu.c')
     if not os.path.exists(LIB) or os.path.getmtime(LIB) < os.path.getmtime(src):
         os.makedirs(os.path.dirname(LIB), exist_ok=True)
-        subprocess.check_call(['cc', '-O2', '-shared', '-fPIC', '-o', LIB, src])
+        if WINDOWS:
+            # (zig's clang exports the library's functions; MSVC's cl would need them named for export)
+            if shutil.which('zig') is None:
+                raise RuntimeError('building gbemu.dll needs zig (zig cc) on the PATH')
+            subprocess.check_call(['zig', 'cc', '-O2', '-shared', '-o', LIB, src])
+        else:
+            subprocess.check_call(['cc', '-O2', '-shared', '-fPIC', '-o', LIB, src])
     lib = C.CDLL(LIB)
     vp, i, u8p = C.c_void_p, C.c_int, C.POINTER(C.c_uint8)
     sig = {

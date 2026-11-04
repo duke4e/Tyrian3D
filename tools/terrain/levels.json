@@ -677,21 +677,6 @@
   "level": "ASTEROID (gbc)",
   "episode": 7
  },
- "d8fdee1e7b258185": {
-  "classes": 6,
-  "forest": "palm",
-  "heights": {},
-  "materials": {
-   "#163b52": 0,
-   "#242424": "~",
-   "#616361": 16,
-   "#183c53": 0,
-   "#424444": 16,
-   "#06121c": "~"
-  },
-  "level": "SAVARA (gbc)",
-  "episode": 7
- },
  "7e3321e38597633c": {
   "classes": 6,
   "forest": "palm",
@@ -765,13 +750,6 @@
   "level": "JUNGLE II (gbc)",
   "episode": 7
  },
- "58765bda458aea6c": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID2 (gbc)",
-  "episode": 7
- },
  "ef1e73ea3ec85c12": {
   "classes": 6,
   "void": "hole",
@@ -793,13 +771,6 @@
   "level": "CAMANIS (gbc)",
   "episode": 7
  },
- "23ef9dc93690c3b8": {
-  "classes": 6,
-  "rolling": 10,
-  "heights": {},
-  "level": "ICE EXIT (gbc)",
-  "episode": 7
- },
  "f9ec76edcdee6444": {
   "classes": 6,
   "void": "hole",
@@ -814,55 +785,6 @@
   "level": "FLEET (gbc)",
   "episode": 7
  },
- "d3b679e1e9e167a5": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "DELIANI (gbc)",
-  "episode": 7
- },
- "3adafae6e40b48bf": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#2d1b07": 0,
-   "#644e2c": "~",
-   "#4b3213": 12,
-   "#33210b": "~",
-   "#2c1b08": 0,
-   "#5f4521": "~"
-  },
-  "level": "TUNNEL (gbc)",
-  "episode": 7
- },
- "0076c19a49c6e487": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": 10,
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
- "ec82c49ad21cf3f9": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": 10,
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELI CORE (gbc)",
-  "episode": 7
- },
  "4f19acb1834d3559": {
   "classes": 6,
   "heights": {},
@@ -875,20 +797,6 @@
    "#2a0401": 0
   },
   "level": "LAVA I (gbc)",
-  "episode": 7
- },
- "9bf4f7c9c6e6c66a": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#782a1f": -16,
-   "#9e4238": 0,
-   "#a75247": "~",
-   "#2e0401": -16,
-   "#45130b": "~",
-   "#520300": -16
-  },
-  "level": "LAVA II (gbc)",
   "episode": 7
  },
  "96dd08e1bb1abc68": {
@@ -998,5 +906,97 @@
   "level": "DEEP ICE",
   "background": 2,
   "solid": true
+ },
+ "7d0e7d057175c48a": {
+  "classes": 6,
+  "forest": "palm",
+  "heights": {},
+  "materials": {
+   "#163b52": 0,
+   "#242424": "~",
+   "#616361": 16,
+   "#183c53": 0,
+   "#424444": 16,
+   "#06121c": "~"
+  },
+  "level": "SAVARA (gbc)",
+  "episode": 7
+ },
+ "ebbeeebfd108d828": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID2 (gbc)",
+  "episode": 7
+ },
+ "8f27fe7ca3ebef1a": {
+  "classes": 6,
+  "rolling": 10,
+  "heights": {},
+  "level": "ICE EXIT (gbc)",
+  "episode": 7
+ },
+ "7253bbd3b1afe291": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "DELIANI (gbc)",
+  "episode": 7
+ },
+ "933d83412c86af6d": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#2d1b07": 0,
+   "#644e2c": "~",
+   "#4b3213": 12,
+   "#33210b": "~",
+   "#2c1b08": 0,
+   "#5f4521": "~"
+  },
+  "level": "TUNNEL (gbc)",
+  "episode": 7
+ },
+ "fd6554ae3d66715c": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1a26": 0,
+   "#242f3a": "~",
+   "#48535d": 0,
+   "#0b1621": "~",
+   "#1a2631": "~",
+   "#1d2a36": 16
+  },
+  "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "fd2134b989cf9178": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1a26": 0,
+   "#242f3a": "~",
+   "#48535d": 0,
+   "#0b1621": "~",
+   "#1a2631": "~",
+   "#1d2a36": 16
+  },
+  "level": "DELI CORE (gbc)",
+  "episode": 7
+ },
+ "ee9447721b3eff2b": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#782a1f": -16,
+   "#9e4238": 0,
+   "#a75247": "~",
+   "#2e0401": -16,
+   "#45130b": "~",
+   "#520300": -16
+  },
+  "level": "LAVA II (gbc)",
+  "episode": 7
  }
 }

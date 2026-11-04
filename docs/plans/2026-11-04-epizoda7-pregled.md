@@ -59,3 +59,24 @@ kadar je samo tamnosiv (snimka, ne nužno greška).
 - **9 (TUNNEL):** zidovi solida i rupa sad uzimaju teksturu dublje s površine (piksel teksture na dva piksela dubine, do
   ruba tilea; `render_gpu.c` `TERRAIN_WALL_INSET`), pa pokazuju uzorak površine umjesto razvučenog ruba. Uska rebra i
   ploče koje lebde dio su karte.
+
+## Treći prolaz: s GBC ROM-om (2026-11-04)
+
+ROM je dodan (`data/gbc/Tyrian.gb`); emulator se na Windowsu gradi `zig cc`-om (`tools/gbc/gb.py`), a alat za teren
+epizode 7 radi i na Windowsu (`tools/content/gbc/terrain.py`, `TYR3D_GAME_DIR`). Levele sam napravio iznova samo u
+kartama (njihove događaje, koje je dorađivao i `tools/gbc/boss.py`, zadržao sam), pa im napravio novi teren:
+
+- **Rijetki parovi tileova** (`episode.py` `rare`, `RARE`): par koji originali imaju manje od 12 puta sada košta, a
+  par koji nemaju nikad košta barem toliko. ASTEROID2 dobiva duge ravne platforme kao PC original i više kamenih
+  rubova umjesto stepenica, TUNNEL glatke zidove kanjona umjesto rebara, LAVA II rijeku lave bez prekida, a DELIANI i
+  SAVARA urednije blokove. ICE EXIT s blažom postavkom (5, 0.25): ledena rijeka ostaje cijela, s manje ravnih ploča.
+- **DELICORE i DELI CORE:** gornji slojevi uzeti su iz originala kakvi jesu (`as_they_are` (2, 3)), umjesto da ih
+  sinteza slaže iznova, pa cijevi imaju prstenove i krajeve. Jedan tanak ravan komad cijevi ostaje, ali takav je i u
+  originalu.
+- **Plave U-letjelice na DELICORE-u** (GBC tipovi 2, 7 i 15, roj u formacijama) dobile su potkovu-elektromagnet
+  iz SURFACE-a i CORE-a (epizoda 4, protivnik 202) umjesto donjeg režnja Camanisova srca (ocjena para bila je samo
+  0,09). Novi par je zapisan u `enemy_overrides.json`.
+
+Ostaje: DELIANI je crn tamo gdje GBC ima pod, jer je napravljen od BRAINIAC-ovih tileova (strukture nad prazninom).
+Za pod bi trebao drugi PC original. Od pregleda još ostaju SAVARA-ina pukotina i ICE EXIT-ove glatke ploče (gornji
+sloj). Vjerojatno su manje vidljive, ali nisu posebno provjerene.
