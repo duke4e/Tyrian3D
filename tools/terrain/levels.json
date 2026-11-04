@@ -600,11 +600,6 @@
   "rolling": 6,
   "level": "DEEP ICE"
  },
- "2beea6b6c8730140": {
-  "level": "DEEP ICE",
-  "background": 2,
-  "solid": true
- },
  "fd51fe9687ddb5f7": {
   "classes": 6,
   "heights": {},
@@ -996,6 +991,11 @@
  },
  "cd8d4bfe63495b67": {
   "level": "CRUSTGATE",
+  "background": 2,
+  "solid": true
+ },
+ "7d41fd0d1207c5cc": {
+  "level": "DEEP ICE",
   "background": 2,
   "solid": true
  }

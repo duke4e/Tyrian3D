@@ -139,7 +139,7 @@ def make(design):
     slug = name.lower().replace(" ", "_")
     if design.get("keep_map") or EVENTS_ONLY:
         # The map as it is (a map liked as it was): only the events are made again, and the layers
-        # in remake (DEEP ICE's top one, its brown rock out of place over the ice).
+        # in remake (DEEP ICE's walls on layer 2, IXMUCANE's brown rock out of place over the ice).
         layers = json.load(open(os.path.join(OUT, f"{slug}.json")))["maps"]
         for k in design.get("remake", []) if not EVENTS_ONLY else []:
             layers[k - 1] = upper_layer(design, k - 1)
@@ -344,10 +344,11 @@ def make_hoard(design):
         source = waves.Source(*fight["boss"])
         sheets = boss_sheets(source)
         # (its waves those of the level of the episode it is fought in: their enemies, and their weapons, are in
-        # the episode already)
+        # the episode already; none of their scenery, SURFACE's rock arches: they floated in its open space)
         own = [(s, i, w) for s in (waves.Source(*k) for k in fight["waves"])
                for i, w in enumerate(s.waves()) if 3 <= w["count"] <= 10 and w["length"] <= 400 and
-               all((s.episode, e["d1"]) in known for e in w["events"] if e["type"] in waves.SPAWNS)]
+               all((s.episode, e["d1"]) in known and s.enemies.get(e["d1"], {}).get("armor", 0) > 0
+                   for e in w["events"] if e["type"] in waves.SPAWNS)]
         for b, _ in Counter(b for _, _, w in own for b in w["banks"]).most_common():
             if len(sheets) < 4:
                 sheets.add(b)
@@ -559,8 +560,10 @@ LEVELS = [
          waves=[(4, "LAVA RUN"), (4, "SURFACE")], boss=(1, "SAVARA"), ground=[(2, "GYGES")],
          boss_time=6300, look=(2, "GYGES"), speeds=(1, 2, 2), wealth=24000,
          gimmicks=dict(ambush=[(2200, (4, "LAVA RUN"))], flip="boss", couriers=[(1400, "special:49"), (2800, "cube")])),
-    dict(name="DEEP ICE", terrain=dict(ICE_TERRAIN, solid_upper=[2]), keep_map=True, remake=[3], shapes="w", song=14, seed=61,
-         map=ICE, layer2=[(3, "IXMUCANE")], layer3=[(4, "ICE EXIT")], layer3_from=2,
+    # (Its walls on layer 2 of ICE EXIT's ice, along the sides as IXMUCANE's brown rock was: the user, 2026-11-02,
+    # "zamjeniti top layer (s ixmucane) na nešto što bolje paše ledenoj pozadini"; its floes on layer 3 kept.)
+    dict(name="DEEP ICE", terrain=dict(ICE_TERRAIN, solid_upper=[2]), keep_map=True, remake=[2], shapes="w", song=14, seed=61,
+         map=ICE, layer2=[(4, "ICE EXIT")], bias2=channel(62, half=4.5), layer3=[(4, "ICE EXIT")], layer3_from=2,
          bias=zones([(0, 300, 0.3)], 61), waves=[(1, "DELIANI"), (3, "New Deli")], boss=(1, "ASSASSIN"),
          ground=ICE, boss_time=4600, look=(3, "IXMUCANE"), speeds=(1, 2, 2), wealth=27000, need_sheets=[10],
          gimmicks=dict(dark="map", ambush=[(3000, (3, "New Deli"))], couriers=[(1500, "cube")])),

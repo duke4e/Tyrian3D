@@ -5841,8 +5841,10 @@ redo:
 					this_player->sidekick[LEFT_SIDEKICK].y = this_player->old_y[COUNTOF(player->old_x) / 2 - 1];
 					break;
 				case 2:  // front-mounted
+					// (Tyrian3D: as high as the ship goes, the playfield above the screen too: seen from the side the
+					// sidekick stopped a third of the way across while the ship flew on)
 					this_player->sidekick[LEFT_SIDEKICK].x = this_player->x;
-					this_player->sidekick[LEFT_SIDEKICK].y = MAX(10, this_player->y - 20);
+					this_player->sidekick[LEFT_SIDEKICK].y = MAX(10 - l3d_field_ahead, this_player->y - 20);
 					break;
 				case 4:  // orbiting
 					this_player->sidekick[LEFT_SIDEKICK].x = this_player->x + roundf(sinf(optionSatelliteRotate) * 20);
@@ -5933,8 +5935,8 @@ redo:
 						}
 					}
 
-					if (this_player->sidekick[RIGHT_SIDEKICK].y < 10)
-						this_player->sidekick[RIGHT_SIDEKICK].y = 10;
+					if (this_player->sidekick[RIGHT_SIDEKICK].y < 10 - l3d_field_ahead)
+						this_player->sidekick[RIGHT_SIDEKICK].y = 10 - l3d_field_ahead;
 					break;
 				}
 
@@ -6065,7 +6067,7 @@ redo:
 				else if (style == 2 && i == LEFT_SIDEKICK)
 				{
 					x3d = this_player->x;
-					y3d = MAX(10, this_player->y - 20);
+					y3d = MAX(10 - l3d_field_ahead, this_player->y - 20);
 				}
 				const bool sidekick_pointer = with_ship && mouse_ship == this_player && settings3d.mouse_direct;
 				const float centre_y = large ? y3d + 14 : y3d + 7;

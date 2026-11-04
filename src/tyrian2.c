@@ -2071,11 +2071,20 @@ draw_enemy_end:
 	player[0].x += 25;
 }
 
+// Tyrian3D: a mini-game's own weapons (script ]k[, episode 6's INVADERS, the user, 2026-11-04: "bonus level ... nebi
+// trebao koristiti igračeva oružja"): the next level is flown with what the original's mini-games give (ENGAGE's: the
+// Atomic RailGun and nothing else; the ship, its shield and generator its own), and the ship gets its own back before
+// the next shop or level (kit_restore; a game loaded or begun forgets it).
+static PlayerItems kit_backup;
+static bool kit_saved = false, kit_this_level = false;
+
 void JE_main(void)
 {
 	char buffer[256];
 
 	int lastEnemyOnScreen;
+
+	kit_saved = kit_this_level = false;
 
 	/* NOTE: BEGIN MAIN PROGRAM HERE AFTER LOADING A GAME OR STARTING A NEW ONE */
 
@@ -4113,6 +4122,16 @@ int upcoming_cube(int n)
 	return cube;
 }
 
+// (The mini-game's weapons, kit_restore.)
+static void kit_restore(void)
+{
+	if (!kit_saved)
+		return;
+	player[0].items = kit_backup;
+	player[0].last_items = kit_backup;  // (the store lists what the ship came with)
+	kit_saved = false;
+}
+
 /* --- Load Level/Map Data --- */
 void JE_loadMap(void)
 {
@@ -4323,7 +4342,22 @@ new_game:
 						songBuy = temp - 1;
 						break;
 
+					case 'k':  // Tyrian3D: the mini-game's weapons for the next level (kit_restore)
+						if (!kit_saved)
+							kit_backup = player[0].items;
+						kit_saved = true;
+						kit_this_level = true;
+						player[0].items.weapon[FRONT_WEAPON].id = 39;  // Atomic RailGun
+						player[0].items.weapon[FRONT_WEAPON].power = 3;
+						player[0].items.weapon[REAR_WEAPON].id = 0;    // None
+						player[0].items.weapon[REAR_WEAPON].power = 1;
+						for (uint i = 0; i < COUNTOF(player[0].items.sidekick); ++i)
+							player[0].items.sidekick[i] = 0;           // None
+						player[0].items.special = 0;                   // None
+						break;
+
 					case 'I': /*Load Items Available Information*/
+						kit_restore();
 						memset(&itemAvail, 0, sizeof(itemAvail));
 
 						for (int i = 0; i < 9; ++i)
@@ -4345,6 +4379,9 @@ new_game:
 						break;
 
 					case 'L':
+						if (!kit_this_level)
+							kit_restore();
+						kit_this_level = false;
 						secrets_level(episodeNum, mainLevel);  // (Tyrian3D: a secret level's, secrets.h)
 						nextLevel = atoi(s + 9);
 						SDL_strlcpy(levelName, s + 13, 10);

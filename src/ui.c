@@ -2267,10 +2267,13 @@ static void shop_cards(const UIMenu *m, Box area, bool preview)
 {
 	const float cap = CAP_ITEM(), small = CAP_SMALL();
 	const float gap = U(10);
-	float card_h = SDL_max(U(preview ? 78 : 92), cap + small * 2.2f + U(30));
+	const float stats_h = cap + small * 2.2f + U(26);  // (as tall as shop_card shows the stats row)
+	float card_h = SDL_max(U(preview ? 78 : 92), stats_h + U(4));
 	const int count = m->item_count;
+	// Smaller cards to fit them all, but the choices not so small that they lose their stats row: beyond that they
+	// scroll (the user, 2026-11-04: "i dalje pokazivati red sa stats umjesto da sve pretvorimo u kompakt").
 	if (count * (card_h + gap) > area.h)
-		card_h = SDL_max(area.h / SDL_max(count, 1) - gap, SDL_max(U(70), cap * 2.6f));
+		card_h = SDL_max(area.h / SDL_max(count, 1) - gap, preview ? SDL_max(U(70), cap * 2.6f) : stats_h);
 	const int fits = SDL_max((int)((area.h + gap) / (card_h + gap) + 0.01f), 1);
 	const int selected = preview ? -1 : m->selected;
 	int owned = 0;

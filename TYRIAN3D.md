@@ -109,7 +109,8 @@ simulator in its place for the weapons, the generator and the sidekicks, with th
 its costs and the generator's output under it), the page at the right: the parts to upgrade as tabs,
 their choices as cards with an icon (the item's own 3D model where it has one, rendered in a three-quarter view
 and lit as the pad's ship: the ships, the guns and generators as the pad's mounts, the sidekicks, the specials' power-ups, the
-data cube; the shields keep their pictures), short stats against the best on offer, the cost or that the
+data cube; the shields keep their pictures), short stats against the best on offer (a long list keeps them: its cards
+scroll rather than shrink past them, `ui.c` `shop_cards`), the cost or that the
 ship has it, the credits and what is left after the change chosen, a note when a purchase is made;
 ship specs round the ship; options, load and save, the keyboard, joystick and mouse, the next
 level's map, the data cubes and their texts, and the store's questions (quit, save) as dialogs.
@@ -326,7 +327,8 @@ planet picture (`]P 005[`, as the originals' are). Secrets: in most levels a cou
 fast; shot down, it leaves a data cube (shown in the next shop after the stage's own, `]+` and
 `]?`), and in GREY MOON a warp orb to the secret bonus level VAULT (`$$`: dying costs nothing).
 After THE CORE comes INVADERS, a Space Invaders mini-game in rounds (`minigames.py`) as ALE is
-at the end of episode 1; then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
+at the end of episode 1, flown as the originals' mini-games are with the Atomic RailGun alone (script `]k[`: the
+ship's own weapons, sidekicks and special back before the next shop or level, `tyrian2.c` `kit_restore`); then the last two: STARFALL, the Collector's fleet chased low over Tyrian's farmland
 (HARVEST's own maps, so its terrain, trees and clean ground; `original_maps`), seen from behind the ship the whole
 way (Tyrian3D event 205, the chase camera; no 2D look of its own), episode 5's squadrons and GEM WAR's dragons;
 and THE HOARD (`make_hoard`), over open space, the Collector's hoard: TYRIAN X, IXMUCANE (lights out), TORM (upside
@@ -340,7 +342,9 @@ craft show from above as in the other levels (the menus over the level keep it t
 space with the stars in depth and rocks along the window's top and bottom edges
 (`layer3d.c` `add_side_decor`); their playfield reaches 250 pixels further ahead (event 200's d3:
 enemies are made there, shots and the ship go there), at least 340 (`tyrian2.c` `SIDE_AHEAD`) so
-enemies are made past the window's right edge, not in the middle of it. The
+enemies are made past the window's right edge, not in the middle of it; the sidekicks mounted in front follow the
+ship there too (they stopped at the screen's top, a third of the way across), and the planet in the deep turns with
+the view, its poles up the window as in the other levels. The
 generated
 levels (`levels/*.json`: our maps and events, and references to the original waves and bosses)
 are in the repository; `build.py` expands them with the game's data at build time and brings the

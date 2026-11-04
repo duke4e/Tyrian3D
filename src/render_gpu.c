@@ -10963,6 +10963,18 @@ static void add_planet_batch(const L3DFrame *frame, const Camera3D *camera, cons
 
 	float ax[3], ay[3], az[3];
 	world_axes(ax, ay, az);
+	if (l3d_sideways)
+	{
+		// Seen from the side the view is turned a quarter clockwise (the window's up is world -X, its right -Z): the
+		// planet turned with it, so its poles stand up the window as in the other levels (its bands ran up and down;
+		// its light, baked into the mesh, turns with it too).
+		float *axes[3] = { ax, ay, az };
+		for (int a = 0; a < 3; ++a)
+		{
+			const float v[3] = { axes[a][0], axes[a][1], axes[a][2] };
+			axes[a][0] = v[2], axes[a][1] = v[1], axes[a][2] = -v[0];
+		}
+	}
 	Mat4 transform = mat4_identity();
 	for (int c = 0; c < 3; ++c)
 	{

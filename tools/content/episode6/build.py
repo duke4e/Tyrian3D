@@ -109,6 +109,8 @@ def script(levels):
             after = following(parent)
         else:
             after = following(i)
+        if stage.get("kit"):
+            lines += ["]k["]  # (the mini-game's weapons for the level, tyrian2.c kit_restore)
         lines += [tf.level_line(after, level["name"], level["song"], i + 1, bonus=kind != "main"), ""]
         previous += stage.get("secret") or []
     # The ending, then the end of the episode (]Q reads hints after it, as many as E5 has).
