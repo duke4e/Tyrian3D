@@ -2243,6 +2243,12 @@ start_level_first:
 		
 		player[i].last_x_shot_move = player[i].x;
 		player[i].last_y_shot_move = player[i].y;
+		// (Tyrian3D: the trailing sidekicks, which fly after the ship (mainint.c companion_chase), start by it)
+		for (uint k = 0; k < COUNTOF(player->sidekick); ++k)
+		{
+			player[i].sidekick[k].x = player[i].x + (k == 0 ? -18 : 18);
+			player[i].sidekick[k].y = player[i].y + 22;
+		}
 	}
 	
 	JE_loadPic(VGAScreen, twoPlayerMode ? 6 : 3, false);

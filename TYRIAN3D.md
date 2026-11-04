@@ -76,7 +76,9 @@ sprites), shadows, ambient occlusion (soft shading where things meet and in the 
 Steep, Overhead), the mouse, Sidekicks (how the sidekicks that charge up and never run out, the Zica
 SuperCharger's kind, fire: Charged, the default, by themselves while the main fire is held, each time
 they are fully charged; Rapid, as fast as they can, uncharged; Hold, only on their own key, as in the
-original; `sidekick_fire` in `[tyrian3d]`; network games and demos play as the original), Specials (Auto, the default: while
+original; `sidekick_fire` in `[tyrian3d]`; network games and demos play as the original; the trailing ones, the
+companion ships, the Mint-O-Ship and the Tropical Cherry Companion, fly after the ship to their places behind it either
+side rather than along its last positions, which zigzagged after the mouse: `mainint.c` `companion_chase`), Specials (Auto, the default: while
 fire is held the special weapon, the Flare's kind, fires again whenever it is ready; Click: a press each, as the original;
 `special_auto`), and the HUD: Modern (the playfield fills the window; in a 16:9 area
 round it, so on ultrawide it stays near the action: shield, armor and power at the bottom right, the

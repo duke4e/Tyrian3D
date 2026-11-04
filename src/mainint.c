@@ -4682,6 +4682,30 @@ static void twin_stick_aim(void)
 // clockwise, the level scrolling to the right), right is up the level and down is right on it;
 // upside down in the 3D view (view_turned), right is left on it.
 // What moves the ship otherwise (the autopilot, constant play) goes in the level's terms.
+// Tyrian3D: the trailing sidekicks (the companion ships, the Mint-O-Ship, the Tropical Cherry Companion) fly after the
+// ship to their places behind it, either side (COMPANION_SIDE, COMPANION_BEHIND), easing in and at most COMPANION_SPEED
+// a tick, rather than along the ship's last positions (the user, 2026-11-04: "ovako izgleda kao da su više na random
+// nego da idu ka igraèu": the trail zigzagged after the mouse's moves); network games and demos keep the original's
+// trail.
+#define COMPANION_SIDE 18
+#define COMPANION_BEHIND 22
+#define COMPANION_SPEED 6
+
+static bool companion_chases(void)
+{
+	return !isNetworkGame && !play_demo && !record_demo;
+}
+
+static void companion_chase(int *x, int *y, int to_x, int to_y)
+{
+	const int dx = to_x - *x, dy = to_y - *y;
+	// (a third of the way each tick, at least a pixel, at most COMPANION_SPEED)
+	const int mx = dx == 0 ? 0 : SDL_clamp(dx / 3 != 0 ? dx / 3 : (dx > 0 ? 1 : -1), -COMPANION_SPEED, COMPANION_SPEED),
+	          my = dy == 0 ? 0 : SDL_clamp(dy / 3 != 0 ? dy / 3 : (dy > 0 ? 1 : -1), -COMPANION_SPEED, COMPANION_SPEED);
+	*x += mx;
+	*y += my;
+}
+
 static void controls_move(Player *this_player, int dx, int dy)
 {
 	if (l3d_sideways && l3d_enabled)
@@ -5893,8 +5917,14 @@ redo:
 				{
 				case 1:  // trailing
 				case 3:
+					if (companion_chases())
+						companion_chase(&this_player->sidekick[LEFT_SIDEKICK].x, &this_player->sidekick[LEFT_SIDEKICK].y,
+						                this_player->x - COMPANION_SIDE, this_player->y + COMPANION_BEHIND);
+					else
+					{
 					this_player->sidekick[LEFT_SIDEKICK].x = this_player->old_x[COUNTOF(player->old_x) / 2 - 1];
 					this_player->sidekick[LEFT_SIDEKICK].y = this_player->old_y[COUNTOF(player->old_x) / 2 - 1];
+					}
 					break;
 				case 2:  // front-mounted
 					// (Tyrian3D: as high as the ship goes, the playfield above the screen too: seen from the side the
@@ -5916,8 +5946,14 @@ redo:
 					break;
 				case 1:  // trailing
 				case 3:
+					if (companion_chases())
+						companion_chase(&this_player->sidekick[RIGHT_SIDEKICK].x, &this_player->sidekick[RIGHT_SIDEKICK].y,
+						                this_player->x + COMPANION_SIDE, this_player->y + COMPANION_BEHIND);
+					else
+					{
 					this_player->sidekick[RIGHT_SIDEKICK].x = this_player->old_x[0];
 					this_player->sidekick[RIGHT_SIDEKICK].y = this_player->old_y[0];
+					}
 					break;
 				case 2:  // front-mounted
 					if (!optionAttachmentLinked)
