@@ -439,6 +439,41 @@ bool gbc_takes_along(int link, unsigned int dying, unsigned int other)
 	return !gbc_piece_link(link) && gbc_object[dying] != 0 && gbc_object[other] == gbc_object[dying];
 }
 
+// Tyrian3D: episode 7's pictures of several pieces go whole (the user, 2026-11-04: "epizoda 7 je i dalje puna protivnika
+// koji imaju tile based destrukciju iako su 3d modeli"): when a piece is shot down (or turns to its wreck), so do all the
+// pieces of its picture, its link or not, its damage level or not: those of its GBC enemy (gbc_object), and those made
+// with it (its event's time and link) that stand next to it and show another sprite (JUNGLE's walls of three, DELICORE's
+// machines), and theirs in turn. Not a boss's pieces (their body goes whole: gbc_pool), nor items. gbc_whole: marked by
+// gbc_mark_picture for the one hit.
+static bool gbc_whole[100];
+
+static bool gbc_same_picture(unsigned int a, unsigned int b)
+{
+	if (enemyAvail[b] != 0 || gbc_piece_link(enemy[b].linknum))
+		return false;
+	if (gbc_object[a] != 0 && gbc_object[b] == gbc_object[a])
+		return true;
+	return enemy_group[a] != 0 && enemy_group[b] == enemy_group[a] && enemy_group_link[b] == enemy_group_link[a] &&
+	       enemy[b].egr[0] != enemy[a].egr[0] && abs(enemy[b].ex - enemy[a].ex) <= 30 && abs(enemy[b].ey - enemy[a].ey) <= 30;
+}
+
+static void gbc_mark_picture(unsigned int hit)
+{
+	memset(gbc_whole, 0, sizeof(gbc_whole));
+	if (episodeNum != EPISODE_GBC || gbc_piece_link(enemy[hit].linknum))
+		return;
+	unsigned int queue[100], count = 0;
+	gbc_whole[hit] = true;
+	queue[count++] = hit;
+	for (unsigned int q = 0; q < count; ++q)
+		for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+			if (!gbc_whole[j] && gbc_same_picture(queue[q], j))
+			{
+				gbc_whole[j] = true;
+				queue[count++] = j;
+			}
+}
+
 // Tyrian3D: a GBC boss's pieces (gbc_piece_link) are one body, as a PC boss is (the user, 2026-10-29: each piece had
 // a whole PC boss's hit points, and every one had to go): the GBC hit points of those that can be shot go into one pool
 // as they are made, the pool their sum over the root of their number (TYRIAN's nine of 50-100, 780: 260), every hit on
@@ -3137,6 +3172,7 @@ level_loop:
 							if (!pooled && (armorleft - damage <= enemy[b].edlevel) &&  // (a body's pieces go whole)
 							    ((!enemy[b].edamaged) ^ (enemy[b].edani < 0)))
 							{
+								gbc_mark_picture(b);  // (Tyrian3D: episode 7's pictures go whole)
 
 								for (temp3 = 0; temp3 < 100; temp3++)
 								{
@@ -3144,7 +3180,7 @@ level_loop:
 									{
 										int linknum = enemy[temp3].linknum;
 										if (
-										     (temp3 == b) ||
+										     (temp3 == b) || gbc_whole[temp3] ||
 										     (
 										       (temp != 255) && gbc_takes_along(temp, b, temp3) &&
 										       (
@@ -3210,12 +3246,14 @@ level_loop:
 							if ((temp == 254) && (superEnemy254Jump > 0))
 								JE_eventJump(superEnemy254Jump);
 
+							gbc_mark_picture(b);  // (Tyrian3D: episode 7's pictures go whole)
+
 							for (temp2 = 0; temp2 < 100; temp2++)
 							{
 								if (enemyAvail[temp2] != 1)
 								{
 									temp3 = enemy[temp2].linknum;
-									if ((temp2 == b) || (temp == 254) || gbc_pool_takes(b, temp2) ||
+									if ((temp2 == b) || (temp == 254) || gbc_pool_takes(b, temp2) || gbc_whole[temp2] ||
 									    ((temp != 255) && gbc_takes_along(temp, b, temp2) && ((temp == temp3) || (temp - 100 == temp3) ||
 									                       ((temp3 > 40) && (temp3 / 20 == temp / 20) && (temp3 <= temp)))))
 									{

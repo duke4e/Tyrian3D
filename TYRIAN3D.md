@@ -558,7 +558,10 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   PC kills a link's enemies together, so shooting one took its group's others with it (they seemed to
   vanish by themselves). Only the pieces of one GBC enemy go together: a composite's parts (the events
   after an event 201, Tyrian3D's, which names how many: `script.py` `OBJECT`) and an event 12's four
-  (`gbc_object`, tagged as an event makes them).
+  (`gbc_object`, tagged as an event makes them), and whole: when one of them is shot down or turns to its wreck, so do
+  all of its picture, their link and damage level or not, with the pieces made with it that stand next to it and show
+  another sprite (JUNGLE's walls of three, DELICORE's machines, made by events of their own), and theirs in turn
+  (`gbc_mark_picture`; the 3D models lost a piece at a time, as tiles).
 * Episode 7's enemies are as tough as the GBC's and fire as often (`tyrian2.c` `gbc_fight`, event 203,
   Tyrian3D's, before the event that makes one: `script.py` `FIGHT`, `boss.py` for a boss's pieces): the PC
   enemy drawn for a GBC one is often far tougher (a big ship for a small GBC enemy, a wall that can't be shot
