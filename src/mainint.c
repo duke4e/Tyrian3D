@@ -840,9 +840,31 @@ ulong JE_getCost(JE_byte itemType, JE_word itemNum)
 	case 8:
 		cost = options[itemNum].cost;
 		break;
+	case 9:  // Tyrian3D: a special (episode 6's shops)
+		cost = special_shop_cost(itemNum);
+		break;
 	}
 
 	return cost;
+}
+
+// Tyrian3D: what a special costs in the store (the specials have no cost of their own: they came from codes and
+// power-ups), by what it does, the weaker first: the Repulsor's push and the Attractor's pull, the beams and the
+// Flare's fire, the fields and storms, the zones, the Nova and the Dragon Lightning.
+long special_shop_cost(int id)
+{
+	switch (id)
+	{
+	case 1: case 4: return 3000;            // Repulsor, Attractor
+	case 5: case 17: return 5000;           // Ice Beam, Pulse Blast
+	case 6: case 2: case 44: return 8000;   // Flare, Pearl Wind
+	case 7: case 8: case 45: return 10000;  // Blade Field, SandStorm, 8-Way Microbomb
+	case 13: case 14: case 47: return 12000;  // Astral Zone, Xega Ball, Super Pretzel
+	case 40: case 41: case 10: return 15000;  // Lightning Zone, SDF Main Gun, Dual Vulcan
+	case 49: return 20000;                  // Nova
+	case 48: case 15: case 18: return 25000;  // Dragon Lightning, the MegaLasers
+	default: return id > 0 ? 10000 : 0;
+	}
 }
 
 bool JE_loadScreen(void)
@@ -1241,6 +1263,9 @@ JE_longint JE_getValue(JE_byte itemType, JE_word itemNum)
 	case 7:
 	case 8:
 		value = options[itemNum].cost;
+		break;
+	case 9:  // Tyrian3D: a special (the store's resale)
+		value = special_shop_cost(itemNum);
 		break;
 	}
 

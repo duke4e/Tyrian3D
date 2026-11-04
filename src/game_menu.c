@@ -114,7 +114,8 @@ static struct cube_struct cube[4];
 
 static const JE_MenuChoiceType menuChoicesDefault = { 7, 9, 9, 0, 0, 11, (SAVE_FILES_NUM / 2) + 2, 0, 0, 6, 4, 6, 7, 5, 6 };
 static const JE_byte menuEsc[MENU_MAX] = { 0, 1, 1, 1, 2, 3, 3, 1, 8, 0, 0, 11, 3, 0, 2 };
-static const JE_byte itemAvailMap[7] = { 1, 2, 3, 9, 4, 6, 7 };
+// (The parts' lists: Tyrian3D's 8th part, the special, the 10th list where a shop has it: shop_has_specials.)
+static const JE_byte itemAvailMap[8] = { 1, 2, 3, 9, 4, 6, 7, 10 };
 static const JE_word planetX[21] = { 200, 150, 240, 300, 270, 280, 320, 260, 220, 150, 160, 210, 80, 240, 220, 180, 310, 330, 150, 240, 200 };
 static const JE_word planetY[21] = {  40,  90,  90,  80, 170,  30,  50, 130, 120, 150, 220, 200, 80,  50, 160,  10,  55,  55,  90,  90,  40 };
 static const uint cube_line_chars = sizeof(*cube->text) - 1;
@@ -132,9 +133,23 @@ static Uint8 *playeritem_map(PlayerItems *items, uint i)
 		&items->generator,
 		&items->sidekick[LEFT_SIDEKICK],
 		&items->sidekick[RIGHT_SIDEKICK],
+		&items->special,
 	};
 	assert(i < COUNTOF(map));
 	return map[i];
+}
+
+// Tyrian3D: whether the store sells specials (a shop's 10th list, " Spec": episode 6's, the user, 2026-11-04: "u 6.
+// epizodi bi zapravo u shop i mogli dodati speciale tipa flare"): then the ship's parts have an 8th, the special
+// (curSel[MENU_UPGRADES] 9, "Done" after it).
+static bool shop_has_specials(void)
+{
+	return itemAvailMax[10 - 1] > 0;
+}
+
+static int shop_part_count(void)
+{
+	return shop_has_specials() ? 8 : 7;
 }
 
 JE_longint JE_cashLeft(void)
@@ -232,6 +247,9 @@ static void shop_item_name(int part, int item, char *out, size_t size)
 	case 6:
 		SDL_strlcpy(out, powerSys[item].name, size);
 		break;
+	case 9:
+		SDL_strlcpy(out, special[item].name, size);
+		break;
 	default:
 		SDL_strlcpy(out, options[item].name, size);
 		break;
@@ -249,6 +267,7 @@ static long shop_item_cost(int part, int item)
 	case 4: return weaponPort[item].cost;
 	case 5: return shields[item].cost;
 	case 6: return powerSys[item].cost;
+	case 9: return special_shop_cost(item);
 	default: return options[item].cost;
 	}
 }
@@ -312,6 +331,16 @@ static void shop_item_icon(UIItem *it, int part, int item)
 		it->icon_large = true;
 		return;
 	}
+	if (part == 9)  // (a special: its power-up, as the HUD shows it)
+	{
+		if (special[item].itemgraphic > 0)
+		{
+			it->icon_sheet = &spriteSheet10;
+			it->icon_sprite = special[item].itemgraphic;
+			it->icon_large = true;
+		}
+		return;
+	}
 	const int graphic = part == 3 || part == 4 ? weaponPort[item].itemgraphic : part == 5 ? shields[item].itemgraphic
 	                  : part == 6 ? powerSys[item].itemgraphic : options[item].itemgraphic;
 	if (graphic > 0)
@@ -361,6 +390,8 @@ static void shop_part_items(UIMenu *ui, int part, bool choosing)
 		case 6:
 			stat_count = 1, labels[0] = "OUTPUT";
 			stats[i][0] = powerSys[item].power;
+			break;
+		case 9:  // (a special's power is in what it does, not a number)
 			break;
 		default:
 			stat_count = 1, labels[0] = "FIREPOWER";
@@ -412,7 +443,7 @@ static void shop_tabs(UIShop *s, int selected, bool live)
 	s->tab_count = 0;
 	// (The parts the parts' list has, Done aside: of the seven the ship's items know. A part added later, as
 	// episode 6's specials, needs its items here and in playeritem_map, then its tab comes with them.)
-	const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 8);
+	const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 1 + shop_part_count());
 	for (int part = 2; part <= parts_end && s->tab_count < UI_SHOP_TABS; ++part)
 	{
 		char word[24];
@@ -560,12 +591,13 @@ static void shop_publish(void)
 	{
 		s->page = UI_SHOP_UPGRADE;
 		const int part = curSel[MENU_UPGRADES];
-		shop_tabs(s, part <= 8 ? part - 2 : -1, true);
-		SDL_strlcpy(s->done, menuInt[2][8], sizeof(s->done));
-		s->hit_done = hits[9];
+		const int done = menuChoices[MENU_UPGRADES];  // (after the parts)
+		shop_tabs(s, part < done ? part - 2 : -1, true);
+		SDL_strlcpy(s->done, menuInt[2][done - 1], sizeof(s->done));
+		s->hit_done = hits[done];
 		// The parts as rows, as the original lists them (Up and Down go through them): each its name and what
 		// the ship has there, where the original takes the mouse on it.
-		const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 8);
+		const int parts_end = SDL_min((int)menuChoices[MENU_UPGRADES] - 1, 1 + shop_part_count());
 		for (int p = 2; p <= parts_end; ++p)
 		{
 			const int item = *playeritem_map(&player[0].items, p - 2);
@@ -588,7 +620,7 @@ static void shop_publish(void)
 		shop_tabs(s, part - 2, false);
 		shop_part_items(ui, part, true);
 		ui_menu_add(ui, UI_ITEM_ACTION, miscText[13], 171, 38 + (menuChoices[MENU_UPGRADE_SUB] - 2) * 26, 137, 26);
-		s->scene = part == 2 || part == 5 ? UI_SCENE_SHIP : UI_SCENE_SIM;
+		s->scene = part == 2 || part == 5 || part == 9 ? UI_SCENE_SHIP : UI_SCENE_SIM;  // (a special: the ship, not the simulator)
 		s->credits = shop_cash_before >= 0 ? shop_cash_before : (long)player[0].cash;
 		s->credits_after = JE_cashLeft();
 		downgradeCost = (JE_word)down;
@@ -1004,6 +1036,21 @@ void JE_itemScreen(void)
 	VGAScreen = VGAScreenSeg;
 
 	memcpy(menuChoices, menuChoicesDefault, sizeof(menuChoices));
+	// Tyrian3D: the special as an 8th part where the shop sells them, "Done" after it (menuInt's labels: the 8th
+	// "Special", the original's "Done" kept).
+	{
+		static char done_label[sizeof(menuInt[2][8])] = "";
+		if (done_label[0] == '\0')
+			SDL_strlcpy(done_label, menuInt[2][8], sizeof(done_label));
+		if (shop_has_specials())
+		{
+			menuChoices[MENU_UPGRADES] += 1;
+			SDL_strlcpy(menuInt[2][8], "Special", sizeof(menuInt[2][8]));
+			SDL_strlcpy(menuInt[2][9], done_label, sizeof(menuInt[2][9]));
+		}
+		else
+			SDL_strlcpy(menuInt[2][8], done_label, sizeof(menuInt[2][8]));
+	}
 
 	play_song(songBuy);
 
@@ -1030,7 +1077,7 @@ void JE_itemScreen(void)
 	int temp_weapon_power[7]; // assumes there'll never be more than 6 weapons to choose from, 7th is "Done"
 
 	/* JE: (* Check for where Pitems and Select match up - if no match then add to the itemavail list *) */
-	for (int i = 0; i < 7; i++)
+	for (int i = 0; i < shop_part_count(); i++)
 	{
 		int item = *playeritem_map(&player[0].last_items, i);
 
@@ -1056,7 +1103,7 @@ void JE_itemScreen(void)
 	backFromHelp = false;
 
 	/* JE: Sort items in merchant inventory */
-	for (int x = 0; x < 9; x++)
+	for (int x = 0; x < 10; x++)
 	{
 		if (itemAvailMax[x] > 1)
 		{
@@ -1399,6 +1446,9 @@ void JE_itemScreen(void)
 					case 6: /* sidekicks */
 					case 7:
 						strcpy(tempStr, options[temp].name);
+						break;
+					case 8: /* Tyrian3D: specials */
+						strcpy(tempStr, special[temp].name);
 						break;
 				}
 				if (tempW == curSel[curMenu]-1)
@@ -2711,6 +2761,9 @@ int shop_item_model(int part, int item)
 		if (item <= OPTION_NUM)
 			model = m3d_sidekick_appearance((unsigned int)item).model;
 		break;
+	case 9:
+		model = special_item_model(item);
+		break;
 	default:
 		break;
 	}
@@ -3000,6 +3053,10 @@ void JE_drawItem(JE_byte itemType, JE_word itemNum, JE_word x, JE_word y)
 			case 4:
 				tempW = shields[itemNum].itemgraphic;
 				break;
+			case 8:  // (Tyrian3D: a special: its power-up, from its own sheet)
+				if (special[itemNum].itemgraphic > 0)
+					blit_sprite2x2(VGAScreen, x, y, spriteSheet10, special[itemNum].itemgraphic);
+				return;
 		}
 
 		if (itemType == 1)
@@ -3801,6 +3858,9 @@ void JE_genItemMenu(JE_byte itemNum)
 		case 8:
 			strcpy(tempStr, options[temp].name);
 			break;
+		case 9:  // (Tyrian3D: a special)
+			strcpy(tempStr, special[temp].name);
+			break;
 		}
 		if (temp == temp2)
 		{
@@ -3896,7 +3956,7 @@ void JE_menuFunction(JE_byte select)
 		break;
 
 	case MENU_UPGRADES:
-		if (select == 9) //done
+		if (select == menuChoices[MENU_UPGRADES]) //done (Tyrian3D: 9, or 10 after the special)
 		{
 			curMenu = MENU_FULL_GAME;
 		}

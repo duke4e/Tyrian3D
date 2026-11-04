@@ -37,7 +37,7 @@ boss_bar_t;
 extern boss_bar_t boss_bar[2];
 
 extern char tempStr[31];
-extern JE_byte itemAvail[9][10], itemAvailMax[9];
+extern JE_byte itemAvail[10][10], itemAvailMax[10];  // (the 10th list, Tyrian3D: the specials, ITEM_LIST_SPECIAL)
 
 void JE_createNewEventEnemy(JE_byte enemytypeofs, JE_word enemyoffset, Sint16 uniqueShapeTableI);
 

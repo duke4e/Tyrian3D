@@ -97,7 +97,10 @@ def script(levels):
             if stage["cubes"]:
                 lines += [f"]+[ {len(stage['cubes']):02d}"]
             lines += [f"]?[ {len(cubes):02d} {listed}".rstrip(),
-                      f"]G[ {origin:02d} 1 {stage['planet']:02d} {section:03d}", "]I["] + stage["shop"] + [""]
+                      f"]G[ {origin:02d} 1 {stage['planet']:02d} {section:03d}", "]I["] + stage["shop"]
+            if story.SPECIALS.get(stage["level"]):
+                lines += [" Spec   " + " ".join(str(k) for k in story.SPECIALS[stage["level"]])]  # (game_menu.c's 10th list)
+            lines += [""]
             origin = stage["planet"]
             previous = []
         lines += [f"*{section} SECTION - Episode 6 {'Stage %d' % number if kind == 'main' else kind.title()}"]

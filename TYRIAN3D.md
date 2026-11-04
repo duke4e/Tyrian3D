@@ -336,7 +336,10 @@ and THE HOARD (`make_hoard`), over open space, the Collector's hoard: TYRIAN X, 
 down), SAVARA (from behind the ship, 205), ASTEROID2 (from the side, 200) one after another as mid-level bosses, a
 rush before two of them, a siege, then BRAINIAC; the sheets change for each fight (event 5: `build.py` checks each
 enemy against the sheets loaded where it is made). ROOST's first courier carries the Nova (special 49: the pickup
-of episode 5's 1296 worth 32149, `courier_events` "special:49", slower than the cube couriers). MIGRATION and GRAVITRON are seen from the side (Tyrian3D event 200): the
+of episode 5's 1296 worth 32149, `courier_events` "special:49", slower than the cube couriers). Its shops sell specials too: a shop's 10th list (` Spec` in its `]I` block,
+`story.SPECIALS`: the Repulsor and the Attractor first, the Flare, the fields and zones, the Nova and the Dragon
+Lightning last) makes the special an 8th part of the ship in the store, "Done" after it (`game_menu.c`
+`shop_has_specials`; the specials have no cost of their own: `mainint.c` `special_shop_cost`). MIGRATION and GRAVITRON are seen from the side (Tyrian3D event 200): the
 game runs as ever, the 3D view is turned a quarter so the level scrolls from left to right (the
 controls turned with it), seen from straight above so the level crosses the window evenly and its
 craft show from above as in the other levels (the menus over the level keep it turned), over open

@@ -70,6 +70,17 @@ LAST_SHOP = [" Ship   7 12 13", " WeapF  5 18 20 27 42 48 50 51", " WeapR  0 21 
 STAGES.append(dict(level="starfall", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
 STAGES.append(dict(level="the_hoard", planet=6, cubes=[], warning=None, shop=LAST_SHOP))
 
+# The specials each shop sells (the shop's 10th list, " Spec": game_menu.c shop_has_specials, mainint.c
+# special_shop_cost; the user, 2026-11-04: "u 6. epizodi bi zapravo u shop i mogli dodati speciale tipa flare"), 0 for
+# none, the weaker first: the Repulsor and the Attractor, then the beams and the Flare, the fields, the zones, the
+# Lightning Zone and at the end the Nova (ROOST's courier gives one early) and the Dragon Lightning.
+SPECIALS = {
+    "dig_site": [0, 1, 4], "reef": [0, 1, 4, 5], "grey_moon": [0, 5, 6], "deli_ruin": [0, 6, 2],
+    "roost": [0, 6, 2, 7], "migration": [0, 2, 7, 8], "deep_ice": [0, 7, 8, 45], "glacier": [0, 8, 45, 13],
+    "collector": [0, 13, 14, 47], "crustgate": [0, 14, 47, 40], "gravitron": [0, 40, 41, 49], "the_core": [0, 40, 49, 48],
+    "starfall": [0, 49, 48], "the_hoard": [0, 49, 48],
+}
+
 # The data cubes: (face sprite, title, header, lines). ~word~ highlights a word, as in the game.
 CUBES = [
     (17, "INCOMING MESSAGE FROM HAZUDRA : 93102 mark", "Collector", [

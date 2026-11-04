@@ -86,8 +86,8 @@ JE_word levelEnemy[40]; /* [1..40] */
 char tempStr[31];
 
 /* Data used for ItemScreen procedure to indicate items available */
-JE_byte itemAvail[9][10]; /* [1..9, 1..10] */
-JE_byte itemAvailMax[9]; /* [1..9] */
+JE_byte itemAvail[10][10]; /* [1..10, 1..10] (Tyrian3D: the 10th the specials) */
+JE_byte itemAvailMax[10]; /* [1..10] */
 
 // Tyrian3D: the last frame was shown in 3D without waiting; the next tick waits first.
 static bool wait_at_tick_start = false;
@@ -4372,6 +4372,23 @@ new_game:
 							while (str_pop_int(buf, &temp))
 								itemAvail[i][j++] = temp;
 							itemAvailMax[i] = j;
+						}
+						// Tyrian3D: a 10th line " Spec   <specials>" (episode 6's shops: the specials sold, game_menu.c),
+						// else the line is the script's next.
+						{
+							const long at = ftell(ep_f);
+							read_encrypted_pascal_string(s, sizeof(s), ep_f);
+							if (strncmp(s, " Spec", 5) == 0)
+							{
+								char buf[256];
+								strncpy(buf, (strlen(s) > 8) ? s + 8 : "", sizeof(buf));
+								int j = 0, temp;
+								while (j < 10 && str_pop_int(buf, &temp))
+									itemAvail[9][j++] = temp;
+								itemAvailMax[9] = j;
+							}
+							else
+								fseek(ep_f, at, SEEK_SET);
 						}
 
 						secrets_shop(episodeNum, mainLevel);  // (Tyrian3D: secrets.h)
