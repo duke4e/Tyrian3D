@@ -19,7 +19,7 @@ Settings3D settings3d = { .view_3d = true, .models = true, .shadows = true, .ssa
                           .mouse_direct = true, .sidekick_fire = S3D_SIDEKICK_CHARGED, .special_auto = true, .hud_modern = true,
                           .playfield_wide = true, .menus_modern = true,
                           .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
-                          .cube_autoplay = true, .pointer_size = 36 };
+                          .cube_autoplay = true, .pointer_size = 36, .debug_keys = true };
 
 // The settings as the player chose them, which are saved: the environment's overrides only
 // apply to settings3d, for the run.
@@ -27,7 +27,7 @@ static Settings3D chosen = { .view_3d = true, .models = true, .shadows = true, .
                              .mouse_direct = true, .sidekick_fire = S3D_SIDEKICK_CHARGED, .special_auto = true, .hud_modern = true,
                              .playfield_wide = true, .menus_modern = true,
                              .screens_fill = true, .ui_scale = 100, .voices = true, .voice_volume = 255,
-                             .cube_autoplay = true, .pointer_size = 36 };
+                             .cube_autoplay = true, .pointer_size = 36, .debug_keys = true };
 static bool overridden_view_3d, overridden_models, overridden_shadows, overridden_ssao, overridden_effects, overridden_shake, overridden_music, overridden_mouse,
             overridden_sidekick_fire, overridden_special_auto, overridden_hud,
             overridden_playfield, overridden_menus, overridden_screens, overridden_ui_scale, overridden_voices;

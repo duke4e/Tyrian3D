@@ -35,7 +35,7 @@ typedef struct
 	bool cube_autoplay;   // the store reads its data cubes aloud one after another as it opens (voiceover.h)
 	int pointer_size;     // the modern pointer's size, window points (settings3d_pointer_*)
 	char jukebox_look[16];  // the jukebox's visuals' look, by name (jukebox3d.h; "" the first)
-	bool debug_keys;        // keys for trying levels out in any game: invincible, slower, faster (debugmode.h)
+	bool debug_keys;        // keys for trying levels out in any game: invincible, slower, faster (debugmode.h); on unless turned off
 } Settings3D;
 
 extern Settings3D settings3d;
