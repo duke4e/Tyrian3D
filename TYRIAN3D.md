@@ -637,8 +637,13 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   machine. SPACE's green rings, the asteroid levels' dome lying flat, were squashed by the camera's slant: the dome
   tilted to face it (`dome_green_facing`). Still pieces (fewer, or their objects' layout unsure): FLEET's pincer
   hooks, DELICORE's and DELI CORE's towers and cannon wrecks, TUNNEL's tongue, LAVA I's and II's pods and comets, ICE
-  EXIT's stalk caps, AST.BONUS's pump domes, SPACE ATK's and FINALE's anchors; DESERT's boss, SURFACE's rock machine
-  in its six pieces spread as the GBC boss's, each on its piece of the outcrop.
+  EXIT's stalk caps, AST.BONUS's pump domes, SPACE ATK's and FINALE's anchors.
+* DESERT's boss (the user: "glavni izgleda nedovršeno"): three of SURFACE's rock machines, each a GBC group of four
+  pieces drawing the machine's six parts by the nearest piece; the side groups' lower pieces, the claws, drop away
+  from their upper ones during the fight (the GBC's claws reach down with their lightning), so their machines came
+  apart, half an outcrop each, 64 pixels between. In the committed level (`07_L02.json`, events 202: the GBC boss's
+  data to make it again isn't there) the side groups' upper pieces draw the whole machine and their lower pieces
+  SURFACE's spiked hands, reaching in towards the middle one (laid out as SURFACE's events lay them).
 * JUNGLE II's map had seven stand-ins of the red-visored robot (`f1b2fff7a34d63e0.std`, placeholders: robots that
   stood still where the ground was logged), so each left a corpse when shot (the user: "ostavljaju leš"); the
   robot's sheet isn't the map's tiles', none is painted there: taken out.
