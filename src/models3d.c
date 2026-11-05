@@ -71,6 +71,18 @@ static struct
 } wreck_models[512], standin_models[64];
 static int wreck_model_count = 0, standin_model_count = 0;
 
+// gbc <sheet> <sprite> <sheet>:<sprite>@<dx>:<dy>... | none: in episode 7, what an enemy showing the sprite draws.
+#define GBC_WHOLE_PARTS 8
+static struct
+{
+	char sheet;
+	unsigned int sprite;
+	int part_count;
+	bool alone;
+	M3DGbcPart parts[GBC_WHOLE_PARTS];
+} gbc_wholes[256];
+static int gbc_whole_count = 0;
+
 // shot <shots|shots2|options> <sprite> <appearance> [options]: the player's and enemies' shots.
 static struct
 {
@@ -472,6 +484,37 @@ static void parse_line(char *line, const char *dir, const char *file, int line_n
 		return;
 	}
 
+	if (strcmp(tokens[0], "gbc") == 0 && count >= 4)
+	{
+		if (gbc_whole_count == (int)COUNTOF(gbc_wholes))
+		{
+			WARN("too many gbc lines");
+			return;
+		}
+		gbc_wholes[gbc_whole_count].sheet = parse_sheet(tokens[1]);
+		gbc_wholes[gbc_whole_count].sprite = (unsigned int)strtoul(tokens[2], NULL, 10);
+		int n = 0, first = 3;
+		gbc_wholes[gbc_whole_count].alone = strcmp(tokens[3], "alone") == 0;
+		if (gbc_wholes[gbc_whole_count].alone)
+			++first;
+		for (int i = first; i < count && strcmp(tokens[i], "none") != 0; ++i)
+		{
+			char sheet[64];
+			unsigned int sprite;
+			int dx, dy, model;
+			if (n < GBC_WHOLE_PARTS && sscanf(tokens[i], "%15[^:@]:%u@%d:%d", sheet, &sprite, &dx, &dy) == 4)
+				gbc_wholes[gbc_whole_count].parts[n++] = (M3DGbcPart){ parse_sheet(sheet), (Uint16)sprite, (Sint16)dx, (Sint16)dy, -1 };
+			else if (n < GBC_WHOLE_PARTS && sscanf(tokens[i], "%63[^:@]@%d:%d", sheet, &dx, &dy) == 3 &&
+			         parse_kind(sheet, &model) && model >= 0)  // (a model by name)
+				gbc_wholes[gbc_whole_count].parts[n++] = (M3DGbcPart){ 0, 0, (Sint16)dx, (Sint16)dy, model };
+			else
+				WARN("bad gbc part '%s' (<sheet>:<sprite>@<dx>:<dy> or <model>@<dx>:<dy>)", tokens[i]);
+		}
+		gbc_wholes[gbc_whole_count].part_count = n;
+		++gbc_whole_count;
+		return;
+	}
+
 	if (strcmp(tokens[0], "wreck") == 0 && count >= 4)
 	{
 		int model;
@@ -537,6 +580,7 @@ static void load(void)
 	frame_model_count = 0;
 	wreck_model_count = 0;
 	standin_model_count = 0;
+	gbc_whole_count = 0;
 	shot_rule_count = 0;
 	ship_rule_count = 0;
 	sidekick_rule_count = 0;
@@ -696,6 +740,19 @@ int m3d_standin_model(char sheet, unsigned int sprite)
 	for (int i = 0; i < standin_model_count; ++i)
 		if (standin_models[i].sheet == sheet && standin_models[i].sprite == sprite)
 			return standin_models[i].model;
+	return -1;
+}
+
+int m3d_gbc_whole(char sheet, unsigned int sprite, const M3DGbcPart **parts, bool *alone)
+{
+	sheet = (char)SDL_tolower((unsigned char)sheet);
+	for (int i = 0; i < gbc_whole_count; ++i)
+		if (gbc_wholes[i].sheet == sheet && gbc_wholes[i].sprite == sprite)
+		{
+			*parts = gbc_wholes[i].parts;
+			*alone = gbc_wholes[i].alone;
+			return gbc_wholes[i].part_count;
+		}
 	return -1;
 }
 

@@ -108,6 +108,18 @@ int m3d_wreck_model(char sheet, unsigned int sprite);
 // The model that stands in for a look where the map paints it as it is (models.cfg "standin" lines: the
 // painting's colours where they are not the sprite's), or -1 (its own model).
 int m3d_standin_model(char sheet, unsigned int sprite);
+// Tyrian3D: in episode 7, what an enemy showing a sprite draws instead (models.cfg "gbc" lines: the whole PC object
+// a GBC enemy given a piece of it stands for): the parts (their sprites' models, dx and dy game pixels from its
+// centre, down the screen), their count (0: nothing, a piece another's line draws), or -1 (no line: itself); alone:
+// only where it came without the other pieces of its picture.
+typedef struct
+{
+	char sheet;
+	Uint16 sprite;
+	Sint16 dx, dy;
+	int model;  // (a model by name instead of a sprite's: -1 none)
+} M3DGbcPart;
+int m3d_gbc_whole(char sheet, unsigned int sprite, const M3DGbcPart **parts, bool *alone);
 // A shot's model (models.cfg "shot" lines), for sprite `sprite` of the shots sheet (shots2: the
 // second one); false if it has none (it shows as a volume).
 bool m3d_shot_appearance(bool shots2, unsigned int sprite, M3DAppearance *appearance);

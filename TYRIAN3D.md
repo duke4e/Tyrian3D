@@ -605,6 +605,27 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   tick's start with its speeds (each piece had its own from `moves.py` and steered for itself: JUNGLE's guns of two came
   apart), and in the 3D view the pieces fade in together (one taking its forecast's place showed whole while the other,
   made in sight, faded in: half a gun, the user: "protivnici u 2 dijela").
+* Episode 7's enemies whole in the 3D view (models.cfg `gbc` lines, `models3d.c` `m3d_gbc_whole`, `tyrian2.c`
+  `draw_gbc_whole`; the user, 2026-11-05: "svi protivnici trebali biti u 1 komadu"): where a GBC enemy's PC look is a
+  piece of an object it draws the whole object (its parts' sprites or a model by name, placed from its centre), or
+  nothing where another piece's line draws it; "alone" lines only where no enemy near it shows another of the parts
+  (the levels that make the whole object), and their forecasts wait till the enemy is made, the others' forecasts
+  look as the enemy will. Hits stay the sprite's. Found by a sweep of all 24 levels (`TYR3D_LOG_OBJECTS`, the models
+  built to be cut, `origin`, drawn with none of their object's others near): ASTEROID's claw orb was its bottom left
+  quarter and its small rocks pieces of the huge crag (now the sky's knobbly rock), SPACE's grey ships the fire gate's
+  left housing and flap, each facing the same way (now the left housing and its mirror, a ball), SAVARA II's long
+  ships their middle, DESERT's lamp blocks and capsules a half and a sixth, JUNGLE's pincers a half, JUNGLE II's grey
+  walkers the green spike's knob lying in the grass (now the level's red-visored robot) and its rocks the waterfall's
+  corner beside an asteroid's quarter (now the asteroid), ASTEROID2's shot red blocks the originals' half-block
+  wreck in stripes (now the broken block), SPACE ATK's cannons the barrel, DELIANI's red machines a piece of the core
+  machine. SPACE's green rings, the asteroid levels' dome lying flat, were squashed by the camera's slant: the dome
+  tilted to face it (`dome_green_facing`). Still pieces (fewer, or their objects' layout unsure): FLEET's pincer
+  hooks, DELICORE's and DELI CORE's towers and cannon wrecks, TUNNEL's tongue, LAVA I's and II's pods and comets, ICE
+  EXIT's stalk caps, AST.BONUS's pump domes, SPACE ATK's and FINALE's anchors; DESERT's boss, SURFACE's rock machine
+  in its six pieces spread as the GBC boss's, each on its piece of the outcrop.
+* JUNGLE II's map had seven stand-ins of the red-visored robot (`f1b2fff7a34d63e0.std`, placeholders: robots that
+  stood still where the ground was logged), so each left a corpse when shot (the user: "ostavljaju leš"); the
+  robot's sheet isn't the map's tiles', none is painted there: taken out.
 * Episode 7's enemies are as tough as the GBC's and fire as often (`tyrian2.c` `gbc_fight`, event 203,
   Tyrian3D's, before the event that makes one: `script.py` `FIGHT`, `boss.py` for a boss's pieces): the PC
   enemy drawn for a GBC one is often far tougher (a big ship for a small GBC enemy, a wall that can't be shot

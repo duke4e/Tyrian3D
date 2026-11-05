@@ -249,6 +249,7 @@ static int gbc_object_head = -1, gbc_object_event = -1;
 #define GBC_LOOK_PARTS 8
 #define GBC_LOOK_KEY(slot, part) (L3D_KEY_ENEMY + 0x100u * ((Uint32)(part) + 1) + (Uint32)(slot))
 #define GBC_COMING_LOOK_KEY(event) (COMING_KEY + (Uint32)(event) * 16)  // (as draw_coming_enemies' keys: an event 202's)
+#define GBC_WHOLE_COMING_KEY(key, part) ((key) ^ ((Uint32)(part) + 1) << 27)  // (a coming enemy's part of its "gbc" line)
 typedef struct
 {
 	Uint16 sprite;
@@ -256,6 +257,7 @@ typedef struct
 	bool large;
 	Sint16 dx, dy;
 	Uint32 forecast;  // (the coming part it takes the place of, till first drawn)
+	int model;        // (a model of its own instead of the sprite's, models.cfg's "gbc" lines; 0: the sprite's)
 } GbcLookPart;
 static GbcLookPart gbc_look[100][GBC_LOOK_PARTS];
 static Uint8 gbc_look_parts[100];
@@ -816,7 +818,9 @@ static float gbc_lean_now(unsigned int i)
 static bool draw_gbc_look_part(const GbcLookPart *p, float x, float y, Uint32 key, Uint32 forecast, Uint8 filter, int vx,
                                int vy, Uint32 group, Uint8 link)
 {
-	const M3DAppearance look = m3d_enemy_appearance(p->sheet, p->sprite, p->large, l3d_current_layer());
+	M3DAppearance look = m3d_enemy_appearance(p->sheet, p->sprite, p->large, l3d_current_layer());
+	if (p->model > 0)
+		look = (M3DAppearance){ .model = p->model - 1, .yaw_mode = M3D_YAW_FIXED };
 	if (look.model < 0)
 		return false;
 	float yaw = look.yaw;
@@ -862,6 +866,39 @@ static int enemy_model_top(unsigned int i)
 	return vy > 0 ? -112 - l3d_field_ahead : -26 - SDL_max(screen_overscan_rows, l3d_field_ahead);
 }
 
+// Tyrian3D: an episode-7 enemy whose look is a piece of a PC object draws the whole object instead, or nothing where
+// another piece's line draws it (models.cfg "gbc" lines, m3d_gbc_whole; the user, 2026-11-05: "svi protivnici trebali
+// biti u 1 komadu"): ASTEROID's claw orb was its bottom left quarter, SPACE's fish heads their left halves; false: as
+// itself.
+static bool draw_gbc_whole(unsigned int i)
+{
+	const M3DGbcPart *parts;
+	bool alone;
+	const int count = m3d_gbc_whole(enemy_sheet_letter(enemy[i].sprite2s), enemy[i].egr[0], &parts, &alone);
+	if (count < 0)
+		return false;
+	if (alone)  // (a line for it without the object's other pieces: with one of them near, as itself)
+		for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+			if (j != i && enemyAvail[j] != 1 && abs(enemy[j].ex - enemy[i].ex) <= 60 && abs(enemy[j].ey - enemy[i].ey) <= 60)
+				for (int k = 0; k < count; ++k)
+					if (enemy[j].egr[0] == parts[k].sprite && enemy[j].egr[0] != enemy[i].egr[0] &&
+					    SDL_tolower((unsigned char)enemy_sheet_letter(enemy[j].sprite2s)) == parts[k].sheet)
+						return false;
+	const float x0 = enemy[i].ex + tempMapXOfs + 6, y0 = enemy[i].ey + 7;
+	const int vx = enemy[i].exc, vy = enemy[i].eyc + enemy[i].fixedmovey + tempBackMove;
+	for (int k = 0; k < count; ++k)
+	{
+		if (enemy[i].ey + parts[k].dy <= enemy_model_top(i) || enemy[i].ey + parts[k].dy >= 200 + l3d_field_behind())
+			continue;  // off screen
+		const GbcLookPart p = { .sprite = parts[k].sprite, .sheet = parts[k].sheet, .large = true, .model = parts[k].model + 1 };
+		draw_gbc_look_part(&p, x0 + parts[k].dx, y0 + parts[k].dy, GBC_LOOK_KEY(i, k),
+		                   enemy_forecast[i] != 0 && !alone ? GBC_WHOLE_COMING_KEY(enemy_forecast[i], k) : 0, enemy[i].filter,
+		                   vx, vy, enemy_group[i], enemy_group_link[i]);
+	}
+	enemy_forecast[i] = 0;  // (its parts went on from its forecast's)
+	return true;
+}
+
 // Tyrian3D: an episode-7 boss's piece in the 3D view by its look (gbc_look): its parts of the PC boss's body, or none
 // (true) while another piece of its group draws some; false: as itself.
 static bool draw_gbc_look(unsigned int i)
@@ -895,7 +932,7 @@ static bool draw_enemy_model(unsigned int i)
 {
 	if (!l3d_capturing || enemy[i].sprite2s == NULL)
 		return false;
-	if (episodeNum == EPISODE_GBC && m3d_enabled && draw_gbc_look(i))
+	if (episodeNum == EPISODE_GBC && m3d_enabled && (draw_gbc_look(i) || draw_gbc_whole(i)))
 		return true;
 
 	// Keyed by the first animation frame, so the appearance stays the same while the sprite animates.
@@ -1064,6 +1101,24 @@ static void draw_coming_enemy(Uint32 key, ComingLook what, float ex, float ey, f
 
 	const float x = x_now + map_x_ofs + 6, y = y_now + 7;
 	const char letter = enemy_sheet_letter(sheet);
+	// (episode 7: as it will be drawn, models.cfg's "gbc" lines; those for a piece alone wait till it is made)
+	if (episodeNum == EPISODE_GBC && m3d_enabled)
+	{
+		const M3DGbcPart *parts;
+		bool alone;
+		const int count = m3d_gbc_whole(letter, what.graphic, &parts, &alone);
+		if (count >= 0 && !alone)
+		{
+			for (int k = 0; k < count; ++k)
+			{
+				const GbcLookPart p = { .sprite = parts[k].sprite, .sheet = parts[k].sheet, .large = true,
+				                        .model = parts[k].model + 1 };
+				draw_gbc_look_part(&p, x + parts[k].dx, y + parts[k].dy, GBC_WHOLE_COMING_KEY(key, k), 0, 0,
+				                   (int)lroundf(dx), (int)lroundf(dy), group, link);
+			}
+			return;
+		}
+	}
 	const M3DAppearance look = m3d_enemy_appearance(letter, what.graphic, what.large, l3d_current_layer());
 	bool added;
 	if (look.model >= 0)
