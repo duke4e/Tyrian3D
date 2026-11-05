@@ -4495,7 +4495,7 @@ static void debug_status_quads(float window_w, float window_h)
 	const float width = SDL_max(text_width(TEXT_TINY, status, cap),
 	                            SDL_max(text_width(TEXT_TINY, keys, cap * 0.8f), text_width(TEXT_TINY, loadout, cap * 0.8f)));
 	const float backing[4] = { 0, 0, 0, 0.45f };
-	hud_quad((window_w - width) / 2 - 3 * u, 1.5f * u, width + 6 * u, 18 * u, backing, NULL);
+	hud_quad((window_w - width) / 2 - 3 * u, 1.5f * u, width + 6 * u, (keys[0] != '\0' ? 18 : 6.5f) * u, backing, NULL);  // (the debug keys': one line)
 	const float color[4] = { 1.0f, 0.86f, 0.45f, 1 }, dim[4] = { 0.8f, 0.82f, 0.88f, 0.85f };
 	text_quads(TEXT_TINY, status, (window_w - text_width(TEXT_TINY, status, cap)) / 2, 3 * u, cap, color, 0.3f * u);
 	text_quads(TEXT_TINY, keys, (window_w - text_width(TEXT_TINY, keys, cap * 0.8f)) / 2, 9 * u, cap * 0.8f, dim, 0.3f * u);

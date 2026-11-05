@@ -58,6 +58,11 @@ void set_volume(Uint8 musicVolume, Uint8 sampleVolume);
 
 void multiSamplePlay(const Sint16 *samples, size_t sampleCount, Uint8 chan, Uint8 vol);
 
+// Tyrian3D: the sound held back while the game plays on unseen (a checkpoint's or a rewind's replay, debugmode.c): the
+// samples it plays are dropped (unheld, they came all at once as a burst), the song playing goes on, and a song asked
+// for meanwhile starts as it is let go.
+void audio_hold(bool hold);
+
 // Tyrian3D: the voice channel (voiceover.h), over the music (ducked meanwhile) and the samples.
 // voice_channel_play starts samples (mono, 16-bit, at audioSampleRate, SDL_malloc'd; NULL: none) and
 // fades out the voice playing. Both calls put in done[] the buffers the mixer no longer reads (0-2,

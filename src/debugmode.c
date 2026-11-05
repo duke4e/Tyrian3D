@@ -21,6 +21,7 @@
 #include "palette.h"
 #include "params.h"
 #include "rogue.h"
+#include "settings3d.h"
 #include "tyrian2.h"
 #include "picload.h"
 #include "vga256d.h"
@@ -327,8 +328,18 @@ static void checkpoint_tick_check(bool quiet)
 				continue;
 			checkpoint_tick = tick;
 			JE_drawTextWindow("Checkpoint");
-			printf("checkpoint: %s tick %d clock %d\n", levelName, tick, curLoc);
+			printf("checkpoint: %s tick %d clock %d, the ship at %d %d, armor %u\n", levelName, tick, curLoc, player[0].x, player[0].y,
+			       player[0].armor);
 		}
+}
+
+// Keys pressed since the last look (not held).
+static bool pressed(SDL_Scancode key)
+{
+	static Uint8 was[SDL_SCANCODE_COUNT];
+	const bool down = keysactive[key] != 0, edge = down && !was[key];
+	was[key] = down;
+	return edge;
 }
 
 static void apply_speed(void)
@@ -339,7 +350,73 @@ static void apply_speed(void)
 static void set_replay(bool on)
 {
 	nortsong_skip_waits = on;
-	set_volume(tyrMusicVolume, on ? 0 : fxVolume);
+	// (Muting the samples didn't hold: the level's start sets their volume again, and the replay's sounds came all at
+	// once, the user: "kad se očitava checkpoint, dobijemo neki neugodni zvuk".)
+	audio_hold(on);
+}
+
+/* --- Debug keys ---------------------------------------------------------------------------- */
+
+// Tyrian3D: keys for trying levels out in any game (Setup -> Debug Keys; the user, 2026-11-05: "debug tipke za
+// besmrtnost i ubrzanje i usporavanje gameplaya"): F9 the ship invincible or not, - and = the game slower and faster
+// (the debug flight's speeds). The invincibility goes with the recorded input, so a checkpoint's replay has it where
+// it was, and after it is as F9 last left it. Not in network games nor demos.
+#define INPUT_INVINCIBLE (1 << 4)  // (DebugInput.buttons: past the four buttons)
+static bool invincible = false;           // F9's
+static bool invincible_replayed = false;  // the recording's, while it plays back
+
+bool debug_keys_on(void)
+{
+	return !debug_flight && !isNetworkGame && !play_demo && (settings3d.debug_keys || SDL_getenv("TYR3D_DEBUG_KEYS") != NULL);
+}
+
+bool debug_invincible(void)
+{
+	return debug_flight_replaying() ? invincible_replayed : invincible && debug_keys_on();
+}
+
+float debug_speed(void)
+{
+	return speeds[speed];
+}
+
+const char *debug_keys_tick(void)
+{
+	static char said[32];
+	if (!debug_keys_on())
+	{
+		if (!debug_flight && speed != 2)
+		{
+			speed = 2;
+			apply_speed();
+		}
+		return NULL;
+	}
+	if (debug_flight_replaying())
+		return NULL;
+	const char *say = NULL;
+	if (pressed(SDL_SCANCODE_F9))
+	{
+		invincible = !invincible;
+		say = invincible ? "Invincible" : "Invincible off";
+	}
+	const int was = speed;
+	if (pressed(SDL_SCANCODE_MINUS) && speed > 0)
+		--speed;
+	if (pressed(SDL_SCANCODE_EQUALS) && speed + 1 < (int)SDL_arraysize(speeds))
+		++speed;
+	if (speed != was)
+	{
+		apply_speed();
+		if (speeds[speed] < 1.0f)
+			snprintf(said, sizeof(said), "Speed 1/%dx", (int)(1.0f / speeds[speed] + 0.5f));
+		else
+			snprintf(said, sizeof(said), "Speed %dx", (int)speeds[speed]);
+		say = said;
+	}
+	if (say != NULL)
+		printf("debug keys: %s\n", say);
+	return say;
 }
 
 bool debug_flight_replaying(void)
@@ -355,6 +432,9 @@ void debug_flight_level_start(void)
 		checkpoint_tick = 0;
 	}
 	checkpoint_mark_count = -1;
+	if (!debug_flight && !debug_keys_on())
+		speed = 2;
+	apply_speed();
 	if (!recording())
 		return;
 	if (start.rng == NULL)
@@ -405,7 +485,6 @@ void debug_flight_level_start(void)
 		seeked = true;
 	}
 	tick = -1;
-	apply_speed();
 }
 
 bool debug_flight_field_wide(bool wide)
@@ -437,7 +516,7 @@ bool checkpoint_restart(void)
 	replay_to = checkpoint_tick;
 	pause_after_replay = false;
 	restart = true;
-	printf("checkpoint: %s again from tick %d\n", levelName, checkpoint_tick);
+	printf("checkpoint: %s again from tick %d, at %u ms\n", levelName, checkpoint_tick, (unsigned)SDL_GetTicks());
 	return true;
 }
 
@@ -451,15 +530,6 @@ static void rewind_by(int ticks)
 	restart = true;
 	reallyEndLevel = true;
 	printf("debug: rewind to tick %d\n", replay_to);
-}
-
-// Keys pressed since the last look (not held).
-static bool pressed(SDL_Scancode key)
-{
-	static Uint8 was[SDL_SCANCODE_COUNT];
-	const bool down = keysactive[key] != 0, edge = down && !was[key];
-	was[key] = down;
-	return edge;
 }
 
 static void present_again(void)
@@ -555,6 +625,9 @@ static void loadout_keys(void)
 
 void debug_flight_tick(void)
 {
+	const char *said = debug_keys_tick();
+	if (said != NULL)
+		JE_drawTextWindow(said);
 	if (!recording())
 		return;
 	++tick;
@@ -562,12 +635,16 @@ void debug_flight_tick(void)
 	{
 		if (tick < replay_to)
 		{
+			if (tick < recorded && tick < MAX_TICKS && inputs[0] != NULL)
+				invincible_replayed = (inputs[0][tick].buttons & INPUT_INVINCIBLE) != 0;
 			if (checkpoints)
 				checkpoint_tick_check(true);
 			return;
 		}
 		// There: the recording goes on from here.
 		set_replay(false);
+		printf("debug: played back to tick %d, at %u ms, the ship at %d %d, armor %u\n", tick, (unsigned)SDL_GetTicks(), player[0].x,
+		       player[0].y, player[0].armor);
 		recorded = SDL_min(recorded, replay_to);
 		replay_to = -1;
 		paused = pause_after_replay;
@@ -627,12 +704,24 @@ void debug_flight_input(int player_number, Player *p, JE_integer *accel_x, JE_in
 	                    (Sint16)*accel_y, 0 };
 	for (int i = 0; i < 4; ++i)
 		in->buttons |= button[i] ? 1 << i : 0;
+	if (player_number == 1 && debug_invincible())
+		in->buttons |= INPUT_INVINCIBLE;
 	recorded = SDL_max(recorded, tick + 1);
 }
 
 const char *debug_flight_status(void)
 {
 	static char status[160];
+	if (debug_keys_on() && (invincible || speed != 2))
+	{
+		char speed_text[16] = "";
+		if (speeds[speed] < 1.0f)
+			snprintf(speed_text, sizeof(speed_text), "1/%dx", (int)(1.0f / speeds[speed] + 0.5f));
+		else if (speed != 2)
+			snprintf(speed_text, sizeof(speed_text), "%dx", (int)speeds[speed]);
+		snprintf(status, sizeof(status), "%s%s%s", invincible ? "INVINCIBLE" : "", invincible && speed != 2 ? "   " : "", speed_text);
+		return status;
+	}
 	if (!debug_flight || tick < 0)
 		return "";
 	char name[16];

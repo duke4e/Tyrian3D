@@ -278,6 +278,7 @@ void setupMenu(void)
 		MENU_ITEM_SHAKE,  // Tyrian3D: the 3D view shaking (p3d_shake)
 		MENU_ITEM_SIDEKICK_FIRE,  // Tyrian3D: charge sidekicks firing with the main fire (settings3d.sidekick_fire)
 		MENU_ITEM_SPECIAL_AUTO,   // Tyrian3D: the special weapon firing again while fire is held (settings3d.special_auto)
+		MENU_ITEM_DEBUG_KEYS,     // Tyrian3D: keys for trying levels out (settings3d.debug_keys)
 	} MenuItemId;
 
 	typedef enum
@@ -318,6 +319,7 @@ void setupMenu(void)
 				{ MENU_ITEM_SOUND, "Sound...", "Change the sound settings." },
 				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
 				{ MENU_ITEM_DEBUG, "Debug Flight...", "Fly through any level without losing lives." },
+				{ MENU_ITEM_DEBUG_KEYS, "Debug Keys:", "In any level: F9 invincible, - and = slower and faster.", getTwoItemsCount, getOnOffPickerItem },
 				// { MENU_ITEM_DESTRUCT, "Destruct", "Play a bonus mini-game." },
 				{ MENU_ITEM_DONE, "Done", "Return to the main menu." },
 				{ -1 }
@@ -376,6 +378,7 @@ void setupMenu(void)
 			.items = {
 				{ MENU_ITEM_JUKEBOX, "Jukebox", "Listen to the music of Tyrian." },
 				{ MENU_ITEM_DEBUG, "Debug Flight", "Fly through any level without losing lives." },
+				{ MENU_ITEM_DEBUG_KEYS, "Debug Keys:", "In any level: F9 invincible, - and = slower and faster.", getTwoItemsCount, getOnOffPickerItem },
 				{ MENU_ITEM_DONE, "Done", "Return to the main menu." },
 				{ -1 }
 			},
@@ -516,6 +519,7 @@ void setupMenu(void)
 			case MENU_ITEM_UI_SCALE:
 			case MENU_ITEM_POINTER:
 			case MENU_ITEM_CUBE_AUTOPLAY:
+			case MENU_ITEM_DEBUG_KEYS:
 			case MENU_ITEM_SOUNDFONT:
 			{
 				const size_t choice =
@@ -527,6 +531,7 @@ void setupMenu(void)
 					menuItem->id == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
 					menuItem->id == MENU_ITEM_POINTER ? (size_t)settings3d_pointer_index(settings3d.pointer_size) :
 					menuItem->id == MENU_ITEM_CUBE_AUTOPLAY ? !settings3d.cube_autoplay :
+					menuItem->id == MENU_ITEM_DEBUG_KEYS ? !settings3d.debug_keys :
 					menuItem->id == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 					menuItem->id == MENU_ITEM_HUD ? !settings3d.hud_modern :
 					menuItem->id == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -963,6 +968,7 @@ void setupMenu(void)
 				case MENU_ITEM_UI_SCALE:
 				case MENU_ITEM_POINTER:
 				case MENU_ITEM_CUBE_AUTOPLAY:
+				case MENU_ITEM_DEBUG_KEYS:
 				case MENU_ITEM_SOUNDFONT:
 				{
 					JE_playSampleNum(S_CLICK);
@@ -977,6 +983,7 @@ void setupMenu(void)
 						selectedMenuItemId == MENU_ITEM_UI_SCALE ? (size_t)settings3d_ui_scale_index(settings3d.ui_scale) :
 						selectedMenuItemId == MENU_ITEM_POINTER ? (size_t)settings3d_pointer_index(settings3d.pointer_size) :
 						selectedMenuItemId == MENU_ITEM_CUBE_AUTOPLAY ? !settings3d.cube_autoplay :
+						selectedMenuItemId == MENU_ITEM_DEBUG_KEYS ? !settings3d.debug_keys :
 						selectedMenuItemId == MENU_ITEM_PLAYFIELD ? !settings3d.playfield_wide :
 						selectedMenuItemId == MENU_ITEM_HUD ? !settings3d.hud_modern :
 						selectedMenuItemId == MENU_ITEM_MUSIC_SYNTH ? !settings3d.music_midi :
@@ -1278,6 +1285,10 @@ void setupMenu(void)
 				case MENU_ITEM_CUBE_AUTOPLAY:
 					settings3d.cube_autoplay = pickerSelectedIndex == 0;
 					settings3d_changed(S3D_VOICES);
+					break;
+				case MENU_ITEM_DEBUG_KEYS:
+					settings3d.debug_keys = pickerSelectedIndex == 0;
+					settings3d_changed(S3D_DEBUG_KEYS);
 					break;
 				case MENU_ITEM_SOUNDFONT:
 					if (music_midi_soundfont_count() > 0 && music_midi_use(music_midi_soundfont_name((int)pickerSelectedIndex)))

@@ -148,6 +148,7 @@ void settings3d_load(const ConfigSection *section)
 			SDL_strlcpy(chosen.soundfont, soundfont, sizeof(chosen.soundfont));
 		config_get_bool_option(section, "voices", &chosen.voices);
 		config_get_bool_option(section, "cube_autoplay", &chosen.cube_autoplay);
+		config_get_bool_option(section, "debug_keys", &chosen.debug_keys);
 		const char *pointer;
 		if (config_get_string_option(section, "pointer_size", &pointer))
 			chosen.pointer_size = settings3d_pointer_value(settings3d_pointer_index(SDL_atoi(pointer)));
@@ -299,6 +300,9 @@ void settings3d_changed(Settings3DField field)
 	case S3D_POINTER:
 		chosen.pointer_size = settings3d.pointer_size;
 		break;
+	case S3D_DEBUG_KEYS:
+		chosen.debug_keys = settings3d.debug_keys;
+		break;
 	}
 }
 
@@ -332,6 +336,7 @@ void settings3d_save(ConfigSection *section)
 	snprintf(percent, sizeof(percent), "%d", settings3d.pointer_size);
 	config_set_string_option(section, "pointer_size", percent);
 	config_set_string_option(section, "jukebox_look", settings3d.jukebox_look);
+	config_set_bool_option(section, "debug_keys", settings3d.debug_keys, NO_YES);
 }
 
 void settings3d_apply(void)

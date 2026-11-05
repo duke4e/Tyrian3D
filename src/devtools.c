@@ -277,7 +277,7 @@ void dev_level_tick(void)
 	++ticks;
 	if (die != NULL && ticks == SDL_atoi(die) && player[0].is_alive)
 	{
-		printf("devtools: destroying the ship after %d ticks\n", ticks);
+		printf("devtools: destroying the ship after %d ticks (clock %d, armor %u, shield %u)\n", ticks, (int)curLoc, player[0].armor, player[0].shield);
 		JE_playerDamage(255, &player[0]);
 		JE_playerDamage(255, &player[0]);
 	}
@@ -295,7 +295,7 @@ bool dev_godmode(void)
 {
 	// (TYR3D_GODMODE_UNTIL=<clock>: only until the level's clock reaches that, as for a checkpoint's test)
 	const char *until = SDL_getenv("TYR3D_GODMODE_UNTIL");
-	return debug_flight || SDL_getenv("TYR3D_GODMODE") != NULL || (until != NULL && curLoc < SDL_atoi(until));
+	return debug_flight || debug_invincible() || SDL_getenv("TYR3D_GODMODE") != NULL || (until != NULL && curLoc < SDL_atoi(until));
 }
 
 void dev_balance(const char *what, int value)

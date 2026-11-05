@@ -53,6 +53,16 @@ void debug_flight_input(int player_number, Player *player, JE_integer *accel_x, 
 // Playing back towards a rewind's moment: nothing is shown nor waited for.
 bool debug_flight_replaying(void);
 
+// The debug keys in any game (Setup -> Debug Keys, or TYR3D_DEBUG_KEYS=1): F9 the ship invincible, - and = the game
+// slower and faster. On (not in the debug flight, which has its own, nor network games and demos)?
+bool debug_keys_on(void);
+// The ship invincible by F9 (as recorded, while a checkpoint's replay plays).
+bool debug_invincible(void);
+// The game's speed (1: as it is) the debug keys or the debug flight set.
+float debug_speed(void);
+// Every tick the game goes on (the level's loop, the rail's): the keys; what to say of a change (NULL: none).
+const char *debug_keys_tick(void);
+
 // The line the HUD shows while flying (empty otherwise).
 const char *debug_flight_status(void);
 const char *debug_flight_keys(void);

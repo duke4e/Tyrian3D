@@ -45,6 +45,10 @@ static SDL_AudioStream *audioStream = NULL;
 static Uint8 musicVolume = 255;
 static Uint8 sampleVolume = 255;
 
+// Tyrian3D: audio_hold's: held, and the song asked for meanwhile (-1: none).
+static bool held = false;
+static int held_song = -1;
+
 static const float volumeRange = 30.0f;  // dB
 
 // Fixed point Q20.12; needs to be able to store (10 * INT16_MIN/MAX)
@@ -196,7 +200,10 @@ static void audioStreamCallback(void *userdata, SDL_AudioStream *stream, int add
 			record_checked = true;
 			const char *path = SDL_getenv("TYR3D_RECORD_AUDIO");
 			if (path != NULL)
+			{
 				record = fopen(path, "wb");
+				printf("audio: recording from %u ms\n", (unsigned)SDL_GetTicks());
+			}
 		}
 		if (record != NULL)
 		{
@@ -377,6 +384,26 @@ static void audioCallback(void *userdata, Uint8 *stream, int size)
 
 	// Tyrian3D: the output as heard, for the jukebox's visuals.
 	musicviz_feed(samples, samplesCount);
+}
+
+void audio_hold(bool hold)
+{
+	if (hold == held)
+		return;
+	held = hold;
+	if (audio_disabled)
+		return;
+	// (Nothing of the samples started before goes on: neither those as it began nor its last ones as it ends.)
+	SDL_LockAudioStream(audioStream);
+	for (size_t i = 0; i < CHANNEL_COUNT; ++i)
+		channelSampleCount[i] = 0;
+	SDL_UnlockAudioStream(audioStream);
+	if (!hold && held_song >= 0)
+	{
+		const unsigned int song = (unsigned int)held_song;
+		held_song = -1;
+		play_song(song);
+	}
 }
 
 int voice_channel_play(Sint16 *samples, size_t count, Sint16 *done[2])
@@ -654,6 +681,11 @@ void play_song(unsigned int song_num)  // FKA NortSong.playSong
 {
 	if (audio_disabled)
 		return;
+	if (held)  // (Tyrian3D: once let go)
+	{
+		held_song = (int)song_num;
+		return;
+	}
 
 	const bool recorded = recordedSamples != NULL || recordedMidi;  // (Tyrian3D: one played in place of the song loaded)
 	stop_recorded_song();
@@ -745,7 +777,7 @@ void multiSamplePlay(const Sint16 *samples, size_t sampleCount, Uint8 chan, Uint
 	assert(chan < CHANNEL_COUNT);
 	assert(vol < CHANNEL_VOLUME_LEVELS);
 
-	if (audio_disabled || samples_disabled)
+	if (audio_disabled || samples_disabled || held)
 		return;
 
 	SDL_LockAudioStream(audioStream);

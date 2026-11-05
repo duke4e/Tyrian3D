@@ -192,6 +192,13 @@ A loadout change also changes the level's start, so a rewind keeps it.
 The tick in a snapshot's name finds the moment again: `TYR3D_START=<episode>:<section> TYR3D_DEBUG=1
 TYR3D_DEBUG_SEEK=<tick>` starts a debug flight there.
 
+**Debug keys.** Setup → **Debug Keys: On** (Extras with the modern menus; `[tyrian3d] debug_keys`, or
+`TYR3D_DEBUG_KEYS=1` for a run) gives any game but network games and demos two of the debug flight's tools: F9 makes
+the ship invincible or not, `-` / `=` slow the game down and speed it up (the same six speeds). Each change shows
+as a message ("Invincible", "Speed 2x"), and in the 3D view a line at the top says what is on ("INVINCIBLE 2x")
+until it is all off again. They work in the rail levels too. The invincibility is recorded with the input, so a
+checkpoint's replay has it where it was; after the replay it is as F9 last left it (`debugmode.c` `debug_keys_tick`).
+
 ## New content
 
 **Checkpoints.** In a one-player full game the long levels (their events going on past clock 4500: the middle; past
@@ -200,7 +207,9 @@ first) have checkpoints: "Checkpoint" shows as one is passed, and the ship lost 
 again from its start unseen and unwaited, its recorded input played back (the debug flight's recording: the level
 launched as its script launched it, without the shop and texts, `tyrian2.c` `launch_again`), to there, so the ship
 is where it was with what it had, a moment unhurt, and plays on (`debugmode.c` `checkpoint_restart`). Not in network
-games, demos, timed battles, rogue runs, arcade or two-player play.
+games, demos, timed battles, rogue runs, arcade or two-player play. The replay is silent: its samples are dropped and a
+song it asks for starts once it is over (`loudness.c` `audio_hold`; until 2026-11-05 the level's start turned the
+samples back up, and all the replay's sounds came at once as a loud burst, a debug flight's rewind too).
 
 New items live in the item data's free slots, so the original ones stay as they are: weapons
 819-999, weapon ports 48-60, sidekicks 33-37, specials 49-54. `assets/content/items.cfg` lists them
@@ -900,6 +909,7 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
 | `TYR3D_DUMP_FROM=<frame>` | With `TYR3D_DUMP_DIR`: dump from that frame on |
 | `TYR3D_DEBUG=pick` | The debug flight's level list first, instead of the intro and title screen |
 | `TYR3D_DEBUG=1`, `TYR3D_DEBUG_SEEK=<tick>` | With `TYR3D_START`: a debug flight (see above), starting that many ticks in |
+| `TYR3D_DEBUG_KEYS=1` | The debug keys (F9 invincible, `-` / `=` speed) on for the run, as Setup → Debug Keys (see above) |
 | `TYR3D_FONTS=0` | The game's texts in its pixel fonts, not in Oxanium, over the 3D view |
 | `TYR3D_ERASE=0` | The maps' clean ground is left out: the objects, wrecks and palms painted into the map stay in the ground under their models, and no stand-ins are drawn |
 | `TYR3D_RAIL_FROM=<tick>` | A level flown on the rail starts at that tick of its flight (70 a second), the waves before it skipped (the boss at 7980, the checkpoint at 3920) |

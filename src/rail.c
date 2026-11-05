@@ -13,6 +13,7 @@
 
 #include "background3d.h"
 #include "config.h"
+#include "debugmode.h"
 #include "devtools.h"
 #include "episodes.h"
 #include "joystick.h"
@@ -2703,9 +2704,14 @@ bool rail_play(void)
 			leave_asked = escape;
 			newkey = false;
 		}
-		// The game goes on at HZ ticks a second whatever the display's pace (a few ticks a frame at most).
+		const char *said = debug_keys_tick();
+		if (said != NULL)
+			say(said, HZ * 2);
+		// The game goes on at HZ ticks a second whatever the display's pace (a few ticks a frame at most), times the
+		// debug keys' speed.
 		const Uint64 now = SDL_GetPerformanceCounter();
-		behind = SDL_min(behind + (now - last) / (double)SDL_GetPerformanceFrequency(), 4 * tick_seconds);
+		const double pace = debug_keys_on() ? debug_speed() : 1.0;
+		behind = SDL_min(behind + (now - last) / (double)SDL_GetPerformanceFrequency() * pace, 4 * tick_seconds * SDL_max(pace, 1.0));
 		last = now;
 		if (paused)
 			behind = 0;
