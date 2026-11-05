@@ -677,21 +677,6 @@
   "level": "ASTEROID (gbc)",
   "episode": 7
  },
- "7e3321e38597633c": {
-  "classes": 6,
-  "forest": "palm",
-  "heights": {},
-  "materials": {
-   "#37596d": "~",
-   "#061f2f": 0,
-   "#224e1c": 14,
-   "#6f542a": 6,
-   "#173b52": 0,
-   "#372a19": 18
-  },
-  "level": "SAVARA II (gbc)",
-  "episode": 7
- },
  "c98a2e1062f2a860": {
   "classes": 6,
   "palms": true,
@@ -705,49 +690,6 @@
    "#45413d": "~"
   },
   "level": "OASIS (gbc)",
-  "episode": 7
- },
- "848542873eb66393": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#444444": 18,
-   "#8d755e": 0,
-   "#715d47": 4,
-   "#41602e": 0,
-   "#4f4b47": "~",
-   "#342d27": "~"
-  },
-  "level": "DESERT (gbc)",
-  "episode": 7
- },
- "3b6a65e83f932fac": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE (gbc)",
-  "episode": 7
- },
- "f1b2fff7a34d63e0": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE II (gbc)",
   "episode": 7
  },
  "ef1e73ea3ec85c12": {
@@ -815,7 +757,8 @@
   "background": 3,
   "solid": true,
   "level": "TUNNEL (gbc)",
-  "episode": 7
+  "episode": 7,
+  "slivers": 21
  },
  "63676afb1670c87d": {
   "background": 2,
@@ -922,20 +865,6 @@
   "level": "SAVARA (gbc)",
   "episode": 7
  },
- "ebbeeebfd108d828": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID2 (gbc)",
-  "episode": 7
- },
- "8f27fe7ca3ebef1a": {
-  "classes": 6,
-  "rolling": 10,
-  "heights": {},
-  "level": "ICE EXIT (gbc)",
-  "episode": 7
- },
  "7253bbd3b1afe291": {
   "classes": 6,
   "void": "hole",
@@ -998,5 +927,85 @@
   },
   "level": "LAVA II (gbc)",
   "episode": 7
+ },
+ "fdbd55e8c6ec879f": {
+  "classes": 6,
+  "forest": "palm",
+  "heights": {},
+  "materials": {
+   "#37596d": "~",
+   "#061f2f": 0,
+   "#224e1c": 14,
+   "#6f542a": 6,
+   "#173b52": 0,
+   "#372a19": 18
+  },
+  "level": "SAVARA II (gbc)",
+  "episode": 7
+ },
+ "3b9a99da020c4444": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#444444": 18,
+   "#8d755e": 0,
+   "#715d47": 0,
+   "#41602e": 0,
+   "#4f4b47": "~",
+   "#342d27": "~"
+  },
+  "level": "DESERT (gbc)",
+  "episode": 7
+ },
+ "d46969e9652ca507": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE (gbc)",
+  "episode": 7
+ },
+ "2a2132ed6388a14d": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE II (gbc)",
+  "episode": 7
+ },
+ "002bf7addc7c8c25": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID2 (gbc)",
+  "episode": 7
+ },
+ "451f90b1fec66fd9": {
+  "classes": 6,
+  "rolling": 10,
+  "heights": {},
+  "level": "ICE EXIT (gbc)",
+  "episode": 7,
+  "materials": {
+   "#6aa2af": -12,
+   "#6298a6": "~",
+   "#426985": 0,
+   "#4e7691": 0,
+   "#597e96": 0,
+   "#0f2839": "~"
+  }
  }
 }

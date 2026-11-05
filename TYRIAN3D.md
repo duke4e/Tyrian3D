@@ -453,6 +453,22 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   a row, given the rows below and above it) over a few passes (row by row alone can't change two rows
   together, which a shore needs, and gave the plan up for strips); the log counts the pairs left that no
   original has and those of them badly joined (over 12; 2026-10-29: 175 in the GBC maps' rows, from 3078).
+  Remade 2026-11-05 (the user: SAVARA II's stray tiles at the right, DESERT's cut island and stump, TORM's
+  joins and dark tufts in the grass, ASTEROID2 too blocky, ICE EXIT's crystals cut): SAVARA II, DESERT, JUNGLE,
+  JUNGLE II, ASTEROID2 and ICE EXIT take `edges` (the playfield's columns past the GBC map's sides planned as
+  its nearest column inside, not its edge's pixels repeated: SAVARA II's frame grey gave a column of wall),
+  `whole` (a pair no original has with a tile that never stands beside itself, a piece of something, costs
+  3 pair costs: DESERT's stumps came out of the halves of two, the cliffs of pieces of others) and the rarer
+  joins dear (`rare`: JUNGLE's, JUNGLE II's and DESERT's as SAVARA's, ASTEROID2's 12 at 1.0: its platforms
+  now end in rocky rims, not cut off straight); pairs no original has in their maps' rows: SAVARA II 247 → 27,
+  DESERT 31 → 8, JUNGLE 252 → 101, JUNGLE II 151 → 39, ASTEROID2 143 → 66, ICE EXIT 49 → 39. A spec's `exclude`
+  leaves tiles out by number. Only layer 1 was spliced into the committed levels (`make_level` would remake their
+  events too), then their terrain made again on the new maps (`tools/content/gbc/terrain.py`): DESERT's darker
+  sand (`#715d47`) is ground (raised 4, it stood in square islands), ICE EXIT's light ice channel lies 12 below
+  its cobbles (the original's ICE EXIT has no heights, rolling only: the GBC's canyon was flat), and TUNNEL's
+  background 3 takes `slivers` 21 (`make_terrain.py`: what the clearance round the ground enemies leaves thinner
+  than that many samples goes too; its rocks stood as thin slabs between the rows of red balls). The old maps'
+  sides are still in `assets/sides` (small, unused) till `tools/precompute_sides.sh` is run again.
   Space levels are the original's
   blank tile with the stars. Backgrounds 2 and 3 (the GBC has one map) are made anew from the original's
   where it has more on them than one tile's filler or a sign at the start (`upper_layers`; SAVARA takes

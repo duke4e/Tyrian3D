@@ -57,6 +57,9 @@ RARE_COST = 0.0       # ... of it (over RARE_COUNT): a platform cut straight off
 # (the levels the review of 2026-11-04 found odd joins in: docs/plans/2026-11-04-epizoda7-pregled.md; ASTEROID2's
 # platforms cut off straight, LAVA II's river in pieces, TUNNEL's walls in ribs, ICE EXIT's river cut by panels)
 RARE = (12, 0.6)
+# (the levels the user found blocky, cut off or with stray tiles, 2026-11-05: edges, whole, and the joins as RARE or stricter)
+REMADE = dict(edges=True, whole=True)
+WHOLE_COST = 3.0      # (spec 'whole') an unseen pair with a piece of something in it, in PAIR_COSTs
 BP_ITERATIONS = 60    # belief propagation over the map before it is bettered row by row
 SIGMA = 0.15          # material mismatch (0-2, the quarters' shares) beyond a cell's nearest tile: weight 1/e
 FORBID = 0.6          # ... and from where a tile is not taken
@@ -90,19 +93,19 @@ LEVELS = [
     dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')], boss=(1, 'ASTEROID2')),
     dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(4, 'ICE EXIT')),
     dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V'), rare=RARE),
-    dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA')),
+    dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA'), **REMADE),
     dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
-    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE')),
-    dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES),
-    dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES),
+    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE'), rare=RARE, **REMADE),
+    dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES, rare=RARE, **REMADE),
+    dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES, rare=RARE, **REMADE),
     dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')],
-         boss=(1, 'ASTEROID1'), rare=RARE),
+         boss=(1, 'ASTEROID1'), rare=(12, 1.0), **REMADE),
     dict(gbc=13, name='WARP', pc=(3, 'STARGATE'), space=True, stars=True, pool=[(3, 'STARGATE'), (1, 'BUBBLES')],
          boss=(1, 'ASSASSIN')),
     dict(gbc=12, name='BUBBLES', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')], boss=(2, 'GEM WAR')),
     dict(gbc=15, name='CAMANIS', pc=(3, 'CAMANIS'), pool=ICES),
     dict(gbc=18, name='ICE EXIT', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES, boss=(4, 'DREAD-NOT'),
-         rare=(5, 0.25)),
+         rare=(5, 0.25), **REMADE),
     dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], boss=(1, 'ASTEROID2'),
          gbc_boss=False),
     dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH')),
@@ -267,7 +270,10 @@ def autotile(spec, img, grids, letter):
     objects = object_tiles(letter)
     # (and the shores' corners and edges, which never stand beside themselves either: without them an island
     # was cut off square, the sea straight beside the grass)
-    ground = [t for t, _ in use.most_common() if (use[t] >= EDGE_TILES or selfish[t] >= 1) and t not in objects]
+    # (and not those the level's spec leaves out: DESERT's stumps came out of halves of two, the user: "mali otok s odrezanim
+    # tileovima")
+    ground = [t for t, _ in use.most_common() if (use[t] >= EDGE_TILES or selfish[t] >= 1) and t not in objects and
+              t not in spec.get('exclude', ())]
     ids = ground[:mapsynth.LAYER_TILES[0]]  # (a layer's limit)
     rmean = {}
     for t in ids:
@@ -313,6 +319,14 @@ def autotile(spec, img, grids, letter):
             x0 = rw * c - 38
             xs = np.clip(np.arange(int(round(x0)), max(int(round(x0 + rw)), int(round(x0)) + 1)), 0, g.shape[1] - 1)
             grid[r, c] = material(g[ys][:, xs].reshape(-1, 3).mean(0))
+    # (the columns beyond the GBC map's sides, the wide playfield's: as its nearest one inside it, not its edge's pixels
+    # repeated: SAVARA II's right edge, a frame's grey there, got a column of grey wall, the user: "tileovi koji nebi
+    # trebali biti tu")
+    if spec.get('edges'):
+        inside = [c for c in range(14 * n) if rw * c - 38 >= 0 and rw * (c + 1) - 38 <= g.shape[1]]
+        for c in range(14 * n):
+            if c not in inside:
+                grid[:, c] = grid[:, min(inside, key=lambda i: abs(i - c))]
     # each cell's candidates: the tiles nearest its plan (and a few quarters further); the map is then the
     # choice that misses the plan least and pairs its tiles as the originals pair them (beside and above
     # each other: an edge that joins up, a texture that goes on) or else as their edges join
@@ -352,6 +366,13 @@ def autotile(spec, img, grids, letter):
     unseen_least = rare_cost if rare_count else 0.0
     cost_h = np.where(seen_h, rare_h, np.maximum(unseen_least, np.minimum(1.0, mis_h / EDGE_NORM)))
     cost_v = np.where(seen_v, rare_v, np.maximum(unseen_least, np.minimum(1.0, mis_v / EDGE_NORM)))
+    # (spec 'whole': a tile that never stands beside itself, a piece of something, beside one the originals never put it
+    # beside costs WHOLE_COST: DESERT's stumps came out of the halves of two, JUNGLE's cliffs of pieces of others)
+    if spec.get('whole'):
+        piece = np.array([selfish[t] == 0 for t in ids])
+        either = piece[:, None] | piece[None, :]
+        cost_h = np.where(~seen_h & either, WHOLE_COST, cost_h)
+        cost_v = np.where(~seen_v & either, WHOLE_COST, cost_v)
     prior = -np.log(np.array([use[t] for t in ids], np.float64) / max(use[t] for t in ids))
     MISS, PAIR, PRIOR = 1.0, PAIR_COST, PRIOR_WEIGHT
     cands, unary = [], []

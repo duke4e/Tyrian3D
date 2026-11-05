@@ -54,7 +54,7 @@ swim or hover over the terrain rather than walk on it).
 Backgrounds 2 and 3 (their maps' entries with "solid": true) become solids: their plane on top,
 rounded off over "bevel" pixels at the edges, walls down to the ground where they are clear or
 where ground enemies are under them, round what their models cover and beyond their far sides as
-far as the walls stand over them there (the game only makes them solid where they are drawn over the
+far as the walls stand over them there ("slivers": what that leaves thinner than so many samples goes too) (the game only makes them solid where they are drawn over the
 ground's enemies, and keeps their tops below what flies). A background 2 that the game draws under
 the ground's enemies and that covers the whole map (ICESECRET's ice, over a ground that never shows)
 is the ground instead: its entry has "ground": true, and its terrain is made as the ground's is.
@@ -784,6 +784,11 @@ def heights(name, rgb, opaque, info, s, fit=None):
         # stand or move in notches and trenches rather than inside the rock.
         standing, _ = ground_enemies(name)
         hole |= solid_clearance(name, h.shape, info["background"])
+        if s.get("slivers"):
+            # (what the clearance leaves thinner than this many samples taken out too: TUNNEL's rocks, cleared round its
+            # rows of red balls, stood as thin slabs between them, the user: "vizualni defekti")
+            k = int(s["slivers"])
+            hole |= ~ndimage.binary_opening(~hole, np.ones((k, k), bool))
         return h, hole, standing
     lum, labels, _ = classify(rgb, s["classes"], fit, frozen(name, s["classes"]))
     target = np.zeros(labels.shape, np.float32)
