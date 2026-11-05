@@ -1274,6 +1274,9 @@ JE_longint JE_getValue(JE_byte itemType, JE_word itemNum)
 
 // Tyrian3D: Camanis 2 chosen at episode 6's end (episode6EndSelect): its end goes on to episode 7.
 bool custom_then_gbc = false;
+// Tyrian3D: the game went on from episode 6, so its overclocked weapons (weapon_power_max) stay (the user, 2026-11-05:
+// "jednom kad imamo pristup overclockanim oružjima i prođemo ep 6, ne bi smjeli više to igraču zabraniti").
+bool overclock_kept = false;
 
 void JE_nextEpisode(void)
 {
@@ -1350,6 +1353,7 @@ void JE_nextEpisode(void)
 	if (to_camanis)
 	{
 		custom_then_gbc = true;
+		overclock_kept = true;
 		gameHasRepeated = false;
 		custom_episode_start(camanis);
 	}

@@ -237,6 +237,8 @@ static Uint8 enemy_group_link[100];
 // an event 201 that names how many; an event 12's four): a GBC group is one link, and the PC kills a link's
 // enemies together, but the GBC's die alone (gbc_takes_along). 0: none.
 static Uint32 gbc_object[100];
+static Sint8 gbc_head[100];  // (Tyrian3D: its picture's first piece, gbc_hold_pieces; -1: none, or the first)
+static Sint16 gbc_head_dx[100], gbc_head_dy[100];
 static Uint32 gbc_objects = 0;
 static int gbc_object_head = -1, gbc_object_event = -1;
 
@@ -393,7 +395,14 @@ static float enemy_shown(unsigned int i)
 		l3d_key_continue(ENEMY_MOTION_KEY(i), enemy_forecast[i]);
 		enemy_forecast[i] = 0;
 	}
-	const float shown = l3d_key_shown(ENEMY_MOTION_KEY(i));
+	float shown = l3d_key_shown(ENEMY_MOTION_KEY(i));
+	// (episode 7's pictures of several pieces: as far as the furthest of them, so that one taking a forecast's place
+	// and one made in sight aren't one whole and one fading in, gbc_head)
+	if (episodeNum == EPISODE_GBC && shown < 1.0f)
+		for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+			if (j != i && enemyAvail[j] != 1 &&
+			    ((int)j == gbc_head[i] || gbc_head[j] == (int)i || (gbc_head[i] >= 0 && gbc_head[j] == gbc_head[i])))
+				shown = SDL_max(shown, l3d_key_shown_if_drawn(ENEMY_MOTION_KEY(j)));
 	if (shown * (L3D_APPEAR_FRAMES + 1) < 1.5f && SDL_getenv("TYR3D_LOG_SPAWNS") != NULL)
 		printf("appear: %s slot %u enemy %u sprite %u at %d,%d (3D frame %u)\n", levelName, i, enemy[i].enemytype, enemy[i].egr[0],
 		       enemy[i].ex + tempMapXOfs, enemy[i].ey, l3d_frame_number);
@@ -456,6 +465,55 @@ static bool gbc_same_picture(unsigned int a, unsigned int b)
 		return true;
 	return enemy_group[a] != 0 && enemy_group[b] == enemy_group[a] && enemy_group_link[b] == enemy_group_link[a] &&
 	       enemy[b].egr[0] != enemy[a].egr[0] && abs(enemy[b].ex - enemy[a].ex) <= 30 && abs(enemy[b].ey - enemy[a].ey) <= 30;
+}
+
+// Tyrian3D: episode 7's pictures of several pieces go as one (the user, 2026-11-05: "protivnici u 2 dijela (i dalje
+// napominjem da bi svi protivnici trebali biti u 1 komadu)"): each piece was made with its own speeds (moves.py's, set
+// spawn by spawn) and steered for itself, so JUNGLE's guns, of two, came apart. A piece made after another of its
+// picture (gbc_same_picture) keeps where it was made from that one, its first (gbc_head), and goes as it does: at
+// each tick's start it is put there and takes its speeds (gbc_hold_pieces).
+static void gbc_find_head(unsigned int i)
+{
+	gbc_head[i] = -1;
+	if (episodeNum != EPISODE_GBC || gbc_piece_link(enemy[i].linknum))
+		return;
+	for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
+		if (j != i && gbc_head[j] < 0 && gbc_same_picture(i, j))
+		{
+			gbc_head[i] = (Sint8)j;
+			gbc_head_dx[i] = (Sint16)(enemy[i].ex - enemy[j].ex);
+			gbc_head_dy[i] = (Sint16)(enemy[i].ey - enemy[j].ey);
+			return;
+		}
+}
+
+static void gbc_hold_pieces(void)
+{
+	if (episodeNum != EPISODE_GBC)
+		return;
+	for (unsigned int i = 0; i < COUNTOF(enemy); ++i)
+	{
+		const int h = gbc_head[i];
+		if (h < 0 || enemyAvail[i] == 1)
+			continue;
+		if (enemyAvail[h] == 1 || enemy_group[h] != enemy_group[i])
+		{
+			gbc_head[i] = -1;  // (its first gone)
+			continue;
+		}
+		struct JE_SingleEnemyType *e = &enemy[i];
+		const struct JE_SingleEnemyType *o = &enemy[h];
+		const int dx = gbc_head_dx[i], dy = gbc_head_dy[i];
+		e->ex = o->ex + dx;
+		e->ey = o->ey + dy;
+		e->exc = o->exc, e->eyc = o->eyc, e->exca = o->exca, e->eyca = o->eyca;
+		e->excc = o->excc, e->eycc = o->eycc, e->exccw = o->exccw, e->eyccw = o->eyccw;
+		e->exrev = o->exrev, e->eyrev = o->eyrev, e->exccadd = o->exccadd, e->eyccadd = o->eyccadd;
+		e->exccwmax = o->exccwmax, e->eyccwmax = o->eyccwmax, e->fixedmovey = o->fixedmovey;
+		e->xaccel = o->xaccel, e->yaccel = o->yaccel;
+		e->xminbounce = o->xminbounce + dx, e->xmaxbounce = o->xmaxbounce + dx;
+		e->yminbounce = o->yminbounce + dy, e->ymaxbounce = o->ymaxbounce + dy;
+	}
 }
 
 static void gbc_mark_picture(unsigned int hit)
@@ -2717,6 +2775,7 @@ start_level_first:
 level_loop:
 		debug_flight_tick();
 		dev_level_tick();
+		gbc_hold_pieces();  // (Tyrian3D: episode 7's pictures of several pieces as one)
 
 	// Tyrian3D: the wait the 3D view moved here from JE_starShowVGA, before input is read.
 	if (wait_at_tick_start)
@@ -4610,7 +4669,9 @@ new_game:
 							itemAvailMax[i] = j;
 						}
 						// Tyrian3D: a 10th line " Spec   <specials>" (episode 6's shops: the specials sold, game_menu.c),
-						// else the line is the script's next.
+						// else the line is the script's next. (Without one, none: episode 7's shops showed the last
+						// one's count of specials, all but the ship's empty, the user: "vizualni defekt u ponudi attractora".)
+						itemAvailMax[9] = 0;
 						{
 							const long at = ftell(ep_f);
 							read_encrypted_pascal_string(s, sizeof(s), ep_f);
@@ -6076,6 +6137,7 @@ Sint16 JE_newEnemy(int enemyOffset, Uint16 eDatI, Sint16 uniqueShapeTableI)
 			enemy_group[i] = 0;  // (Tyrian3D: a piece of no object, unless the caller says)
 			enemy_group_link[i] = 0;
 			gbc_object[i] = 0;
+			gbc_head[i] = -1;
 			gbc_look_id[i] = 0;
 			gbc_look_parts[i] = 0;
 			gbc_lean[i] = NAN;
@@ -6533,6 +6595,7 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemy[b-1].linknum = eventRec[eventLoc-1].eventdat4;
 	enemy[b-1].fixedmovey = eventRec[eventLoc-1].eventdat6;
 	gbc_pool_join(b - 1);  // (Tyrian3D: a GBC boss's piece joins its body)
+	gbc_find_head(b - 1);  // (Tyrian3D: goes with the first piece of its picture)
 
 	// Tyrian3D: the forecast it takes the place of, if the 3D view showed it coming (enemy_shown).
 	{
@@ -7319,6 +7382,10 @@ void JE_eventSystem(void)
 					enemy_group[b-1] = enemy_group[temp];  // (Tyrian3D: in its place)
 					enemy_group_link[b-1] = enemy_group_link[temp];
 					gbc_object[b-1] = gbc_object[temp];
+					gbc_head[b-1] = gbc_head[temp], gbc_head_dx[b-1] = gbc_head_dx[temp], gbc_head_dy[b-1] = gbc_head_dy[temp];
+					for (unsigned int k = 0; k < COUNTOF(enemy); ++k)
+						if (gbc_head[k] == temp)
+							gbc_head[k] = (Sint8)(b - 1);
 					gbc_look_id[b-1] = gbc_look_id[temp];
 					gbc_look_parts[b-1] = gbc_look_parts[temp];
 					memcpy(gbc_look[b-1], gbc_look[temp], sizeof(gbc_look[temp]));

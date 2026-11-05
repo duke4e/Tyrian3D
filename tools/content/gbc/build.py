@@ -258,6 +258,9 @@ def sentences(text, width=None, marks=True):
     return out[:-1]
 
 
+SKIP_IT = 21  # the planet map's "Skip It" (pName 21): a way past a level, not a place (the user: "skip it je opcija za level, ne ime levela")
+
+
 def planets():
     """{(episode, level name): planet} from the original scripts' ]G lines (the planet map's
     destinations: planet, section pairs) and their sections' ]L lines."""
@@ -277,6 +280,8 @@ def planets():
             elif s.startswith("]J"):
                 pass
         for planet, sec in dests:
+            if planet == SKIP_IT:
+                continue
             # the destination section, or the first level after it (a shop before the level)
             for k in range(sec, sec + 4):
                 if k in names:
@@ -366,7 +371,7 @@ def script(stages, levels, planet_of, cube_numbers, ending_text):
     ending = 2 * n + 1
     for i, (stage, level) in enumerate(zip(stages, levels)):
         shop_section, level_section = 2 * i + 1, 2 * i + 2
-        planet = planet_of.get(tuple(stage["pc"]), 1)
+        planet = planet_of.get(tuple(stage["pc"]), origin)  # (one the map hasn't: where the last was)
         shop = all_shops[min(len(all_shops) - 1, i * len(all_shops) // n)]
         # the GBC shop's offer before this level (the Arcade-only levels and the last: the one before)
         offer = offers.get(stage.get("gbc"), offer)

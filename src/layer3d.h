@@ -298,6 +298,8 @@ bool l3d_key_seen(Uint32 key);
 // (l3d_appear_last_object); others are shown fully.
 #define L3D_APPEAR_FRAMES 10
 float l3d_key_shown(Uint32 key);
+// Tyrian3D: as l3d_key_shown, or -1 if no object with the key has been drawn.
+float l3d_key_shown_if_drawn(Uint32 key);
 // The object keyed `key`, seen first this frame, fades in on from where the one keyed `from` (seen
 // last frame) got to: an enemy taking the place of its forecast.
 void l3d_key_continue(Uint32 key, Uint32 from);

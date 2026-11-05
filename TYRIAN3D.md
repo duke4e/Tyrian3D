@@ -237,7 +237,10 @@ rules from the original data (`tools/content/tyrdata.py` reads it), so the rules
 past 11 to 15 (the store's upgrade arrows, power-ups, the rogue run's upgrades; the costs go on as before: to 12-15, 78, 91, 105 and 120
 times the gun's price). Powers 12-15 shoot as 11 does, each step 25 % harder (so through more: a
 shot goes on with what an enemy's armour leaves of it) and 10 % quicker to fire again (`shots.c`
-`player_shot_overclock`); the HUD and the store show 15 pips there. The original game stays at 11.
+`player_shot_overclock`); the HUD and the store show 15 pips there. The original game stays at 11. A game that goes
+on from episode 6 (Camanis 2, then episode 7) keeps it (`mainint.c` `overclock_kept`, in its saves the slot's second
+high score `OVERCLOCK_SAVE`, as `CAMANIS_SAVE`; an episode 7 save from before, its guns past 11, loads with it too;
+until 2026-11-05 episode 7 held them at 11 again, the user: "ne bi smjeli više to igraču zabraniti, jer smo to unlockali").
 
 No shop sells them yet (that comes with the new episode and the rogue mode); the debug flight's
 loadout keys and `TYR3D_WEAPONS` / `TYR3D_SIDEKICKS` fly them. The new sidekicks look as the ones they copy, in 3D too
@@ -597,7 +600,11 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   (`gbc_object`, tagged as an event makes them), and whole: when one of them is shot down or turns to its wreck, so do
   all of its picture, their link and damage level or not, with the pieces made with it that stand next to it and show
   another sprite (JUNGLE's walls of three, DELICORE's machines, made by events of their own), and theirs in turn
-  (`gbc_mark_picture`; the 3D models lost a piece at a time, as tiles).
+  (`gbc_mark_picture`; the 3D models lost a piece at a time, as tiles). They also go as one (`gbc_hold_pieces`): a
+  piece made after another of its picture keeps where it was made from that first one (`gbc_head`), put there at each
+  tick's start with its speeds (each piece had its own from `moves.py` and steered for itself: JUNGLE's guns of two came
+  apart), and in the 3D view the pieces fade in together (one taking its forecast's place showed whole while the other,
+  made in sight, faded in: half a gun, the user: "protivnici u 2 dijela").
 * Episode 7's enemies are as tough as the GBC's and fire as often (`tyrian2.c` `gbc_fight`, event 203,
   Tyrian3D's, before the event that makes one: `script.py` `FIGHT`, `boss.py` for a boss's pieces): the PC
   enemy drawn for a GBC one is often far tougher (a big ship for a small GBC enemy, a wall that can't be shot
@@ -623,8 +630,10 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   level before it; the GBC capitals in sentence case, the names marked; the speaker's PC portrait:
   Transon, Reid, Vykromod, the captain, the news...) and the GBC ending its ending, expands the bosses (episode 6's `compose.expand`) and brings the enemies into the episode's
   item data (`enemydata.py`) and writes `assets/content/episode7`: `tyrian7.lvl`, `levels7.dat` (a shop before every level:
-  the GBC shop's offer before that level, the planet map pointing at the original level's planet; the
-  original level's song) and `cubetxt7.dat`.
+  the GBC shop's offer before that level, the planet map pointing at the original level's planet, never the planet
+  map's "Skip It" (21, a way past a level in the originals: TUNNEL's shop had it for its next level's name), where the
+  last level was when the map has none; the original level's song) and `cubetxt7.dat`. Its shops sell no specials (no
+  ` Spec` line): until 2026-11-05 the store showed the last shop's count of them, all but the ship's empty.
 * `shop.py` reads what the GBC shop offers before each level of the Full Game into `data/gbc/shop.json`:
   its Items menu has six lists (Ship, Weapon, Engine, Shield, SideA, SideB), each showing the items
   unlocked by name from the ROM's tables of 8-character names; the game is flown through as `story.py`

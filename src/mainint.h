@@ -39,6 +39,7 @@ extern JE_boolean useLastBank;
 extern bool pause_pressed, ingamemenu_pressed;
 long special_shop_cost(int id);  // Tyrian3D: a special's price in the store
 extern bool custom_then_gbc;  // Tyrian3D: Camanis 2, chosen at episode 6's end, goes on to episode 7
+extern bool overclock_kept;   // Tyrian3D: the game went on from episode 6: weapons overclock past 11 still
 
 /*void JE_textMenuWait(JE_word waittime, JE_boolean dogamma);*/
 

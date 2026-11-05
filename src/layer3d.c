@@ -634,6 +634,11 @@ float l3d_key_shown(Uint32 key)
 	return (float)(l3d_frame_number - motion[slot].first + 1) / (L3D_APPEAR_FRAMES + 1);
 }
 
+float l3d_key_shown_if_drawn(Uint32 key)
+{
+	return key_slot(key) < 0 ? -1.0f : l3d_key_shown(key);
+}
+
 void l3d_key_continue(Uint32 key, Uint32 from)
 {
 	const int slot = key_slot(key), from_slot = key_slot(from);

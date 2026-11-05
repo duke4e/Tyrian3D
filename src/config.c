@@ -387,8 +387,10 @@ static void pitems_to_playeritems(PlayerItems *items, JE_PItemsType pItems, JE_b
 }
 
 // Tyrian3D: a save of Camanis 2 on its way to episode 7 (custom_then_gbc, chosen at episode 6's end), in its slot's
-// unused second high score; shown as episode 6's.
+// unused second high score; shown as episode 6's. And of a game gone on from episode 6, its weapons overclocking still
+// (overclock_kept).
 #define CAMANIS_SAVE 0x43324D37
+#define OVERCLOCK_SAVE 0x4F43374B
 
 void JE_saveGame(JE_byte slot, const char *name)
 {
@@ -396,7 +398,7 @@ void JE_saveGame(JE_byte slot, const char *name)
 	// to episode 7 is (the user, 2026-11-04: "ne mogu snimiti prije camanis 2 custom levela"), marked as such.
 	if (custom_episode != 0 && !custom_then_gbc)
 		return;
-	saveFiles[slot-1].highScore2 = custom_episode != 0 ? CAMANIS_SAVE : 0;
+	saveFiles[slot-1].highScore2 = custom_episode != 0 ? CAMANIS_SAVE : overclock_kept ? OVERCLOCK_SAVE : 0;
 
 	saveFiles[slot-1].initialDifficulty = initialDifficulty;
 	saveFiles[slot-1].gameHasRepeated = gameHasRepeated;
@@ -535,6 +537,10 @@ void JE_loadGame(JE_byte slot)
 	// Tyrian3D: Camanis 2 on its way to episode 7 (JE_saveGame), its folder there.
 	const int camanis = saveFiles[slot-1].highScore2 == CAMANIS_SAVE ? custom_episode_find("camanis2") : 0;
 	custom_then_gbc = camanis != 0;
+	// (and an episode 7 save from before the mark, its weapons overclocked)
+	overclock_kept = camanis != 0 || saveFiles[slot-1].highScore2 == OVERCLOCK_SAVE ||
+	                 (episode == EPISODE_GBC && SDL_max(player[0].items.weapon[FRONT_WEAPON].power,
+	                                                    player[0].items.weapon[REAR_WEAPON].power) > WEAPON_POWER_ORIGINAL);
 	if (camanis != 0)
 		custom_episode_start(camanis);
 	else

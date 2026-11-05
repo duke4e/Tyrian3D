@@ -19,6 +19,7 @@
 #include "player.h"
 
 #include "episodes.h"
+#include "mainint.h"
 #include "rogue.h"
 #include "varz.h"
 
@@ -26,7 +27,7 @@ Player player[2];
 
 int weapon_power_max(void)
 {
-	return !twoPlayerMode && !onePlayerAction && !galagaMode && superArcadeMode == SA_NONE && (episodeNum == 6 || rogue_run)
+	return !twoPlayerMode && !onePlayerAction && !galagaMode && superArcadeMode == SA_NONE && (episodeNum == 6 || rogue_run || overclock_kept)
 	       ? WEAPON_POWER_OVERCLOCK : WEAPON_POWER_ORIGINAL;
 }
 
