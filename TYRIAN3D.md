@@ -676,6 +676,10 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   map's "Skip It" (21, a way past a level in the originals: TUNNEL's shop had it for its next level's name), where the
   last level was when the map has none; the original level's song) and `cubetxt7.dat`. Its shops sell no specials (no
   ` Spec` line): until 2026-11-05 the store showed the last shop's count of them, all but the ship's empty.
+* `context.py` flies each GBC level in the emulator (as `enemies.py` does) and saves the GBC screen where each enemy
+  type first stands whole on it, boxed, and a second look a second later (`data/gbc/context/Lnn_typeXX.png`, `_b.png`):
+  what a type is by its surroundings, for checking how the GBC types were mapped to PC enemies (2026-11-05: 315 of the
+  332 types; the rest never stand whole on the screen).
 * `shop.py` reads what the GBC shop offers before each level of the Full Game into `data/gbc/shop.json`:
   its Items menu has six lists (Ship, Weapon, Engine, Shield, SideA, SideB), each showing the items
   unlocked by name from the ROM's tables of 8-character names; the game is flown through as `story.py`
