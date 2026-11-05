@@ -14067,6 +14067,25 @@ static bool present_rail(void)
 			b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
 		}
 	}
+	// Beyond the ground's mesh on either side (RAIL_GROUND_X), a floor of the haze's colour, a little below it: what
+	// shows past its sides far off is the haze.
+	const float haze[3] = { rail_linear(v->haze[0]), rail_linear(v->haze[1]), rail_linear(v->haze[2]) };
+	for (int side = -1; side <= 1; side += 2)
+	{
+		const float x0 = side < 0 ? -RAIL_GROUND_X - 40000 : RAIL_GROUND_X, x1 = side < 0 ? -RAIL_GROUND_X : RAIL_GROUND_X + 40000;
+		const float z_far = v->position[2] - 7000, z_near = v->position[2] + 400;
+		const float a[3] = { x0, -6, z_far }, b3[3] = { x1, -6, z_far }, d[3] = { x0, -6, z_near };
+		const Mat4 m = destruct_quad(a, b3, d);
+		BTBHGPUSceneGeometryBatch *b = destruct_batch(quad_mesh, &m, 1.0f, &instance_count, &batch_count);
+		if (b == NULL)
+			break;
+		float *instance = instances + (instance_count - 1) * 24;
+		memcpy(instance + 16, haze, sizeof(haze));
+		instance[19] = 1;
+		b->albedo_texture = white_texture;
+		b->unlit_enabled = 1;
+		b->ssao_mode = BTBH_GPU_SCENE_SSAO_NONE;
+	}
 	// The ground's chunks in view (their meshes and pictures made again when the rail has made them anew).
 	for (int k = v->chunk_first; k <= v->chunk_last; ++k)
 	{
@@ -14174,13 +14193,16 @@ static bool present_rail(void)
 	for (int i = 0; i < v->object_count; ++i)
 		rail_model(&v->objects[i], rgb_palette, casts_shadow, shadows, &instance_count, &batch_count);
 	// The haze: walls across the flight, further and further ahead, each veiling a little more of the ground behind it
-	// (their tops clear, so the sky shows over them).
+	// (their tops clear, so the sky shows over them), thicker and thicker: what lies f of the way from haze_near to
+	// haze_far shows through as much as exp(-HAZE_DENSITY f^2) of it (light near, all but hidden by the ground's sides
+	// and its far end).
 	{
 		enum { HAZE_WALLS = 18 };
-		const float alpha = 1.0f - SDL_powf(0.04f, 1.0f / HAZE_WALLS);
-		const float haze[3] = { rail_linear(v->haze[0]), rail_linear(v->haze[1]), rail_linear(v->haze[2]) };
+		const float HAZE_DENSITY = 5.3f;
 		for (int i = 0; i < HAZE_WALLS && batch_count < MAX_BATCHES; ++i)
 		{
+			const float f0 = (float)i / HAZE_WALLS, f1 = (float)(i + 1) / HAZE_WALLS;
+			const float alpha = 1.0f - expf(-HAZE_DENSITY * (f1 * f1 - f0 * f0));
 			const float d = v->haze_near + (v->haze_far - v->haze_near) * (i + 0.5f) / HAZE_WALLS;
 			const float z = v->position[2] - d, half = d * t * aspect * 1.6f + 400;
 			const float top = 120 + d * 0.16f;

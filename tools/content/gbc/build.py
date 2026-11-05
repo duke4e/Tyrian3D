@@ -535,11 +535,12 @@ def boss_fight(level, events):
         # (a while after it is made: one that comes in on its own, ASTEROID2's tank, must be in first)
         added.append(dict(t=max(freeze, first) + BOSS_IN, type=36, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     bars = sorted(links)[:3]
-    if counted and bars:
+    if bars:
         # (and once its bars' links are empty, the level ends with every enemy taken off, as the GBC's end once their
         # boss is gone, boss.py's 70s: an end when clear waited for the rest too, and BUBBLES's bubble machines,
         # standing on the stopped map, never stopped blowing: the user, 2026-10-29, killed its boss at once and the
-        # level never ended)
+        # level never ended; a boss that doesn't count as on screen too: AST.BONUS's tank, shot down at once, left
+        # the stopped map empty till its 11, the user, 2026-11-04: "zaglavio sam nakon što sam ubio glavnog")
         added += [dict(t=c, type=70, d1=end, d2=bars[0], d3=bars[1] if len(bars) > 1 else 0, d5=0, d6=0,
                        d4=bars[2] if len(bars) > 2 else 0)
                   for c in range(max(freeze, first) + BOSS_IN, end, BOSS_CHECK)]

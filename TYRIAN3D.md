@@ -508,7 +508,9 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   pass). The GBC boss is the script's last stretch (`boss.py`, below); the five levels with none in the GBC
   game (DELICORE, AST.BONUS, LAVA I, BUBBLES, FINALE) get the original level's boss (or a related level's),
   placed as episode 6 places them, with all its sprite sheets, and an event 11 ends the level if it is never
-  destroyed (as the originals have one near 8100; after the boss block's last event where that runs longer).
+  destroyed (as the originals have one near 8100; after the boss block's last event where that runs longer); once
+  its bars' links are empty (event 70s) the level ends at once, also with a boss that doesn't count as on screen
+  (AST.BONUS's tank, drawn damaged from the start, whose level waited for that 11 once it was shot down).
   What the GBC script does past its map's top is pressed into the time before the boss (at most clock 7000).
   Every GBC type is a PC enemy: the best candidate on the level's
   sheets (4-part ones as event 12 blocks, a composite's parts each spawned at its offset, centred on
@@ -994,7 +996,8 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   STARFALL: `story.py` `rail`, `build.py`). A game of its own in 3D, as Star Fox 64 flies, with no 2D view: the level
   is loaded as ever (its maps, their HD tiles, terrain and plants), then flown instead of played. The ship goes on a
   rail into the window, low over the ground seen from behind it, the camera following it softly and leaning into the
-  rail's turns; it moves across the window and up and down (the keys, a joystick, the mouse), fires twin lasers along
+  rail's turns; it moves across the window and up and down (the keys, a joystick, the mouse: moving it moves where the
+  ship goes, as far as the mouse moves, the ship flying there at its own pace without going past), fires twin lasers along
   its nose (their power the front gun's, 1-11, raised by blue capsules; one laser below 3, blue from 6), and with a
   rear gun homing missiles as well; the sidekick keys brake and boost (the boost gauge), the mode key drops a bomb (two,
   three with a special: everything near ahead goes), a double tap left or right rolls it (shots glance off). Fire held
@@ -1006,7 +1009,9 @@ from there: a crash. Placement now stops at the field's last column (`JE_placeme
   flight (40 rows, its HD tiles at two texels a pixel, mipmapped) a few rows a tick; the maps go on mirrored end to
   end as long as the flight goes, and beside it. Its plants are the 3D view's (nearest first, grass only near), shaded
   as the 3D view's terrain is (unlit, the sun baked into its vertices), soft shadows under what flies; haze walls across
-  the flight veil the far ground into a sky wall's gradient. The level is a list of waves by the flight's tick (70 a
+  the flight, the horizon's colour, veil the far ground into a sky wall's gradient, thicker and thicker with the
+  distance (light near, all but hiding by the time the ground's sides, `RAIL_GROUND_X`, and its far end come in view),
+  and beyond the ground's sides a floor of the haze's colour goes on, so the map's edges don't show. The level is a list of waves by the flight's tick (70 a
   second, whatever the display's pace; `WAVES`): fighters in Vs at the ship, across ahead of it, up from behind it and
   round, standing ahead strafing, diving from high; turrets and domes in the meadows; mines; rings that restore the
   shield and the armor, capsules, bombs, cash, some left by a formation's last fighter (a whole formation down: +500).

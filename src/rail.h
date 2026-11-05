@@ -28,7 +28,8 @@ bool rail_active(void);
 /* --- For drawing (render_gpu.c present_rail) --- */
 
 #define RAIL_CHUNK 1120   // the ground's chunks along z (40 map rows), chunk k from z = k * RAIL_CHUNK
-#define RAIL_GROUND_X 1412.0f  // the ground's mesh goes this far to either side (the maps and their mirrors)
+#define RAIL_GROUND_X 2104.0f  // the ground's mesh goes this far to either side (the maps and their mirrors): its
+                               // sides first in view where the haze has nearly hidden all (render_gpu.c present_rail)
 
 // The ground of chunk k: its mesh (heights, normals, the texture's uv) and its texture (RGBA, w x h), made as the
 // flight nears it; the generation it was made in (0: not made). Valid until the next call for another chunk.
@@ -76,7 +77,7 @@ typedef struct
 	float sun[3];                         // the way the sunlight goes
 	float sky_top[3], sky_horizon[3];     // sRGB 0-1
 	float haze[3];                        // sRGB 0-1: the far ground's
-	float haze_near, haze_far;            // where the haze starts and where it hides all
+	float haze_near, haze_far;            // where the haze starts and where it hides all (thickening with the distance)
 	int chunk_first, chunk_last;          // the ground's chunks in view
 	int object_count;
 	RailObject objects[RAIL_MAX_OBJECTS];

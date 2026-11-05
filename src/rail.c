@@ -735,6 +735,14 @@ static struct
 	float roll;
 } camera;
 
+// Where the mouse puts the ship (across, up), as the pointer puts it in the game: moved as far as the mouse moves (game
+// pixels), the ship flying there at its own pace (read_input); on while the mouse steers (the keys or a stick let go).
+static struct
+{
+	bool on;
+	float x, y;
+} mouse_aim;
+
 static struct
 {
 	bool on, entered, dying;
@@ -1460,13 +1468,29 @@ static Input read_input(void)
 		if (joystick[j].action_pressed[5])
 			paused = true;
 	}
-	// The mouse: moving it moves the ship; its buttons fire, boost and bomb.
+	// The mouse: moving it moves where the ship goes (mouse_aim; the user, 2026-11-04: "upravljanje mišem nije
+	// dobro", as it pushed the ship a little for each move, which then drifted on); its buttons fire, boost and bomb.
+	if (in.dx != 0 || in.dy != 0)
+		mouse_aim.on = false;
 	if (has_mouse)
 	{
 		Sint32 mx, my;
 		mouseGetRelativePosition(&mx, &my);
-		in.dx += clampf(mx / 6.0f, -1.5f, 1.5f);
-		in.dy -= clampf(my / 6.0f, -1.5f, 1.5f);
+		if ((mx != 0 || my != 0) && in.dx == 0 && in.dy == 0)
+		{
+			if (!mouse_aim.on)
+				mouse_aim.x = ship.x, mouse_aim.y = ship.y;
+			mouse_aim.on = true;
+			mouse_aim.x = clampf(mouse_aim.x + mx, -SHIP_X, SHIP_X);
+			mouse_aim.y = clampf(mouse_aim.y - my, SHIP_LOW, SHIP_HIGH);
+		}
+		if (mouse_aim.on && ship.dead_ticks == 0)
+		{
+			// (the speed that brings it there without going past, as ship_tick turns the steering into speed)
+			const float vx = clampf((mouse_aim.x - ship.x) * 0.3f, -3.4f, 3.4f), vy = clampf((mouse_aim.y - ship.y) * 0.3f, -3.4f, 3.4f);
+			in.dx = (vx - ship.vx * 0.84f) / 0.5f;
+			in.dy = (vy - ship.vy * 0.84f) / (0.5f * 0.85f);
+		}
 		in.fire |= mouse_pressed[0];
 		in.boost |= mouse_pressed[1];
 		in.bomb |= mouse_pressed[2];
@@ -2450,6 +2474,7 @@ static void begin_level(void)
 	memset(&boss, 0, sizeof(boss));
 	particle_count = flash_light_count = 0;
 	memset(&ship, 0, sizeof(ship));
+	mouse_aim.on = false;
 	ship.z = (float)(layers[0].length - 140);  // (the maps' bottom, where the level starts)
 	ship.y = 80;
 	ship.speed = SPEED;
@@ -2493,11 +2518,13 @@ static void begin_level(void)
 	view.sun[0] = 0.42f;
 	view.sun[1] = -0.78f;
 	view.sun[2] = -0.46f;
-	const float sky_top[3] = { 0.22f, 0.4f, 0.72f }, horizon[3] = { 0.7f, 0.78f, 0.86f }, haze[3] = { 0.62f, 0.7f, 0.78f };
+	// (The haze the horizon's colour, so that the ground goes into the sky; the user, 2026-11-04: "jel bi mogli dodat
+	// maglu na veliku udaljenost, tako da se ne vide rubovi mape".)
+	const float sky_top[3] = { 0.22f, 0.4f, 0.72f }, horizon[3] = { 0.7f, 0.78f, 0.86f };
 	memcpy(view.sky_top, sky_top, sizeof(sky_top));
 	memcpy(view.sky_horizon, horizon, sizeof(horizon));
-	memcpy(view.haze, haze, sizeof(haze));
-	view.haze_near = 500;
+	memcpy(view.haze, horizon, sizeof(horizon));
+	view.haze_near = 400;
 	view.haze_far = FAR;
 }
 
@@ -2514,6 +2541,7 @@ static void back_to_checkpoint(void)
 	particle_count = flash_light_count = 0;
 	const float boost = BOOST_MAX;
 	memset(&ship, 0, sizeof(ship));
+	mouse_aim.on = false;
 	ship.z = checkpoint.z;
 	ship.y = 80;
 	ship.speed = SPEED;

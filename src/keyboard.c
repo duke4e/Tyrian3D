@@ -267,7 +267,8 @@ void service_SDL_events(JE_boolean clear_new)
 				mouse_y = (Sint32)ev.motion.y;
 				mapWindowPointToScreen(&mouse_x, &mouse_y);
 
-				if (mouseRelativeEnabled && windowHasFocus)
+				// (and in a test run's window, which hasn't the focus, its MouseTo moves: TYR3D_TEST_KEYS)
+				if (mouseRelativeEnabled && (windowHasFocus || SDL_getenv("TYR3D_TEST_KEYS") != NULL))
 				{
 					mouseWindowXRelative += ev.motion.xrel;
 					mouseWindowYRelative += ev.motion.yrel;
