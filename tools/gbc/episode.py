@@ -34,6 +34,7 @@ SCALE = 1.5           # PC pixels per GBC pixel
 ROWS = 300            # layer 1 rows
 LOOK_EVENTS = {1, 2, 3, 8, 9, 21, 28, 29, 42, 43, 44, 48, 64, 65, 72, 73}  # as episode 6's generate.py
 OVERRIDES = os.path.join(HERE, 'enemy_overrides.json')
+BANKS = 8  # sprite sheets a level loads at most (tyrian2.c: event 5 the first four, event 210 the others)
 # Levels whose enemies fire less often than the GBC's (their guns' pace times this): with the GBC's hit points, fire
 # and Easy rules (script.py event 203) these still cost the ship well over their PC originals on Easy (the autopilot
 # in Arcade, TYR3D_LOG_BALANCE, damage a 1000 ticks: SAVARA 438 to SAVARA IV's 140, its boss's two pieces aiming
@@ -557,10 +558,11 @@ def pieces(records, positions, sizes):
 PIECE = 0xFE              # (no GBC type: a record left out as a piece of another's enemy)
 
 
-def enemies(spec, look):
+def enemies(spec, look, banks_given=None, types_given=None):
     """The GBC script (data/gbc/enemies, tools/gbc/enemies.py) as PC events (script.py), its enemies
     the PC ones found for its types; the boss the original level's (a placement); the sprite sheets
-    they need (at most 4: the less used types take a candidate on the loaded ones)."""
+    they need (at most BANKS: the less used types take a candidate on the loaded ones). banks_given, types_given:
+    these sheets and (some) types' PC enemies instead of those found (retype.py)."""
     import script
     import enemies as EN
     path = os.path.join(GBC, 'enemies', f"L{spec['gbc']:02d}.json")
@@ -642,16 +644,19 @@ def enemies(spec, look):
             need_over.update({b: use[t] for b in sheet(over[t])})
         elif t not in over:
             need.update({b: use[t] for b in sheet(cs[0])})
-    banks = [b for b, _ in boss_banks.most_common()][:4]  # (the boss's all: its parts and launches show)
+    banks = [b for b, _ in boss_banks.most_common()][:BANKS]  # (the boss's all: its parts and launches show)
     for b, _ in need_over.most_common() + need.most_common():
-        if len(banks) < 4 and b not in banks and b != 99:
+        if len(banks) < BANKS and b not in banks and b != 99:
             banks.append(b)
+    if banks_given is not None:
+        banks = list(banks_given)
     for t, cs in cands.items():
         if t in over and over[t] is None:
             continue
         ok = ([over[t]] if over.get(t) and sheet(over[t]) <= set(banks) else []) + [c for c in cs if sheet(c) <= set(banks)]
         if ok:
             types[t] = (ok[0]['episode'], ok[0]['enemy'], EN.parts_key(ok[0].get('parts', 1)))
+    types.update(types_given or {})
     json.dump(dict(banks=banks, types={f'{t:02x}': list(v) for t, v in types.items()}),  # (for review.py)
               open(os.path.join(GBC, 'enemies', f"L{spec['gbc']:02d}_chosen.json"), 'w'))
     ground = ground_enemies()
@@ -897,6 +902,15 @@ def layer1_pixels(events, until):
     return px + speed * max(0, until - at)
 
 
+def sheet_events(banks):
+    """The events loading a level's sprite sheets at its start: event 5 the first four, Tyrian3D's 210 the others."""
+    b = list(banks) + [0] * (BANKS - len(banks))
+    out = [dict(t=0, type=5, d1=b[0], d2=b[1], d3=b[2], d5=0, d6=0, d4=b[3])]
+    if len(banks) > 4:
+        out.append(dict(t=0, type=210, d1=b[4], d2=b[5], d3=b[6], d5=0, d6=0, d4=b[7]))
+    return out
+
+
 def make_level(spec):
     rows_gbc, img = gbc_level(spec['gbc'])
     gbc_map = rows_gbc['map']
@@ -926,8 +940,7 @@ def make_level(spec):
         events.insert(0, dict(t=0, type=2, d1=1, d2=1, d3=1, d5=0, d6=0, d4=0))
     for e in events:
         e.pop('adjust', None)
-    events.append(dict(t=0, type=5, d1=(banks + [0] * 4)[0], d2=(banks + [0] * 4)[1], d3=(banks + [0] * 4)[2],
-                       d5=0, d6=0, d4=(banks + [0] * 4)[3]))
+    events += sheet_events(banks)
     events.append(dict(t=0, type=13, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     enemy_events = with_drops(enemy_events, look, placements, spec.get('pool', []), gbc_boss)
     events += enemy_events

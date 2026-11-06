@@ -99,9 +99,9 @@ extern Sprite2_array shopSpriteSheet;  // fka shapes6
 // Explosions sprite sheet.
 extern Sprite2_array explosionSpriteSheet;  // fka shapes6
 
-// Enemy sprite sheet banks.
-extern Sprite2_array enemySpriteSheets[4];  // fka eShapes1, eShapes2, eShapes3, eShapes4
-extern Uint8 enemySpriteSheetIds[4];  // fka enemyShapeTables
+// Enemy sprite sheet banks (Tyrian3D: 8; event 5 loads the first four, event 210 the others).
+extern Sprite2_array enemySpriteSheets[8];  // fka eShapes1, eShapes2, eShapes3, eShapes4
+extern Uint8 enemySpriteSheetIds[8];  // fka enemyShapeTables
 
 // Destruct sprite sheet.
 extern Sprite2_array destructSpriteSheet;  // fka shapes6

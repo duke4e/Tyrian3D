@@ -504,6 +504,23 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   PC enemy the level uses, the six best candidates with the sheets each needs, green if loaded;
   composites' parts in `Lnn_review.txt`) and `Lnn_pool.png` (every enemy of the originals the level
   condenses).
+  A level loads up to 8 sprite sheets (`episode.py` `BANKS`; until 2026-11-06 the PC's 4, so a new pick could
+  push a sheet out and change other types' enemies): event 5 the first four as the PC's, Tyrian3D's event 210 the
+  other four (`tyrian2.c` `SHEETS_EVENT`, `enemySpriteSheets[8]`). `retype.py` carries a change to the overrides
+  into the committed levels without making them again (`episode.py` no longer makes their events exactly: the
+  matcher's candidates changed since, and boss.py and edits by hand worked them over): it translates the level's
+  script again with the new PC enemies (`episode.enemies(banks_given=, types_given=)`), and puts each record of a
+  changed type in place of the committed level's enemy for it (its fight 203, object 201, spawns and its link's
+  speeds), found at the record's time on its link and paired by hit points (a record the committed level left out
+  as a piece of another has none); in a GBC boss's stretch, numbered otherwise, on a link no record there has. A type
+  now null loses its enemies; the difficulty skips count the new events; the level's sheets get those the new
+  enemies need; it names what it can't place and spawns on sheets the level doesn't load. On 2026-11-06 the user's
+  review of the mapping (an interactive page of every type, marked wrong or right, with proposals picked by eye)
+  went in this way: 76 types over 19 levels (round 1's proposals judged right, the user's own picks, the GBC grass
+  tiles of DESERT left out, TYRIAN's walker in two types: its top 1:6+7 and its lower half 1:8+9, DELICORE's
+  white fighters the dart along its path 4:41), DELICORE's blue U fliers' sheet loaded at last (4:202 was on sheet
+  31, not loaded: they were never drawn); three boss stretches' leftovers swapped by hand (FLEET 3:724 to 5:1071,
+  DELI CORE 3:259 to 4:40, JUNGLE 2:760 to 2:814).
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of

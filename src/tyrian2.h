@@ -40,6 +40,7 @@ extern char tempStr[31];
 extern JE_byte itemAvail[10][10], itemAvailMax[10];
 #define CHECKPOINT_EVENT 208  // Tyrian3D: a checkpoint at its clock
 #define MARK_EVENT 209        // Tyrian3D: nothing (before a jump's target: a jump made outside the events runs it again)
+#define SHEETS_EVENT 210      // Tyrian3D: enemy sprite sheets 5-8 (d1-d4), as event 5 loads the first four
 int level_checkpoint_clocks(int *clocks, int most);  // Tyrian3D: the level's own checkpoints' clocks (event 208)
 int level_last_event_clock(void);  // Tyrian3D: the clock of the level's last event  // (the 10th list, Tyrian3D: the specials, ITEM_LIST_SPECIAL)
 

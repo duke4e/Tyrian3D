@@ -32,8 +32,8 @@ Sprite2_array shopSpriteSheet;
 
 Sprite2_array explosionSpriteSheet;
 
-Sprite2_array enemySpriteSheets[4];
-Uint8 enemySpriteSheetIds[4];
+Sprite2_array enemySpriteSheets[8];
+Uint8 enemySpriteSheetIds[8];
 
 Sprite2_array destructSpriteSheet;
 

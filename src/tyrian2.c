@@ -1421,16 +1421,18 @@ static void prespawn_events(void)
 			continue;
 		}
 		case 5:
+		case SHEETS_EVENT:
 		{
 			// The enemy sheets change: an enemy holds its slot's sheet, and one made before its
 			// sheet is loaded has no sprite, so later ones are made ahead of time only from
-			// sheets this keeps in their slots.
-			const int tables[COUNTOF(enemySpriteSheetIds)] = {
-				SDL_max(ev->eventdat, 0), SDL_max(ev->eventdat2, 0), SDL_max(ev->eventdat3, 0), ev->eventdat4,
+			// sheets this keeps in their slots (event 5's slots 1-4, Tyrian3D's event 210's 5-8).
+			const size_t first = ev->eventtype == 5 ? 0 : 4;
+			const int tables[4] = {
+				SDL_max(ev->eventdat, 0), SDL_max(ev->eventdat2, 0), SDL_max(ev->eventdat3, 0), SDL_max(ev->eventdat4, 0),
 			};
-			for (size_t k = 0; k < COUNTOF(enemySpriteSheetIds); ++k)
-				if (tables[k] != enemySpriteSheetIds[k])
-					sheet_stays[k] = false;
+			for (size_t k = 0; k < 4; ++k)
+				if (tables[k] != enemySpriteSheetIds[first + k])
+					sheet_stays[first + k] = false;
 			continue;
 		}
 		default:
@@ -2339,10 +2341,8 @@ start_level:
 
 	JE_clearKeyboard();
 
-	free_sprite2s(&enemySpriteSheets[0]);
-	free_sprite2s(&enemySpriteSheets[1]);
-	free_sprite2s(&enemySpriteSheets[2]);
-	free_sprite2s(&enemySpriteSheets[3]);
+	for (size_t k = 0; k < COUNTOF(enemySpriteSheets); ++k)
+		free_sprite2s(&enemySpriteSheets[k]);
 
 	/* Normal speed */
 	if (fastPlay != 0)
@@ -6796,7 +6796,9 @@ void JE_eventSystem(void)
 		break;
 
 	case 5:  // load enemy shape banks
+	case SHEETS_EVENT:  // Tyrian3D: banks 5-8, as event 5 the first four (episode 7's levels need more than four sheets)
 		{
+			const unsigned int first = eventRec[eventLoc-1].eventtype == 5 ? 0 : 4;
 			const Uint8 newEnemyShapeTables[] =
 			{
 				eventRec[eventLoc-1].eventdat > 0 ? eventRec[eventLoc-1].eventdat : 0,
@@ -6805,19 +6807,20 @@ void JE_eventSystem(void)
 				eventRec[eventLoc-1].eventdat4 > 0 ? eventRec[eventLoc-1].eventdat4 : 0,
 			};
 			
-			for (unsigned int i = 0; i < COUNTOF(newEnemyShapeTables); ++i)
+			for (unsigned int k = 0; k < COUNTOF(newEnemyShapeTables); ++k)
 			{
-				if (enemySpriteSheetIds[i] != newEnemyShapeTables[i])
+				const unsigned int i = first + k;
+				if (enemySpriteSheetIds[i] != newEnemyShapeTables[k])
 				{
-					if (newEnemyShapeTables[i] > 0)
+					if (newEnemyShapeTables[k] > 0)
 					{
-						assert(newEnemyShapeTables[i] <= COUNTOF(shapeFile));
-						JE_loadCompShapes(&enemySpriteSheets[i], shapeFile[newEnemyShapeTables[i] - 1]);
+						assert(newEnemyShapeTables[k] <= COUNTOF(shapeFile));
+						JE_loadCompShapes(&enemySpriteSheets[i], shapeFile[newEnemyShapeTables[k] - 1]);
 					}
 					else
 						free_sprite2s(&enemySpriteSheets[i]);
 
-					enemySpriteSheetIds[i] = newEnemyShapeTables[i];
+					enemySpriteSheetIds[i] = newEnemyShapeTables[k];
 				}
 			}
 		}
