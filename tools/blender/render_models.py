@@ -92,7 +92,7 @@ def main():
     for path in paths:
         cam = setup(size)
         # The game's models are wound the other way round (glb_winding.py); back to glTF's for Blender.
-        work = os.path.join(tempfile.gettempdir(), "render_models_work.glb")
+        work = os.path.join(tempfile.gettempdir(), f"render_models_work_{os.getpid()}.glb")  # (one per run: runs in parallel)
         shutil.copyfile(path, work)
         reverse_winding(work)
         try:

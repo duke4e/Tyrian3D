@@ -696,7 +696,13 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
 * `context.py` flies each GBC level in the emulator (as `enemies.py` does) and saves the GBC screen where each enemy
   type first stands whole on it, boxed, and a second look a second later (`data/gbc/context/Lnn_typeXX.png`, `_b.png`):
   what a type is by its surroundings, for checking how the GBC types were mapped to PC enemies (2026-11-05: 315 of the
-  332 types; the rest never stand whole on the screen).
+  332 types; the rest never stand whole on the screen). Since 2026-11-06 the box is the enemy's own sprites (its
+  struct's two OAM slots, bytes 0x12 and 0x13, kept only where they draw at its place: a slot not yet drawn can hold
+  the ship's; a block record's pieces together), where it boxed the cluster of touching sprites, neighbours and all;
+  a record's enemy is the struct of its group nearest where it spawns, waited for a few frames (the table is compacted
+  and a struct can come after its record), where it took the structs added that frame; one never whole on the screen
+  gets its most shown look at the edge; and `_frames.png` holds the type's own looks as they showed, most often first.
+  `--types=21,2b` takes only those. The mapping review's round 3 (2026-11-06) showed these for the types still open.
 * `shop.py` reads what the GBC shop offers before each level of the Full Game into `data/gbc/shop.json`:
   its Items menu has six lists (Ship, Weapon, Engine, Shield, SideA, SideB), each showing the items
   unlocked by name from the ROM's tables of 8-character names; the game is flown through as `story.py`
@@ -1501,7 +1507,7 @@ before downloading).
 | `tools/capture_run.sh` | Runs the game in a background window, silent (`TYR3D_AUDIO=1` keeps the sound), and dumps frames (see the environment variables) |
 | `tools/sweep.sh`, `tools/levels.py` | Plays every level for a while and makes a contact sheet per level; `levels.py` lists the level sections (`TYR3D_START`'s), the custom episodes' too |
 | `tools/review.sh` | Visual review: plays each level briefly (or the given episodes or `episode:section`s) in a background window and keeps a few frames per level as PNGs; the big BMP dumps are deleted right away |
-| `tools/blender/render_models.py`, `tools/model_sheet.py` | Renders `.glb` models in one Blender run (`--list` of files), then contact sheets of the enemy models beside their 4x sprites (with a `TYR3D_EXTRACT` catalogue: ordered by how often they appear, by episode; needs PIL) |
+| `tools/blender/render_models.py`, `tools/model_sheet.py` | Renders `.glb` models in one Blender run (`--list` of files; several runs may go in parallel, each with its own work file since 2026-11-06), then contact sheets of the enemy models beside their 4x sprites (with a `TYR3D_EXTRACT` catalogue: ordered by how often they appear, by episode; needs PIL) |
 | `tools/catalog_html.py` | Browsable page of the `TYR3D_EXTRACT` catalogue |
 | `tools/make_atlases.py` | PNG atlases of the sprites by group (ships, sidekicks, enemies by episode, items), for upscaling and as references |
 | `tools/anim_semantics.py` | Sorts the enemies' animations into rotations, rolls, cycles and changes of shape, for models that move as the sprites do (needs numpy, e.g. Blender's Python) |
