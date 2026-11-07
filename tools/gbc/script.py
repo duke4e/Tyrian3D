@@ -4,7 +4,8 @@ The GBC game's script is a port of the PC event system with its own numbers: a l
 positions (scrolled pixels) and records of five bytes (command, a, b, c, group). Its enemies are the
 PC enemies (enemies.py found which); here each record becomes the PC events that do the same:
 
-    03/04 a x y g      enemy of type a at (x, y) in group g     -> 15 (sky) / 6 (ground), link of g
+    03/04 a x y g      enemy of type a at (x, y) in group g     -> 15 (sky) / 6 (ground), link of g; low on
+                       the screen or below it (rising into view) -> 18 / 17, from the screen's bottom (gbc_y)
     21-24              the same on Hard / Normal and up          -> 66 (skip on easier) + the enemy
     28+                a block: the pieces of one big enemy (columns, rows by the command's bits, 16 px
                        apart): one PC enemy, centred on them (a composite's parts after an event 201: one
@@ -48,8 +49,22 @@ FIGHT = 203             # (Tyrian3D's event: the next enemy's hit points and fir
 HOMING = 97             # 55's xaccel / yaccel: towards the ship (13 with 99: a step every 10 frames)
 
 
+BOTTOM_SKY, BOTTOM_GROUND = 18, 17  # (the bottom spawns: the enemy's top at BOTTOM_Y + d5, tyrian2.c)
+BOTTOM_Y = 218          # ... as a top spawn's d5 (its top at -28 + d5)
+PLAYFIELD_END = 144     # a GBC struct y from here on is below the playfield (screen y 128: the status bar)
+WRAP_Y = 0xd0           # a GBC struct y from here on is above the screen (a byte: -48 to -1)
+
+
 def s8(v):
     return v - 256 if v > 127 else v
+
+
+def gbc_y(c, down):
+    """A GBC spawn's struct y (a byte; 0: just above the screen, 16 its top line) as a signed y: on the screen or
+    below it (rising into view), above it from WRAP_Y on; one below the playfield that moves down (by its speed or
+    the map's) wraps round to above the screen, the byte running over ($20b8), and comes in from the top."""
+    y = c if c < WRAP_Y else c - 256
+    return c - 256 if y >= PLAYFIELD_END and down else y
 
 
 def ticks(frames):
@@ -103,6 +118,7 @@ class Translator:
         self.uncarried = set()      # links of ground slots' enemies the GBC map doesn't carry (their 19s less the scroll)
         self.steered = {}           # link -> (x, y) steered towards the ship
         self.carried = {}           # link -> when the sky enemies the GBC map carries were last made on it
+        self.notes = []             # what it couldn't place as the GBC does
 
     def spawn_events(self, t, rec, carried=None):
         types, sizes, links, speed = self.types, self.sizes, self.links, self.speed
@@ -147,17 +163,48 @@ class Translator:
             # carries, less the scroll for one the GBC's doesn't)
             own = enemies_of(ep).get(m, {}).get('ymove', 0)
             return max(-128, min(127, sy - own - (0 if not ground or carried else speed)))
+        # (its y on the GBC screen: below it rising into view, or wrapped round to above it when it moves down: by
+        # its start speed, or with the map; steered towards the ship it comes up from there)
+        vys = 0 if vy == KEEP else s8(vy)
+        ys = gbc_y(c, down=vys > 0 or (carried and vy != KEEP and vys >= 0))
+
+        def spawn(m, x_, y_, drift_):
+            # (a sky or ground spawn with its top left y_ PC pixels below the PC's top spawn place: from the
+            # screen's top, or, past what the top spawn's y reaches, from its bottom: the same place, but at most
+            # 190, the line below which the game takes an enemy off at once, tyrian2.c)
+            if y_ <= 127:
+                type_, d5 = (GROUND if ground else SKY), max(-128, y_)
+            else:
+                type_, d5 = (BOTTOM_GROUND if ground else BOTTOM_SKY), max(-128, min(0, y_ - BOTTOM_Y))
+            return ev(t, type_, m, round(x_) + (27 if ground else 0), start_y(m), d5, 0 if ground else drift_, link,
+                      ep=ep)
+
+        def spawns(items, drift_):
+            # (an enemy's parts (enemy, x, y) as spawn(), lifted together so that none is made below that line)
+            lift = max(0, max(y_ for _, _, y_ in items) - BOTTOM_Y)
+            return [spawn(m, x_, y_ - lift, drift_) for m, x_, y_ in items]
         evs = fight
         for j in range(rows):
             for i in range(cols):
                 x = SCALE * (b + 16 * i) - 12
-                y = max(-128, min(127, round(SCALE * (s8(c) - 16 * j))))
-                top = round(SCALE * (s8(c) - 16 * (block[1] - 1)))  # (the block's top row: its rows go up)
+                y = round(SCALE * (ys - 16 * j))
+                top = round(SCALE * (ys - 16 * (block[1] - 1)))  # (the block's top row: its rows go up)
                 if parts == 4:
                     # a 4-part enemy (event 12: the parts d1..d1+3, the layer in d6, part 0 the lower
                     # left one) with its top left corner where the GBC one's is; in the sky it gets
                     # the scroll by its link (event 12 leaves fixedmovey 0)
-                    evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), start_y(n), min(127, y + 28), 0 if ground else 2, link, ep=ep))
+                    if y + 28 > 127 and ep == "gbc":
+                        # (episode 7's own: one record for its four parts, which only event 12 makes)
+                        self.notes.append(f"type {a:02x} at clock {t}: episode 7's own 4-part enemy low on the "
+                                          f"screen or below it, made at the top spawn's lowest")
+                    elif y + 28 > 127:
+                        # (low on the screen or below it: its four parts from the screen's bottom, one enemy, as
+                        # event 12 places them: part 0 its lower left, 2 and 3 a row up)
+                        evs.append(ev(t, OBJECT, 4))
+                        evs += spawns([(n + k_, x + dx, y + dy) for k_, (dx, dy) in
+                                       enumerate(((0, 28), (24, 28), (0, 0), (24, 0)))], drift)
+                        continue
+                    evs.append(ev(t, 12, n, round(x) + (27 if ground else 0), start_y(n), min(127, max(-128, y) + 28), 0 if ground else 2, link, ep=ep))
                     if not ground and link and drift:
                         evs.append(ev(t, 19, -99, -99, 0, 0, drift, link))
                 elif isinstance(parts, tuple):
@@ -169,21 +216,12 @@ class Translator:
                     # (one enemy: the engine lets the next events' pieces die together, and alone of the rest of
                     # their link, the GBC group, whose enemies die alone: tyrian2.c gbc_takes_along)
                     evs.append(ev(t, OBJECT, len(parts)))
-                    for m, dx, dy in parts:
-                        dx += cx
-                        yy = max(-128, min(127, top + cy + dy))
-                        if ground:
-                            evs.append(ev(t, GROUND, m, round(x + dx) + 27, start_y(m), yy, 0, link, ep=ep))
-                        else:
-                            evs.append(ev(t, SKY, m, round(x + dx), start_y(m), yy, drift, link, ep=ep))
+                    evs += spawns([(m, x + dx + cx, top + cy + dy) for m, dx, dy in parts], drift)
                 else:
                     if whole and block != (1, 1):  # (one PC enemy for a block's pieces: centred on them)
                         x += (SCALE * 16 * block[0] - 24) / 2
-                        y = max(-128, min(127, top + round((SCALE * 16 * block[1] - 28) / 2)))
-                    if ground:
-                        evs.append(ev(t, GROUND, n, round(x) + 27, start_y(n), y, 0, link, ep=ep))
-                    else:
-                        evs.append(ev(t, SKY, n, round(x), start_y(n), y, drift, link, ep=ep))
+                        y = top + round((SCALE * 16 * block[1] - 28) / 2)
+                    evs.append(spawn(n, x, y, drift))
         # the rest of its start speed by its link, as it is made (alone, with none: the PC enemy's x stays): x, the PC
         # enemy's steps undone, steering towards the ship for 99 (or the PC's undone)
         if link:

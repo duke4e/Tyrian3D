@@ -6921,13 +6921,19 @@ void JE_eventSystem(void)
 	case 17: /* Ground Bottom */
 		JE_createNewEventEnemy(0, 25, 0);
 		if (b > 0)
+		{
 			enemy[b-1].ey = 190 + eventRec[eventLoc-1].eventdat5;
+			gbc_find_head(b - 1);  // (Tyrian3D: its place from its first piece's, now that it is at the bottom)
+		}
 		break;
 
 	case 18: /* Sky Enemy on Bottom */
 		JE_createNewEventEnemy(0, 0, 0);
 		if (b > 0)
+		{
 			enemy[b-1].ey = 190 + eventRec[eventLoc-1].eventdat5;
+			gbc_find_head(b - 1);  // (Tyrian3D: as 17)
+		}
 		break;
 
 	case 19: /* Enemy Global Move */
@@ -7054,7 +7060,10 @@ void JE_eventSystem(void)
 	case 23: /* Sky Enemy on Bottom */
 		JE_createNewEventEnemy(0, 50, 0);
 		if (b > 0)
+		{
 			enemy[b-1].ey = 180 + eventRec[eventLoc-1].eventdat5;
+			gbc_find_head(b - 1);  // (Tyrian3D: as 17)
+		}
 		break;
 
 	case 24: /* Enemy Global Animate */

@@ -549,8 +549,20 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   by its link as it is made (a group's older enemies that a 13 sent elsewhere change with it: 64 of the
   4,660 spawns); sky ones the map carries the scroll as fixedmovey (again at each new scroll speed, for links
   made in the last 900 ticks), the others none; ground ones (the ground scrolls them) the GBC doesn't carry
-  get the scroll taken off their speeds (the spawn's and their 13s'). The level's type table's place
-  comes from its init (`enemies.py --tables`, into `Lnn.json`). `moves.py` checks it: it flies the GBC
+  get the scroll taken off their speeds (the spawn's and their 13s'). A spawn's y is the GBC enemy's struct
+  y, a byte (`gbc_y`): 0 just above the screen, 144 the playfield's bottom (the status bar's top line), from 208
+  on above the screen (-48 to -1); one below the playfield that moves down (by its start speed, or with the map)
+  wraps round, the byte running over, to above the screen, where it comes in from the top. Its PC place is the top
+  spawn's, its top at -28 + 1.5 y; past what a top spawn's d5 reaches (127, low on the screen) it is made from the
+  screen's bottom, events 18 (sky) and 17 (ground), at the same place (190 + d5) but no lower than 190, below
+  which the game takes an enemy off at once (an enemy of several parts lifted whole), a 4-part one as its four
+  parts apart in one object (the game holds a part to its first one by their places once the bottom event has set
+  its y: `tyrian2.c` events 17, 18 and 23 call `gbc_find_head` again) (until 2026-11-07 every y from 128 was read as above the screen and the low ones were made at
+  the top spawn's lowest: 261 enemies in 10 levels, among them SPACE's green fliers and SPACE ATK's crystals rising
+  from the bottom, which never showed; `retype.py --respawn` made them anew in the committed levels, each keeping
+  its PC enemy and its other events; in the GBC bosses' stretches, translated otherwise without `boss_rom.py`'s
+  `rom.json`, 25 of DELI CORE's and one of ICE EXIT's weren't found or paired for sure and stay as they were). The level's type
+  table's place comes from its init (`enemies.py --tables`, into `Lnn.json`). `moves.py` checks it: it flies the GBC
   level (the ship parked as `boss_rom.py` parks it) following each enemy from its spawn, reads the PC
   level's from `TYR3D_LOG_MOVES`, and sets each spawn's speeds over its first 15 ticks side by side
   (2026-10-27, TYRIAN, ASTEROID, OASIS, SPACE ATK, DELICORE: 284 of the 293 spawns it could pair move
