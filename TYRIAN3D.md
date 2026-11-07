@@ -556,7 +556,14 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   bosses' places (`tools/content/gbc/terrain.py`: TUNNEL's IXMUCANE stood in raised ground, z-fighting; DESERT's and
   JUNGLE's changed too). terrain.py carries the settings over again and so lost two set by hand, TUNNEL's background 3
   `slivers` and DESERT's darker sand as ground: those were put back and the terrain built from them
-  (`make_terrain.py build`).
+  (`make_terrain.py build`). Round 7 (the atlas, a page of every level's maps, 3D screens, enemy types and boss, showed
+  the user the last wrong ones): JUNGLE's and JUNGLE II's green fliers TORM's tower top (J 13+15), JUNGLE II's turret
+  its top 04 the stone tripod J 1 and its legs 03 J 39, ASTEROID's 07 1:459, TYRIAN's 04 the whole walker (1:6+7 over
+  1:8+9), SPACE's 13 the green flier of 0b (x5e 167), DELIANI's 03 1:514, TUNNEL's 08 3:106, LAVA II's other rocks
+  IXMUCANE's wall too, OASIS's and FINALE's blue crystals a big blue gem pickup worth 2500 (episode 7's own on sheet W:
+  the big purple gem Q 115 in the blues, `sheet.py`'s recolor reading Q from the extracted `coins.png`); SAVARA II's 1c
+  and 21, GBC boss pieces no longer made, null. The user's notes on the maps are in
+  `docs/plans/2026-11-07-epizoda7-karte-brief.md`.
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of

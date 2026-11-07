@@ -91,5 +91,11 @@
   "base": [2, 794], "layer": "sky", "columns": 1, "rows": 1,
   "recolor": {"sheet": "V", "sprite": 10, "big": true, "map": {"0x56": "0x79", "0x57": "0x7a", "0x58": "0x7b", "0x59": "0x7b", "0x5a": "0x7c", "0x5b": "0x7c", "0x5c": "0x7d", "0x5d": "0x7d", "0x5e": "0x7e", "0x5f": "0x7e"}},
   "parts": [{"column": 0, "row": 0, "sprite": 9}]
+ },
+ "blue_gem": {
+  "about": "OASIS's and FINALE's blue crystals 12, 06, 0a (hand check round 7, the user: the blue pickup gem, the big one worth thousands): the big purple gem Q 115 (1:399) with its purples moved to the blues, on sheet W (sheet.py recolor); an item worth 2500 (its base 1:398)",
+  "base": [1, 398], "layer": "sky", "columns": 1, "rows": 1,
+  "recolor": {"sheet": "Q", "sprite": 115, "big": true, "map": {"0x51": "0x91", "0x52": "0x92", "0x53": "0x93", "0x54": "0x94", "0x55": "0x95", "0x56": "0x96", "0x57": "0x97", "0x58": "0x98", "0x59": "0x99", "0x5a": "0x9a", "0x5b": "0x9b", "0x5c": "0x9c", "0x5d": "0x9d", "0x5e": "0x9e", "0x5f": "0x9f"}},
+  "parts": [{"column": 0, "row": 0, "sprite": 11}]
  }
 }

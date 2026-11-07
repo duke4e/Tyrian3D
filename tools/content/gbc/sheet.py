@@ -114,7 +114,8 @@ def recolored(e, pal):
     colours moved ("map": index -> index, as tools/glb_palette_remap.py moves a model's): the picture of a recolour."""
     rc = e["recolor"]
     big = rc.get("big", True)
-    src = Image.open(os.path.join(ROOT, "export", "extract", "sheets", f"enemy_{rc['sheet']}.png")).convert("RGBA")
+    name = "coins.png" if rc["sheet"] == "Q" else f"enemy_{rc['sheet']}.png"  # (Q, the coins and gems: coins.png)
+    src = Image.open(os.path.join(ROOT, "export", "extract", "sheets", name)).convert("RGBA")
     col, row = (rc["sprite"] - 1) % COLS, (rc["sprite"] - 1) // COLS
     w, h = (2 * TW, 2 * TH) if big else (TW, TH)
     crop = src.crop((col * TW, row * TH, col * TW + w, row * TH + h))
