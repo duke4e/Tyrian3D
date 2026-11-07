@@ -441,14 +441,27 @@ def boss_template(src):
                     and e["t"] >= max(bars + [0]) - BOSS_LEAD)
     start = spawns[0] if spawns else b["start"]
     start = min([e["t"] for e in events if e["type"] == 16 and start - 400 <= e["t"] <= start] + [start])
-    block = []
+    def linked(e):  # (a custom enemy's link is its d4 too: TORM's shell round its four pieces, events 51)
+        return e["d4"] if e["type"] in waves.CUSTOM_SPAWNS else waves.by_link(e)
+    block, taken = [], set()
     for e in events:
         if e["t"] < start:
             continue
-        link = waves.by_link(e)
+        link = linked(e)
         if (link in links or e["type"] in waves.BOSS_SCRIPT and e["type"] != 2 or e["type"] == 39 and e["d1"] in links):
             block.append(dict(e, t=e["t"] - start))
+            taken.add(id(e))
     length = max([e["t"] for e in block] + [0])
+    # (and what the original makes with its body, at the same ticks, on other links or none: the body's other parts,
+    # which its bar doesn't count: SAVARA's sides, IXMUCANE's rock cover, SURFACE's rock arches, FLEET's and
+    # APPROACH's pieces; the user's hand check, 2026-11-07: "nije cijeli protivnik"), their links' events over the block)
+    body = {e["t"] for e in events if e["type"] in waves.SPAWNS and e["d4"] in links and start <= e["t"] <= start + 300}
+    along = [e for e in events if e["type"] in waves.SPAWNS | waves.CUSTOM_SPAWNS and e["d1"] > 0 and e["d4"] not in links
+             and any(abs(e["t"] - t) <= 2 for t in body)]
+    more = {e["d4"] for e in along if e["d4"]}
+    block += [dict(e, t=e["t"] - start) for e in events
+              if id(e) not in taken and start <= e["t"] <= start + length
+              and (linked(e) in more or any(e is a for a in along))]
     # (and the moves of every enemy of a layer, or all, over it: BRAINIAC's hold its brain against the scroll)
     block += [dict(e, t=e["t"] - start) for e in events
               if e["type"] == 19 and e["d3"] in (1, 2, 3, 99) and start <= e["t"] <= start + length]

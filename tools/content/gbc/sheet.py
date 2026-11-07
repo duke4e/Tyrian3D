@@ -5,8 +5,11 @@ levels' palette. Writes tools/content/gbc/newshw.shp (the game's compressed spri
 sprites' offsets, each sprite's rows as runs of skipped and drawn pixels) and sheet_w.png (the sheet as the game draws
 it, 4x, to look at); build.py copies the sheet into assets/content/episode7, where the game finds it (src/file.c).
 
-usage: <python with PIL> tools/content/gbc/sheet.py <render dir>
-       (the render dir holds <enemy>.png, each model's --sprite render)
+usage: <python with PIL> tools/content/gbc/sheet.py [<render dir>]
+       (the render dir holds <enemy>.png, each model's --sprite render; without one, or without an enemy's render, its
+       sprites stay as newshw.shp has them; an enemy with "recolor" is a PC sheet's sprite in other colours, from the
+       extracted sheets: SPACE ATK's yellow crystal, 2:794's lilac moved to the yellows, as its model's,
+       tools/glb_palette_remap.py)
 """
 import json
 import os
@@ -106,16 +109,53 @@ def decode(data, index):
     return tile
 
 
+def recolored(e, pal):
+    """A PC sheet's sprite (the extracted sheets' pictures, export/extract/sheets: TYR3D_EXTRACT) as palette indices, its
+    colours moved ("map": index -> index, as tools/glb_palette_remap.py moves a model's): the picture of a recolour."""
+    rc = e["recolor"]
+    big = rc.get("big", True)
+    src = Image.open(os.path.join(ROOT, "export", "extract", "sheets", f"enemy_{rc['sheet']}.png")).convert("RGBA")
+    col, row = (rc["sprite"] - 1) % COLS, (rc["sprite"] - 1) // COLS
+    w, h = (2 * TW, 2 * TH) if big else (TW, TH)
+    crop = src.crop((col * TW, row * TH, col * TW + w, row * TH + h))
+    moved = {int(a, 0): int(b, 0) for a, b in rc["map"].items()}
+    out = []
+    for y in range(h):
+        line = []
+        for x in range(w):
+            r, g, b, a = crop.getpixel((x, y))
+            if a < 128:
+                line.append(None)
+                continue
+            i = min(range(256), key=lambda i: (pal[i][0] - r) ** 2 + (pal[i][1] - g) ** 2 + (pal[i][2] - b) ** 2)
+            line.append(moved.get(i, i))
+        out.append(line)
+    return out
+
+
 def main():
-    renders = sys.argv[1]
+    # (without a render dir, or a render, an enemy drawn from its model keeps the sprites it has in newshw.shp)
+    renders = sys.argv[1] if len(sys.argv) > 1 else None
     pal = palette()
     spec = json.load(open(os.path.join(HERE, "new_enemies.json")))
+    old = open(os.path.join(HERE, "newshw.shp"), "rb").read() if os.path.exists(os.path.join(HERE, "newshw.shp")) else None
     tiles = {}
     for name, e in spec.items():
         if "sheet" in e:
             continue  # (a look of a PC sheet: nothing of its own to draw)
         w, h = 24 * e["columns"], 28 * e["rows"]
-        picture = quantize(shrink(os.path.join(renders, name + ".png"), w, h), e["ramps"], pal)
+        if "recolor" in e:
+            picture = recolored(e, pal)
+        elif renders and os.path.exists(os.path.join(renders, name + ".png")):
+            picture = quantize(shrink(os.path.join(renders, name + ".png"), w, h), e["ramps"], pal)
+        else:
+            assert old, f"{name}: no render and no sheet to keep its sprites from"
+            for part in e["parts"]:
+                for ty in range(2):
+                    for tx in range(2):
+                        k = part["sprite"] + tx + COLS * ty
+                        tiles[k] = decode(old, k)
+            continue
         for part in e["parts"]:
             # the part's 2x2 sprite: its column and row in the picture (row 0 the top), its first sprite
             c, r, first = part["column"], part["row"], part["sprite"]

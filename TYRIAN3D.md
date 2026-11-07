@@ -538,7 +538,17 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   ends 600 ticks after its last enemy, FINALE's GBC script being 450 ticks long). `reboss.py` carries those flags into
   the committed levels without making them again (the GBC boss's stretch goes, from its start on; the boss song, the
   end and the sheets follow). LAVA I's 2f is the score's figures (left out); LAVA II's stone figure is 25's K289 whole
-  again (24 left out).
+  again (24 left out). Round 4 (the same page, variants to pick): a placed boss is its original's whole body, also
+  what the original makes with it at the same ticks on other links (`build.py` `boss_template`: SAVARA's sides,
+  SURFACE's rock arches round its rock machine, IXMUCANE's rock cover, FLEET's and APPROACH's pieces) and its custom
+  enemies (events 49-52 on its links: TORM's green shell round its four pieces), where its bar's links alone left them
+  out; SPACE ATK gets APPROACH's boss whole too; JUNGLE II's GBC boss is TORM's beetle (its LOOK events by hand: the six
+  head pieces its body's sprites, the two segments and the tail tip H 230/232, 192/194, 155); JUNGLE's big flier 1e is
+  TORM's green tower whole (J 13, 15 over 51, 53) and JUNGLE II's 19 its top; the turret legs (JUNGLE 0e, JUNGLE II
+  02) TORM's stone tripod J 1 over its legs J 39; LAVA II's rocks IXMUCANE's wall piece with lava between its ends
+  (8: 169, 163, 161, each 2x2); SPACE ATK's crystals 2:794 in yellow, episode 7's own enemy on sheet W: its sprite the
+  lilac one with its palette indices moved (`sheet.py`'s `recolor`, from the extracted sheets; without renders
+  `sheet.py` keeps the sprites W has) and its model `shard_yellow` (`tools/glb_palette_remap.py`).
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of

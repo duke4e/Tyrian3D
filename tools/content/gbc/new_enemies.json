@@ -27,8 +27,8 @@
   "parts": [{"sprite": 207}]
  },
  "look_8_163": {
-  "about": "LAVA II's lava rocks 18, 1a, 1c, 1f, 20 (round 3): sheet 8's 163, a broken rock with lava (model ixm_wall_slot_top_damaged)",
-  "sheet": "8", "big": false, "base": [4, 216], "layer": "sky",
+  "about": "LAVA II's lava rocks (rounds 3, 4): IXMUCANE's wall piece with lava, sheet 8's 2x2 at 163 (model ixm_wall_slot_top_damaged), between its ends",
+  "sheet": "8", "big": true, "base": [4, 216], "layer": "sky",
   "parts": [{"sprite": 163}]
  },
  "look_8_182": {
@@ -55,5 +55,41 @@
   "about": "... its mirror image nose right, V 235 (model blue_torpedo)",
   "sheet": "V", "big": false, "base": [1, 18], "layer": "ground",
   "parts": [{"sprite": 235}]
+ },
+ "look_j15": {
+  "about": "JUNGLE's green flier 1e and JUNGLE II's 19 (round 4): the green tower's top right, J 15 (model green_tower_tr)",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 15}]
+ },
+ "look_j51": {
+  "about": "... the tower's bottom left, J 51 (model green_tower_bl): 1e the whole tower",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 51}]
+ },
+ "look_j53": {
+  "about": "... and its bottom right, J 53 (model green_tower_br)",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 53}]
+ },
+ "look_j1": {
+  "about": "the turret legs of JUNGLE 0e and JUNGLE II 02 (round 4): TORM's stone tripod gun, J 1 (model stone_plant), over its legs J 39",
+  "sheet": "J", "big": true, "base": [2, 382], "layer": "sky",
+  "parts": [{"sprite": 1}]
+ },
+ "look_8_169": {
+  "about": "LAVA II's rocks (round 4): IXMUCANE's wall, its left end, sheet 8's 169 (model ixm_wall_end_l_top)",
+  "sheet": "8", "big": true, "base": [4, 216], "layer": "sky",
+  "parts": [{"sprite": 169}]
+ },
+ "look_8_161": {
+  "about": "... and its right end, sheet 8's 161 (model ixm_wall_end_r_top)",
+  "sheet": "8", "big": true, "base": [4, 216], "layer": "sky",
+  "parts": [{"sprite": 161}]
+ },
+ "yellow_shard": {
+  "about": "SPACE ATK's yellow crystals 02 and 0f (round 4, the user: 2:794 in yellow): 2:794's sprite V 10 with its lilacs moved to the yellows, on sheet W (sheet.py recolor), its model shard's likewise (shard_yellow)",
+  "base": [2, 794], "layer": "sky", "columns": 1, "rows": 1,
+  "recolor": {"sheet": "V", "sprite": 10, "big": true, "map": {"0x56": "0x79", "0x57": "0x7a", "0x58": "0x7b", "0x59": "0x7b", "0x5a": "0x7c", "0x5b": "0x7c", "0x5c": "0x7d", "0x5d": "0x7d", "0x5e": "0x7e", "0x5f": "0x7e"}},
+  "parts": [{"column": 0, "row": 0, "sprite": 9}]
  }
 }

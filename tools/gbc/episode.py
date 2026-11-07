@@ -105,7 +105,7 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 # bodies, picked by eye: the GBC game's are mostly the PC's made small, often another level's), else the original
 # level's. gbc_boss=False: that PC boss whole, as its original has it (placed at the GBC boss's time), rather than the
 # GBC boss's pieces drawn as its parts (the user's hand check, 2026-11-07: SAVARA II, DESERT, JUNGLE, CAMANIS, FLEET,
-# DELIANI and TUNNEL looked wrong in pieces). no_boss=True: none, where the GBC level has none (BUBBLES, AST.BONUS,
+# DELIANI and TUNNEL looked wrong in pieces; SPACE ATK's too, in round 4). no_boss=True: none, where the GBC level has none (BUBBLES, AST.BONUS,
 # DELICORE, LAVA I, FINALE: until 2026-11-07 they got an original's; JUNGLE II's GBC boss is its whole script).
 # The episode in the GBC game's Full Game order (found by playing it through in the emulator), with the
 # levels only its Arcade mode has (arcade) after one of their look. gbc: the GBC level (data/gbc/levels/Lnn_*); pc: the original level it
@@ -134,7 +134,7 @@ LEVELS = [
          rare=(5, 0.25), **REMADE),
     dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], no_boss=True,
          gbc_boss=False),
-    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH')),
+    dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH'), gbc_boss=False),
     dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), as_they_are=(3,), pool=[(3, 'FLEET')], gbc_boss=False),
     dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI'), rare=RARE, gbc_boss=False),
     dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE'), rare=RARE, gbc_boss=False),
