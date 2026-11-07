@@ -713,13 +713,6 @@
   "level": "CAMANIS (gbc)",
   "episode": 7
  },
- "f9ec76edcdee6444": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "AST.BONUS (gbc)",
-  "episode": 7
- },
  "185cd58cdcfddb19": {
   "classes": 6,
   "void": "hole",
@@ -914,20 +907,6 @@
   "level": "DELI CORE (gbc)",
   "episode": 7
  },
- "ee9447721b3eff2b": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#782a1f": -16,
-   "#9e4238": 0,
-   "#a75247": "~",
-   "#2e0401": -16,
-   "#45130b": "~",
-   "#520300": -16
-  },
-  "level": "LAVA II (gbc)",
-  "episode": 7
- },
  "fdbd55e8c6ec879f": {
   "classes": 6,
   "forest": "palm",
@@ -1007,5 +986,26 @@
    "#597e96": 0,
    "#0f2839": "~"
   }
+ },
+ "4d39bdd541139299": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "AST.BONUS (gbc)",
+  "episode": 7
+ },
+ "e1deb05501323dc5": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#782a1f": -16,
+   "#9e4238": 0,
+   "#a75247": "~",
+   "#2e0401": -16,
+   "#45130b": "~",
+   "#520300": -16
+  },
+  "level": "LAVA II (gbc)",
+  "episode": 7
  }
 }

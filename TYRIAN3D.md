@@ -564,6 +564,17 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   the big purple gem Q 115 in the blues, `sheet.py`'s recolor reading Q from the extracted `coins.png`); SAVARA II's 1c
   and 21, GBC boss pieces no longer made, null. The user's notes on the maps are in
   `docs/plans/2026-11-07-epizoda7-karte-brief.md`.
+  Maps 1:1 (2026-11-07): `episode.py`'s autotile has an aligned mode (spec `aligned`: a PC cell one GBC block, the GBC
+  map's 11 columns in the PC's 2..12, a PC row a GBC row, so the map 28/24 times as long as at 1.5x) and its pair costs
+  are a function of their own (`pair_costs`). `tools/gbc/dictionary.py` lays a level's layer 1 block for block from a
+  dictionary (`tools/gbc/dictionaries.json`, GBC block -> PC tile; the proposal the aligned autotile's choices at each
+  block, made one tile per block where blocks meet as the originals pair tiles; the user's picks on a page over it), the
+  columns past the GBC map's sides made again down each (Viterbi over the ground tiles); `dictionary.py apply` splices it
+  into the committed level and, the first time (`aligned` in the level), stretches its clock: x 7/6 up to the GBC map's
+  top (or a placed boss's start), shifted after it (the boss keeps its pace), the jumps (54, 70) with it, ground spawns
+  9 px left with the columns, backgrounds 2 and 3 no faster than their maps last. AST.BONUS (the proposal) and LAVA II
+  (five lava river tiles picked) are laid so; a spec's `tiles` (GBC DELIANI: PC DELIANI's, with its backgrounds) gives a
+  map another original's tile set. LAVA II's boss isn't beaten by the autopilot in most runs, the committed level's too.
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of

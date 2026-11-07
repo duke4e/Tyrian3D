@@ -136,7 +136,7 @@ LEVELS = [
          gbc_boss=False),
     dict(gbc=10, name='SPACE ATK', pc=(4, 'SQUADRON'), space=True, pool=[(4, 'SQUADRON'), (1, 'ASSASSIN'), (4, 'DREAD-NOT')], boss=(4, 'APPROACH'), gbc_boss=False),
     dict(gbc=21, name='FLEET', pc=(3, 'FLEET'), as_they_are=(3,), pool=[(3, 'FLEET')], gbc_boss=False),
-    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI'), rare=RARE, gbc_boss=False),
+    dict(gbc=17, name='DELIANI', pc=(4, 'BRAINIAC'), tiles=(1, 'DELIANI'), layers=(1, 'DELIANI'), pool=[(4, 'BRAINIAC'), (1, 'DELIANI'), (3, 'New Deli')], boss=(1, 'DELIANI'), rare=RARE, gbc_boss=False),
     dict(gbc=22, name='TUNNEL', pc=(4, 'NOSE DRIP'), pool=[(4, '?TUNNEL?'), (4, 'NOSE DRIP'), (3, 'IXMUCANE')], boss=(3, 'IXMUCANE'), rare=RARE, gbc_boss=False),
     dict(gbc=1, name='DELICORE', pc=(1, 'DELIANI'), match=True, arcade=True, pool=DELIS, rare=RARE, as_they_are=(2, 3), no_boss=True),
     dict(gbc=16, name='DELI CORE', pc=(3, 'New Deli'), match=True, pool=DELIS, boss=(4, 'DREAD-NOT'), rare=RARE, as_they_are=(2, 3)),
@@ -261,6 +261,55 @@ def object_tiles(letter):
     return set(cache['tiles'][letter])
 
 
+def pair_costs(spec, ids, right, above, selfish, tiles, pal):
+    """What each pair of tiles costs side by side ([left, right]) and one above the other ([below, above]): nothing (or a
+    little if rare) where the originals pair them, else how badly their edges join; and the seen and mismatch tables."""
+    T = len(ids)
+    idx = {t: i for i, t in enumerate(ids)}
+    seen_h = np.zeros((T, T), bool)  # [left, right]
+    seen_v = np.zeros((T, T), bool)  # [below, above]
+    count_h = np.zeros((T, T))
+    count_v = np.zeros((T, T))
+    for a_, cnt in right.items():
+        for b_, c_ in cnt.items():
+            if a_ in idx and b_ in idx:
+                seen_h[idx[a_], idx[b_]] = True
+                count_h[idx[a_], idx[b_]] = c_
+    for a_, cnt in above.items():
+        for b_, c_ in cnt.items():
+            if a_ in idx and b_ in idx:
+                seen_v[idx[a_], idx[b_]] = True
+                count_v[idx[a_], idx[b_]] = c_
+    # (how badly an unseen pair's edge joins: the step in colour across it beyond the steps just inside either tile,
+    # per pixel along it; two grasses join, grass beside the sea doesn't)
+    tl = np.stack([lab(pal[tiles[t]].astype(np.float64)) if tiles.get(t) is not None else lab(np.zeros((28, 24, 3)))
+                   for t in ids])
+
+    def mismatch(a_edge, a_in, b_edge, b_in):
+        d = np.linalg.norm(a_edge[:, None] - b_edge[None, :], axis=-1)
+        g = (np.linalg.norm(a_edge - a_in, axis=-1)[:, None] + np.linalg.norm(b_edge - b_in, axis=-1)[None, :]) / 2
+        return np.maximum(0, d - g).mean(-1)
+    mis_h = mismatch(tl[:, :, -1], tl[:, :, -2], tl[:, :, 0], tl[:, :, 1])   # [left, right]
+    mis_v = mismatch(tl[:, 0], tl[:, 1], tl[:, -1], tl[:, -2])               # [below, above]
+    # (a pair the originals have only a few times costs a little too, as much more as it is rarer: ASTEROID2's
+    # platforms cut straight off at the void, a join its originals have at a few edges, where they have rocky rims)
+    rare_count, rare_cost = spec.get('rare', (RARE_COUNT, RARE_COST))
+    rare_h = rare_cost * np.clip(1 - count_h / max(rare_count, 1), 0, 1) if rare_count else 0.0
+    rare_v = rare_cost * np.clip(1 - count_v / max(rare_count, 1), 0, 1) if rare_count else 0.0
+    # (and a pair they never have at least as much as the rarest they have)
+    unseen_least = rare_cost if rare_count else 0.0
+    cost_h = np.where(seen_h, rare_h, np.maximum(unseen_least, np.minimum(1.0, mis_h / EDGE_NORM)))
+    cost_v = np.where(seen_v, rare_v, np.maximum(unseen_least, np.minimum(1.0, mis_v / EDGE_NORM)))
+    # (spec 'whole': a tile that never stands beside itself, a piece of something, beside one the originals never put it
+    # beside costs WHOLE_COST: DESERT's stumps came out of the halves of two, JUNGLE's cliffs of pieces of others)
+    if spec.get('whole'):
+        piece = np.array([selfish[t] == 0 for t in ids])
+        either = piece[:, None] | piece[None, :]
+        cost_h = np.where(~seen_h & either, WHOLE_COST, cost_h)
+        cost_v = np.where(~seen_v & either, WHOLE_COST, cost_v)
+    return cost_h, cost_v, seen_h, seen_v, mis_h, mis_v
+
+
 def autotile(spec, img, grids, letter):
     """Layer 1 from the GBC map by materials. The materials are the tile set's main colours (k-means of
     the used tiles' region means, weighted by use); a tile's signature is the materials of its n x n
@@ -316,7 +365,11 @@ def autotile(spec, img, grids, letter):
         return ((v[..., None, :] - centres) ** 2).sum(-1).argmin(-1)
     sigs = np.array([material(rmean[t]).ravel() for t in ids])  # (T, n*n)
     weight = np.array([use[t] for t in ids], np.float64) ** 2
-    n_rows = int(round(img.shape[0] * SCALE / 28))
+    # (aligned: each PC cell one GBC metatile, the GBC map's columns in the PC's 2..12, a PC row a GBC row: the layout
+    # 1:1, the map 28/24 times as long as at 1.5x; else the GBC map 1.5x, a cell 16 x 18.67 GBC pixels from x -38)
+    aligned = spec.get('aligned', False)
+    x_off = 32 if aligned else 38
+    n_rows = img.shape[0] // 16 if aligned else int(round(img.shape[0] * SCALE / 28))
     g = lab(img.astype(np.float64))
     if spec.get('match'):
         # GBC colours far from the tile set's (the DeliCores' purple): its mean and spread per channel
@@ -332,7 +385,7 @@ def autotile(spec, img, grids, letter):
     plo, phi = np.percentile(sample[:, 0], [5, 95])
     g[..., 0] = plo + (g[..., 0] - lo) * (phi - plo) / max(hi - lo, 1e-6)
     h = g.shape[0]
-    rh, rw = 28 / n / SCALE, 24 / n / SCALE
+    rh, rw = (16 / n if aligned else 28 / n / SCALE), 24 / n / SCALE
     grid = np.zeros((ROWS * n, 14 * n), int)
     loop = 8 * n  # the loop at the top: the map's top 8 rows
     for r in range(ROWS * n):
@@ -342,14 +395,14 @@ def autotile(spec, img, grids, letter):
         y1 = h - b * rh
         ys = np.clip(np.arange(int(round(y1 - rh)), max(int(round(y1)), int(round(y1 - rh)) + 1)), 0, h - 1)
         for c in range(14 * n):
-            x0 = rw * c - 38
+            x0 = rw * c - x_off
             xs = np.clip(np.arange(int(round(x0)), max(int(round(x0 + rw)), int(round(x0)) + 1)), 0, g.shape[1] - 1)
             grid[r, c] = material(g[ys][:, xs].reshape(-1, 3).mean(0))
     # (the columns beyond the GBC map's sides, the wide playfield's: as its nearest one inside it, not its edge's pixels
     # repeated: SAVARA II's right edge, a frame's grey there, got a column of grey wall, the user: "tileovi koji nebi
     # trebali biti tu")
     if spec.get('edges'):
-        inside = [c for c in range(14 * n) if rw * c - 38 >= 0 and rw * (c + 1) - 38 <= g.shape[1]]
+        inside = [c for c in range(14 * n) if rw * c - x_off >= 0 and rw * (c + 1) - x_off <= g.shape[1]]
         for c in range(14 * n):
             if c not in inside:
                 grid[:, c] = grid[:, min(inside, key=lambda i: abs(i - c))]
@@ -357,48 +410,7 @@ def autotile(spec, img, grids, letter):
     # choice that misses the plan least and pairs its tiles as the originals pair them (beside and above
     # each other: an edge that joins up, a texture that goes on) or else as their edges join
     T = len(ids)
-    idx = {t: i for i, t in enumerate(ids)}
-    seen_h = np.zeros((T, T), bool)  # [left, right]
-    seen_v = np.zeros((T, T), bool)  # [below, above]
-    count_h = np.zeros((T, T))
-    count_v = np.zeros((T, T))
-    for a_, cnt in right.items():
-        for b_, c_ in cnt.items():
-            if a_ in idx and b_ in idx:
-                seen_h[idx[a_], idx[b_]] = True
-                count_h[idx[a_], idx[b_]] = c_
-    for a_, cnt in above.items():
-        for b_, c_ in cnt.items():
-            if a_ in idx and b_ in idx:
-                seen_v[idx[a_], idx[b_]] = True
-                count_v[idx[a_], idx[b_]] = c_
-    # (how badly an unseen pair's edge joins: the step in colour across it beyond the steps just inside either tile,
-    # per pixel along it; two grasses join, grass beside the sea doesn't)
-    tl = np.stack([lab(pal[tiles[t]].astype(np.float64)) if tiles.get(t) is not None else lab(np.zeros((28, 24, 3)))
-                   for t in ids])
-
-    def mismatch(a_edge, a_in, b_edge, b_in):
-        d = np.linalg.norm(a_edge[:, None] - b_edge[None, :], axis=-1)
-        g = (np.linalg.norm(a_edge - a_in, axis=-1)[:, None] + np.linalg.norm(b_edge - b_in, axis=-1)[None, :]) / 2
-        return np.maximum(0, d - g).mean(-1)
-    mis_h = mismatch(tl[:, :, -1], tl[:, :, -2], tl[:, :, 0], tl[:, :, 1])   # [left, right]
-    mis_v = mismatch(tl[:, 0], tl[:, 1], tl[:, -1], tl[:, -2])               # [below, above]
-    # (a pair the originals have only a few times costs a little too, as much more as it is rarer: ASTEROID2's
-    # platforms cut straight off at the void, a join its originals have at a few edges, where they have rocky rims)
-    rare_count, rare_cost = spec.get('rare', (RARE_COUNT, RARE_COST))
-    rare_h = rare_cost * np.clip(1 - count_h / max(rare_count, 1), 0, 1) if rare_count else 0.0
-    rare_v = rare_cost * np.clip(1 - count_v / max(rare_count, 1), 0, 1) if rare_count else 0.0
-    # (and a pair they never have at least as much as the rarest they have)
-    unseen_least = rare_cost if rare_count else 0.0
-    cost_h = np.where(seen_h, rare_h, np.maximum(unseen_least, np.minimum(1.0, mis_h / EDGE_NORM)))
-    cost_v = np.where(seen_v, rare_v, np.maximum(unseen_least, np.minimum(1.0, mis_v / EDGE_NORM)))
-    # (spec 'whole': a tile that never stands beside itself, a piece of something, beside one the originals never put it
-    # beside costs WHOLE_COST: DESERT's stumps came out of the halves of two, JUNGLE's cliffs of pieces of others)
-    if spec.get('whole'):
-        piece = np.array([selfish[t] == 0 for t in ids])
-        either = piece[:, None] | piece[None, :]
-        cost_h = np.where(~seen_h & either, WHOLE_COST, cost_h)
-        cost_v = np.where(~seen_v & either, WHOLE_COST, cost_v)
+    cost_h, cost_v, seen_h, seen_v, mis_h, mis_v = pair_costs(spec, ids, right, above, selfish, tiles, pal)
     prior = -np.log(np.array([use[t] for t in ids], np.float64) / max(use[t] for t in ids))
     MISS, PAIR, PRIOR = 1.0, PAIR_COST, PRIOR_WEIGHT
     cands, unary = [], []
@@ -942,10 +954,11 @@ def make_level(spec):
     rows_gbc, img = gbc_level(spec['gbc'])
     gbc_map = rows_gbc['map']
     ep, pcname = spec['pc']
-    src = [l for l in sources.original_levels() if l['episode'] == ep and l['name'] == pcname][0]
+    # (spec 'tiles': the map's tile set another original's, with its layers: GBC DELIANI's PC DELIANI's, the user's pick)
+    src = [l for l in sources.original_levels() if (l['episode'], l['name']) == tuple(spec.get('tiles', spec['pc']))][0]
     letter = src['shapes']
     # the tiles follow their neighbours as these originals have them (the level's, and others of its look)
-    names = [tuple(m) for m in spec.get('maps', [spec['pc']])]
+    names = [tuple(m) for m in spec.get('maps', [spec.get('tiles', spec['pc'])])]
     grids = [l['maps'][0] for l in sources.original_levels() if (l['episode'], l['name']) in names and l['shapes'] == letter]
     model = mapsynth.Model(grids, max_tiles=mapsynth.LAYER_TILES[0])
     tiles = preview.tiles(letter)
