@@ -114,14 +114,14 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 # the synthesiser one in 150 rows, of seven); fills: how full those made are, where not as the original's (TYRIAN's
 # clouds as full as its, 0.38, hid half the playfield in 3D, and over the boss fight, where the map stands).
 LEVELS = [
-    dict(gbc=23, name='TYRIAN', pc=(1, 'TYRIAN'), fills={2: 0.15}, maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
+    dict(gbc=23, name='TYRIAN', corner_maps=[(3, 'GAUNTLET')], corner_materials=5, pc=(1, 'TYRIAN'), fills={2: 0.15}, maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
          boss=(1, 'ASSASSIN')),
     dict(gbc=3, name='ASTEROID', pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')], boss=(1, 'ASTEROID2')),
     dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(4, 'ICE EXIT')),
-    dict(gbc=19, name='SAVARA', pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V'), rare=RARE),
-    dict(gbc=20, name='SAVARA II', pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA'), gbc_boss=False, **REMADE),
-    dict(gbc=14, name='OASIS', pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
-    dict(gbc=2, name='DESERT', pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE'), rare=RARE, gbc_boss=False, **REMADE),
+    dict(gbc=19, name='SAVARA', corner_maps=[(1, 'SAVARA'), (1, 'SAVARA V'), (5, 'SAVARA')], corner_materials=6, pc=(4, 'SAVARA IV'), layers=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA V'), rare=RARE),
+    dict(gbc=20, name='SAVARA II', corner_maps=[(1, 'SAVARA'), (5, 'SAVARA'), (4, 'SAVARA IV')], corner_materials=6, pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA'), gbc_boss=False, **REMADE),
+    dict(gbc=14, name='OASIS', corner_exclude=(11, 25, 26), templates=[([[35, 36, 37, 38, 39, 40], [33, 34, None, None, 41, 42]], [[None, 27, 28, 29, 30, None], [None, 37, 38, 39, 40, None]])], pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
+    dict(gbc=2, name='DESERT', corner_exclude=(11, 25, 26), block_like={b: 13 for b in range(33, 43)}, templates=[([[26, 27], [24, 25]], [[7, 8], [17, 18]]), ([[30, 31], [28, 29]], [[9, 10], [19, 20]])], pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE'), rare=RARE, gbc_boss=False, **REMADE),
     dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES, rare=RARE, gbc_boss=False, **REMADE),
     dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES, rare=RARE, **REMADE),
     dict(gbc=9, name='ASTEROID2', pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')],
@@ -310,6 +310,66 @@ def pair_costs(spec, ids, right, above, selfish, tiles, pal):
     return cost_h, cost_v, seen_h, seen_v, mis_h, mis_v
 
 
+def solve_grid(cands, unary, cost_h, cost_v, T, pair=None):
+    """The map's tiles (indices) from each cell's candidates and their costs (cands, unary: ROWS x 14 lists of arrays) and
+    the pair costs ([left, right], [below, above]): min-sum belief propagation over the whole grid, its best tiles then
+    bettered row by row (Viterbi along each row given the rows below and above it)."""
+    PAIR = PAIR_COST if pair is None else pair
+    choice = None
+
+    def solve_row(r):
+        """The best row r for its neighbours below and above: Viterbi along the row."""
+        costs = []
+        for c in range(14):
+            u = unary[r][c].copy()
+            ci = cands[r][c]
+            if r + 1 < ROWS:
+                u += PAIR * cost_v[choice[r + 1][c], ci]
+            if r > 0:
+                u += PAIR * cost_v[ci, choice[r - 1][c]]
+            costs.append(u)
+        acc, back = costs[0], []
+        for c in range(1, 14):
+            pair = PAIR * cost_h[np.ix_(cands[r][c - 1], cands[r][c])]  # (prev, cur)
+            tot = acc[:, None] + pair
+            back.append(tot.argmin(0))
+            acc = tot.min(0) + costs[c]
+        k_ = int(acc.argmin())
+        picks = [k_]
+        for c in range(13, 0, -1):
+            k_ = int(back[c - 1][k_])
+            picks.append(k_)
+        picks.reverse()
+        for c in range(14):
+            choice[r][c] = int(cands[r][c][picks[c]])
+    # the whole map at once: min-sum belief propagation over the grid, its best tiles then bettered row by row (row by
+    # row alone can't change two rows together, which a shore needs, and gave the plan up for strips)
+    U = np.full((ROWS, 14, T), 1e6, np.float32)
+    for r in range(ROWS):
+        for c in range(14):
+            U[r, c, cands[r][c]] = unary[r][c]
+    H = (PAIR * cost_h).astype(np.float32)   # [left, right]
+    V = (PAIR * cost_v).astype(np.float32)   # [below, above]
+    fl, fr, fb, fa = (np.zeros((ROWS, 14, T), np.float32) for _ in range(4))  # into a cell from its left, right, below, above
+    for _ in range(BP_ITERATIONS):
+        b = U + fl + fr + fb + fa
+        nl, nr, nb, na = (np.zeros_like(fl) for _ in range(4))
+        nl[:, 1:] = ((b - fr)[:, :-1, :, None] + H).min(2)
+        nr[:, :-1] = ((b - fl)[:, 1:, None, :] + H).min(3)
+        nb[:-1] = ((b - fa)[1:, :, :, None] + V).min(2)
+        na[1:] = ((b - fb)[:-1, :, None, :] + V).min(3)
+        for m, new in ((fl, nl), (fr, nr), (fb, nb), (fa, na)):
+            new -= new.min(-1, keepdims=True)
+            m *= 0.5
+            m += 0.5 * new
+    best = (U + fl + fr + fb + fa).argmin(-1)
+    choice = [[int(best[r, c]) for c in range(14)] for r in range(ROWS)]
+    for _ in range(3):
+        for r in list(range(ROWS)) + list(range(ROWS - 1, -1, -1)):
+            solve_row(r)
+    return choice
+
+
 def autotile(spec, img, grids, letter):
     """Layer 1 from the GBC map by materials. The materials are the tile set's main colours (k-means of
     the used tiles' region means, weighted by use); a tile's signature is the materials of its n x n
@@ -429,56 +489,7 @@ def autotile(spec, img, grids, letter):
             row_u.append(MISS * miss[ci] + PRIOR * prior[ci])
         cands.append(row_c)
         unary.append(row_u)
-    def solve_row(r):
-        """The best row r for its neighbours below and above: Viterbi along the row."""
-        costs = []
-        for c in range(14):
-            u = unary[r][c].copy()
-            ci = cands[r][c]
-            if r + 1 < ROWS:
-                u += PAIR * cost_v[choice[r + 1][c], ci]
-            if r > 0:
-                u += PAIR * cost_v[ci, choice[r - 1][c]]
-            costs.append(u)
-        acc, back = costs[0], []
-        for c in range(1, 14):
-            pair = PAIR * cost_h[np.ix_(cands[r][c - 1], cands[r][c])]  # (prev, cur)
-            tot = acc[:, None] + pair
-            back.append(tot.argmin(0))
-            acc = tot.min(0) + costs[c]
-        k_ = int(acc.argmin())
-        picks = [k_]
-        for c in range(13, 0, -1):
-            k_ = int(back[c - 1][k_])
-            picks.append(k_)
-        picks.reverse()
-        for c in range(14):
-            choice[r][c] = int(cands[r][c][picks[c]])
-    # the whole map at once: min-sum belief propagation over the grid, its best tiles then bettered row by row (row by
-    # row alone can't change two rows together, which a shore needs, and gave the plan up for strips)
-    U = np.full((ROWS, 14, T), 1e6, np.float32)
-    for r in range(ROWS):
-        for c in range(14):
-            U[r, c, cands[r][c]] = unary[r][c]
-    H = (PAIR * cost_h).astype(np.float32)   # [left, right]
-    V = (PAIR * cost_v).astype(np.float32)   # [below, above]
-    fl, fr, fb, fa = (np.zeros((ROWS, 14, T), np.float32) for _ in range(4))  # into a cell from its left, right, below, above
-    for _ in range(BP_ITERATIONS):
-        b = U + fl + fr + fb + fa
-        nl, nr, nb, na = (np.zeros_like(fl) for _ in range(4))
-        nl[:, 1:] = ((b - fr)[:, :-1, :, None] + H).min(2)
-        nr[:, :-1] = ((b - fl)[:, 1:, None, :] + H).min(3)
-        nb[:-1] = ((b - fa)[1:, :, :, None] + V).min(2)
-        na[1:] = ((b - fb)[:-1, :, None, :] + V).min(3)
-        for m, new in ((fl, nl), (fr, nr), (fb, nb), (fa, na)):
-            new -= new.min(-1, keepdims=True)
-            m *= 0.5
-            m += 0.5 * new
-    best = (U + fl + fr + fb + fa).argmin(-1)
-    choice = [[int(best[r, c]) for c in range(14)] for r in range(ROWS)]
-    for _ in range(3):
-        for r in list(range(ROWS)) + list(range(ROWS - 1, -1, -1)):
-            solve_row(r)
+    choice = solve_grid(cands, unary, cost_h, cost_v, T)
     layer1 = [[ids[choice[r][c]] for c in range(14)] for r in range(ROWS)]
     pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(ROWS) for c in range(1, 14)] + \
         [(seen_v, mis_v, choice[r + 1][c], choice[r][c]) for r in range(ROWS - 1) for c in range(14)]

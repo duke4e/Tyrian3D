@@ -193,13 +193,20 @@ def lay(gmap, dic):
     return out
 
 
-def sides(spec, layer1, letter, grids):
+def sides(spec, layer1, letter, grids, allowed=None):
     """The columns past the GBC map's sides (the PC's 0, 1 and 13) made again: down each, the ground tiles (those that
     stand beside themselves) that join the column inside it and each other as the originals have them (Viterbi)."""
     right, above, selfish, use = originals(grids)
     tiles = E.preview.tiles(letter)
     pal = E.preview.palette()
-    ground = [t for t, _ in use.most_common() if tiles.get(t) is not None and selfish[t]][:E.mapsynth.LAYER_TILES[0]]
+    # (allowed: only those, the tiles of the map's own columns, so the sides go on with what it shows; how often the map
+    # shows each its prior, so FLEET's sides are space, not the hull wall its original has along its sides)
+    if allowed is not None:
+        use = Counter(allowed)
+    # (a blank tile too, where the map shows one: FLEET's space)
+    ground = [t for t, _ in use.most_common() if (tiles.get(t) is not None or allowed is not None) and selfish[t] and
+              (allowed is None or t in allowed)]
+    ground = ground[:E.mapsynth.LAYER_TILES[0]]
     ids = sorted(set(ground) | {t for row in layer1 for t in row})
     idx = {t: i for i, t in enumerate(ids)}
     cost_h, cost_v, *_ = E.pair_costs(spec, ids, right, above, selfish, tiles, pal)
@@ -225,8 +232,11 @@ def sides(spec, layer1, letter, grids):
 
 
 def layer(spec, dic, gmap, grids, letter):
-    """The PC map's layer 1 from the dictionary, its side columns made again."""
-    return sides(spec, lay(gmap, dic), letter, grids)
+    """The PC map's layer 1 from the dictionary, its side columns made again (from the tiles it shows)."""
+    out = lay(gmap, dic)
+    h, w = len(gmap), len(gmap[0])
+    inside = Counter(t for row in out[E.ROWS - h:] for t in row[LEFT:LEFT + w])
+    return sides(spec, out, letter, grids, allowed=inside)
 
 
 def picture(layer1, gmap, img, letter):
