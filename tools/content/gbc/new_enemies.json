@@ -10,5 +10,50 @@
    {"column": 0, "row": 0, "sprite": 5},
    {"column": 1, "row": 0, "sprite": 7}
   ]
+ },
+ "look_j39": {
+  "about": "JUNGLE's field gun foot and JUNGLE II's 02 (mapping review round 3): sheet J's 2x2 at 39, a dark machine in the jungle",
+  "sheet": "J", "big": true, "base": [2, 382], "layer": "sky", "armor": 10,
+  "parts": [{"sprite": 39}]
+ },
+ "look_j169": {
+  "about": "JUNGLE's big green flier 1e, its stern (round 3): TORM's green skiff's rear, J 169 (model green_skiff_rear)",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 169}]
+ },
+ "look_j207": {
+  "about": "... and the skiff's bow beside it, J 207 (model green_skiff_nose)",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 207}]
+ },
+ "look_8_163": {
+  "about": "LAVA II's lava rocks 18, 1a, 1c, 1f, 20 (round 3): sheet 8's 163, a broken rock with lava (model ixm_wall_slot_top_damaged)",
+  "sheet": "8", "big": false, "base": [4, 216], "layer": "sky",
+  "parts": [{"sprite": 163}]
+ },
+ "look_8_182": {
+  "about": "LAVA II's rock 19 (round 3): sheet 8's 182",
+  "sheet": "8", "big": false, "base": [4, 216], "layer": "sky",
+  "parts": [{"sprite": 182}]
+ },
+ "look_j13": {
+  "about": "JUNGLE II's green turret 19 (round 3): the green tower's top left, J 13 (model green_tower_tl)",
+  "sheet": "J", "big": true, "base": [1, 226], "layer": "sky",
+  "parts": [{"sprite": 13}]
+ },
+ "look_x5e_167": {
+  "about": "SPACE's green flier 0b (round 3): sheet x5e's 2x2 at 167",
+  "sheet": "x5e", "big": true, "base": [2, 814], "layer": "sky",
+  "parts": [{"sprite": 167}]
+ },
+ "look_v237": {
+  "about": "TYRIAN's blue craft (types 29, 2a, 2b; round 3): MARKERS' blue ring-tailed torpedo nose left, V 237 (model blue_torpedo_l), back to back with ...",
+  "sheet": "V", "big": false, "base": [1, 18], "layer": "ground",
+  "parts": [{"sprite": 237}]
+ },
+ "look_v235": {
+  "about": "... its mirror image nose right, V 235 (model blue_torpedo)",
+  "sheet": "V", "big": false, "base": [1, 18], "layer": "ground",
+  "parts": [{"sprite": 235}]
  }
 }

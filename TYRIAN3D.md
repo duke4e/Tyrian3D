@@ -520,7 +520,15 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   tiles of DESERT left out, TYRIAN's walker in two types: its top 1:6+7 and its lower half 1:8+9, DELICORE's
   white fighters the dart along its path 4:41), DELICORE's blue U fliers' sheet loaded at last (4:202 was on sheet
   31, not loaded: they were never drawn); three boss stretches' leftovers swapped by hand (FLEET 3:724 to 5:1071,
-  DELI CORE 3:259 to 4:40, JUNGLE 2:760 to 2:814).
+  DELI CORE 3:259 to 4:40, JUNGLE 2:760 to 2:814). Round 3 (2026-11-07: new emulator pictures of the open types and a
+  picker over the PC sheets, as sprites or models) went in the same way: 13 levels; DELICORE's purple crystals the
+  purple gem pickup 1:399; DESERT's tank its sledge 4:206+207 on the block type 09 and its turret 4:205 on 10;
+  AST.BONUS's silo drawn by 04 only (05 left out); LAVA II's stone figure its top 4:251 on 24 and its foot 4:252 on 25
+  (K289 whole on 1e, which comes alone); the sprites no PC enemy has as episode 7's own enemies of a PC sheet's look
+  (below); TYRIAN's blue craft MARKERS' torpedo pair back to back on its middle piece 29 (its pods left out); the
+  TYRIAN boss's claw pieces 21 and 23 the TYRIAN X boss's lower claws 1:56+57+61+62 and 1:59+60+64+65
+  (`boss_looks.json`, and the committed level's LOOK events by hand). Picks for GBC boss pieces that the whole PC body
+  already draws (DESERT 16, OASIS 2f, SAVARA II 1c and 21) were left as they are.
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of
@@ -850,6 +858,13 @@ at; the game's compressed sprite format, checked against the game's sheets both 
 build copies into `assets/content/episode7`. The game takes it as the 37th sheet (`shapeFile`,
 `lvlmast.c`; `src/file.c` finds it in episode 7's content); the enemy's records are its base's (its
 guns, its explosion) with those sprites, its armour and value (`build.py` `new_enemy`).
+Since 2026-11-07 an own enemy can also be a look of a PC sheet that no PC enemy has (`"sheet"` with its
+sprite, `"big"` for a 2x2 one: the mapping review's round 3 picked such sprites, e.g. JUNGLE's J 39, LAVA
+II's rocks 8:163, MARKERS' blue torpedoes V 235 and 237): its base's record standing still (the level's events
+move it; the translation undoes no own enemy's steps), drawn from that sheet, which the level loads, and in
+the 3D view by that sprite's model if `models.cfg` has one (else its HD volume); `["gbc", [[name, dx, dy],
+...]]` is a composite of them. The levels number the own enemies as the file lists them (1 the derrick), so new
+ones go at its end.
 
 ## Custom episodes
 

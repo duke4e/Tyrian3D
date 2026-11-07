@@ -43,10 +43,33 @@ BANKS = 8  # sprite sheets a level loads at most (tyrian2.c: event 5 the first f
 # leaves after the collisions, at most 4 times (2026-10-29, the user: Easy is quite hard; take the ratios of the PC
 # originals the GBC levels were made from).
 FIRE_PACE = {'SAVARA': 4, 'JUNGLE': 3.5, 'DESERT': 2.8, 'AST.BONUS': 2, 'SPACE ATK': 1.8}
-# Episode 7's own enemies (the GBC levels' that no PC level has; overrides name them ["gbc", name]): sheet W, shapeFile's
-# 37th (tools/content/gbc/build.py makes their records)
+# Episode 7's own enemies (the GBC levels' that no PC level has; overrides name them ["gbc", name], or a composite of
+# them ["gbc", [[name, dx, dy], ...]]): sheet W, shapeFile's 37th, or a look of a PC sheet no PC enemy has ("sheet":
+# its sprite there; tools/content/gbc/build.py makes their records). Levels number them as the file lists them (from 1):
+# new ones go at its end.
 NEW_ENEMIES = json.load(open(os.path.join(ROOT, 'tools', 'content', 'gbc', 'new_enemies.json')))
 NEW_SHEET = 37
+SHAPE_FILE = "2478ABCDEFGHIJKLMNOPQRSTU5#V0@3^59'%W"  # (src/lvlmast.c shapeFile: a sheet's number is its place + 1)
+SHEET_CHARS = {'x23': '#', 'x25': '%', 'x27': "'", 'x40': '@', 'x5e': '^'}  # (the sheets' names as models.cfg has them)
+
+
+def own_index(name):
+    """An own enemy's number in the levels (episode "gbc")."""
+    return list(NEW_ENEMIES).index(name) + 1
+
+
+def own_sheet(name):
+    """The sheet an own enemy is drawn from: W, or the PC sheet of its look."""
+    sheet = NEW_ENEMIES[name].get("sheet")
+    return NEW_SHEET if sheet is None else SHAPE_FILE.index(SHEET_CHARS.get(sheet.lower(), sheet.upper())) + 1
+
+
+def own_type(v):
+    """An override ["gbc", name] or ["gbc", [[name, dx, dy], ...]] as a candidate (episode, enemy, parts)."""
+    if isinstance(v[1], list):
+        parts = [[own_index(nm), dx, dy] for nm, dx, dy in v[1]]
+        return dict(episode="gbc", enemy=parts[0][0], parts=parts)
+    return dict(episode="gbc", enemy=own_index(v[1]), parts=4 if len(NEW_ENEMIES[v[1]]["parts"]) == 4 else 1)
 # autotile:
 CAND_SLACK, CAND_MAX = 4, 72  # a cell's candidates: the tiles at most this many quarters further off its plan than its nearest
 PRIOR_WEIGHT = 0.12   # a tile's cost per -log of its use against the most used one's (the originals' common tiles first)
@@ -618,7 +641,10 @@ def enemies(spec, look, banks_given=None, types_given=None):
     def sheet(c):
         """The sheets a candidate needs ({99}: none it can be drawn with, e.g. sheet 0)."""
         if c['episode'] == "gbc":
-            return {NEW_SHEET}
+            # (a 4-part one is one of them: its parts are its own; a composite's parts are each one)
+            parts = c.get('parts', 1)
+            names = list(NEW_ENEMIES)
+            return {own_sheet(names[n - 1]) for n in ([c['enemy']] if isinstance(parts, int) else [p[0] for p in parts])}
         b = set().union(*(waves.sheets_of(enemies_of(c['episode']), n) for n in EN.part_numbers(c['enemy'], c.get('parts', 1))))
         return {99} if (0 in b or not b) else b
     # by-eye corrections (tools/gbc/enemy_overrides.json: "L23:29" -> [episode, enemy], [episode, enemy, 4]
@@ -631,9 +657,8 @@ def enemies(spec, look, banks_given=None, types_given=None):
             continue
         if v is None:
             over[int(t, 16)] = None
-        elif v[0] == "gbc":  # episode 7's own enemy (tools/content/gbc/new_enemies.json), by name
-            over[int(t, 16)] = dict(episode="gbc", enemy=sorted(NEW_ENEMIES).index(v[1]) + 1,
-                                    parts=4 if len(NEW_ENEMIES[v[1]]["parts"]) == 4 else 1)
+        elif v[0] == "gbc":  # episode 7's own enemy (tools/content/gbc/new_enemies.json), by name, or a composite
+            over[int(t, 16)] = own_type(v)
         elif isinstance(v[1], list):
             over[int(t, 16)] = dict(episode=v[0], enemy=v[1][0][0], parts=v[1])
         else:
@@ -676,7 +701,7 @@ def enemies(spec, look, banks_given=None, types_given=None):
         return round(1.5 * p) if p <= p_map else round(1.5 * p_map + (p - p_map) * k)
     sizes = {int(t): (info['size'][1], info['size'][0]) for t, info in d['types'].items() if info.get('size')}
     for name in NEW_ENEMIES:
-        ground[("gbc", sorted(NEW_ENEMIES).index(name) + 1)] = NEW_ENEMIES[name]["layer"] == "ground"
+        ground[("gbc", own_index(name))] = NEW_ENEMIES[name]["layer"] == "ground"
     records, merged = pieces(records, positions, sizes)
     # the types' start speeds (the type table's bytes 3 and 4: script.py; its place from enemies.py --tables)
     if 'types_at' not in d:

@@ -44,7 +44,8 @@ def overrides_at(rev):
 def as_type(v):
     """An override's value as episode.enemies' type (episode, enemy, parts key)."""
     if v[0] == 'gbc':
-        return ('gbc', sorted(E.NEW_ENEMIES).index(v[1]) + 1, 4 if len(E.NEW_ENEMIES[v[1]]['parts']) == 4 else 1)
+        c = E.own_type(v)
+        return ('gbc', c['enemy'], EN.parts_key(c['parts']))
     if isinstance(v[1], list):
         return (v[0], v[1][0][0], EN.parts_key(v[1]))
     return (v[0], v[1], EN.parts_key(v[2] if len(v) > 2 else 1))
@@ -53,7 +54,8 @@ def as_type(v):
 def sheets_of_type(tp):
     ep, n, parts = tp
     if ep == 'gbc':
-        return {E.NEW_SHEET}
+        names = list(E.NEW_ENEMIES)
+        return {E.own_sheet(names[m - 1]) for m in ([p[0] for p in parts] if isinstance(parts, tuple) else [n])}
     E.enemy_data(ep, n)
     data = E._enemy_data[ep]
     nums = [p[0] for p in parts] if isinstance(parts, tuple) else range(n, n + (4 if parts == 4 else 1))

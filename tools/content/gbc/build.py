@@ -61,10 +61,19 @@ HINTS = [
 
 
 # Episode 7's own enemies (the GBC levels' that no PC level has): their sprites are sheet W (shapeFile's 37th,
-# src/lvlmast.c; newshw.shp, written by sheet.py from their models), their records their base's with those sprites.
-# Levels name them as episode "gbc", enemy n: the n-th by name.
+# src/lvlmast.c; newshw.shp, written by sheet.py from their models), or a PC sheet's sprite no PC enemy has ("sheet"),
+# their records their base's with those sprites. Levels name them as episode "gbc", enemy n: the n-th as the file lists
+# them.
 NEW_ENEMIES = json.load(open(os.path.join(HERE, "new_enemies.json")))
 NEW_SHEET = 37
+SHAPE_FILE = "2478ABCDEFGHIJKLMNOPQRSTU5#V0@3^59'%W"  # (src/lvlmast.c shapeFile: a sheet's number is its place + 1)
+SHEET_CHARS = {"x23": "#", "x25": "%", "x27": "'", "x40": "@", "x5e": "^"}  # (the sheets' names as models.cfg has them)
+
+
+def own_sheet(name):
+    """The sheet an own enemy is drawn from: W, or the PC sheet of its look."""
+    sheet = NEW_ENEMIES[name].get("sheet")
+    return NEW_SHEET if sheet is None else SHAPE_FILE.index(SHEET_CHARS.get(sheet.lower(), sheet.upper())) + 1
 
 
 # The PC enemy shots the GBC guns' shots are drawn as (sprite numbers of the enemy shots' sheet): an aimed one the
@@ -172,12 +181,15 @@ class Importer(enemydata.Importer):
 
     def new_enemy(self, index):
         """One of episode 7's own enemies (its parts in consecutive slots, as event 12 takes them): its base's
-        records (with their guns) on sheet W, one frame each, its armour and value."""
-        name = sorted(NEW_ENEMIES)[index - 1]
+        records (with their guns) on sheet W, one frame each, its armour and value; or a look of a PC sheet that no PC
+        enemy has ("sheet": its sprite there, "big" a 2x2 one), its base's record standing still (the level's events
+        move it: the translation undoes no own enemy's steps), its armour and worth the base's unless given."""
+        name = list(NEW_ENEMIES)[index - 1]
         if ("gbc", name) in self.enemy_map:
             return self.enemy_map[("gbc", name)]
         spec = NEW_ENEMIES[name]
         parts = spec["parts"]
+        look = "sheet" in spec
         block = self.free_enemies[:len(parts)]
         assert block == list(range(block[0], block[0] + len(parts))), "no consecutive free enemy slots"
         base_ep, base = spec["base"]
@@ -186,13 +198,19 @@ class Importer(enemydata.Importer):
             self._fill(base_ep, base + k % 4, block[k])
             at = self.enemies[block[k]]
             self.data[at] = 1                     # ani: one frame
-            self.data[at + 19] = spec["armor"]
-            self.data[at + 20] = 1                # esize: 2x2
+            if "armor" in spec:
+                self.data[at + 19] = spec["armor"]
+            self.data[at + 20] = int(spec.get("big", True))  # esize: 2x2 (0: one 12 x 14 sprite)
             struct.pack_into("<20H", self.data, at + 21, part["sprite"], *[0] * 19)
             self.data[at + 62] = 0                # animate
-            self.data[at + 63] = NEW_SHEET        # shapebank
+            self.data[at + 63] = own_sheet(name)  # shapebank
             struct.pack_into("<HBb", self.data, at + 66, 0, 0, 0)  # dgr, dlevel, dani: no wreck sprite
-            struct.pack_into("<h", self.data, at + 73, spec["value"])
+            if "value" in spec:
+                struct.pack_into("<h", self.data, at + 73, spec["value"])
+            if look:
+                self.data[at + 7:at + 13] = bytes(6)   # xmove, ymove, xaccel, yaccel, xcaccel, ycaccel
+                self.data[at + 17:at + 19] = bytes(2)  # startxc, startyc
+                self.data[at + 64:at + 66] = bytes(2)  # xrev, yrev
         self.enemy_map[("gbc", name)] = block[0]
         return block[0]
 

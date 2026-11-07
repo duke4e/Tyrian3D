@@ -112,6 +112,8 @@ def main():
     spec = json.load(open(os.path.join(HERE, "new_enemies.json")))
     tiles = {}
     for name, e in spec.items():
+        if "sheet" in e:
+            continue  # (a look of a PC sheet: nothing of its own to draw)
         w, h = 24 * e["columns"], 28 * e["rows"]
         picture = quantize(shrink(os.path.join(renders, name + ".png"), w, h), e["ramps"], pal)
         for part in e["parts"]:
