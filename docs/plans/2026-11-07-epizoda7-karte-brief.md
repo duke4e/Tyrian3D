@@ -56,3 +56,24 @@ keeping the GBC's paths, structures (rock arches, pyramids, buildings) and the t
 Commit and push each done-and-checked step without asking (stage only its files, never the `external/btbh-renderer`
 pointer); after each, build `build/game` (RelWithDebInfo) unless its `tyrian3d.exe` runs; work and test in
 `build/dev`; fly each changed level to its end (`fly.sh`-style autopilot runs) before committing.
+
+## Why the maps come out so (episode.py's autotile)
+
+Each quarter of a PC tile gets a *material* from the GBC map's colours (k-means of the original tileset's main
+colours) and the map is the PC tiles whose quarters and neighbour pairs fit those materials best. That loses what is
+not a colour: paths and rock outlines become blobs of material (layout not 1:1), two materials meet where no PC tile
+joins them (abrupt transitions, seams), drawn structures (rock arches, pyramids, buildings, the turrets painted into
+the GBC maps) dissolve into materials (or become stray lines), and the tileset is the original PC level's (the DELIs'
+and SAVARA's look wrong).
+
+## Possible ways (to choose with the user)
+
+1. Keep the autotile, fix by kind: the right tileset per level (DELIANI's for the three DELIs, SAVARA's earth), path
+   and edge materials of their own, transitions only through tiles the originals use between two materials, and the
+   structures placed whole (the original levels' tile groups or ground enemies for arches, pyramids, buildings,
+   turrets) where they stand in the GBC map. Smaller steps, each level reviewed.
+2. A tile dictionary: each GBC metatile (16 px) mapped to a PC tile (or a small group) per level, proposed by
+   matching and fixed by the user on a page, then the PC map laid tile for tile after the GBC map (1:1 by
+   construction). The GBC's 16 px rows are the PC's 28 px tiles made 1.5x as 24: the vertical scale differs from the
+   tiles', which the events' timing (clock = 1.5 x GBC position) depends on, so rows need patterns or the timing a
+   rescale.
