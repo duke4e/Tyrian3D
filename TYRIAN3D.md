@@ -548,7 +548,15 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   02) TORM's stone tripod J 1 over its legs J 39; LAVA II's rocks IXMUCANE's wall piece with lava between its ends
   (8: 169, 163, 161, each 2x2); SPACE ATK's crystals 2:794 in yellow, episode 7's own enemy on sheet W: its sprite the
   lilac one with its palette indices moved (`sheet.py`'s `recolor`, from the extracted sheets; without renders
-  `sheet.py` keeps the sprites W has) and its model `shard_yellow` (`tools/glb_palette_remap.py`).
+  `sheet.py` keeps the sprites W has) and its model `shard_yellow` (`tools/glb_palette_remap.py`). Round 5 (the user's
+  screenshots of TORM and IXMUCANE): LAVA II's rocks are IXMUCANE's whole wall as IXMUCANE builds it (ep 3: 115, 109,
+  112, 109, 118 over 116, 110, 113, 110, 119: rock, lava slot, rock, slot, rock); the stone plant's stalk and legs
+  under it (J 39, which no PC enemy shows, its jungle drawn round it: an HD volume of a green block) have a model,
+  `stone_plant_stalk` (`polish_stone_plant.py`); the terrain of the levels whose boss changed made again with the new
+  bosses' places (`tools/content/gbc/terrain.py`: TUNNEL's IXMUCANE stood in raised ground, z-fighting; DESERT's and
+  JUNGLE's changed too). terrain.py carries the settings over again and so lost two set by hand, TUNNEL's background 3
+  `slivers` and DESERT's darker sand as ground: those were put back and the terrain built from them
+  (`make_terrain.py build`).
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of

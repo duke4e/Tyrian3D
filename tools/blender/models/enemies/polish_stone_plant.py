@@ -27,6 +27,10 @@ stone_plant_damaged (J 3): the same plant, sooty (every shade two darker), its b
 short in a jagged ring with a dark hollow (the sprite's ring at rows 10-13), red-hot cracks glowing down the stalk's
 foot (columns 7 and 9 of rows 15-21) and through the cup (columns 12-14 of rows 19-25), laid on its surface.
 
+stone_plant_stalk (J 39, 2026-11-07): the stalk under the plant and its two legs, the sprite under J 1 that no PC
+enemy shows (drawn on the jungle: the GBC JUNGLE's turret legs, episode 7, J 1 over J 39); the same stone, low on
+the ground. models.cfg: sprite j 39 stone_plant_stalk yaw=0.
+
 Origin at the sprite's centre (pixel 12, 14); +Y up the sprite, +Z towards the camera.
 
 Replaces wave3_ap_torm.py's stone_plant_damaged() (its @w.model("stone_plant_damaged", [(J, 3, True)]) function, the
@@ -260,6 +264,28 @@ def build_parts(m, damaged=False):
     teardrop("bud_petal", P(8.1, 10.3, 7.0), P(9.6, 3.5, 10.6), 2.35, m["stone"], squash=0.8, belly=0.3, seed=19.0)
 
 
+def build_stalk_parts(m):
+    """The plant's stalk and legs (J 39, under J 1: the GBC JUNGLE's turret legs, episode 7): the stem going on from the
+    plant's foot at the cell's top (columns 6-16 of row 0) and parting into two legs, the left one down to column 8 of
+    row 19, the right one down to column 17 of row 17, each ending in a small foot; lying low on the ground towards
+    the camera, as the sprite draws it below the plant (its black pixels round them the shadow, which the 3D view
+    casts). The sprite's jungle round them is not the stalk's."""
+    blob("stalk_top", P(11.5, 1.8, 0.4), (5.4, 3.0, 1.9), m["stone"], 28, 12, amount=0.18, seed=31.0, flat=0.0)
+    legs = [
+        ([(10.5, 2.5, 1.7), (10.0, 6.5, 1.5), (9.6, 10.5, 1.3), (9.0, 14.5, 1.0), (8.4, 18.0, 0.7)], 2.4, 1.1, 33.0),
+        ([(13.0, 2.5, 1.7), (14.6, 6.0, 1.5), (15.6, 9.5, 1.3), (16.2, 13.0, 1.0), (16.8, 16.5, 0.7)], 2.6, 1.1, 37.0),
+    ]
+    for i, (pts, w0, w1, seed) in enumerate(legs):
+        path = catmull([P(*p) for p in pts], 0.5)
+        n = len(path)
+        w = taper(path, w0, w1)
+        h = [0.9 * x for x in taper(path, 1.6, 0.8)]
+        blade(f"stalk{i}", path, w, h, m["stone"], seed=seed)
+        end = path[-1]
+        blob(f"mound_foot{i}", (end.x, end.y - 0.4, 0.3), (1.9, 1.5, 1.0), m["stone"], 20, 10, amount=0.12,
+             seed=seed + 1.0, flat=0.0)
+
+
 def tone_of(name):
     for key in sorted(TONES, key=len, reverse=True):
         if name.startswith(key):
@@ -352,7 +378,7 @@ def cracks(obj, m):
                  m["crack"], segments=8, squash=0.55)
 
 
-MODELS = [("stone_plant", 1, False), ("stone_plant_damaged", 3, True)]
+MODELS = [("stone_plant", 1, False), ("stone_plant_damaged", 3, True), ("stone_plant_stalk", 39, False)]
 
 
 def build():
@@ -364,7 +390,10 @@ def build():
             continue
         k.reset()
         m = materials(soot=2 if damaged else 0)
-        build_parts(m, damaged)
+        if name == "stone_plant_stalk":
+            build_stalk_parts(m)
+        else:
+            build_parts(m, damaged)
         fuse.hollow = None
         if damaged:
             stump = bpy.data.objects["stalk_stump"]
@@ -375,7 +404,7 @@ def build():
         used = {mat.name for o in bpy.context.scene.objects if o.type == "MESH" for mat in o.data.materials}
         print("== %s (J %d): %d triangles, %d materials: %s" % (name, sprite, triangles(), len(used),
                                                              ", ".join(sorted(used))))
-        if "check" in options:
+        if "check" in options and name != "stone_plant_stalk":  # (J 39's jungle round it is no silhouette)
             k.check_silhouette(os.path.join(options["check"], "enemy_J.png"), sprite)
         bpy.context.scene.view_settings.view_transform = "Standard"  # previews in the game's colours
         path = os.path.join(outdir, name + ".glb")
