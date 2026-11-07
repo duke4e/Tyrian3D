@@ -529,6 +529,16 @@ The levels of Tyrian 2000 for the Game Boy Color (World Tree Games, 2000; never 
   TYRIAN boss's claw pieces 21 and 23 the TYRIAN X boss's lower claws 1:56+57+61+62 and 1:59+60+64+65
   (`boss_looks.json`, and the committed level's LOOK events by hand). Picks for GBC boss pieces that the whole PC body
   already draws (DESERT 16, OASIS 2f, SAVARA II 1c and 21) were left as they are.
+  The user's hand check of round 3 (2026-11-07: a page of the GBC screens beside the game's for the open types, the
+  departures from the picks, the own enemies and every level's boss) changed the bosses: seven GBC bosses drawn as
+  their PC boss's parts looked wrong in pieces (SAVARA II, DESERT, JUNGLE, CAMANIS, FLEET, DELIANI, TUNNEL), so those
+  levels get that PC boss whole, as its original has it (`episode.py` LEVELS `gbc_boss=False`: placed at the GBC
+  boss's time, `build.py` `boss_fight` making the fight and the end); the five levels whose GBC game has no boss
+  (BUBBLES, AST.BONUS, DELICORE, LAVA I, FINALE) lose the original's boss they were given (`no_boss=True`: the level
+  ends 600 ticks after its last enemy, FINALE's GBC script being 450 ticks long). `reboss.py` carries those flags into
+  the committed levels without making them again (the GBC boss's stretch goes, from its start on; the boss song, the
+  end and the sheets follow). LAVA I's 2f is the score's figures (left out); LAVA II's stone figure is 25's K289 whole
+  again (24 left out).
 * `script.py` turns a GBC script into PC events: the GBC game's script is a port of the PC event
   system with its own numbers (trigger positions in scrolled pixels; records of command, a, b, c,
   group): enemies (03/04, on Hard or Normal only 21-24, blocks 28+) become sky or ground spawns of
