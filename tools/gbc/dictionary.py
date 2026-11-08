@@ -239,6 +239,41 @@ def layer(spec, dic, gmap, grids, letter):
     return sides(spec, out, letter, grids, allowed=inside)
 
 
+FIT_PAIR = 8.0    # fitted: how much a pair the originals never make costs against a tile unlike the dictionary's
+FIT_MATCH = 1.0
+
+
+def fitted(spec, dic, gmap, grids, letter):
+    """Layer 1 near the dictionary but joined as the originals join their tiles (the user on BUBBLES: the shape may give
+    a little so that every tile fits its neighbours): each cell any tile of the level's originals, costing as unlike
+    the dictionary's tile it is (4 x 4 region means in Lab) and its pairs as the originals pair tiles (one they never
+    make at least spec `rare`'s cost), solved over the whole grid (episode.solve_grid)."""
+    right, above, selfish, use = originals(grids)
+    tiles = E.preview.tiles(letter)
+    pal = E.preview.palette()
+    ids = sorted(set(use) | set(dic.values()))
+    idx = {t: i for i, t in enumerate(ids)}
+
+    def look(t):
+        im = tiles.get(t)
+        return E.regions(E.lab(np.zeros((28, 24, 3)) if im is None else pal[im].astype(np.float64)), 4)
+    R = np.stack([look(t) for t in ids])
+    diff = {b: FIT_MATCH * np.sqrt(((R - R[idx[t]][None]) ** 2).sum(-1)).mean((1, 2)) / 10 for b, t in dic.items()}
+    cost_h, cost_v, *_ = E.pair_costs(dict(spec, rare=spec.get('rare') or (2, 1.0)), ids, right, above, selfish, tiles, pal)
+    h, w = len(gmap), len(gmap[0])
+    every = np.arange(len(ids))
+    cands, unary = [], []
+    for r in range(E.ROWS):
+        b_ = E.ROWS - 1 - r
+        if b_ >= h:
+            b_ = h - 8 + (b_ - h) % 8
+        row = gmap[h - 1 - b_]
+        cands.append([every] * 14)
+        unary.append([diff[row[min(max(c - LEFT, 0), w - 1)]] for c in range(14)])
+    choice = E.solve_grid(cands, unary, cost_h, cost_v, len(ids), pair=FIT_PAIR)
+    return [[ids[choice[r][c]] for c in range(14)] for r in range(E.ROWS)]
+
+
 def picture(layer1, gmap, img, letter):
     """The GBC map (a block 24 x 28) beside the PC map (layer 1), their columns lined up."""
     from PIL import Image
@@ -316,16 +351,18 @@ def paces(level, ratios=None):
 
 
 def apply(n, dry=False):
-    """The committed level's layer 1 laid from its dictionary (tools/gbc/dictionaries.json: every block); the first time
+    """The committed level's layer 1 made again by its spec's method (remake.py; by default laid from its dictionary,
+    tools/gbc/dictionaries.json, every block); the first time
     (the level not 'aligned' yet) its clock stretched to the longer map (stretch); a level whose spec takes its tiles
     from another original (spec 'tiles') gets that one's tile set and backgrounds 2 and 3."""
     import glob
+    import remake
     spec = E.spec_of(n)
     gmap, img, grids, letter = setting(spec)
-    dic = {int(b): t for b, t in picks().get(str(n), {}).items()}
-    missing = sorted({b for row in gmap for b in row} - set(dic))
-    if missing:
-        raise SystemExit(f"L{n:02d}: blocks without a tile in {DICTS}: {missing}")
+    if spec.get('remake', 'dictionary') in ('dictionary', 'fitted'):
+        missing = sorted({b for row in gmap for b in row} - {int(b) for b in picks().get(str(n), {})})
+        if missing:
+            raise SystemExit(f"L{n:02d}: blocks without a tile in {DICTS}: {missing}")
     path = glob.glob(os.path.join(E.OUT, 'levels', f'*_L{n:02d}.json'))[0]
     with open(path, encoding='utf-8') as f:
         level = json.load(f)
@@ -337,7 +374,7 @@ def apply(n, dry=False):
         level['upper']['source'] = list(spec.get('layers', spec['pc']))
         notes.append(f"tile set {level['shapes']} -> {letter}, backgrounds 2 and 3 from {level['upper']['source']}")
         level['shapes'] = letter
-    level['maps'][0] = layer(spec, dic, gmap, grids, letter)
+    level['maps'][0] = remake.layer(spec)[0]
     if not level.get('aligned'):
         pivot, extra = stretch(level)
         notes.append(f"clock x 7/6 up to {pivot:.0f}, then +{extra}; pc_rows {level['pc_rows']} -> {len(gmap)}")

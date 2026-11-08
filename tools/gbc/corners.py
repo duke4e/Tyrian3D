@@ -140,13 +140,17 @@ def templates(spec, gmap):
     h, w = len(gmap), len(gmap[0])
     for pattern, tiles in spec.get('templates', ()):
         ph, pw = len(pattern), len(pattern[0])
+        th, tw = len(tiles), len(tiles[0])
         for j in range(h - ph + 1):
             for i in range(w - pw + 1):
                 if all(pattern[y][x] is None or gmap[j + y][i + x] == pattern[y][x] for y in range(ph) for x in range(pw)):
-                    for y in range(ph):
-                        for x in range(pw):
+                    # (tiles wider than the pattern, the PC's arch 7 wide on the GBC's 6: from its left, moved in from
+                    # the map's right side)
+                    x0 = max(0, min(i, w - tw))
+                    for y in range(min(th, h - j)):
+                        for x in range(tw):
                             if tiles[y][x] is not None:
-                                out[(j + y, i + x)] = tiles[y][x]
+                                out[(j + y, x0 + x)] = tiles[y][x]
     return out
 
 
@@ -196,7 +200,7 @@ def layer(spec, S=None, fixed=None):
             miss = ((sig != want) * weights).sum(1)
             miss[sig[:, 0] < 0] = 99
             best = miss.min()
-            ci = np.nonzero(miss <= best + SLACK)[0]
+            ci = np.nonzero(miss <= best + spec.get('corner_slack', SLACK))[0]
             if len(ci) > E.CAND_MAX:
                 ci = ci[np.argsort(miss[ci] * 10 + prior[ci])[:E.CAND_MAX]]
             row_c.append(ci)
@@ -205,7 +209,7 @@ def layer(spec, S=None, fixed=None):
         unary.append(row_u)
     cost_h, cost_v, seen_h, seen_v, mis_h, mis_v = E.pair_costs(spec, ids, S['right'], S['above'], S['selfish'],
                                                                 S['tiles'], S['pal'])
-    choice = E.solve_grid(cands, unary, cost_h, cost_v, T)
+    choice = E.solve_grid(cands, unary, cost_h, cost_v, T, pair=spec.get('corner_pair'))  # (more: joins before the plan)
     out = [[ids[choice[r][c]] for c in range(14)] for r in range(E.ROWS)]
     pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(E.ROWS - h, E.ROWS) for c in range(2, 13)] + \
         [(seen_v, mis_v, choice[r + 1][c], choice[r][c]) for r in range(E.ROWS - h, E.ROWS - 1) for c in range(2, 13)]
