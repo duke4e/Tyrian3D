@@ -77,6 +77,8 @@ def setup(spec):
     for t, p in P.items():
         if t in objects or t in spec.get('corner_exclude', ()):
             continue
+        if spec.get('corner_no_blank') and tiles.get(t) is None:
+            continue  # (DELIANI: its blank tiles were black holes in the floor)
         near = np.sqrt(((p[:, None] - centres[None]) ** 2).sum(-1)).min(1)
         # (and none of its 4 x 4 pixel cells far from every mix of two materials: GAUNTLET's black with red lamps, its
         # blue grids; a grass edge's speckled cells are a mix of grass and dirt)

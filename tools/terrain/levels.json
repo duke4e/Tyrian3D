@@ -692,34 +692,6 @@
   "level": "OASIS (gbc)",
   "episode": 7
  },
- "ef1e73ea3ec85c12": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "BUBBLES (gbc)",
-  "episode": 7
- },
- "49d3f88ddf527264": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#69a2b0": 0,
-   "#5e8299": "~",
-   "#223f52": 0,
-   "#48708a": 18,
-   "#1f425a": "~",
-   "#678c9a": "~"
-  },
-  "level": "CAMANIS (gbc)",
-  "episode": 7
- },
- "185cd58cdcfddb19": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "FLEET (gbc)",
-  "episode": 7
- },
  "4f19acb1834d3559": {
   "classes": 6,
   "heights": {},
@@ -843,21 +815,6 @@
   "background": 2,
   "solid": true
  },
- "7d0e7d057175c48a": {
-  "classes": 6,
-  "forest": "palm",
-  "heights": {},
-  "materials": {
-   "#163b52": 0,
-   "#242424": "~",
-   "#616361": 16,
-   "#183c53": 0,
-   "#424444": 16,
-   "#06121c": "~"
-  },
-  "level": "SAVARA (gbc)",
-  "episode": 7
- },
  "7253bbd3b1afe291": {
   "classes": 6,
   "void": "hole",
@@ -972,21 +929,6 @@
   "level": "ASTEROID2 (gbc)",
   "episode": 7
  },
- "451f90b1fec66fd9": {
-  "classes": 6,
-  "rolling": 10,
-  "heights": {},
-  "level": "ICE EXIT (gbc)",
-  "episode": 7,
-  "materials": {
-   "#6aa2af": -12,
-   "#6298a6": "~",
-   "#426985": 0,
-   "#4e7691": 0,
-   "#597e96": 0,
-   "#0f2839": "~"
-  }
- },
  "4d39bdd541139299": {
   "classes": 6,
   "void": "hole",
@@ -1006,6 +948,64 @@
    "#520300": -16
   },
   "level": "LAVA II (gbc)",
+  "episode": 7
+ },
+ "3ba0f8a649e71716": {
+  "classes": 6,
+  "forest": "palm",
+  "heights": {},
+  "materials": {
+   "#163b52": 0,
+   "#242424": "~",
+   "#616361": 16,
+   "#183c53": 0,
+   "#424444": 16,
+   "#06121c": "~"
+  },
+  "level": "SAVARA (gbc)",
+  "episode": 7
+ },
+ "17487a505dd08133": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "BUBBLES (gbc)",
+  "episode": 7
+ },
+ "3705021d873766f2": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#69a2b0": 0,
+   "#5e8299": "~",
+   "#223f52": 0,
+   "#48708a": 18,
+   "#1f425a": "~",
+   "#678c9a": "~"
+  },
+  "level": "CAMANIS (gbc)",
+  "episode": 7
+ },
+ "7df295abe9b3f541": {
+  "classes": 6,
+  "rolling": 10,
+  "heights": {},
+  "level": "ICE EXIT (gbc)",
+  "episode": 7,
+  "materials": {
+   "#6aa2af": -12,
+   "#6298a6": "~",
+   "#426985": 0,
+   "#4e7691": 0,
+   "#597e96": 0,
+   "#0f2839": "~"
+  }
+ },
+ "32c7bffa0663c5b4": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "FLEET (gbc)",
   "episode": 7
  }
 }

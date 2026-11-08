@@ -38,6 +38,10 @@ def layer(spec):
         out = D.fitted(spec, dic, gmap, grids, letter) if how == 'fitted' else D.layer(spec, dic, gmap, grids, letter)
     else:
         raise SystemExit(f"{spec['name']}: no remake method {how!r}")
+    # (spec `bottom_row`: the map's first row that tile all along: SAVARA II's starts in open water, not on the stray
+    # dock edges its GBC map's frame made)
+    if spec.get('bottom_row') is not None:
+        out[E.ROWS - 1] = [spec['bottom_row']] * 14
     return out, gmap, img, letter
 
 

@@ -350,6 +350,50 @@ def paces(level, ratios=None):
     return pace, px
 
 
+ROW_TIME = 288   # a ground spawn's clock against the map row it stands on: t = 28 (300 - row) - 288 (DESERTRUN's and
+                 # SURFACE's arch tops over their legs, every one of them: the clock is layer 1's place)
+
+
+def decor(level, spec, layer1):
+    """Spec `decor`: [{tile, below, from: (episode, level), ids: (first, last)}]: where layer 1 has the tile over `below`
+    (the PC stone arch's left leg, 27 over 37), the original's ground enemies of those ids that stand over its first such
+    tile (the arch's top: DESERTRUN's 212-222, the user: "lukovima nedostaje gornji dio, ovo su samo noge"), at the same
+    places against it; the decor of an earlier apply goes first. Each goes after the events of its tick and outside any
+    difficulty skip's (66) events."""
+    import waves
+    events = [e for e in level['events'] if 'decor' not in e]
+    added = 0
+    for d in spec.get('decor', ()):
+        src = waves.Source(*d['from'])
+        grid = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(d['from'])][0]['maps'][0]
+        lo, hi = d['ids']
+        group_t = min(e['t'] for e in src.events if e['type'] in (6, 7, 10) and lo <= e['d1'] <= hi)
+        r0 = E.ROWS - (group_t + ROW_TIME) // 28
+        c0 = grid[r0].index(d['tile'])
+        group = [e for e in src.events if e['t'] == group_t and e['type'] in (6, 7, 10) and lo <= e['d1'] <= hi]
+        for r in range(E.ROWS - 1):
+            for c in range(14):
+                if layer1[r][c] == d['tile'] and layer1[r + 1][c] == d['below']:
+                    t = 28 * (E.ROWS - r) - ROW_TIME
+                    if t < 0:
+                        continue
+                    for e in group:
+                        events.append(dict(t=t, type=e['type'], d1=e['d1'], d2=e['d2'] + 24 * (c - c0), d3=e['d3'],
+                                           d5=e['d5'], d6=e['d6'], d4=0, ep=src.episode, decor=d.get('tag', 'decor')))
+                        added += 1
+    # (in clock order, the new ones after the old of their tick; none inside a difficulty skip's run)
+    events.sort(key=lambda e: (e['t'], 'decor' in e))
+    covered = set()
+    for i, e in enumerate(events):
+        if e['type'] == 66:
+            covered.update(range(i + 1, i + 1 + e['d2']))
+    bad = [i for i in covered if i < len(events) and 'decor' in events[i]]
+    if bad:
+        raise SystemExit(f"{spec['name']}: {len(bad)} decor events inside difficulty skips")
+    level['events'] = events
+    return added
+
+
 def apply(n, dry=False):
     """The committed level's layer 1 made again by its spec's method (remake.py; by default laid from its dictionary,
     tools/gbc/dictionaries.json, every block); the first time
@@ -384,6 +428,8 @@ def apply(n, dry=False):
         pace, px = paces(level, ratios)
         notes.append(f'backgrounds 2, 3 at {pace} x layer 1 ({px} px before the boss or the end)')
     level['events'].sort(key=lambda e: e['t'])  # (stable)
+    if spec.get('decor') or any('decor' in e for e in level['events']):
+        notes.append(f"{decor(level, spec, level['maps'][0])} decor events")
     print(f"L{n:02d} {spec['name']}: " + '; '.join(notes or ['layer 1 laid again']))
     if not dry:
         with open(path, 'w', encoding='utf-8', newline='\n') as f:
