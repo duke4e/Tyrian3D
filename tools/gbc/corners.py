@@ -109,6 +109,16 @@ def plan(spec, S):
     lo, hi = np.percentile(g[..., 0], q)
     plo, phi = np.percentile(sample[:, 0], q)
     g[..., 0] = plo + (g[..., 0] - lo) * (phi - plo) / max(hi - lo, 1e-6)
+    # (spec `corner_dark_as`: [lightness, tile]: the GBC map's pixels darker than that, before the range is moved, that
+    # tile's centre colour: TYRIAN's black pits NOSE DRIP's raised ridges, which join their ground as the originals do)
+    if spec.get('corner_dark_as'):
+        level, t = spec['corner_dark_as']
+        im = S['tiles'][t]
+        col = patches(E.lab(S['pal'][im].astype(np.float64)))[4]
+        dark = E.lab(img.astype(np.float64))[..., 0] < level
+        if blur:
+            dark = gaussian_filter(dark.astype(float), blur, mode='nearest') > 0.5
+        g[dark] = col
     h, w = len(S['gmap']), len(S['gmap'][0])
 
     def at(y, x):
