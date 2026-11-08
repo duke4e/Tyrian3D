@@ -638,13 +638,6 @@
   },
   "level": "Camanis 2"
  },
- "1c4b7d3b0f10d3cd": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "WARP (gbc)",
-  "episode": 7
- },
  "736ab2acea6f0b99": {
   "classes": 5,
   "heights": {
@@ -864,36 +857,6 @@
   "level": "DELI CORE (gbc)",
   "episode": 7
  },
- "fdbd55e8c6ec879f": {
-  "classes": 6,
-  "forest": "palm",
-  "heights": {},
-  "materials": {
-   "#37596d": "~",
-   "#061f2f": 0,
-   "#224e1c": 14,
-   "#6f542a": 6,
-   "#173b52": 0,
-   "#372a19": 18
-  },
-  "level": "SAVARA II (gbc)",
-  "episode": 7
- },
- "3b9a99da020c4444": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#444444": 18,
-   "#8d755e": 0,
-   "#715d47": 0,
-   "#41602e": 0,
-   "#4f4b47": "~",
-   "#342d27": "~"
-  },
-  "level": "DESERT (gbc)",
-  "episode": 7
- },
  "d46969e9652ca507": {
   "classes": 6,
   "heights": {},
@@ -1006,6 +969,43 @@
   "void": "hole",
   "heights": {},
   "level": "FLEET (gbc)",
+  "episode": 7
+ },
+ "2d790f54269cc858": {
+  "classes": 6,
+  "forest": "palm",
+  "heights": {},
+  "materials": {
+   "#37596d": "~",
+   "#061f2f": 0,
+   "#224e1c": 14,
+   "#6f542a": 6,
+   "#173b52": 0,
+   "#372a19": 18
+  },
+  "level": "SAVARA II (gbc)",
+  "episode": 7
+ },
+ "47579727b09d0dcb": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#444444": 18,
+   "#8d755e": 0,
+   "#715d47": 0,
+   "#41602e": 0,
+   "#4f4b47": "~",
+   "#342d27": "~"
+  },
+  "level": "DESERT (gbc)",
+  "episode": 7
+ },
+ "f82fed6214a0d280": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "WARP (gbc)",
   "episode": 7
  }
 }

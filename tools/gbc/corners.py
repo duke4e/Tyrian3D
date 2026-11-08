@@ -174,6 +174,86 @@ def gbc_row(r, h):
     return h - 1 - b
 
 
+REPAIR_PAIR = 100.0  # repair: a pair the originals never make against a region off the plan
+REPAIR_MISS = 1.0    # ... a changed cell at most this many regions further off its plan (the layout kept)
+
+
+def repair(choice, misses, seen_h, seen_v, prior, h, sweeps=6, pairs=True, slack=REPAIR_MISS):
+    """After the solve, each free cell in a pair the originals never make takes the tile (any of the pool) with the
+    fewest such pairs round it, then the fewest regions off its plan: the last odd joins (the user on DELICORE: "ajmo
+    još tih 42 popraviti") without moving the rest of the map. Returns how many cells changed."""
+    changed = 0
+    top = E.ROWS - h
+    # (each cell's miss as the solve left it: a repair may go at most REPAIR_MISS past that, not drift step by step)
+    base = {k: m[choice[k[0]][k[1]]] + slack for k, m in misses.items()}
+
+    def bad_round(r, c, t):
+        n = np.zeros(len(t), int) if hasattr(t, '__len__') else 0
+        if c > 0:
+            n = n + ~seen_h[choice[r][c - 1], t]
+        if c < 13:
+            n = n + ~seen_h[t, choice[r][c + 1]]
+        if r + 1 < E.ROWS:
+            n = n + ~seen_v[choice[r + 1][c], t]
+        if r > top:
+            n = n + ~seen_v[t, choice[r - 1][c]]
+        return n
+    every = np.arange(seen_h.shape[0])
+    for _ in range(sweeps):
+        moved = 0
+        for r in range(top, E.ROWS):
+            for c in range(14):
+                if (r, c) not in misses or bad_round(r, c, choice[r][c]) == 0:
+                    continue
+                cost = REPAIR_PAIR * bad_round(r, c, every) + misses[(r, c)] + E.PRIOR_WEIGHT * prior
+                cost = np.where(misses[(r, c)] > base[(r, c)], np.inf, cost)
+                best = int(cost.argmin())
+                if best != choice[r][c] and cost[best] < cost[choice[r][c]]:
+                    choice[r][c] = best
+                    moved += 1
+        changed += moved
+        if not moved:
+            break
+    # (then two cells at once, where one alone can't join both ways: each odd pair's two cells every two tiles)
+    T = seen_h.shape[0]
+    for _ in range(sweeps if pairs else 0):
+        moved = 0
+        for r in range(top, E.ROWS):
+            for c in range(14):
+                for r2, c2 in ((r, c + 1), (r + 1, c)):
+                    if r2 >= E.ROWS or c2 > 13 or (r, c) not in misses or (r2, c2) not in misses:
+                        continue
+                    a, b = choice[r][c], choice[r2][c2]
+                    odd = (not seen_h[a, b]) if r2 == r else (not seen_v[b, a])
+                    if not odd:
+                        continue
+                    best, best_cost = None, (REPAIR_PAIR * (bad_round(r, c, a) + bad_round(r2, c2, b)) +
+                                             misses[(r, c)][a] + misses[(r2, c2)][b])
+                    for ta in range(T):
+                        if misses[(r, c)][ta] > base[(r, c)]:
+                            continue
+                        choice[r][c] = ta
+                        tb_cost = REPAIR_PAIR * bad_round(r2, c2, every) + misses[(r2, c2)]
+                        choice[r2][c2] = b
+                        tb_cost = np.where(misses[(r2, c2)] > base[(r2, c2)], np.inf, tb_cost)
+                        for tb in np.argsort(tb_cost)[:4]:
+                            if not np.isfinite(tb_cost[tb]):
+                                continue
+                            choice[r2][c2] = int(tb)
+                            cost = REPAIR_PAIR * (bad_round(r, c, ta) + bad_round(r2, c2, int(tb))) + misses[(r, c)][ta] + misses[(r2, c2)][tb]
+                            if cost < best_cost:
+                                best, best_cost = (ta, int(tb)), cost
+                        choice[r2][c2] = b
+                    choice[r][c] = a
+                    if best is not None:
+                        choice[r][c], choice[r2][c2] = best
+                        moved += 1
+        changed += moved
+        if not moved:
+            break
+    return changed
+
+
 def layer(spec, S=None, fixed=None):
     S = S or setup(spec)
     gmap, pool, sigs = S['gmap'], S['pool'], S['sigs']
@@ -192,6 +272,7 @@ def layer(spec, S=None, fixed=None):
     prior = -np.log(pri / pri.max())
     rng = np.random.default_rng(spec.get('seed', 1))
     cands, unary = [], []
+    misses = {}  # (row, column) -> each tile's miss off the plan (free cells only)
     for r in range(E.ROWS):
         i = gbc_row(r, h)
         row_c, row_u = [], []
@@ -210,6 +291,7 @@ def layer(spec, S=None, fixed=None):
                 continue
             want = np.array([V[i][g], V[i][g + 1], V[i + 1][g], V[i + 1][g + 1], C[i][g]])
             miss = ((sig != want) * weights).sum(1)
+            misses[(r, c)] = miss
             miss[sig[:, 0] < 0] = 99
             best = miss.min()
             ci = np.nonzero(miss <= best + spec.get('corner_slack', SLACK))[0]
@@ -222,6 +304,10 @@ def layer(spec, S=None, fixed=None):
     cost_h, cost_v, seen_h, seen_v, mis_h, mis_v = E.pair_costs(spec, ids, S['right'], S['above'], S['selfish'],
                                                                 S['tiles'], S['pal'])
     choice = E.solve_grid(cands, unary, cost_h, cost_v, T, pair=spec.get('corner_pair'))  # (more: joins before the plan)
+    if spec.get('corner_repair'):
+        repaired = repair(choice, misses, seen_h, seen_v, prior, h, pairs=spec['corner_repair'] != 'single',
+                          slack=spec.get('corner_repair_miss', REPAIR_MISS))
+        print(f"  {spec['name']}: {repaired} cells changed so that their pairs are the originals'")
     out = [[ids[choice[r][c]] for c in range(14)] for r in range(E.ROWS)]
     pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(E.ROWS - h, E.ROWS) for c in range(2, 13)] + \
         [(seen_v, mis_v, choice[r + 1][c], choice[r][c]) for r in range(E.ROWS - h, E.ROWS - 1) for c in range(2, 13)]
