@@ -80,10 +80,9 @@ def layer(spec):
     def sides(i, c):
         return ''.join(n for n, (j, d) in zip('NSWE', ((i - 1, c), (i + 1, c), (i, c - 1), (i, c + 1)))
                        if not (0 <= j < h and 0 <= d < 14) or G[j][d] in roads)
-    # (BOTANY's bridges: only its upright one looks right over TORM's water (its level one is drawn over BOTANY's dark
-    # floor, the user's screenshots); a road's level run, turn or junction over water stands on land of its own, a
-    # causeway)
-    wmask = [[G[i][c] in water or (G[i][c] in roads and wet(i, c) and sides(i, c) in ('NS', 'N', 'S'))
+    # (a road over water on land of its own, a causeway: BOTANY's level bridge is drawn over its dark floor and its
+    # upright one met TORM's shores badly, the user's screenshots; spec `bridges` keeps the upright one)
+    wmask = [[G[i][c] in water or (st.get('bridges') and G[i][c] in roads and wet(i, c) and sides(i, c) in ('NS', 'N', 'S'))
               for c in range(14)] for i in range(h)]
     # (a pond of fewer than spec `pond_min` cells grass: TORM's shore round one cell is a hole in the grass)
     seen = set()
@@ -100,7 +99,7 @@ def layer(spec):
                     if 0 <= x < h and 0 <= y < 14 and wmask[x][y] and (x, y) not in seen:
                         seen.add((x, y))
                         stack.append((x, y))
-            if len(cells) < st.get('pond_min', 4):
+            if len(cells) < st.get('pond_min', 6):
                 for a, b in cells:
                     wmask[a][b] = False
     grid = [[GRASS] * 14 for _ in range(h)]
@@ -157,6 +156,64 @@ def layer(spec):
                 for a, b in cells:
                     cmask[a][b] = False
                 small += len(cells)
+    # (TORM's cliffs are a terrace's edge: none stops in the grass, each runs to the map's side or into the river. So
+    # each cliff's ends go on sideways, its three rows at that end, to the side, water, a road or another cliff: the
+    # user's cliff ends that stopped in the grass)
+    if st.get('cliff_extend', True):
+        def blocked(i, c):
+            return G[i][c] in water | roads or wmask[i][c]
+        seen = set()
+        comps = []
+        for i in range(h):
+            for c in range(14):
+                if not cmask[i][c] or (i, c) in seen:
+                    continue
+                stack, cells = [(i, c)], []
+                seen.add((i, c))
+                while stack:
+                    a, b = stack.pop()
+                    cells.append((a, b))
+                    for x, y in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                        if 0 <= x < h and 0 <= y < 14 and cmask[x][y] and (x, y) not in seen:
+                            seen.add((x, y))
+                            stack.append((x, y))
+                comps.append(cells)
+        for cells in comps:
+            for end, step in ((min(b for _, b in cells), -1), (max(b for _, b in cells), 1)):
+                band = sorted(a for a, b in cells if b == end)
+                c = end + step
+                while 0 <= c < 14:
+                    if any(cmask[a][c] for a in band):
+                        break
+                    if any(blocked(a, c) for a in band):
+                        break
+                    for a in band:
+                        cmask[a][c] = True
+                    c += step
+        # (a cliff whose end still stops in the grass (a road in its way) grass: it can't be a terrace's edge)
+        seen = set()
+        for i in range(h):
+            for c in range(14):
+                if not cmask[i][c] or (i, c) in seen:
+                    continue
+                stack, cells = [(i, c)], []
+                seen.add((i, c))
+                while stack:
+                    a, b = stack.pop()
+                    cells.append((a, b))
+                    for x, y in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                        if 0 <= x < h and 0 <= y < 14 and cmask[x][y] and (x, y) not in seen:
+                            seen.add((x, y))
+                            stack.append((x, y))
+                good = True
+                for end, step in ((min(b for _, b in cells), -1), (max(b for _, b in cells), 1)):
+                    c2 = end + step
+                    if 0 <= c2 < 14 and not any(G[a][c2] in water or wmask[a][c2] for a, b in cells if b == end):
+                        good = False
+                if not good:
+                    for a, b in cells:
+                        cmask[a][b] = False
+                    small += len(cells)
     near += _lay(_table(torm, lambda t: t in cliff, lambda t: True), cmask, grid)
     # (the GBC's wall turrets TORM's gun in the cliff only with spec `guns`: in the cliff it broke the cliff round it, the
     # user's screenshots; the turrets are the level's enemies anyway)
