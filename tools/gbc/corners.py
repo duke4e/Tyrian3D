@@ -64,6 +64,12 @@ def setup(spec):
     pal = E.preview.palette()
     _, _, _, own = counts(grids + extra)
     right, above, selfish, use = counts(every)
+    # (spec corner_fill: tiles that may stand beside and above themselves though the originals have them alone, a fill:
+    # UNDERDELI's blue mesh, the background of DELI CORE's rooms, which UNDERDELI uses five times)
+    for t in spec.get('corner_fill', ()):
+        right.setdefault(t, Counter())[t] += 10
+        above.setdefault(t, Counter())[t] += 10
+        selfish[t] += 10
     # (a blank tile, which shows what is under layer 1, as black: BUBBLES's, WARP's and FLEET's space)
     labs = {t: E.lab(np.zeros((28, 24, 3)) if tiles.get(t) is None else pal[tiles[t]].astype(np.float64))
             for t in set(use) | set(own) if use[t] or own[t]}

@@ -195,6 +195,9 @@ def paths(spec, out, gmap, img, letter):
                 out[r][c] = by.get(e, st['plain']) if any(e) else st['plain']
             elif out[r][c] in path_tiles:
                 out[r][c] = st['plain']
+        for c in list(range(D.LEFT)) + list(range(D.LEFT + w, 14)):
+            if out[r][c] in path_tiles:
+                out[r][c] = st['plain']  # (none in the side columns but those going on from the map)
         # (beyond the sides: a path leaving the map's edge goes on, straight, to the playfield's)
         we, ew = by.get((False, True, False, True)), out[r]
         if row[w - 1] in blocks and block_exits[row[w - 1]][1]:
@@ -209,23 +212,51 @@ def paths(spec, out, gmap, img, letter):
     return out
 
 
+def components(grid):
+    """A layer's groups of non-blank tiles (4 neighbours): (row, column, rows, columns, {(dy, dx): tile})."""
+    hh, ww = len(grid), len(grid[0])
+    seen, out = set(), []
+    for y in range(hh):
+        for x in range(ww):
+            if not grid[y][x] or (y, x) in seen:
+                continue
+            stack, cells = [(y, x)], []
+            seen.add((y, x))
+            while stack:
+                a, b = stack.pop()
+                cells.append((a, b))
+                for c, d in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                    if 0 <= c < hh and 0 <= d < ww and grid[c][d] and (c, d) not in seen:
+                        seen.add((c, d))
+                        stack.append((c, d))
+            ys, xs = [c[0] for c in cells], [c[1] for c in cells]
+            y0, x0 = min(ys), min(xs)
+            out.append((y0, x0, max(ys) - y0 + 1, max(xs) - x0 + 1, {(a - y0, b - x0): grid[a][b] for a, b in cells}))
+    return out
+
+
 def upper(spec, gmap):
-    """Spec `upper_stamps`: dict(layer=2, source=(episode, level), source_layer=3, pieces=[(row, column, rows, columns)],
-    blocks=[...]): where the GBC map has a structure of those blocks (DELIANI's pink-windowed machines), the source
-    layer's piece nearest it in size, centred on it, in that upper layer, its rows 300 above layer 1's (the layers start
-    at rows 292 and 592, so at layer 1's pace a row of the upper layer stands over its layer-1 row; the wide playfield
-    has the second layer 2 px off the first, tyrian2.c WIDE_OFS1/2: its columns over layer 1's). The user on DELIANI: the
-    PC level is two layers, the plates and islands below and "ostalo napravimo s drugim layerom". Returns (layer index,
-    {(row, column): tile})."""
+    """Spec `upper_stamps`: dict(layer=3, source=(episode, level), blocks=[...], max_rows=8): where the GBC map has a
+    structure of those blocks (DELIANI's pink-windowed machines), one of the source's own compositions of that layer
+    whole (its groups of tiles, as the original draws them), at the column it has there: they reach in from the
+    playfield's side, open towards it (the user: "ni jedan od overlay otoka nije pravilno zatvoren ... uzeti gotove
+    kompozicije s pc deliani overlay layera"); the side nearer the GBC structure's middle, the nearest in rows of those;
+    two GBC structures side by side at the same rows a pair the source has side by side (its rows apart kept: "znaju
+    dolaziti 2 otoka istovremeno s lijeve i desne strane"). The layer's row R over layer 1's row R - 300 (the layers
+    start at rows 592 and 292; spec upper_pace keeps it at layer 1's pace). Returns (map index, {(row, column): tile})."""
     st = spec.get('upper_stamps')
     if not st:
         return None, {}
+    k = st['layer'] - 1
     src = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(st['source'])][0]
     grid = src['maps'][st.get('source_layer', st['layer']) - 1]
-    pieces = [[row[x:x + w] for row in grid[y:y + h]] for y, x, h, w in st['pieces']]
+    cols = len(grid[0])
+    comps = [c for c in components(grid) if c[2] <= st.get('max_rows', 8)]
+    side = lambda c: 'L' if c[1] == 0 and c[1] + c[3] < cols else 'R' if c[1] + c[3] == cols and c[1] > 0 else 'F'
     blocks = set(st['blocks'])
     h, w = len(gmap), len(gmap[0])
-    seen, out = set(), {}
+    machines = []
+    seen = set()
     for j in range(h):
         for i in range(w):
             if gmap[j][i] not in blocks or (j, i) in seen:
@@ -240,16 +271,38 @@ def upper(spec, gmap):
                         seen.add((c, d))
                         stack.append((c, d))
             ys, xs = [c[0] for c in cells], [c[1] for c in cells]
-            gh, gw = max(ys) - min(ys) + 1, max(xs) - min(xs) + 1
-            piece = min(pieces, key=lambda p: abs(len(p) - gh) + abs(len(p[0]) - gw))
-            ph, pw = len(piece), len(piece[0])
-            r0 = E.ROWS - h + min(ys) + (gh - ph) // 2 + E.ROWS  # (the upper layer's row over layer 1's)
-            c0 = min(max(D.LEFT + min(xs) + (gw - pw) // 2, 0), 14 - pw)
-            for y in range(ph):
-                for x in range(pw):
-                    if piece[y][x] and 0 <= r0 + y < 2 * E.ROWS:
-                        out[(r0 + y, c0 + x)] = piece[y][x]
-    return st['layer'] - 1, out
+            machines.append(dict(top=min(ys), rows=max(ys) - min(ys) + 1, side='L' if (min(xs) + max(xs)) / 2 < (w - 1) / 2 else 'R'))
+    out = {}
+    used = set()
+
+    def place(m, c, dy=0):
+        r0 = E.ROWS - h + m['top'] + (m['rows'] - c[2]) // 2 + dy + E.ROWS
+        for (yy, xx), t in c[4].items():
+            if 0 <= r0 + yy < 2 * E.ROWS:
+                out[(r0 + yy, c[1] + xx)] = t
+    done = set()
+    for n, m in enumerate(machines):
+        if n in done:
+            continue
+        mate = next((q for q, o in enumerate(machines) if q != n and q not in done and o['side'] != m['side'] and
+                     abs(o['top'] - m['top']) <= 2), None)
+        if mate is not None:
+            left, right = (m, machines[mate]) if m['side'] == 'L' else (machines[mate], m)
+            pairs = [(a, b) for a in comps if side(a) == 'L' for b in comps if side(b) == 'R' and abs(a[0] - b[0]) <= 6]
+            if pairs:
+                a, b = min(pairs, key=lambda p: (abs(p[0][2] - left['rows']) + abs(p[1][2] - right['rows']),
+                                                 (id(p[0]) in used) + (id(p[1]) in used)))
+                used.update((id(a), id(b)))
+                place(left, a)
+                place(left, b, b[0] - a[0] + (a[2] - left['rows']) // 2 - (b[2] - left['rows']) // 2)
+                done.update((n, mate))
+                continue
+        cands = [c for c in comps if side(c) == m['side']] or comps
+        c = min(cands, key=lambda c: (abs(c[2] - m['rows']), id(c) in used))
+        used.add(id(c))
+        place(m, c)
+        done.add(n)
+    return k, out
 
 
 if __name__ == '__main__':

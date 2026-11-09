@@ -211,12 +211,17 @@ def sides(spec, layer1, letter, grids, allowed=None):
     idx = {t: i for i, t in enumerate(ids)}
     cost_h, cost_v, *_ = E.pair_costs(spec, ids, right, above, selfish, tiles, pal)
     cand = np.array([idx[t] for t in ground])
+    ids_c = cand
     prior = -np.log(np.array([use[ids[i]] for i in cand], np.float64) / max(use[ids[i]] for i in cand))
     out = [list(row) for row in layer1]
     for c, inside in ((1, 2), (0, 1), (13, 12)):
         rows = len(out)
         unary = np.stack([E.PAIR_COST * (cost_h[cand, idx[out[r][inside]]] if c < inside else cost_h[idx[out[r][inside]], cand])
                           + E.PRIOR_WEIGHT * prior for r in range(rows)])
+        # (spec sides_keep: a tile other than the one inside it costs that much: ASTEROID's plates go on to the edge,
+        # where the cheap space beside them left black notches, and its rims don't repeat there, none being ground)
+        if spec.get('sides_keep'):
+            unary += spec['sides_keep'] * np.stack([ids_c != idx[out[r][inside]] for r in range(rows)])
         vert = E.PAIR_COST * cost_v[np.ix_(cand, cand)]  # [below, above]
         acc, back = unary[rows - 1], []
         for r in range(rows - 2, -1, -1):  # up from the bottom: row r above row r + 1
@@ -430,6 +435,9 @@ def apply(n, dry=False):
         level['maps'][k] = [[0] * columns for _ in range(rows)]
         for (r, c), t in cells.items():
             level['maps'][k][r][c] = t
+        for j in spec.get('upper_clear', ()):  # (the other upper layer empty: DELIANI's synthesised pieces gone)
+            r_, c_ = E.UPPER_SHAPE[j - 2]
+            level['maps'][j - 1] = [[0] * c_ for _ in range(r_)]
         notes.append(f"{len(cells)} tiles of the GBC map's structures in background {k + 1}")
     if not level.get('aligned'):
         pivot, extra = stretch(level)
