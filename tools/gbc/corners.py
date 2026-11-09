@@ -130,13 +130,21 @@ def plan(spec, S):
     C = np.array([[at(16 * j + 8, 16 * i + 8) for i in range(w)] for j in range(h)])
     # (spec `block_like`: {block: tile}, those blocks wholly that tile's material, corners and centre: DESERT's drawn
     # arches the concrete's, so the walls round them are the originals')
-    for b, t in spec.get('block_like', {}).items():
-        m = material_of(S, t)
-        for j, row in enumerate(S['gmap']):
-            for i, x in enumerate(row):
-                if x == int(b):
-                    C[j][i] = m
-                    V[j][i] = V[j][i + 1] = V[j + 1][i] = V[j + 1][i + 1] = m
+    like = {int(b): t for b, t in spec.get('block_like', {}).items()}
+    gm = S['gmap']
+    for j, row in enumerate(gm):
+        for i, x in enumerate(row):
+            if x in like:
+                m = material_of(S, like[x])
+                C[j][i] = m
+                for vj, vi in ((j, i), (j, i + 1), (j + 1, i), (j + 1, i + 1)):
+                    # (spec block_like_inner: a corner theirs only where all its blocks are such, so the PC's edge
+                    # tiles fall on the GBC platform's own border cells, not a cell beyond it: DELIANI's islands)
+                    if spec.get('block_like_inner'):
+                        around = [gm[y][xx] for y in (vj - 1, vj) for xx in (vi - 1, vi) if 0 <= y < len(gm) and 0 <= xx < len(row)]
+                        if not all(a in like for a in around):
+                            continue
+                    V[vj][vi] = m
     return V, C
 
 
@@ -394,8 +402,11 @@ def layer(spec, S=None, fixed=None):
     pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(E.ROWS - h, E.ROWS) for c in range(2, 13)] + \
         [(seen_v, mis_v, choice[r + 1][c], choice[r][c]) for r in range(E.ROWS - h, E.ROWS - 1) for c in range(2, 13)]
     bad = sum(not seen[a, b] for seen, _, a, b in pairs)
+    # (and how many of the GBC map's cells have a tile whose centre isn't the plan's material there: the layout kept)
+    off = sum(int(sig[choice[E.ROWS - h + i][g + D.LEFT], 4] != C[i][g]) for i in range(h) for g in range(w)
+              if (E.ROWS - h + i, g + D.LEFT) in misses)
     print(f"  {spec['name']} {S['letter']}: {len(ids)} tiles, {len(set(map(tuple, sigs)))} signatures; on the GBC map "
-          f"{bad} of {len(pairs)} neighbour pairs the originals never have")
+          f"{bad} of {len(pairs)} neighbour pairs the originals never have, {off} cells' centres off the plan")
     inside = Counter(t for row in out[E.ROWS - h:] for t in row[D.LEFT:D.LEFT + w])
     out = D.sides(spec, out, S['letter'], S['grids'] + S['every'], allowed=inside)
     # (the templates' tiles in the side columns stay: an arch at the map's side reaches into them)

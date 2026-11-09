@@ -131,7 +131,7 @@ def refresh():
             settings[h] = dict(upper or s, level=s["level"], episode=7)
             built.append(h)
             continue
-        pc = stages[name]["pc"][1]
+        pc = stages[name].get("tiles", stages[name]["pc"])[1]
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
         settings[h] = dict(carried_settings(settings, original_map(settings, pc), fallback), level=s["level"], episode=7)
         built.append(h)
@@ -168,7 +168,9 @@ def main(names):
                 built.append(h)
         if ground is None or (ground in settings and settings[ground].get("episode") != 7):
             continue  # (a map an original has too, e.g. open space of one tile: the original's)
-        pc = st["pc"][1]
+        # (the original whose tiles the map has: the stage's "tiles" where its map took another original's tile set,
+        # DELICORE BRAINIAC's; its colours are those the heights go by)
+        pc = st.get("tiles", st["pc"])[1]
         original = original_map(settings, pc)
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
         s = carried_settings(settings, original, fallback)

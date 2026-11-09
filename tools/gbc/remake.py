@@ -117,15 +117,96 @@ def layer(spec):
         for r in range(E.ROWS - h):
             b = E.ROWS - 1 - r
             out[r] = list(out[E.ROWS - h + 7 - (b - h) % 8])
+    if spec.get('paths'):
+        out = paths(spec, out, gmap, img, letter)
     # (spec `replace`: {tile: tile} after the making: ASTEROID's red bars, the turrets the GBC map draws (leaving them out of
     # the autotile changed its materials and lost the paths))
     for a, b in spec.get('replace', {}).items():
         out = [[b if t == a else t for t in row] for row in out]
+    # (spec `pins`: {block: tile}: those GBC blocks that tile where they are, last: ASTEROID's red turret blocks its red
+    # turret tile, which elsewhere stood in rows as red bars)
+    if spec.get('pins'):
+        h, w = len(gmap), len(gmap[0])
+        for i, row in enumerate(gmap):
+            for g, b in enumerate(row):
+                if b in spec['pins']:
+                    out[E.ROWS - h + i][g + D.LEFT] = spec['pins'][b]
+        for r in range(E.ROWS - h):
+            b_ = E.ROWS - 1 - r
+            out[r] = list(out[E.ROWS - h + 7 - (b_ - h) % 8])
     # (spec `bottom_row`: the map's first row that tile all along: SAVARA II's starts in open water, not on the stray
     # dock edges its GBC map's frame made)
     if spec.get('bottom_row') is not None:
         out[E.ROWS - 1] = [spec['bottom_row']] * 14
     return out, gmap, img, letter
+
+
+def _brown(a):
+    return (a[..., 0] - a[..., 2] > 25) & (a[..., 0] >= a[..., 1])
+
+
+def exits(a, band=0.2):
+    """A picture's path exits (N, E, S, W): brown in the middle half of each edge's band."""
+    h, w = a.shape[:2]
+    br = _brown(a.astype(int))
+    k = max(1, int(round(h * band)))
+    mid, midr = slice(w // 4, w - w // 4), slice(h // 4, h - h // 4)
+    return (bool(br[:k, mid].mean() > 0.15), bool(br[midr, -k:].mean() > 0.15), bool(br[-k:, mid].mean() > 0.15),
+            bool(br[midr, :k].mean() > 0.15))
+
+
+def paths(spec, out, gmap, img, letter):
+    """Spec `paths`: dict(blocks=[...], plain=tile, tiles=(first, last)): each GBC path block the PC path tile with the
+    same exits (the brown path's ends on its edges, read off both pictures; of several the one the originals use most),
+    any path tile elsewhere the plain plate, and a path that leaves the GBC map's side going on to the playfield's edge:
+    ASTEROID's paths joined as the GBC map draws them (the user: "ima ih koji si ne pašu, rubnih koji naglo
+    završavaju")."""
+    import numpy as np
+    from collections import Counter
+    st = spec['paths']
+    tiles = E.preview.tiles(letter)
+    pal = E.preview.palette()
+    use = Counter(t for l in E.sources.original_levels() if l['shapes'] == letter for row in l['maps'][0] for t in row)
+    lo, hi = st.get('tiles', (340, 430))
+    by = {}
+    for t in range(lo, hi):
+        if tiles.get(t) is None or not use[t]:
+            continue
+        a = pal[tiles[t]]
+        share = _brown(a.astype(int)).mean()
+        e = exits(a)
+        if any(e) and 0.12 <= share <= 0.36 and (e not in by or use[t] > use[by[e]]):
+            by[e] = t
+    path_tiles = set(by.values())
+    blocks = set(st['blocks'])
+    h, w = len(gmap), len(gmap[0])
+    pos = {}
+    for y, row in enumerate(gmap):
+        for x, b in enumerate(row):
+            pos.setdefault(b, (y, x))
+    block_exits = {b: exits(img[16 * y:16 * y + 16, 16 * x:16 * x + 16]) for b, (y, x) in pos.items() if b in blocks}
+    out = [list(r) for r in out]
+    for i, row in enumerate(gmap):
+        r = E.ROWS - h + i
+        for g, b in enumerate(row):
+            c = g + D.LEFT
+            if b in blocks:
+                e = block_exits[b]
+                out[r][c] = by.get(e, st['plain']) if any(e) else st['plain']
+            elif out[r][c] in path_tiles:
+                out[r][c] = st['plain']
+        # (beyond the sides: a path leaving the map's edge goes on, straight, to the playfield's)
+        we, ew = by.get((False, True, False, True)), out[r]
+        if row[w - 1] in blocks and block_exits[row[w - 1]][1]:
+            for c in range(D.LEFT + w, 14):
+                out[r][c] = we
+        if row[0] in blocks and block_exits[row[0]][3]:
+            for c in range(0, D.LEFT):
+                out[r][c] = we
+    for r in range(E.ROWS - h):
+        b_ = E.ROWS - 1 - r
+        out[r] = list(out[E.ROWS - h + 7 - (b_ - h) % 8])
+    return out
 
 
 def upper(spec, gmap):

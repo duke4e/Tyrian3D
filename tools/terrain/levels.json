@@ -670,21 +670,6 @@
   "level": "ASTEROID (gbc)",
   "episode": 7
  },
- "c98a2e1062f2a860": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#897960": 0,
-   "#42602f": "~",
-   "#3e3e3e": 18,
-   "#735e48": 0,
-   "#3c2810": 0,
-   "#45413d": "~"
-  },
-  "level": "OASIS (gbc)",
-  "episode": 7
- },
  "4f19acb1834d3559": {
   "classes": 6,
   "heights": {},
@@ -829,20 +814,6 @@
   "level": "TUNNEL (gbc)",
   "episode": 7
  },
- "fd6554ae3d66715c": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": "~",
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
  "fd2134b989cf9178": {
   "classes": 6,
   "heights": {},
@@ -883,13 +854,6 @@
    "#1b201c": "~"
   },
   "level": "JUNGLE II (gbc)",
-  "episode": 7
- },
- "002bf7addc7c8c25": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID2 (gbc)",
   "episode": 7
  },
  "4d39bdd541139299": {
@@ -1006,6 +970,41 @@
   "void": "hole",
   "heights": {},
   "level": "WARP (gbc)",
+  "episode": 7
+ },
+ "6587e429ab38509d": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#897960": 0,
+   "#42602f": "~",
+   "#3e3e3e": 18,
+   "#735e48": 0,
+   "#3c2810": 0,
+   "#45413d": "~"
+  },
+  "level": "OASIS (gbc)",
+  "episode": 7
+ },
+ "ce29c0873f731a89": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID2 (gbc)",
+  "episode": 7
+ },
+ "48cd6d69a8518614": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "943e973399ec4c60": {
+  "background": 2,
+  "solid": true,
+  "level": "DELICORE (gbc)",
   "episode": 7
  }
 }
