@@ -6,6 +6,8 @@ as the user's map reviews chose per level (2026-11-07/08):
     ships       ships.py (FLEET: the original's ships whole where the GBC map has ships)
     fitted      dictionary.fitted (BUBBLES, WARP: the dictionary's tiles, given up where they wouldn't join)
     dictionary  dictionary.lay (the dictionary as it is: AST.BONUS, LAVA II)
+    ninepatch   framed rectangles (DELI CORE's earlier variant)
+    exact       the tile set's pad tiles as its original lays them, by each cell's 8 neighbours (DELI CORE)
 
     python tools/gbc/remake.py 23 [out.png]
 """
@@ -36,6 +38,8 @@ def layer(spec):
         out = corners.layer(spec)
     elif how == 'ninepatch':
         out = ninepatch(spec, gmap)
+    elif how == 'exact':
+        out = exact(spec, gmap)
     elif how == 'ships':
         import ships
         out, _ = ships.layer(spec)
@@ -182,6 +186,130 @@ def ninepatch(spec, gmap):
                 grid[i][c] = (tl if lef else tr if rig else t_) if top else (bl if lef else br if rig else b_) if bot else                     (l_ if lef else r_ if rig else c_)
         rects += 1
     print(f"  {spec['name']}: {rects} framed rectangles, {sum(map(sum, free))} cells too thin for one left as fill")
+    out = []
+    for r in range(E.ROWS):
+        b = E.ROWS - 1 - r
+        if b >= h:
+            b = h - 8 + (b - h) % 8
+        out.append(list(grid[h - 1 - b]))
+    return out
+
+
+def _around(mask, r, c):
+    """The 8 neighbours of a cell (row by row, the cell left out): 1 where the mask is set; outside the columns 1 (the
+    pads go on past the map's side), outside the rows 0."""
+    h, w = len(mask), len(mask[0])
+    return tuple(1 if not 0 <= c + dc < w or (0 <= r + dr < h and mask[r + dr][c + dc]) else 0
+                 for dr in (-1, 0, 1) for dc in (-1, 0, 1) if (dr, dc) != (0, 0))
+
+
+SIDES = ((1, 'N'), (6, 'S'), (3, 'W'), (4, 'E'))  # (_around's index of each side)
+
+
+def exact(spec, gmap):
+    """Spec `exact`: dict(blocks=[...], family=[...], sides={tile: 'NSWE'}, fill=tile, objects={block: tile},
+    runs={blocks: (tiles on the left half, on the right half)}): the GBC map's cells of those
+    blocks drawn with the tile set's pad tiles (the family) exactly as its original uses them: each cell the tile the
+    original has most often where its own 8 neighbours are pad and floor alike (the nearest such neighbourhood when the
+    original has none), the rest the fill. The user on DELI CORE chose this over the framed rectangles and the solver
+    (2026-11-09: "ovaj sa 175 loših izgleda najbolje"), but: where the most common tile breaks a seam (one tile of a pair
+    ends the pad at their seam, the other goes on: the bottom-left corners that stood as spikes in bottom edges) another
+    tile the original has there (spec `keep`: at least that share of the most common one's count); and the GBC's turrets (spec `objects`, blocks out of the pads) are the
+    tile set's own turrets on the floor (UNDERDELI's dome, its crab machine three wide, a run of four with a dome on its
+    outer side, its 2 x 2 machine), not the small islands they made."""
+    st = spec['exact']
+    fam, fill = set(st['family']), st['fill']
+    objects = st.get('objects', {})
+    blocks = set(st['blocks']) - set(objects)
+    src = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(spec['tiles'])][0]['maps'][0]
+    smask = [[t in fam for t in row] for row in src]
+    table = {}
+    for y, row in enumerate(src):
+        for x, t in enumerate(row):
+            if smask[y][x]:
+                table.setdefault(_around(smask, y, x), Counter())[t] += 1
+    h, w = len(gmap), len(gmap[0])
+    col = [min(max(c - D.LEFT, 0), w - 1) for c in range(14)]
+    mask = [[gmap[i][col[c]] in blocks for c in range(14)] for i in range(h)]
+    weight = [2 if i in (1, 3, 4, 6) else 1 for i in range(8)]
+    grid = [[fill] * 14 for _ in range(h)]
+    cands = {}
+    near = 0
+    for i in range(h):
+        for c in range(14):
+            if not mask[i][c]:
+                continue
+            k = _around(mask, i, c)
+            # (spec `edges`: {floor sides: tile}: a neighbourhood the original has under `rare` times (or never), its floor
+            # sides' edge or corner, the pit round a turret's sides: the original's one or two odd cells put corners
+            # there)
+            sides = ''.join(n for j, n in SIDES if not k[j])
+            rare = sum(table.get(k, {}).values()) < st.get('rare', 3)
+            if rare and sides in st.get('edges', {}):
+                cands[i, c] = [(st['edges'][sides], 1)]
+                grid[i][c] = st['edges'][sides]
+                continue
+            if k not in table:
+                near += 1
+                k = min(table, key=lambda q: (sum(wt for a, b, wt in zip(k, q, weight) if a != b), -sum(table[q].values())))
+            top = table[k].most_common(1)[0][1]
+            cands[i, c] = [(t, n) for t, n in table[k].most_common() if n >= top * st.get('keep', .25)]
+            # (spec `inner`: {diagonal (_around's index): tile}: a cell of pad all round but for that one diagonal, the
+            # pad's inner corner, that junction tile, where the original as often puts an edge's bar: the bar stood in
+            # the pad as a spike beside the corner tiles that close the step)
+            floor = [j for j in range(8) if not k[j]]
+            if len(floor) == 1 and floor[0] in st.get('inner', {}):
+                cands[i, c] = [(st['inner'][floor[0]], top)]
+            grid[i][c] = cands[i, c][0][0]
+    # (seams: two pad tiles side by side either both go on across their seam or both end there (the pad's sides, st
+    # `sides`: {tile: 'NSWE' sides it ends at}); where the most common tile breaks that, the cell's other likely tiles:
+    # the user's "šiljci" right of the corners, a bottom-left corner in a bottom edge where the pad on the left went
+    # lower)
+    ends = {int(t): set(v) for t, v in st['sides'].items()}
+
+    def seams(i, c, t):
+        bad = 0
+        for di, dc, mine, theirs in ((0, -1, 'W', 'E'), (0, 1, 'E', 'W'), (-1, 0, 'N', 'S'), (1, 0, 'S', 'N')):
+            j, d = i + di, c + dc
+            if not (0 <= j < h and 0 <= d < 14 and mask[j][d]):
+                continue
+            o = grid[j][d]
+            if t in ends and o in ends and (mine in ends[t]) != (theirs in ends[o]):
+                bad += 1
+        return bad
+    fixed = set()
+    for _ in range(6):
+        changed = 0
+        for (i, c), cs in cands.items():
+            best = min(cs, key=lambda tn: (seams(i, c, tn[0]), -tn[1]))[0]
+            if best != grid[i][c]:
+                grid[i][c] = best
+                fixed.add((i, c))
+                changed += 1
+        if not changed:
+            break
+    broken = sum(seams(i, c, grid[i][c]) for i, c in cands) // 2
+    fixed = len(fixed)
+    # (the turrets: on the GBC map's columns; a run of the 4-wide one the crab and a dome, the dome on the side nearer
+    # the map's edge)
+    placed = 0
+    for i in range(h):
+        for g in range(w):
+            b = gmap[i][g]
+            if b not in objects:
+                continue
+            grid[i][g + D.LEFT] = objects[b]
+            placed += 1
+    for run, (left, right) in st.get('runs', {}).items():
+        n = len(run)
+        for i in range(h):
+            for g in range(w - n + 1):
+                if tuple(gmap[i][g:g + n]) == tuple(run):
+                    tiles = left if g + n / 2 <= w / 2 else right
+                    for j, t in enumerate(tiles):
+                        grid[i][g + D.LEFT + j] = t
+    print(f"  {spec['name']}: {near} cells laid as the nearest neighbourhood the original has, {fixed} turned to their "
+          f"seams' tile, {broken} seams left broken, {placed} turret cells")
     out = []
     for r in range(E.ROWS):
         b = E.ROWS - 1 - r
