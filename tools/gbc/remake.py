@@ -34,6 +34,8 @@ def layer(spec):
     elif how == 'corners':
         import corners
         out = corners.layer(spec)
+    elif how == 'ninepatch':
+        out = ninepatch(spec, gmap)
     elif how == 'ships':
         import ships
         out, _ = ships.layer(spec)
@@ -134,11 +136,162 @@ def layer(spec):
         for r in range(E.ROWS - h):
             b_ = E.ROWS - 1 - r
             out[r] = list(out[E.ROWS - h + 7 - (b_ - h) % 8])
+    if spec.get('mend'):
+        out = mend(spec, out, gmap, letter)
     # (spec `bottom_row`: the map's first row that tile all along: SAVARA II's starts in open water, not on the stray
     # dock edges its GBC map's frame made)
     if spec.get('bottom_row') is not None:
         out[E.ROWS - 1] = [spec['bottom_row']] * 14
     return out, gmap, img, letter
+
+
+def ninepatch(spec, gmap):
+    """Spec `ninepatch`: dict(blocks=[...], patch=(tl, t, tr, l, c, r, bl, b, br), fill=tile): the GBC map's cells of
+    those blocks covered by rectangles of at least 2 x 2 (the largest first), each drawn as the tile set's framed pad
+    (its corners, edges and middle), the rest the fill: UNDERDELI draws its blue mesh only as such framed rectangles,
+    which the corner tiling put together in shapes it has no tiles for (the user on DELI CORE: "mnogo nelogičnosti");
+    thinner strips of those blocks become fill."""
+    st = spec['ninepatch']
+    tl, t_, tr, l_, c_, r_, bl, b_, br = st['patch']
+    blocks = set(st['blocks'])
+    h, w = len(gmap), len(gmap[0])
+    mask = [[gmap[i][min(max(c - D.LEFT, 0), w - 1)] in blocks for c in range(14)] for i in range(h)]
+    free = [row[:] for row in mask]
+    grid = [[st['fill']] * 14 for _ in range(h)]
+    rects = 0
+    while True:
+        best = None
+        heights = [0] * 14
+        for i in range(h):
+            heights = [heights[c] + 1 if free[i][c] else 0 for c in range(14)]
+            for c0 in range(14):
+                mh = 10 ** 9
+                for c1 in range(c0, 14):
+                    mh = min(mh, heights[c1])
+                    if mh < 2:
+                        break
+                    if c1 - c0 + 1 >= 2 and (best is None or mh * (c1 - c0 + 1) > best[0]):
+                        best = (mh * (c1 - c0 + 1), i - mh + 1, i, c0, c1)
+        if best is None:
+            break
+        _, i0, i1, c0, c1 = best
+        for i in range(i0, i1 + 1):
+            for c in range(c0, c1 + 1):
+                free[i][c] = False
+                top, bot, lef, rig = i == i0, i == i1, c == c0, c == c1
+                grid[i][c] = (tl if lef else tr if rig else t_) if top else (bl if lef else br if rig else b_) if bot else                     (l_ if lef else r_ if rig else c_)
+        rects += 1
+    print(f"  {spec['name']}: {rects} framed rectangles, {sum(map(sum, free))} cells too thin for one left as fill")
+    out = []
+    for r in range(E.ROWS):
+        b = E.ROWS - 1 - r
+        if b >= h:
+            b = h - 8 + (b - h) % 8
+        out.append(list(grid[h - 1 - b]))
+    return out
+
+
+def mend(spec, out, gmap, letter, sweeps=6):
+    """Spec `mend`: the last pairs no original of the tile set makes (beside or above), each of their cells, but those
+    of spec mend_lock's tiles (paths, turrets), the tile with the fewest such pairs round it, then the most like the one
+    it had (4 x 4 region means): ASTEROID's rock caps under plain plate, a dark notch in it (the user's screenshots)."""
+    import numpy as np
+    every = [l['maps'][0] for l in E.sources.original_levels() if l['shapes'] == letter]
+    right, above, _, use = D.originals(every)
+    tiles = E.preview.tiles(letter)
+    pal = E.preview.palette()
+    lock = set(spec.get('mend_lock', ()))
+    # (the tiles the map has already, none locked and none of the tile set's objects: a turret pair stood in for a rim)
+    ids = sorted({t for row in out for t in row} - lock - set(E.object_tiles(letter)))
+    look = {t: E.regions(E.lab(np.zeros((28, 24, 3)) if tiles.get(t) is None else pal[tiles[t]].astype(np.float64)), 4)
+            for t in set(ids) | {t for row in out for t in row}}
+    h = len(gmap)
+    top = E.ROWS - h
+    seen_h = lambda a, b: b in right.get(a, ())
+    seen_v = lambda below, abv: abv in above.get(below, ())
+
+    def bad(r, c, t):
+        n = 0
+        if c > 0 and not seen_h(out[r][c - 1], t):
+            n += 1
+        if c < 13 and not seen_h(t, out[r][c + 1]):
+            n += 1
+        if r + 1 < E.ROWS and not seen_v(out[r + 1][c], t):
+            n += 1
+        if r > top and not seen_v(t, out[r - 1][c]):
+            n += 1
+        return n
+    changed = 0
+    for _ in range(sweeps):
+        moved = 0
+        for r in range(top, E.ROWS):
+            for c in range(14):
+                cur = out[r][c]
+                if cur in lock or bad(r, c, cur) == 0:
+                    continue
+                base = look[cur]
+                best = min(ids, key=lambda t: (bad(r, c, t), float(np.sqrt(((look[t] - base) ** 2).sum(-1)).mean())))
+                if bad(r, c, best) < bad(r, c, cur):
+                    out[r][c] = best
+                    moved += 1
+        changed += moved
+        if not moved:
+            break
+    # (then a 3 x 3 window of free cells round each pair left, solved whole: depth first, each cell among the 30 tiles
+    # most like its own, every pair inside and across the border one the originals make)
+    for r0 in range(top, E.ROWS):
+        for c0 in range(14):
+            if out[r0][c0] in lock or bad(r0, c0, out[r0][c0]) == 0:
+                continue
+            cells = [(r, c) for r in range(max(top, r0 - 1), min(E.ROWS, r0 + 2)) for c in range(max(0, c0 - 1), min(14, c0 + 2))
+                     if out[r][c] not in lock]
+            keep = {k: out[k[0]][k[1]] for k in cells}
+            cand = {k: sorted(ids, key=lambda t: float(np.sqrt(((look[t] - look[keep[k]]) ** 2).sum(-1)).mean()))[:30]
+                    for k in cells}
+            best, nodes = [None, None], [0]
+
+            def ok(r, c):
+                t = out[r][c]
+                for rr, cc in ((r, c - 1), (r - 1, c)):
+                    if (rr, cc) in keep and cells.index((rr, cc)) > cells.index((r, c)):
+                        continue
+                    if cc == c - 1 and cc >= 0 and not seen_h(out[rr][cc], t):
+                        return False
+                    if rr == r - 1 and rr >= top and not seen_v(t, out[rr][cc]):
+                        return False
+                for rr, cc in ((r, c + 1), (r + 1, c)):
+                    if (rr, cc) in keep:
+                        continue
+                    if cc == c + 1 and cc < 14 and not seen_h(t, out[rr][cc]):
+                        return False
+                    if rr == r + 1 and rr < E.ROWS and not seen_v(out[rr][cc], t):
+                        return False
+                return True
+
+            def dfs(i, cost):
+                nodes[0] += 1
+                if nodes[0] > 60000 or (best[0] is not None and cost >= best[0]):
+                    return
+                if i == len(cells):
+                    best[0], best[1] = cost, {k: out[k[0]][k[1]] for k in cells}
+                    return
+                r, c = cells[i]
+                for j, t in enumerate(cand[(r, c)]):
+                    out[r][c] = t
+                    if ok(r, c):
+                        dfs(i + 1, cost + j)
+                out[r][c] = keep[(r, c)]
+            dfs(0, 0)
+            for k, t in (best[1] or keep).items():
+                out[k[0]][k[1]] = t
+            if best[1]:
+                changed += sum(best[1][k] != keep[k] for k in cells)
+    left = sum(bad(r, c, out[r][c]) for r in range(top, E.ROWS) for c in range(14)) // 2
+    print(f"  {spec['name']}: {changed} cells mended, {left} odd pairs left (at locked tiles: paths meeting rims)")
+    for r in range(top):
+        b_ = E.ROWS - 1 - r
+        out[r] = list(out[top + 7 - (b_ - h) % 8])
+    return out
 
 
 def _brown(a):
@@ -252,6 +405,19 @@ def upper(spec, gmap):
     grid = src['maps'][st.get('source_layer', st['layer']) - 1]
     cols = len(grid[0])
     comps = [c for c in components(grid) if c[2] <= st.get('max_rows', 8)]
+    # (a composition's column at the side it reaches in from made whole, as the column next to it: its step there, off the
+    # PC's screen, shows in the wide 3D playfield, the user: "pripaziti na ovaj rubni gore lijevo")
+    closed = []
+    for (y0, x0, ph, pw, cells) in comps:
+        cells = dict(cells)
+        for edge, nxt in ((0, 1), (pw - 1, pw - 2)):
+            at_side = (x0 + edge == 0) or (x0 + edge == cols - 1)
+            if at_side and pw > 1 and any((yy, edge) not in cells for yy in range(ph)):
+                for yy in range(ph):
+                    if (yy, nxt) in cells:
+                        cells[(yy, edge)] = cells[(yy, nxt)]
+        closed.append((y0, x0, ph, pw, cells))
+    comps = closed
     side = lambda c: 'L' if c[1] == 0 and c[1] + c[3] < cols else 'R' if c[1] + c[3] == cols and c[1] > 0 else 'F'
     blocks = set(st['blocks'])
     h, w = len(gmap), len(gmap[0])
