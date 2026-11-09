@@ -372,6 +372,12 @@ def mend(spec, out, gmap, letter, sweeps=6):
     lock = set(spec.get('mend_lock', ()))
     # (the tiles the map has already, none locked and none of the tile set's objects: a turret pair stood in for a rim)
     ids = sorted({t for row in out for t in row} - lock - set(E.object_tiles(letter)))
+    # (spec `mend_pool`: [(episode, level)], their tiles too, but spec `mend_skip`'s: the jungles' cliffs may take any of
+    # TORM's cliff and shore pieces, the map's own being too few to close a cliff's end)
+    if spec.get('mend_pool'):
+        names = {tuple(m) for m in spec['mend_pool']}
+        more = {t for l in E.sources.original_levels() if (l['episode'], l['name']) in names for row in l['maps'][0] for t in row}
+        ids = sorted(set(ids) | (more - lock - set(spec.get('mend_skip', ())) - set(E.object_tiles(letter))))
     look = {t: E.regions(E.lab(np.zeros((28, 24, 3)) if tiles.get(t) is None else pal[tiles[t]].astype(np.float64)), 4)
             for t in set(ids) | {t for row in out for t in row}}
     h = len(gmap)
@@ -415,7 +421,7 @@ def mend(spec, out, gmap, letter, sweeps=6):
             cells = [(r, c) for r in range(max(top, r0 - 1), min(E.ROWS, r0 + 2)) for c in range(max(0, c0 - 1), min(14, c0 + 2))
                      if out[r][c] not in lock]
             keep = {k: out[k[0]][k[1]] for k in cells}
-            cand = {k: sorted(ids, key=lambda t: float(np.sqrt(((look[t] - look[keep[k]]) ** 2).sum(-1)).mean()))[:30]
+            cand = {k: sorted(ids, key=lambda t: float(np.sqrt(((look[t] - look[keep[k]]) ** 2).sum(-1)).mean()))[:spec.get('mend_cands', 30)]
                     for k in cells}
             best, nodes = [None, None], [0]
 
