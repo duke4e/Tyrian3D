@@ -215,8 +215,8 @@ def exact(spec, gmap):
     (2026-11-09: "ovaj sa 175 loših izgleda najbolje"), but: where the most common tile breaks a seam (one tile of a pair
     ends the pad at their seam, the other goes on: the bottom-left corners that stood as spikes in bottom edges) another
     tile the original has there (spec `keep`: at least that share of the most common one's count); and the GBC's turrets (spec `objects`, blocks out of the pads) are the
-    tile set's own turrets on the floor (UNDERDELI's dome, its crab machine three wide, a run of four with a dome on its
-    outer side, its 2 x 2 machine), not the small islands they made."""
+    tile set's own turrets on the floor (UNDERDELI's dome, its crab machine three wide for a run of four, floor on its
+    outer side (the user: no dome beside the crab), its 2 x 2 machine), not the small islands they made."""
     st = spec['exact']
     fam, fill = set(st['family']), st['fill']
     objects = st.get('objects', {})
@@ -290,7 +290,7 @@ def exact(spec, gmap):
             break
     broken = sum(seams(i, c, grid[i][c]) for i, c in cands) // 2
     fixed = len(fixed)
-    # (the turrets: on the GBC map's columns; a run of the 4-wide one the crab and a dome, the dome on the side nearer
+    # (the turrets: on the GBC map's columns; a run of the 4-wide one the crab and floor, the floor on the side nearer
     # the map's edge)
     placed = 0
     for i in range(h):
