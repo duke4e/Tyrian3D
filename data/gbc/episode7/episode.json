@@ -612,6 +612,14 @@
      "text": "TRENT!? IS THAT YOU?//I NEVER THOUGHT I'D/SEE YOU AGAIN.|I CAN'T BELIEVE/YOU'VE DECIDED TO/FOREFEIT YOURSELF TO/STOP ME FROM TAKING/OVER DELIANI!|I'VE GOT A NASTY/SURPRISE WAITING/DOWN HERE. SO COME,/TRENT. BE THE HERO/YOU WANTED TO BE/AND COME AFTER ME.|YOU'RE TOO/INSIGNIFICANT TO BE/A PART OF MY PLAN./I'D BE AMAZED IF/YOU MAKE IT PAST/THE MISSILES...",
      "speaker": "JAVI"
     }
+   ],
+   "tiles": [
+    1,
+    "DELIANI"
+   ],
+   "layers": [
+    1,
+    "DELIANI"
    ]
   },
   {
@@ -721,7 +729,15 @@
     "DREAD-NOT"
    ],
    "slug": "21_L16",
-   "cubes": []
+   "cubes": [],
+   "tiles": [
+    4,
+    "UNDERDELI"
+   ],
+   "layers": [
+    4,
+    "UNDERDELI"
+   ]
   },
   {
    "gbc": 6,

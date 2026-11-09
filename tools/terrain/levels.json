@@ -663,13 +663,6 @@
   "level": "TYRIAN (gbc)",
   "episode": 7
  },
- "82e98cd209890016": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "ASTEROID (gbc)",
-  "episode": 7
- },
  "4f19acb1834d3559": {
   "classes": 6,
   "heights": {},
@@ -688,12 +681,6 @@
   "background": 3,
   "solid": true,
   "level": "TYRIAN (gbc)",
-  "episode": 7
- },
- "0f19e99e74eb641f": {
-  "background": 2,
-  "solid": true,
-  "level": "DELIANI (gbc)",
   "episode": 7
  },
  "f4890c387fcbb93f": {
@@ -793,13 +780,6 @@
   "background": 2,
   "solid": true
  },
- "7253bbd3b1afe291": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "DELIANI (gbc)",
-  "episode": 7
- },
  "933d83412c86af6d": {
   "classes": 6,
   "heights": {},
@@ -812,20 +792,6 @@
    "#5f4521": "~"
   },
   "level": "TUNNEL (gbc)",
-  "episode": 7
- },
- "fd2134b989cf9178": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#0c1a26": 0,
-   "#242f3a": "~",
-   "#48535d": 0,
-   "#0b1621": "~",
-   "#1a2631": "~",
-   "#1d2a36": 16
-  },
-  "level": "DELI CORE (gbc)",
   "episode": 7
  },
  "d46969e9652ca507": {
@@ -1005,6 +971,41 @@
   "background": 2,
   "solid": true,
   "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "923cb4330882660f": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "ASTEROID (gbc)",
+  "episode": 7
+ },
+ "aeb88c87f0d6ceb3": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#0c1a26": 0,
+   "#242f3a": "~",
+   "#48535d": 0,
+   "#0b1621": "~",
+   "#1a2631": "~",
+   "#1d2a36": 16
+  },
+  "level": "DELIANI (gbc)",
+  "episode": 7
+ },
+ "068b370009e6a202": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#1b2730": 12,
+   "#473430": 0,
+   "#181818": 0,
+   "#323333": 12,
+   "#3b3b3b": 0,
+   "#1b1b1b": "~"
+  },
+  "level": "DELI CORE (gbc)",
   "episode": 7
  }
 }
