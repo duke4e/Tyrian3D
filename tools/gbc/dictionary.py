@@ -330,7 +330,7 @@ def stretch(level):
     return pivot, extra
 
 
-def paces(level, ratios=None):
+def paces(level, ratios=None, fixed=None):
     """Backgrounds 2 and 3 at their pace (or the originals' ratios), no faster than their maps last until the boss or
     the end (episode.make_level's)."""
     events = level['events']
@@ -343,6 +343,10 @@ def paces(level, ratios=None):
     old = ratios or level['upper']['pace']
     pace = [float(min(Fraction(p).limit_denominator(1000), room)) if any(any(r) for r in grid) else 1
             for p, grid in zip(old, level['maps'][1:3])]
+    # (spec upper_pace: [pace or None, ...]: a layer that must keep to layer 1, DELIANI's structures over its plates)
+    for k, p in enumerate(fixed or ()):
+        if p is not None:
+            pace[k] = float(p)
     for e in events:
         if e['type'] == 2 and e['d1'] > 0:
             e['d2'], e['d3'] = (max(1, int(e['d1'] * p)) for p in pace)
@@ -419,13 +423,21 @@ def apply(n, dry=False):
         notes.append(f"tile set {level['shapes']} -> {letter}, backgrounds 2 and 3 from {level['upper']['source']}")
         level['shapes'] = letter
     level['maps'][0] = remake.layer(spec)[0]
+    k, cells = remake.upper(spec, gmap)
+    if cells:
+        # (that upper layer the GBC map's structures alone, at layer 1's pace: spec upper_pace)
+        rows, columns = E.UPPER_SHAPE[k - 1]
+        level['maps'][k] = [[0] * columns for _ in range(rows)]
+        for (r, c), t in cells.items():
+            level['maps'][k][r][c] = t
+        notes.append(f"{len(cells)} tiles of the GBC map's structures in background {k + 1}")
     if not level.get('aligned'):
         pivot, extra = stretch(level)
         notes.append(f"clock x 7/6 up to {pivot:.0f}, then +{extra}; pc_rows {level['pc_rows']} -> {len(gmap)}")
         level['pc_rows'] = len(gmap)
         level['aligned'] = True
-    if ratios is not None or 'clock' in ' '.join(notes):
-        pace, px = paces(level, ratios)
+    if ratios is not None or 'clock' in ' '.join(notes) or spec.get('upper_pace'):
+        pace, px = paces(level, ratios, spec.get('upper_pace'))
         notes.append(f'backgrounds 2, 3 at {pace} x layer 1 ({px} px before the boss or the end)')
     level['events'].sort(key=lambda e: e['t'])  # (stable)
     if spec.get('decor') or any('decor' in e for e in level['events']):

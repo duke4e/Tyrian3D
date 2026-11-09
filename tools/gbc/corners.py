@@ -77,6 +77,8 @@ def setup(spec):
     for t, p in P.items():
         if t in objects or t in spec.get('corner_exclude', ()):
             continue
+        if spec.get('corner_own_only') and not own[t]:
+            continue  # (DELI CORE: UNDERDELI's tiles alone, not the rest of its set's)
         if spec.get('corner_no_blank') and tiles.get(t) is None:
             continue  # (DELIANI: its blank tiles were black holes in the floor)
         near = np.sqrt(((p[:, None] - centres[None]) ** 2).sum(-1)).min(1)
@@ -146,23 +148,26 @@ def material_of(S, t):
 
 
 def templates(spec, gmap):
-    """{(GBC row, column): tile} where the GBC map has one of spec `templates`' block patterns ([pattern, tiles], 2D
-    lists, None anywhere: any block, no tile): DESERT's pyramids the PC's stone ruin, OASIS's arches its rocks."""
+    """{(GBC row, GBC column): tile} where the GBC map has one of spec `templates`' block patterns ([pattern, tiles], 2D
+    lists, None anywhere: any block, no tile): DESERT's pyramids the PC's stone ruin, OASIS's arches its rocks. A pattern
+    cut off by the map's side matches on what shows of it (two columns at least: the GBC arches half off the map, which
+    became stray tiles, the user: "desno od 6. i 10. luka je jedan sivi tile"), and tiles wider than the pattern or past
+    the side move in no further than the PC playfield needs: columns -2 .. 11 (the PC's side columns 0, 1 and 13)."""
     out = {}
     h, w = len(gmap), len(gmap[0])
     for pattern, tiles in spec.get('templates', ()):
         ph, pw = len(pattern), len(pattern[0])
         th, tw = len(tiles), len(tiles[0])
         for j in range(h - ph + 1):
-            for i in range(w - pw + 1):
-                if all(pattern[y][x] is None or gmap[j + y][i + x] == pattern[y][x] for y in range(ph) for x in range(pw)):
-                    # (tiles wider than the pattern, the PC's arch 7 wide on the GBC's 6: from its left, moved in from
-                    # the map's right side)
-                    x0 = max(0, min(i, w - tw))
-                    for y in range(min(th, h - j)):
-                        for x in range(tw):
-                            if tiles[y][x] is not None:
-                                out[(j + y, x0 + x)] = tiles[y][x]
+            for i in range(-(pw - 2), w - 1):
+                seen = [(y, x) for y in range(ph) for x in range(pw) if 0 <= i + x < w and pattern[y][x] is not None]
+                if len({x for _, x in seen}) < 2 or not all(gmap[j + y][i + x] == pattern[y][x] for y, x in seen):
+                    continue
+                x0 = max(-D.LEFT, min(i, 14 - D.LEFT - tw))
+                for y in range(min(th, h - j)):
+                    for x in range(tw):
+                        if tiles[y][x] is not None:
+                            out[(j + y, x0 + x)] = tiles[y][x]
     return out
 
 
@@ -254,6 +259,79 @@ def repair(choice, misses, seen_h, seen_v, prior, h, sweeps=6, pairs=True, slack
     return changed
 
 
+def patch(choice, misses, seen_h, seen_v, h, size=(3, 4), budget=200000):
+    """The odd pairs no one or two cells can mend: a window of free cells round each solved whole (depth first, every
+    pair inside it and across its border one the originals make, the fewest regions off the plan). Returns how many
+    windows were mended."""
+    top = E.ROWS - h
+    T = seen_h.shape[0]
+
+    def odd_cells():
+        out = []
+        for r in range(top, E.ROWS):
+            for c in range(14):
+                if c < 13 and not seen_h[choice[r][c], choice[r][c + 1]]:
+                    out.append((r, c))
+                if r + 1 < E.ROWS and not seen_v[choice[r + 1][c], choice[r][c]]:
+                    out.append((r, c))
+        return out
+    mended = 0
+    for r0, c0 in odd_cells():
+        if seen_h[choice[r0][c0], choice[r0][min(c0 + 1, 13)]] and (r0 + 1 >= E.ROWS or seen_v[choice[r0 + 1][c0], choice[r0][c0]]):
+            continue  # (mended by an earlier window)
+        best = None
+        for wr, wc in ((size[0], size[1]), (size[1], size[0])):
+            rs = range(max(top, r0 - wr // 2), min(E.ROWS, r0 - wr // 2 + wr))
+            cs = range(max(0, c0 - wc // 2 + 1), min(14, c0 - wc // 2 + 1 + wc))
+            cells = [(r, c) for r in rs for c in cs if (r, c) in misses]
+            inside = set(cells)
+            if not cells:
+                continue
+            grid = {k: choice[k[0]][k[1]] for k in cells}
+            nodes = [0]
+            found = [None]
+
+            def ok(r, c, t):
+                # the neighbours already set: left and above inside, any outside the window
+                for (rr, cc, horiz, first) in ((r, c - 1, True, True), (r, c + 1, True, False), (r - 1, c, False, False),
+                                               (r + 1, c, False, True)):
+                    if not (top <= rr < E.ROWS and 0 <= cc < 14):
+                        continue
+                    if (rr, cc) in inside and cells.index((rr, cc)) > cells.index((r, c)):
+                        continue
+                    n = grid[(rr, cc)] if (rr, cc) in inside else choice[rr][cc]
+                    if horiz and not (seen_h[n, t] if first else seen_h[t, n]):
+                        return False
+                    # (seen_v[below, above]: the row below is r + 1)
+                    if not horiz and not (seen_v[n, t] if first else seen_v[t, n]):
+                        return False
+                return True
+
+            def dfs(k, cost):
+                nodes[0] += 1
+                if nodes[0] > budget or (found[0] is not None and cost >= found[0][0]):
+                    return
+                if k == len(cells):
+                    found[0] = (cost, dict(grid))
+                    return
+                r, c = cells[k]
+                m = misses[(r, c)]
+                for t in np.argsort(m):
+                    t = int(t)
+                    if ok(r, c, t):
+                        grid[(r, c)] = t
+                        dfs(k + 1, cost + m[t])
+                grid[(r, c)] = choice[r][c]
+            dfs(0, 0.0)
+            if found[0] is not None and (best is None or found[0][0] < best[0]):
+                best = found[0]
+        if best is not None:
+            for (r, c), t in best[1].items():
+                choice[r][c] = t
+            mended += 1
+    return mended
+
+
 def layer(spec, S=None, fixed=None):
     S = S or setup(spec)
     gmap, pool, sigs = S['gmap'], S['pool'], S['sigs']
@@ -279,8 +357,8 @@ def layer(spec, S=None, fixed=None):
         for c in range(14):
             g = min(max(c - D.LEFT, 0), w - 1)
             b = gmap[i][g]
-            if (i, g) in cells and D.LEFT <= c < D.LEFT + w:
-                ci = np.array([idx[cells[(i, g)]]])
+            if (i, c - D.LEFT) in cells:
+                ci = np.array([idx[cells[(i, c - D.LEFT)]]])
                 row_c.append(ci)
                 row_u.append(np.zeros(1))
                 continue
@@ -307,6 +385,10 @@ def layer(spec, S=None, fixed=None):
     if spec.get('corner_repair'):
         repaired = repair(choice, misses, seen_h, seen_v, prior, h, pairs=spec['corner_repair'] != 'single',
                           slack=spec.get('corner_repair_miss', REPAIR_MISS))
+        if spec.get('corner_repair_finish'):
+            # (and the last odd pairs with no bound, those cells alone: DELICORE's last 4, the user: "popravimo još tih 4")
+            repaired += repair(choice, misses, seen_h, seen_v, prior, h, slack=np.inf)
+            print(f"  {spec['name']}: {patch(choice, misses, seen_h, seen_v, h)} windows of odd pairs solved whole")
         print(f"  {spec['name']}: {repaired} cells changed so that their pairs are the originals'")
     out = [[ids[choice[r][c]] for c in range(14)] for r in range(E.ROWS)]
     pairs = [(seen_h, mis_h, choice[r][c - 1], choice[r][c]) for r in range(E.ROWS - h, E.ROWS) for c in range(2, 13)] + \
@@ -315,7 +397,17 @@ def layer(spec, S=None, fixed=None):
     print(f"  {spec['name']} {S['letter']}: {len(ids)} tiles, {len(set(map(tuple, sigs)))} signatures; on the GBC map "
           f"{bad} of {len(pairs)} neighbour pairs the originals never have")
     inside = Counter(t for row in out[E.ROWS - h:] for t in row[D.LEFT:D.LEFT + w])
-    return D.sides(spec, out, S['letter'], S['grids'] + S['every'], allowed=inside)
+    out = D.sides(spec, out, S['letter'], S['grids'] + S['every'], allowed=inside)
+    # (the templates' tiles in the side columns stay: an arch at the map's side reaches into them)
+    for (i, g), t in cells.items():
+        if not 0 <= g < w:
+            r = E.ROWS - h + i
+            out[r][g + D.LEFT] = t
+            for r2 in range(E.ROWS - h):  # (and in the loop above the map, as dictionary.lay repeats its top rows)
+                b = E.ROWS - 1 - r2
+                if E.ROWS - h + 7 - (b - h) % 8 == r:
+                    out[r2][g + D.LEFT] = t
+    return out
 
 
 if __name__ == '__main__':

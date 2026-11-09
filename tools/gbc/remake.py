@@ -24,9 +24,13 @@ def layer(spec):
     gmap, img, grids, letter = D.setting(spec)
     if how == 'autotile':
         out, h = E.autotile(dict(spec, aligned=True), img, grids, letter)
-        inside = Counter(t for row in out[E.ROWS - h:] for t in row[D.LEFT:D.LEFT + len(gmap[0])])
-        every = [l['maps'][0] for l in E.sources.original_levels() if l['shapes'] == letter]
-        out = D.sides(spec, out, letter, grids + every, allowed=inside)
+        # (spec `own_sides`, with `edges`: the side columns the autotile's own, its plan the nearest column's: ASTEROID's
+        # plates go on to the sides, where the side solver left them space, the user: "s lijeve strane nam nedostaju
+        # tileovi")
+        if not spec.get('own_sides'):
+            inside = Counter(t for row in out[E.ROWS - h:] for t in row[D.LEFT:D.LEFT + len(gmap[0])])
+            every = [l['maps'][0] for l in E.sources.original_levels() if l['shapes'] == letter]
+            out = D.sides(spec, out, letter, grids + every, allowed=inside)
     elif how == 'corners':
         import corners
         out = corners.layer(spec)
@@ -113,11 +117,58 @@ def layer(spec):
         for r in range(E.ROWS - h):
             b = E.ROWS - 1 - r
             out[r] = list(out[E.ROWS - h + 7 - (b - h) % 8])
+    # (spec `replace`: {tile: tile} after the making: ASTEROID's red bars, the turrets the GBC map draws (leaving them out of
+    # the autotile changed its materials and lost the paths))
+    for a, b in spec.get('replace', {}).items():
+        out = [[b if t == a else t for t in row] for row in out]
     # (spec `bottom_row`: the map's first row that tile all along: SAVARA II's starts in open water, not on the stray
     # dock edges its GBC map's frame made)
     if spec.get('bottom_row') is not None:
         out[E.ROWS - 1] = [spec['bottom_row']] * 14
     return out, gmap, img, letter
+
+
+def upper(spec, gmap):
+    """Spec `upper_stamps`: dict(layer=2, source=(episode, level), source_layer=3, pieces=[(row, column, rows, columns)],
+    blocks=[...]): where the GBC map has a structure of those blocks (DELIANI's pink-windowed machines), the source
+    layer's piece nearest it in size, centred on it, in that upper layer, its rows 300 above layer 1's (the layers start
+    at rows 292 and 592, so at layer 1's pace a row of the upper layer stands over its layer-1 row; the wide playfield
+    has the second layer 2 px off the first, tyrian2.c WIDE_OFS1/2: its columns over layer 1's). The user on DELIANI: the
+    PC level is two layers, the plates and islands below and "ostalo napravimo s drugim layerom". Returns (layer index,
+    {(row, column): tile})."""
+    st = spec.get('upper_stamps')
+    if not st:
+        return None, {}
+    src = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(st['source'])][0]
+    grid = src['maps'][st.get('source_layer', st['layer']) - 1]
+    pieces = [[row[x:x + w] for row in grid[y:y + h]] for y, x, h, w in st['pieces']]
+    blocks = set(st['blocks'])
+    h, w = len(gmap), len(gmap[0])
+    seen, out = set(), {}
+    for j in range(h):
+        for i in range(w):
+            if gmap[j][i] not in blocks or (j, i) in seen:
+                continue
+            stack, cells = [(j, i)], []
+            seen.add((j, i))
+            while stack:
+                a, b = stack.pop()
+                cells.append((a, b))
+                for c, d in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                    if 0 <= c < h and 0 <= d < w and (c, d) not in seen and gmap[c][d] in blocks:
+                        seen.add((c, d))
+                        stack.append((c, d))
+            ys, xs = [c[0] for c in cells], [c[1] for c in cells]
+            gh, gw = max(ys) - min(ys) + 1, max(xs) - min(xs) + 1
+            piece = min(pieces, key=lambda p: abs(len(p) - gh) + abs(len(p[0]) - gw))
+            ph, pw = len(piece), len(piece[0])
+            r0 = E.ROWS - h + min(ys) + (gh - ph) // 2 + E.ROWS  # (the upper layer's row over layer 1's)
+            c0 = min(max(D.LEFT + min(xs) + (gw - pw) // 2, 0), 14 - pw)
+            for y in range(ph):
+                for x in range(pw):
+                    if piece[y][x] and 0 <= r0 + y < 2 * E.ROWS:
+                        out[(r0 + y, c0 + x)] = piece[y][x]
+    return st['layer'] - 1, out
 
 
 if __name__ == '__main__':
