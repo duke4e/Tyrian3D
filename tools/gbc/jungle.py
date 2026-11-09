@@ -27,7 +27,7 @@ ROAD = {'NS': 575, 'N': 574, 'S': 575, 'WE': 585, 'E': 584, 'W': 585, 'SE': 571,
         'SWE': 572, 'NSE': 581, 'NSW': 583, 'NWE': 592, 'NSWE': 582, '': 582}
 BRIDGE_NS, BRIDGE_TOP, BRIDGE_BOTTOM, BRIDGE_WE = 595, 596, 597, 594
 GUN_TOP, GUN = 576, 586
-NOT_CLIFF = {527, 528, 537, 538, 539, 540, 549, 550, 559, 560, 567, 568, 569, 570, 576, 586}
+NOT_CLIFF = {504, 527, 528, 537, 538, 539, 540, 549, 550, 559, 560, 567, 568, 569, 570, 576, 586}
 
 
 def _source(name):
@@ -90,6 +90,12 @@ def layer(spec):
     cliff = {t for src in torm for row in src for t in row if t not in shore and t not in FALLS and t != GRASS
              and t not in NOT_CLIFF and t in st.get('cliff_tiles', range(501, 537))}
     cmask = [[G[i][c] in walls for c in range(14)] for i in range(h)]
+    # (TORM's cliffs are three rows, lip, face and foot, the GBC's walls two, top and face: the grass under a wall the
+    # foot, where the lip stood straight on the foot)
+    for i in range(h - 2, -1, -1):
+        for c in range(14):
+            if G[i][c] in walls and G[i + 1][c] not in walls | water | roads and not wmask[i + 1][c]:
+                cmask[i + 1][c] = True
     near += _lay(_table(torm, lambda t: t in cliff, lambda t: True), cmask, grid)
     guns = 0
     for i in range(h):
