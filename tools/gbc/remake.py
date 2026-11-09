@@ -8,6 +8,7 @@ as the user's map reviews chose per level (2026-11-07/08):
     dictionary  dictionary.lay (the dictionary as it is: AST.BONUS, LAVA II)
     ninepatch   framed rectangles (DELI CORE's earlier variant)
     exact       the tile set's pad tiles as its original lays them, by each cell's 8 neighbours (DELI CORE)
+    jungle      jungle.py: river, cliffs and walkways in layers, each from its PC original (the jungles)
 
     python tools/gbc/remake.py 23 [out.png]
 """
@@ -40,6 +41,9 @@ def layer(spec):
         out = ninepatch(spec, gmap)
     elif how == 'exact':
         out = exact(spec, gmap)
+    elif how == 'jungle':
+        import jungle
+        out = jungle.layer(spec)
     elif how == 'ships':
         import ships
         out, _ = ships.layer(spec)
@@ -142,6 +146,12 @@ def layer(spec):
             out[r] = list(out[E.ROWS - h + 7 - (b_ - h) % 8])
     if spec.get('mend'):
         out = mend(spec, out, gmap, letter)
+    # (spec `relay`: dict(replace=[tiles], family=[tiles], source=[(episode, level), ...]): the cells of those tiles laid
+    # again with the family's tiles as the sources lay them by each cell's 8 neighbours (exact()'s way): TYRIAN's black
+    # pits (GAUNTLET's holes) NOSE DRIP's raised ridges in the dark rubble round them, the user: "ove crne rupe trebamo
+    # pretvoriti u nešto zanimljivije", whatever joins its neighbours)
+    if spec.get('relay'):
+        out = relay(spec, out)
     # (spec `bottom_row`: the map's first row that tile all along: SAVARA II's starts in open water, not on the stray
     # dock edges its GBC map's frame made)
     if spec.get('bottom_row') is not None:
@@ -317,6 +327,37 @@ def exact(spec, gmap):
             b = h - 8 + (b - h) % 8
         out.append(list(grid[h - 1 - b]))
     return out
+
+
+def relay(spec, out):
+    st = spec['relay']
+    fam, rep = set(st['family']), set(st['replace'])
+    table = {}
+    for l in E.sources.original_levels():
+        if (l['episode'], l['name']) not in {tuple(m) for m in st['source']}:
+            continue
+        src = l['maps'][0]
+        smask = [[t in fam for t in row] for row in src]
+        for y, row in enumerate(src):
+            for x, t in enumerate(row):
+                if smask[y][x]:
+                    table.setdefault(_around(smask, y, x), Counter())[t] += 1
+    mask = [[t in rep for t in row] for row in out]
+    weight = [2 if i in (1, 3, 4, 6) else 1 for i in range(8)]
+    new = [row[:] for row in out]
+    near = 0
+    for i, row in enumerate(out):
+        for c, t in enumerate(row):
+            if not mask[i][c]:
+                continue
+            k = _around(mask, i, c)
+            if k not in table:
+                near += 1
+                k = min(table, key=lambda q: (sum(wt for a, b, wt in zip(k, q, weight) if a != b), -sum(table[q].values())))
+            new[i][c] = table[k].most_common(1)[0][0]
+    print(f"  {spec['name']}: {sum(map(sum, mask))} cells laid again as {st['source'][0][1]}'s, {near} as the nearest "
+          f"neighbourhood it has")
+    return new
 
 
 def mend(spec, out, gmap, letter, sweeps=6):

@@ -114,7 +114,7 @@ LAVAS = [(4, 'LAVA EXIT'), (4, 'LAVA RUN'), (4, 'SIDE EXIT')]
 # the synthesiser one in 150 rows, of seven); fills: how full those made are, where not as the original's (TYRIAN's
 # clouds as full as its, 0.38, hid half the playfield in 3D, and over the boss fight, where the map stands).
 LEVELS = [
-    dict(gbc=23, name='TYRIAN', remake='corners', corner_maps=[(3, 'GAUNTLET')], corner_materials=5, corner_pair=8, corner_slack=2.0, pc=(1, 'TYRIAN'), fills={2: 0.15}, maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
+    dict(gbc=23, name='TYRIAN', remake='corners', corner_maps=[(3, 'GAUNTLET')], corner_materials=5, corner_pair=8, corner_slack=2.0, mend=True, relay=dict(replace=(1, 29, 59, 81, 82, 83, 84, 85, 91, 92, 93, 94, 95, 104, 105, 117, 141, 142, 143), family=(96, 97, 98, 99, 100, 106, 107, 108, 109, 110, 118, 119, 120), source=[(4, 'NOSE DRIP'), (1, 'TYRIAN')]), pc=(1, 'TYRIAN'), fills={2: 0.15}, maps=[(1, 'TYRIAN'), (3, 'TYRIAN X'), (4, 'NOSE DRIP')], pool=[(1, 'TYRIAN'), (3, 'TYRIAN X')],
          boss=(1, 'ASSASSIN')),
     dict(gbc=3, name='ASTEROID', remake='autotile', replace={339: 372}, sides_keep=2.0, paths=dict(blocks=tuple(range(1, 15)), plain=372), pins={30: 339}, mend=True, mend_lock=(339, 340, 341, 342, 343, 347, 348, 351, 352, 353, 357, 359, 360, 366, 367, 368, 369, 370, 376, 377, 378, 379, 380, 386, 387, 388, 389, 390, 421, 424, 425, 426, 429), pc=(1, 'ASTEROID1'), pool=[(1, 'ASTEROID1'), (1, 'ASTEROID2'), (1, 'ASTEROID?')], boss=(1, 'ASTEROID2')),
     dict(gbc=11, name='SPACE', pc=(2, 'SOH JIN'), space=True, pool=[(1, 'SOH JIN'), (2, 'SOH JIN'), (2, 'GEM WAR'), (2, 'MARKERS'), (2, 'MISTAKES')], boss=(4, 'ICE EXIT')),
@@ -122,8 +122,8 @@ LEVELS = [
     dict(gbc=20, name='SAVARA II', remake='autotile', exclude=[17, 9, 19, 20, 10, 7, 27, 16, 18, 6, 8, 26, 28], blur=1.5, bottom_row=25, pc=(1, 'SAVARA V'), pool=SAVARAS, boss=(1, 'SAVARA'), gbc_boss=False, **REMADE),
     dict(gbc=14, name='OASIS', remake='corners', decor=[dict(tile=27, below=37, ids=(212, 222), tag='arch', **{'from': (4, 'DESERTRUN')})], corner_exclude=(11, 25, 26), templates=[([[35, 36, 37, 38, 39, 40], [33, 34, None, None, 41, 42]], [[27, 28, 29, 30, 1, 9, 10], [37, 38, 39, 40, 1, 19, 20]])], pc=(4, 'SURFACE'), arcade=True, pool=DESERTS, boss=(1, 'ASTEROID2')),
     dict(gbc=2, name='DESERT', remake='corners', decor=[dict(tile=27, below=37, ids=(212, 222), tag='arch', **{'from': (4, 'DESERTRUN')})], corner_exclude=(11, 25, 26), templates=[([[26, 27], [24, 25]], [[7, 8], [17, 18]]), ([[30, 31], [28, 29]], [[7, 8], [17, 18]]), ([[35, 36, 37, 38, 39, 40], [33, 34, None, None, 41, 42]], [[27, 28, 29, 30, None, 9, 10], [37, 38, 39, 40, None, 19, 20]])], pc=(4, 'DESERTRUN'), arcade=True, pool=DESERTS, boss=(4, 'SURFACE'), rare=RARE, gbc_boss=False, **REMADE),
-    dict(gbc=4, name='JUNGLE', pc=(2, 'TORM'), pool=JUNGLES, rare=RARE, gbc_boss=False, **REMADE),
-    dict(gbc=8, name='JUNGLE II', pc=(2, 'TORM'), seed=2, pool=JUNGLES, rare=RARE, **REMADE),
+    dict(gbc=4, name='JUNGLE', remake='jungle', jungle=dict(water=(1,), walls=tuple(range(30, 41)), turret=41, roads=tuple(range(15, 30))), pc=(2, 'TORM'), pool=JUNGLES, rare=RARE, gbc_boss=False, **REMADE),
+    dict(gbc=8, name='JUNGLE II', remake='jungle', jungle=dict(water=(1,), walls=tuple(range(30, 41)), turret=41, roads=tuple(range(15, 30))), pc=(2, 'TORM'), seed=2, pool=JUNGLES, rare=RARE, **REMADE),
     dict(gbc=9, name='ASTEROID2', remake='corners', corner_pair=8, corner_slack=2.0, corner_exclude=(384, 380, 388, 390, 416, 417, 418, 339, 419, 400, 59, 378), pc=(1, 'ASTEROID2'), pool=[(1, 'ASTEROID2'), (1, 'ASTEROID1'), (2, 'ASTCITY'), (3, 'AST. CITY')],
          boss=(1, 'ASTEROID1'), rare=(12, 1.0), **REMADE),
     dict(gbc=13, name='WARP', remake='fitted', maps=[(1, 'BUBBLES')], pc=(3, 'STARGATE'), space=True, stars=True, pool=[(3, 'STARGATE'), (1, 'BUBBLES')],
