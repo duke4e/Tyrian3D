@@ -1075,11 +1075,39 @@ void video_wait_tick_3d(void)
 	if (smooth < 0)
 		smooth = SDL_getenv("TYR3D_SMOOTH") == NULL || SDL_atoi(SDL_getenv("TYR3D_SMOOTH")) != 0;
 
+	// TYR3D_AHEAD_STEPS=n (with TYR3D_DUMP_AHEAD, to check the frames between ticks): n - 1 frames
+	// between ticks, evenly ahead whatever the time.
+	static int steps = -1;
+	if (steps < 0)
+		steps = SDL_getenv("TYR3D_AHEAD_STEPS") != NULL ? SDL_atoi(SDL_getenv("TYR3D_AHEAD_STEPS")) : 0;
+	if (steps > 1)
+	{
+		SDL_Rect dst_rect;
+		calc_dst_render_rect(&dst_rect);
+		for (int i = 1; i < steps; ++i)
+			rgpu_present_3d_ahead(VGAScreenSeg, &l3d_frame, &dst_rect, (float)i / steps);
+		wait_delay_precise();
+		return;
+	}
+
 	const Uint64 period = refresh_period_ns();
 	static Uint64 cost = 0;  // what showing a frame takes, about
 	static unsigned int ticks = 0, extra_frames = 0;
 	static double left_sum = 0;
 	left_sum += getDelayLeftNS() / 1e6;
+	// How far on a frame between ticks shows the map: by the time since the tick's own frame was shown
+	// (just now: it shows before this wait), over the time between ticks' frames, not by the wait's
+	// progress. The tick's frame shows the game's work on the tick later than the wait ends (the wait
+	// started a tick before it ended), so by the wait things ran on to about 0.7 of a tick in half the
+	// time, then stood still until the next tick's frame: scrolling stuttered on fast displays.
+	static Uint64 last_shown = 0, spacing = 0;
+	const Uint64 shown = SDL_GetTicksNS();
+	const Uint64 interval = last_shown != 0 ? shown - last_shown : 0;
+	last_shown = shown;
+	if (spacing == 0)
+		spacing = 1000000000 / 35;
+	if (interval > spacing / 2 && interval < spacing * 2)
+		spacing = (spacing * 7 + interval) / 8;  // (a slow tick, or the first after a pause, doesn't count)
 	Uint64 next = SDL_GetTicksNS() + period;
 	for (;;)
 	{
@@ -1099,7 +1127,9 @@ void video_wait_tick_3d(void)
 		const Uint64 start = SDL_GetTicksNS();
 		service_SDL_events(false);  // the mouse's motion so far, for the ship it moves
 		player_pointer_lead(l3d_pointer_lead);
-		rgpu_present_3d_ahead(VGAScreenSeg, &l3d_frame, &dst_rect, getDelayProgress());
+		// (shown when its present returns, about `cost` on, as the tick's frame was when this wait began)
+		const float ahead = SDL_min((float)(start + cost - shown) / (float)spacing, 0.98f);
+		rgpu_present_3d_ahead(VGAScreenSeg, &l3d_frame, &dst_rect, ahead);
 		const Uint64 end = SDL_GetTicksNS();
 		// A typical frame's cost: an occasional slow one (the GPU catching up) doesn't count fully,
 		// or it would cut the frames short after it.
