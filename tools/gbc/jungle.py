@@ -327,12 +327,14 @@ def layer(spec):
                 guns += 1
     # the roads
     rmask = [[G[i][c] in roads for c in range(14)] for i in range(h)]
+    caps = set()
     for i in range(h):
         for c in range(14):
             if not rmask[i][c] or (i, c) in pasted:
                 continue
+            # (past the map's side no road: the wide 3D view shows the side columns, a road cut off there showed)
             k = ''.join(n for n, (j, d) in zip('NSWE', ((i - 1, c), (i + 1, c), (i, c - 1), (i, c + 1)))
-                        if not (0 <= j < h and 0 <= d < 14) or rmask[j][d])
+                        if (not 0 <= j < h and 0 <= d < 14) or (0 <= j < h and 0 <= d < 14 and rmask[j][d]))
             if wmask[i][c]:
                 t = BRIDGE_WE if k in ('WE', 'W', 'E') else BRIDGE_NS
                 if t == BRIDGE_NS:
@@ -343,6 +345,15 @@ def layer(spec):
             else:
                 t = ROAD[k]
             grid[i][c] = t
+            # (BOTANY caps a road's left end (584) and its lower end (574) only: a road ending going right turns down
+            # into the lower cap, one ending going up turns left into the left cap, as BOTANY's own ends turn; the user:
+            # the walkways going right were cut off)
+            if k == 'W' and i + 1 < h and not rmask[i + 1][c] and not wmask[i + 1][c] and grid[i + 1][c] == GRASS:
+                grid[i][c], grid[i + 1][c] = ROAD['SW'], ROAD['N']
+                caps.add((i + 1, c))
+            elif k == 'S' and c > 0 and not rmask[i][c - 1] and not wmask[i][c - 1] and grid[i][c - 1] == GRASS:
+                grid[i][c], grid[i][c - 1] = ROAD['SW'], ROAD['E']
+                caps.add((i, c - 1))
     print(f"  {spec['name']}: river, cliffs and walkways in layers; {near} cells laid as the nearest neighbourhood "
           f"TORM has, {small} cells of short walls grass, {guns} guns")
     out = []

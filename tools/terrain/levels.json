@@ -648,21 +648,6 @@
   "level": "SAVARA (hard)",
   "forest": "palm"
  },
- "dec68a0abab5b608": {
-  "classes": 7,
-  "heights": {},
-  "materials": {
-   "#0c3a0f": 8,
-   "#4a3213": 28,
-   "#2b1a07": 0,
-   "#071608": 0,
-   "#6d5228": 0,
-   "#164215": 0,
-   "#543e1f": "~"
-  },
-  "level": "TYRIAN (gbc)",
-  "episode": 7
- },
  "4f19acb1834d3559": {
   "classes": 6,
   "heights": {},
@@ -792,34 +777,6 @@
    "#5f4521": "~"
   },
   "level": "TUNNEL (gbc)",
-  "episode": 7
- },
- "d46969e9652ca507": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE (gbc)",
-  "episode": 7
- },
- "2a2132ed6388a14d": {
-  "classes": 6,
-  "heights": {},
-  "materials": {
-   "#273945": "~",
-   "#032a06": "~",
-   "#004602": 0,
-   "#183c53": -14,
-   "#363736": "~",
-   "#1b201c": "~"
-  },
-  "level": "JUNGLE II (gbc)",
   "episode": 7
  },
  "4d39bdd541139299": {
@@ -1006,6 +963,49 @@
    "#1b1b1b": "~"
   },
   "level": "DELI CORE (gbc)",
+  "episode": 7
+ },
+ "2064f2ae3d204a65": {
+  "classes": 7,
+  "heights": {},
+  "materials": {
+   "#0c3a0f": 8,
+   "#4a3213": 28,
+   "#2b1a07": 0,
+   "#071608": 0,
+   "#6d5228": 0,
+   "#164215": 0,
+   "#543e1f": "~"
+  },
+  "level": "TYRIAN (gbc)",
+  "episode": 7
+ },
+ "de8b0e08b70e7017": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE (gbc)",
+  "episode": 7
+ },
+ "e41f096ab95853d5": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#273945": "~",
+   "#032a06": "~",
+   "#004602": 0,
+   "#183c53": -14,
+   "#363736": "~",
+   "#1b201c": "~"
+  },
+  "level": "JUNGLE II (gbc)",
   "episode": 7
  }
 }
