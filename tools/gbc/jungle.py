@@ -153,6 +153,20 @@ def layer(spec):
     # upright one met TORM's shores badly, the user's screenshots; spec `bridges` keeps the upright one)
     wmask = [[G[i][c] in water or (st.get('bridges') and G[i][c] in roads and wet(i, c) and sides(i, c) in ('NS', 'N', 'S'))
               for c in range(14)] for i in range(h)]
+    # (water one cell wide (land on both sides) a cell wider, to the right or below: TORM's shore needs two cells for any
+    # water to show, the GBC's narrow channels were lost)
+    if st.get('widen', True):
+        add = []
+        for i in range(h):
+            for c in range(14):
+                if not wmask[i][c]:
+                    continue
+                if 0 < c < 13 and not wmask[i][c - 1] and not wmask[i][c + 1] and G[i][c + 1] not in roads:
+                    add.append((i, c + 1))
+                if 0 < i < h - 1 and not wmask[i - 1][c] and not wmask[i + 1][c] and G[i + 1][c] not in roads:
+                    add.append((i + 1, c))
+        for i, c in add:
+            wmask[i][c] = True
     # (a pond of fewer than spec `pond_min` cells grass: TORM's shore round one cell is a hole in the grass)
     seen = set()
     for i in range(h):
@@ -210,7 +224,9 @@ def layer(spec):
     # TORM's rows with their cliffs, river and waterfalls copied as they are, each where it matches the GBC's walls and
     # water best; else 'terraces', the cliffs laid by their neighbours and carried on to the map's side, kept)
     pasted = set()
-    if st.get('cliffs') == 'pieces':
+    if st.get('cliffs') == 'none':
+        small = 0  # (the user: no cliffs at all, they broke every way tried; the walls grass, the map else 1:1)
+    elif st.get('cliffs') == 'pieces':
         small = 0
         pasted, band_rows = _pieces(st, torm, cliff, cmask, wmask, grid, h)
         # (the river outside the bands laid again round the bands' own water, so it runs on into their waterfalls)
