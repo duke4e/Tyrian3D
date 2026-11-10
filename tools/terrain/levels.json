@@ -675,18 +675,6 @@
   "episode": 7,
   "slivers": 21
  },
- "63676afb1670c87d": {
-  "background": 2,
-  "solid": true,
-  "level": "LAVA I (gbc)",
-  "episode": 7
- },
- "7dd1f5fb65ca8982": {
-  "background": 2,
-  "solid": true,
-  "level": "LAVA II (gbc)",
-  "episode": 7
- },
  "31b8d8bc635b79c9": {
   "level": "HARVEST",
   "background": 3,
@@ -1002,10 +990,22 @@
   "level": "JUNGLE II (gbc)",
   "episode": 7
  },
- "83a4955f56ece19a": {
+ "411bde1e7f46c2e6": {
   "background": 2,
   "solid": true,
   "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "58c57c4123000d0e": {
+  "background": 2,
+  "solid": true,
+  "level": "LAVA II (gbc)",
+  "episode": 7
+ },
+ "7e520cb3212f374b": {
+  "background": 2,
+  "solid": true,
+  "level": "LAVA I (gbc)",
   "episode": 7
  }
 }
