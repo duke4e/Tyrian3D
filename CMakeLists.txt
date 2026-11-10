@@ -58,12 +58,12 @@ foreach(line IN LISTS BTBH_SHADER_SPEC_LINES)
     string(REPLACE "|" ";" parts "${spec}")
     list(GET parts 0 name)
     list(GET parts 1 stage)
-    set(src "${BTBH_DIR}/shaders/gpu_spike/${name}.hlsl")
+    set(src "${BTBH_DIR}/shaders/gpu/${name}.hlsl")
     set(spv "${TYR3D_SHADER_DIR}/${name}.spv")
     add_custom_command(
         OUTPUT "${spv}"
         COMMAND "${SHADERCROSS}" "${src}" -s HLSL -d SPIRV -t ${stage} -e main
-                -I "${BTBH_DIR}/shaders/gpu_spike" -o "${spv}"
+                -I "${BTBH_DIR}/shaders/gpu" -o "${spv}"
         DEPENDS "${src}"
         IMPLICIT_DEPENDS C "${src}"
         COMMENT "shadercross ${name} -> SPIR-V"

@@ -380,7 +380,7 @@ static void orrery_frame(float aspect, float shift, float dt)
 	scene.ambient_energy = 0.12f;
 	scene.metalness = 0.6f;
 	scene.roughness = 0.45f;
-	scene.bloom = 0.45f;
+	scene.bloom = 2.9f;
 	scene.bloom_threshold = 1.0f;
 	scene.exposure = 1.0f;
 
@@ -707,7 +707,7 @@ static void warp_frame(float aspect, float shift, float dt)
 	scene.ambient_energy = 0.45f;
 	scene.metalness = 0.3f;
 	scene.roughness = 0.5f;
-	scene.bloom = 0.45f;
+	scene.bloom = 2.9f;
 	scene.bloom_threshold = 1.0f;
 	scene.exposure = 1.0f;
 
@@ -986,7 +986,7 @@ const J3DScene *jukebox3d_ending_frame(float w, float h)
 	scene.ambient_energy = 0.3f;
 	scene.metalness = 0.45f;
 	scene.roughness = 0.45f;
-	scene.bloom = 0.5f;
+	scene.bloom = 3.2f;
 	scene.bloom_threshold = 1.0f;
 	// (In from black and out to it.)
 	scene.exposure = smooth(0.0f, 0.6f, t) * (1 - smooth(8.4f, J3D_ENDING_SECONDS, t));

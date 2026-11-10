@@ -236,10 +236,13 @@ static float glint_parameters[4] = { 1.0f, 0.5f, 140.0f, 3.0f };
 
 // Bloom (M7): light from what the scene shows brighter than white (shots' glows, explosions,
 // emissive parts, highlights), spread around it. The palette's colours never get past white, so
-// the ground, sprites and HUD don't bloom. Intensity, threshold, knee and radius;
-// TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<radius> overrides them (intensity 0: none).
-// (0.5, 1.0, 0.1 until 2026-10-30: an explosion over pale ice bloomed white over the ship.)
-static float bloom_parameters[4] = { 0.35f, 1.25f, 0.2f, 1.2f };
+// the ground, sprites and HUD don't bloom. Intensity, threshold (at exposure 1: it is in exposed
+// units), soft knee (of the threshold) and scatter; TYR3D_BLOOM=<intensity>,<threshold>,<knee>,<scatter>
+// overrides them (intensity 0: none).
+// (0.5, 1.0, 0.1 until 2026-10-30: an explosion over pale ice bloomed white over the ship. 0.35, 1.25,
+// knee 0.2, radius 1.2 until btbh-renderer 0.2.0, whose bloom blends its mip levels where the old one
+// added all six: about 6.4 times the intensity for the same look.)
+static float bloom_parameters[4] = { 2.25f, 1.25f, 0.16f, 0.75f };
 
 // Whether a colour is water: blue to cyan and fairly bright (Tyrian's water and ice).
 static bool water_color(Uint32 color)
@@ -12057,7 +12060,15 @@ static void scene_lighting(BTBHGPUSceneLighting *lighting, const Camera3D *camer
 		if (softness < 0)
 			softness = SDL_getenv("TYR3D_SHADOW_SOFTNESS") != NULL ? SDL_max(0.0f, (float)SDL_atof(SDL_getenv("TYR3D_SHADOW_SOFTNESS"))) : 1.0f;
 		lighting->directional_shadow_softness = softness;
+		lighting->directional_shadow_filter = BTBH_GPU_SCENE_SHADOW_FILTER_SOFT;
 	}
+}
+
+// The bloom's threshold is in exposed units: a scene that sets its own exposure after scene_post
+// keeps the same parts blooming.
+static void bloom_exposed(BTBHGPUScenePost *post)
+{
+	post->bloom_threshold *= post->exposure;
 }
 
 // Tone mapping, bloom, the render scale and anti-aliasing.
@@ -12077,10 +12088,11 @@ static void scene_post(BTBHGPUScenePost *post, const BTBHGPUWindowReport *window
 	post->highlight_threshold = 0.7f;
 	if (settings3d.effects)
 	{
+		post->bloom_enabled = bloom_parameters[0] > 0;
 		post->bloom_intensity = bloom_parameters[0];
-		post->bloom_threshold = bloom_parameters[1];
-		post->bloom_knee = bloom_parameters[2];
-		post->bloom_radius = bloom_parameters[3];
+		post->bloom_threshold = bloom_parameters[1];  // (times the exposure where a scene changes it: bloom_exposed)
+		post->bloom_soft_knee = bloom_parameters[2];
+		post->bloom_scatter = bloom_parameters[3];
 	}
 
 	// The scene is rendered at the window's size in points (on a high-density display, half its
@@ -12141,7 +12153,7 @@ static void scene_ssao(BTBHGPUScenePost *post, float unit)
 	static Uint32 scenes = 0;
 	if (debug == 2 && (scenes++ & 1) != 0)
 		return;
-	post->ssao_enabled = 1;
+	post->ssao_enabled = 2;  // (the horizon-based occlusion: btbh-renderer 0.2.0)
 	post->ssao_contact = 1;
 	post->ssao_radius = SDL_max(tune[0] * unit, 0.0001f);
 	post->ssao_intensity = SDL_max(tune[1], 0.0001f);
@@ -12672,6 +12684,7 @@ static void present_3d(const SDL_Surface *hud, const L3DFrame *frame, const SDL_
 	scene_post(&post, &window_frame, &render_w, &render_h);
 	if (bright_climate())
 		post.exposure = CLIMATE_EXPOSURE;
+	bloom_exposed(&post);
 	scene_ssao(&post, 1.0f);
 	add_radiance_cascades(&post);
 
@@ -13307,12 +13320,14 @@ static bool present_jukebox_scene(const BTBHGPUWindowReport *frame)
 	Uint32 render_w, render_h;
 	scene_post(&post, frame, &render_w, &render_h);
 	scene_ssao(&post, JUKEBOX_SSAO_UNIT);
+	post.bloom_enabled = settings3d.effects && js->bloom > 0;
 	post.bloom_intensity = settings3d.effects ? js->bloom : 0;
 	post.bloom_threshold = js->bloom_threshold;
-	post.bloom_knee = 0.25f;
-	post.bloom_radius = 1.4f;
+	post.bloom_soft_knee = 0.25f / js->bloom_threshold;
+	post.bloom_scatter = 0.78f;
 	// (Fading in and out as the jukebox's palette does.)
 	post.exposure = js->exposure * ui_screen_fade();
+	bloom_exposed(&post);
 
 	// The panel's glass: the scene blurred, made again each frame (it moves).
 	if (scene_blur_targets(w, h))
@@ -13846,6 +13861,7 @@ static bool present_destruct(void)
 		btbh_gpu_window_scene_set_directional_shadow_size(window, 2048, 2048);  // (its box is square)
 		lighting.directional_shadow_enabled = 1;
 		lighting.directional_shadow_softness = 1.0f;
+		lighting.directional_shadow_filter = BTBH_GPU_SCENE_SHADOW_FILTER_SOFT;
 		destruct_shadow(sun, lighting.directional_shadow_view_projection);
 	}
 	// The explosions' light.
@@ -13871,6 +13887,7 @@ static bool present_destruct(void)
 	scene_post(&post, &frame, &render_w, &render_h);
 	scene_ssao(&post, 1.0f);
 	post.exposure = ui_screen_fade();
+	bloom_exposed(&post);
 
 	// The panels' glass: the scene blurred, made again each frame.
 	if (scene_blur_targets(w, h))
@@ -14307,6 +14324,7 @@ static bool present_rail(void)
 		btbh_gpu_window_scene_set_directional_shadow_size(window, 2048, 2048);
 		lighting.directional_shadow_enabled = 1;
 		lighting.directional_shadow_softness = 1.0f;
+		lighting.directional_shadow_filter = BTBH_GPU_SCENE_SHADOW_FILTER_SOFT;
 		const float radius = 520.0f, depth = 1400.0f;
 		const float hint[3] = { 0, 0, -1 };
 		float sr[3] = { hint[1] * sun[2] - hint[2] * sun[1], hint[2] * sun[0] - hint[0] * sun[2], hint[0] * sun[1] - hint[1] * sun[0] };
@@ -14347,6 +14365,7 @@ static bool present_rail(void)
 	scene_post(&post, &frame, &render_w, &render_h);
 	scene_ssao(&post, 1.0f);
 	post.exposure = v->fade;
+	bloom_exposed(&post);
 
 	// The panels' glass: the scene blurred, made again each frame.
 	if (scene_blur_targets(w, h))
