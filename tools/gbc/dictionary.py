@@ -8,6 +8,7 @@ user's picks (tools/gbc/dictionaries.json, {"<gbc level>": {"<block>": tile}}) s
 
     python tools/gbc/dictionary.py 23 [out.png]     the dictionary proposed for GBC level 23, the map laid and drawn
     python tools/gbc/dictionary.py apply 23,3 [--dry] the committed levels' maps laid from their dictionaries
+    python tools/gbc/dictionary.py upper 21,1 [--dry] their backgrounds 2 and 3 laid from the originals' pieces (upper.py)
 """
 import json
 import os
@@ -457,7 +458,32 @@ def apply(n, dry=False):
     return level
 
 
-if __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == 'apply':
+def upper_apply(n, dry=False):
+    """The committed level's backgrounds 2 and 3 laid from whole pieces of the originals' (spec upper_pieces: upper.py),
+    at their originals' pace (no faster than their maps last)."""
+    import glob
+    import upper
+    import waves
+    spec = E.spec_of(n)
+    path = glob.glob(os.path.join(E.OUT, 'levels', f'*_L{n:02d}.json'))[0]
+    with open(path, encoding='utf-8') as f:
+        level = json.load(f)
+    print(f"L{n:02d} {spec['name']}:")
+    for k, st in sorted(spec.get('upper_pieces', {}).items()):
+        level['maps'][k - 1] = upper.lay(level, spec, k, st, level['shapes'])
+    ratios = E.layer_ratios(waves.Source(*spec.get('layers', spec['pc'])))
+    pace, px = paces(level, ratios, spec.get('upper_pace'))
+    print(f'  backgrounds 2, 3 at {pace} x layer 1 ({px} px before the boss or the end)')
+    if not dry:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:
+            json.dump(level, f)
+    return level
+
+
+if __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == 'upper':
+    for n in (int(x) for x in sys.argv[2].split(',')):
+        upper_apply(n, dry='--dry' in sys.argv)
+elif __name__ == '__main__' and len(sys.argv) > 2 and sys.argv[1] == 'apply':
     for n in (int(x) for x in sys.argv[2].split(',')):
         apply(n, dry='--dry' in sys.argv)
 elif __name__ == '__main__':

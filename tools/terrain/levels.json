@@ -924,12 +924,6 @@
   "level": "DELICORE (gbc)",
   "episode": 7
  },
- "943e973399ec4c60": {
-  "background": 2,
-  "solid": true,
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
  "923cb4330882660f": {
   "classes": 6,
   "void": "hole",
@@ -1006,6 +1000,12 @@
    "#1b201c": "~"
   },
   "level": "JUNGLE II (gbc)",
+  "episode": 7
+ },
+ "83a4955f56ece19a": {
+  "background": 2,
+  "solid": true,
+  "level": "DELICORE (gbc)",
   "episode": 7
  }
 }

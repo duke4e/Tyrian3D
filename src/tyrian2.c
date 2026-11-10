@@ -3103,15 +3103,14 @@ level_loop:
 		background2 = true;
 	}
 
+	// (The original leaves background 2 out while the lava or water filter is on, below the Pentium details,
+	// to save time; Tyrian3D always draws it: the user's choice, 2026-11-10, for LAVA I and II's upper layers.)
 	if (background2over == 0)
 	{
-		if (!(smoothies[2-1] && processorType < 4) && !(smoothies[1-1] && processorType == 3))
-		{
-			if (wild && !background2notTransparent)
-				draw_background_2_blend(VGAScreen);
-			else
-				draw_background_2(VGAScreen);
-		}
+		if (wild && !background2notTransparent)
+			draw_background_2_blend(VGAScreen);
+		else
+			draw_background_2(VGAScreen);
 	}
 
 	if (smoothies[0] && processorType > 2 && smoothie_data[0] == 0)
@@ -3162,16 +3161,12 @@ level_loop:
 	/*-----------------------BACKGROUNDS------------------------*/
 	/*-----------------------BACKGROUND 2------------------------*/
 	l3d_phase(L3D_BG2);
-	if (!(smoothies[2-1] && processorType < 4) &&
-	    !(smoothies[1-1] && processorType == 3))
+	if (background2over == 1)
 	{
-		if (background2over == 1)
-		{
-			if (wild && !background2notTransparent)
-				draw_background_2_blend(VGAScreen);
-			else
-				draw_background_2(VGAScreen);
-		}
+		if (wild && !background2notTransparent)
+			draw_background_2_blend(VGAScreen);
+		else
+			draw_background_2(VGAScreen);
 	}
 
 	if (superWild)
@@ -3876,17 +3871,13 @@ draw_player_shot_loop_end:
 
 	/*-----------------------BACKGROUNDS------------------------*/
 	/*-----------------------BACKGROUND 2------------------------*/
-	if (!(smoothies[2-1] && processorType < 4) &&
-	    !(smoothies[1-1] && processorType == 3))
+	l3d_phase(L3D_BG2_OVER);
+	if (background2over == 2)
 	{
-		l3d_phase(L3D_BG2_OVER);
-		if (background2over == 2)
-		{
-			if (wild && !background2notTransparent)
-				draw_background_2_blend(VGAScreen);
-			else
-				draw_background_2(VGAScreen);
-		}
+		if (wild && !background2notTransparent)
+			draw_background_2_blend(VGAScreen);
+		else
+			draw_background_2(VGAScreen);
 	}
 
 	/*-------------------------Warning---------------------------*/
