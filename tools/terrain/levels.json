@@ -990,22 +990,22 @@
   "level": "JUNGLE II (gbc)",
   "episode": 7
  },
- "411bde1e7f46c2e6": {
+ "94f7f77ac36191e6": {
   "background": 2,
   "solid": true,
   "level": "DELICORE (gbc)",
   "episode": 7
  },
- "58c57c4123000d0e": {
-  "background": 2,
-  "solid": true,
-  "level": "LAVA II (gbc)",
-  "episode": 7
- },
- "7e520cb3212f374b": {
+ "9b25280fe3fd213e": {
   "background": 2,
   "solid": true,
   "level": "LAVA I (gbc)",
+  "episode": 7
+ },
+ "fe3bec7c8e22dd5a": {
+  "background": 2,
+  "solid": true,
+  "level": "LAVA II (gbc)",
   "episode": 7
  }
 }

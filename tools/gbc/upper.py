@@ -3,16 +3,21 @@ pieces came out of no shape (ICE EXIT's ice, LAVA I and II's), too few (CAMANIS'
 ships), or not where layer 1's walls are (DELICORE's rooms and pipes, BRAINIAC's).
 
 A piece is a group of the original layer's tiles touching (also at the corners), laid whole; none that touches the
-original map's edge (cut off there: ice ending straight, half a ship). spec upper_pieces:
+original map's edge or is cut off within it (a tile drawn up to a side nothing is beyond: ice ending straight, half a
+ship, LAVA EXIT's block of one tile). spec upper_pieces:
 {layer (2 or 3): dict(source=[(episode, level), ...] (that layer of each, or (episode, level, layer)), fill=share of the
 cells, max_rows=n (taller pieces left out), min_tiles=n (smaller ones too), join=n (tiles so many cells apart one
 piece), mend=dict(body=tile, broken={tile, ...}) (a joined piece's gaps in a row and its broken tiles made body: BRAINIAC's
-pipes whole; one with a row ending in a broken tile is left out), gap=n (rows between pieces,
-1), avoid=True or 'raised' (none where, as the map scrolls, it would pass over layer 1's walls, FLEET's ships, or over
-its raised ground, LAVA I's rocks against background 2's solid), over=0.0-1.0 (at least that share of its cells over
-layer 1's walls), anchor=True or {tile, ...} (its ends, cells with one neighbour or none, and those tiles over layer 1's walls:
-pipes standing on them),
-seed)}. over and anchor: a layer that scrolls with layer 1 (DELICORE's).
+pipes whole; one with a row ending in a broken tile is left out), closed=False (cut pieces too: pipes drawn at the
+tile's edge), as_tiles=[(episode, level), ...] (the pieces' tiles made the most alike of those levels' layer's: CAMANIS's
+ice as LAVA EXIT's rock), gap=n (rows between pieces, 1), avoid=True or 'raised' (none where, as the map scrolls, it
+would pass over layer 1's walls, FLEET's ships, or over its raised ground, LAVA I's rocks against background 2's
+solid), over=0.0-1.0 (at least that share of its cells over layer 1's walls), off=True (none of them: DELICORE's rooms
+in its pits, apart from its floors), anchor=True or {tile, ...} (its ends, cells with one neighbour or none, and those
+tiles over layer 1's walls or, under background 3, background 2's pieces: pipes standing on them), room=n (over and anchor: that
+much round them too: DELICORE's flat rooms clear of its floors' raised rims, its pipes' feet on them however the 3D
+view's height between the layers shifts them), seed)}. over, off and anchor: a layer that scrolls with
+layer 1 (DELICORE's).
 
     python tools/gbc/dictionary.py upper 21,1 [--dry]     the committed levels' upper layers laid so
 """
@@ -34,9 +39,13 @@ import episode as E  # noqa: E402
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 SCREEN = 200      # the playfield's height (pixels) a piece passes through
 OPEN_DARK = 0.85  # a layer-1 tile is open (space, a corridor's floor) when so much of it is colour 0 or near black
+CUT = 0.5         # a piece is cut off where a tile's drawn pixels cover more than this of a side nothing is beyond
 BAND = 40         # rows of an upper layer given their share of the pieces
 RAISED = 3        # terrain samples so far above the ground's most common height are raised ground (LAVA I's rocks stand
                   # at 12 over its lava at -6; LAVA II has none, its lava at 0 over channels at -16)
+
+
+placed_log = []  # (row, column, source level, its row, its column) of each piece lay() placed last, for checking
 
 
 def original(ep, name):
@@ -78,6 +87,34 @@ def mended(cells, mend):
             if out.get((y, x), mend['body']) in mend['broken'] or (y, x) not in out:
                 out[(y, x)] = mend['body']
     return out
+
+
+def cut(cells, tiles):
+    """How much the piece is cut off: the most of a tile's side drawn (its outermost pixels) where nothing of the piece
+    is beyond (CAMANIS's ice cut straight, FLEET's ship without its wing, LAVA EXIT's block of one tile)."""
+    worst = 0.0
+    for (cy, cx), t in cells.items():
+        p = tiles[t] != 0
+        for (dy, dx), line in (((0, -1), p[:, 0]), ((0, 1), p[:, -1]), ((-1, 0), p[0, :]), ((1, 0), p[-1, :])):
+            if (cy + dy, cx + dx) not in cells:
+                worst = max(worst, float(line.mean()))
+    return worst
+
+
+def alike(letter, used, target, wanted):
+    """Each of a tile set's tiles (used) as the most alike of another set's (wanted, the tiles an original's layer
+    uses): the same drawn shape, at one offset between the sets where that keeps it (the interiors' kinds kept apart),
+    else the best overlap (CAMANIS's ice as LAVA EXIT's rock)."""
+    a, b = E.preview.tiles(letter), E.preview.tiles(target)
+
+    def overlap(s, t):
+        if a.get(s) is None or b.get(t) is None:
+            return 0.0
+        x, y = a[s] != 0, b[t] != 0
+        return float((x & y).sum() / max(1, (x | y).sum()))
+    best_off = max(range(-512, 513), key=lambda o: sum(overlap(s, s + o) >= 0.95 for s in used if s + o in wanted))
+    return {s: s + best_off if s + best_off in wanted and overlap(s, s + best_off) >= 0.95
+            else max(wanted, key=lambda t: overlap(s, t)) for s in used}
 
 
 def open_tiles(letter):
@@ -151,30 +188,52 @@ def lay(level, spec, k, st, letter):
     layer1 = level['maps'][0]
     n1 = len(layer1)
     walls = raised_mask(level) if st.get('avoid') == 'raised' else solid_mask(layer1, letter)
-    # (layer 3 is a column wider: its column c over layer 1's c - 1 and c; beyond the sides: wall)
+    # (layer 3 is a column wider and 16 pixels further left: its column c mostly over layer 1's c - 1; beyond the
+    # sides: wall)
     under = np.pad(walls, ((0, 0), (1, 1)), constant_values=True)
-    under = under[:, :-1] & under[:, 1:] if k == 3 else under[:, 1:-1]
-    pool = []
+    under = under[:, :-1] if k == 3 else under[:, 1:-1]
+    # (what a piece's ends stand on, room round them: layer 1's walls and, under background 3, background 2's
+    # pieces, both at layer 1's pace)
+    m = st.get('room', 0)
+    stand = walls.copy()
+    if k == 3:
+        stand |= np.array(level['maps'][1][len(level['maps'][1]) - n1:], bool)
+    stand = np.pad(stand, ((m, m), (m + 1, m + 1)), constant_values=True)
+    stand = ndimage.binary_erosion(stand, np.ones((2 * m + 1, 2 * m + 1), bool), border_value=1)[m:-m or None, m:-m or None]
+    stand = stand[:, :-1] if k == 3 else stand[:, 1:-1]
+    pool, origin = [], []
     for source in st['source']:
         ep, name, layer = (*source, k)[:3]  # ((episode, level) or (episode, level, its layer): another layer's pieces)
         src = original(ep, name)
+        tiles = E.preview.tiles(src['shapes'])
+        recolour = None
+        if st.get('as_tiles'):
+            wanted = {t for e, n in st['as_tiles'] for row in original(e, n)['maps'][k - 1] for t in row if t}
+            used = {t for row in src['maps'][layer - 1] for t in row if t and tiles.get(t) is not None}
+            recolour = alike(src['shapes'], used, letter, wanted)
         # (tiles that show nothing, all colour 0, are empty: FLEET's background 3 joins its ships with them)
         seen = {t for t, px in E.preview.tiles(src["shapes"]).items() if px is not None and px.any()}
         grid = [[t if t in seen else 0 for t in row] for row in src['maps'][layer - 1]]
-        for h, w, cells, _, _ in pieces(grid, st.get('max_rows', 20), st.get('min_tiles', 1), st.get('join', 0)):
+        for h, w, cells, top, left in pieces(grid, st.get('max_rows', 20), st.get('min_tiles', 1), st.get('join', 0)):
             if st.get('mend'):
                 cells = mended(cells, st['mend'])
                 if cells is None:
                     continue
+            if st.get('closed', True) and cut(cells, tiles) > CUT:
+                continue
+            if recolour:
+                cells = {c: recolour[t] for c, t in cells.items()}
             pool.append((h, w, cells))
+            origin.append((name, top, left))
     if not pool:
         raise SystemExit(f"{level['name']}: no pieces for background {k}")
-    if (st.get('over') or st.get('anchor')) and not np.array_equal(*timeline(level)[[0, k - 1]]):
+    if (st.get('over') or st.get('off') or st.get('anchor')) and not np.array_equal(*timeline(level)[[0, k - 1]]):
         raise SystemExit(f"{level['name']}: background {k} doesn't scroll with layer 1 (over, anchor)")
     props = st.get('anchor') if isinstance(st.get('anchor'), (set, frozenset, tuple, list)) else ()
     ends = [[c for c, t in cells.items() if t in props or
              sum((c[0] + dy, c[1] + dx) in cells for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0))) <= 1]
             for _, _, cells in pool]
+    placed_log.clear()
     taken = np.zeros((rows, columns), bool)
     out = [[0] * columns for _ in range(rows)]
     over = None
@@ -184,7 +243,7 @@ def lay(level, spec, k, st, letter):
     off = n1 - rows  # (layer 1's row under an upper row at one pace)
     # (of the rows that come on the screen, the others left empty: with avoid, as they scroll; with over or anchor,
     # layer 1's)
-    fixed = bool(st.get('over') or st.get('anchor'))
+    fixed = bool(st.get('over') or st.get('off') or st.get('anchor'))
     on = [(over is None or over[y] is not None) and (not fixed or y + off >= 0) for y in range(rows)]
     shown = sum(on)
     want = st['fill'] * shown * columns
@@ -194,12 +253,24 @@ def lay(level, spec, k, st, letter):
             if not (on[y] and on[y + h - 1]):
                 continue
             for x in range(0, columns - w + 1):
-                if st.get('over') and np.mean([under[y + off + cy, x + cx] for cy, cx in cells]) < st['over']:
+                if st.get('over') and np.mean([stand[y + off + cy, x + cx] for cy, cx in cells]) < st['over']:
                     continue
-                if st.get('anchor') and not all(under[y + off + cy, x + cx] for cy, cx in ends[i]):
+                if st.get('off') and any(under[y + off + cy, x + cx] for cy, cx in cells):
+                    continue
+                if st.get('anchor') and not all(stand[y + off + cy, x + cx] for cy, cx in ends[i]):
                     continue
                 cands.append((i, y, x))
-    rng.shuffle(cands)
+    # (each piece in turn, none laid much more often than another: the small ones fit most places)
+    by_piece = {}
+    for c in cands:
+        by_piece.setdefault(c[0], []).append(c)
+    for v in by_piece.values():
+        rng.shuffle(v)
+    turns = list(by_piece.values())
+    cands = []
+    for r in range(max((len(v) for v in turns), default=0)):
+        rng.shuffle(turns)
+        cands += [v[r] for v in turns if r < len(v)]
     gap = st.get('gap', 1)
     placed = 0
     # (spread along the level: each stretch of BAND rows its share)
@@ -235,6 +306,7 @@ def lay(level, spec, k, st, letter):
         taken[y:y + h, x:x + w] = True
         placed += len(cells)
         in_band[y // BAND] += len(cells)
+        placed_log.append((y, x, *origin[i]))
     print(f"  background {k}: {placed} tiles in pieces ({placed / (shown * columns):.3f} full, wanted {st['fill']}), "
           f"{len(pool)} pieces to lay, {len(cands)} places")
     return out
