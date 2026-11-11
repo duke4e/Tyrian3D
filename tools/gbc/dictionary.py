@@ -440,6 +440,28 @@ def apply(n, dry=False):
             r_, c_ = E.UPPER_SHAPE[j - 2]
             level['maps'][j - 1] = [[0] * c_ for _ in range(r_)]
         notes.append(f"{len(cells)} tiles of the GBC map's structures in background {k + 1}")
+    ur = spec.get('upper_remake')
+    if ur:
+        # (spec upper_remake: dict(layer=2, remake=..., tiles=...): the GBC map made again by another remake, in that
+        # upper layer over layer 1 (its row R over layer 1's R - 300; spec upper_pace keeps it at layer 1's pace):
+        # DELICORE's BRAINIAC platforms over its UNDERDELI floor, the user: "layer 1 prebaciti na layer 2")
+        sub = {key: spec[key] for key in ('gbc', 'name', 'pc', 'match', 'arcade', 'pool', 'rare', 'seed') if key in spec}
+        sub.update((key, v) for key, v in ur.items() if key not in ('layer', 'blank'))
+        blank = set(ur.get('blank', ()))  # (its black void none: BRAINIAC's 21, layer 1's black under nothing)
+        grid = [[0 if t in blank else t for t in row] for row in remake.layer(sub)[0]]
+        rows, columns = E.UPPER_SHAPE[ur['layer'] - 2]
+        up = [[0] * columns for _ in range(rows)]
+        for r in range(E.ROWS):
+            up[rows - E.ROWS + r][:len(grid[r])] = grid[r]
+        level['maps'][ur['layer'] - 1] = up
+        notes.append(f"background {ur['layer']} the GBC map as {sub['remake']} with {sub['tiles'][1]}'s tiles")
+        for j in spec.get('upper_clear', ()):
+            r_, c_ = E.UPPER_SHAPE[j - 2]
+            level['maps'][j - 1] = [[0] * c_ for _ in range(r_)]
+    if spec.get('bg2_under'):
+        # (spec bg2_under: background 2 drawn under the ground enemies from the start (event 43), so they stand on it)
+        if not any(e['type'] == 43 and e['t'] == 0 for e in level['events']):
+            level['events'].insert(0, dict(t=0, type=43, d1=0, d2=0, d3=0, d5=0, d6=0, d4=0))
     if not level.get('aligned'):
         pivot, extra = stretch(level)
         notes.append(f"clock x 7/6 up to {pivot:.0f}, then +{extra}; pc_rows {level['pc_rows']} -> {len(gmap)}")

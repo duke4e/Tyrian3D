@@ -691,12 +691,13 @@
    ],
    "tiles": [
     4,
-    "BRAINIAC"
+    "UNDERDELI"
    ],
    "layers": [
     4,
     "BRAINIAC"
-   ]
+   ],
+   "terrain_shift": -12
   },
   {
    "gbc": 16,

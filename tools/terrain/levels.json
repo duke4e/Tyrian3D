@@ -905,13 +905,6 @@
   "level": "ASTEROID2 (gbc)",
   "episode": 7
  },
- "48cd6d69a8518614": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
  "923cb4330882660f": {
   "classes": 6,
   "void": "hole",
@@ -990,12 +983,6 @@
   "level": "JUNGLE II (gbc)",
   "episode": 7
  },
- "94f7f77ac36191e6": {
-  "background": 2,
-  "solid": true,
-  "level": "DELICORE (gbc)",
-  "episode": 7
- },
  "9b25280fe3fd213e": {
   "background": 2,
   "solid": true,
@@ -1006,6 +993,26 @@
   "background": 2,
   "solid": true,
   "level": "LAVA II (gbc)",
+  "episode": 7
+ },
+ "bbebc90eaad8df9c": {
+  "background": 2,
+  "solid": true,
+  "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "f549be9d67b7cd54": {
+  "classes": 6,
+  "heights": {},
+  "materials": {
+   "#1b2730": 0,
+   "#473430": -12,
+   "#181818": -12,
+   "#323333": 0,
+   "#3b3b3b": -12,
+   "#1b1b1b": "~"
+  },
+  "level": "DELICORE (gbc)",
   "episode": 7
  }
 }

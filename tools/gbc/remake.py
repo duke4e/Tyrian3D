@@ -25,6 +25,11 @@ def layer(spec):
     """(layer 1: ROWS x 14 tiles, GBC map, its picture, the tile set's letter)."""
     how = spec.get('remake', 'dictionary')
     gmap, img, grids, letter = D.setting(spec)
+    if spec.get('layout'):
+        # (spec `layout`: a map of the GBC's blocks of our own, tools/gbc/layout.py, not the GBC level's: DELICORE's
+        # layer 1, under its upper layer of the GBC map)
+        import layout
+        gmap = layout.deli(spec['layout'], len(gmap), len(gmap[0]))
     if how == 'autotile':
         out, h = E.autotile(dict(spec, aligned=True), img, grids, letter)
         # (spec `own_sides`, with `edges`: the side columns the autotile's own, its plan the nearest column's: ASTEROID's

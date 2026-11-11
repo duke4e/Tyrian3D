@@ -115,6 +115,14 @@ def carried_settings(settings, original, fallback):
     return out
 
 
+def shifted(s, shift):
+    """The carried heights moved by the stage's "terrain_shift" (DELICORE's UNDERDELI floor 12 lower than DELI CORE's:
+    its pads at the ground, its rooms below, under its BRAINIAC platforms in background 2, drawn just above the ground)."""
+    if shift and "materials" in s:
+        s = dict(s, materials={k: v + shift if isinstance(v, (int, float)) else v for k, v in s["materials"].items()})
+    return s
+
+
 def refresh():
     """The settings carried over again from the originals, the terrain and vegetation built again (the maps,
     their export, ground log and clean ground as they are)."""
@@ -133,7 +141,8 @@ def refresh():
             continue
         pc = stages[name].get("tiles", stages[name]["pc"])[1]
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
-        settings[h] = dict(carried_settings(settings, original_map(settings, pc), fallback), level=s["level"], episode=7)
+        settings[h] = dict(shifted(carried_settings(settings, original_map(settings, pc), fallback), stages[name].get("terrain_shift")),
+                           level=s["level"], episode=7)
         built.append(h)
     json.dump(settings, open(SETTINGS, "w"), indent=1)
     subprocess.run([sys.executable, os.path.join(ROOT, "tools", "terrain", "make_terrain.py"), "build"] + built, check=True)
@@ -173,7 +182,7 @@ def main(names):
         pc = st.get("tiles", st["pc"])[1]
         original = original_map(settings, pc)
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
-        s = carried_settings(settings, original, fallback)
+        s = shifted(carried_settings(settings, original, fallback), st.get("terrain_shift"))
         settings[ground] = dict(s, level=f"{name} ({TAG})", episode=7)
         keep.add(ground)
         built.append(ground)
