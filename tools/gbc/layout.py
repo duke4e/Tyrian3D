@@ -21,9 +21,16 @@ def deli(st, h, w):
     rnd = random.Random(st.get('seed', 1))
     g = [[PAD] * w for _ in range(h)]
 
+    margin = st.get('margin', 1)
+
     def rect(y0, x0, rows, cols, b=BRICK):
-        for y in range(max(0, y0), min(h, y0 + rows)):
-            for x in range(max(0, x0), min(w, x0 + cols)):
+        # (on a grid of 2 x 2 cells from the first column inside the margin: every side and step at least two cells,
+        # the user's fifth review: steps of one cell drew the pads' chain as curls, "čudne spojeve")
+        y1, x1 = y0 + rows, x0 + cols
+        y0, x0 = y0 - y0 % 2, x0 - (x0 - margin) % 2
+        y1, x1 = y1 + y1 % 2, x1 + (x1 - margin) % 2
+        for y in range(max(0, y0), min(h, y1)):
+            for x in range(max(margin, x0), min(w - margin - (w - 2 * margin) % 2, x1)):
                 g[y][x] = b
 
     def brick(y, x):
@@ -33,7 +40,12 @@ def deli(st, h, w):
         """Every cell of the block and the ring round it brick."""
         return all(brick(yy, xx) for yy in range(y - 1, y + rows + 1) for xx in range(x - 1, x + cols + 1))
 
+    wanted = []
+
     def furnish(y0, x0, rows, cols, n=1):
+        wanted.append((y0, x0, rows, cols, n))  # (once the map is laid: a later room or pillar can't cut into them)
+
+    def place(y0, x0, rows, cols, n=1):
         """Machines inside a brick area: the crab's run where four and a ring fit, else the 2 x 2 one, else a dome."""
         spots = [(y, x) for y in range(y0, y0 + rows) for x in range(x0, x0 + cols)]
         rnd.shuffle(spots)
@@ -142,4 +154,112 @@ def deli(st, h, w):
                 along = brick(yy - 1, xx) or brick(yy + 1, xx)
                 if not across or not along:
                     g[yy][xx] = PAD
+    for args in wanted:
+        place(*args)
+    return g
+
+
+def repair(g, known, blocks, around, st, left=2, columns=14):
+    """The layout made so that every pad cell's neighbourhood (around, on the PC columns the remake lays: the GBC's first
+    and last columns go on to the sides) is one the original has at least `least` times (known(neighbourhood): how
+    often): a bad cell's GBC cell or one next to it turned pad or brick, the turn that leaves the fewest bad cells round
+    it, until none is left or no turn helps. Brick keeps `margin` GBC columns off the map's sides (a room cut by the
+    side has no edge there)."""
+    least, margin, reach = st.get('least', 2), st.get('margin', 1), st.get('reach', 2)
+    h, w = len(g), len(g[0])
+    g = [row[:] for row in g]
+    col = [min(max(c - left, 0), w - 1) for c in range(columns)]
+    for row in g:
+        for x in list(range(margin)) + list(range(w - margin, w)):
+            row[x] = PAD
+
+    g = smooth(g, margin)
+    mask = [[g[i][col[c]] in blocks for c in range(columns)] for i in range(h)]
+
+    def remask(i):
+        mask[i] = [g[i][col[c]] in blocks for c in range(columns)]
+
+    def bad(i, c):
+        return mask[i][c] and known(around(mask, i, c)) < least
+
+    def score(r0, r1):
+        return sum(bad(i, c) for i in range(max(0, r0), min(h, r1 + 1)) for c in range(columns))
+
+    for _ in range(400):
+        bads = [(i, c) for i in range(h) for c in range(columns) if bad(i, c)]
+        if not bads:
+            break
+        moved = False
+        for i, c in bads:
+            if not bad(i, c):
+                continue
+            base = score(i - 2 - reach, i + 2 + reach)
+            best = None
+            for y in range(max(0, i - reach), min(h, i + reach + 1)):
+                for x in range(max(margin, col[c] - reach), min(w - margin, col[c] + reach + 1)):
+                    if g[y][x] not in (PAD, BRICK):
+                        continue
+                    old = g[y][x]
+                    g[y][x] = BRICK if old == PAD else PAD
+                    remask(y)
+                    now = score(i - 2 - reach, i + 2 + reach)
+                    g[y][x] = old
+                    remask(y)
+                    if now < base and (best is None or now < best[0]):
+                        best = (now, y, x)
+            if best:
+                _, y, x = best
+                g[y][x] = BRICK if g[y][x] == PAD else PAD
+                remask(y)
+                moved = True
+        if not moved:
+            break
+    # (a machine with pad beside it, the repair's or the smoothing's, the room's floor instead: its tiles stood in the
+    # pads' frame, broken bits of chain round it; the mask the same)
+    seen = set()
+    for y in range(h):
+        for x in range(w):
+            if g[y][x] in (PAD, BRICK) or (y, x) in seen:
+                continue
+            group, stack = [], [(y, x)]
+            seen.add((y, x))
+            while stack:
+                a, b = stack.pop()
+                group.append((a, b))
+                for c_, d_ in ((a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)):
+                    if 0 <= c_ < h and 0 <= d_ < w and (c_, d_) not in seen and g[c_][d_] not in (PAD, BRICK):
+                        seen.add((c_, d_))
+                        stack.append((c_, d_))
+            if any(not (0 <= a + da < h and 0 <= b + db < w) or g[a + da][b + db] == PAD
+                   for a, b in group for da in (-1, 0, 1) for db in (-1, 0, 1)):
+                for a, b in group:
+                    g[a][b] = BRICK
+    left_bad = sum(bad(i, c) for i in range(h) for c in range(columns))
+    print(f"  layout: {left_bad} pad cells left in a neighbourhood the original has under {least} times")
+    return g
+
+
+def smooth(g, margin=1):
+    """Brick and pad both at least two cells thick everywhere (each cell in a 2 x 2 square of its own kind; the machines
+    count as brick and stay): a pad notch of one cell in a room's side filled, a brick spur of one cell taken off, until
+    nothing changes; the side margins pad."""
+    h, w = len(g), len(g[0])
+
+    def covered(y, x, kind):
+        return any(all(0 <= y + a < h and 0 <= x + b < w and (g[y + a][x + b] != PAD) == kind
+                       for a in (dy, dy + 1) for b in (dx, dx + 1)) for dy in (-1, 0) for dx in (-1, 0))
+    for _ in range(10):
+        changed = 0
+        for y in range(h):  # (brick no thinner than two: a spur pad)
+            for x in range(w):
+                if g[y][x] == BRICK and not covered(y, x, True):
+                    g[y][x] = PAD
+                    changed += 1
+        for y in range(h):  # (pad no thinner than two: a notch brick)
+            for x in range(margin, w - margin):
+                if g[y][x] == PAD and not covered(y, x, False):
+                    g[y][x] = BRICK
+                    changed += 1
+        if not changed:
+            break
     return g

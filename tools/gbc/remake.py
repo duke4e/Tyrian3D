@@ -30,6 +30,13 @@ def layer(spec):
         # layer 1, under its upper layer of the GBC map)
         import layout
         gmap = layout.deli(spec['layout'], len(gmap), len(gmap[0]))
+        if how == 'exact':
+            # (its pads only where the original has their neighbourhoods: the user's fifth review, "čudne spojeve na
+            # layer 1 i sve rubove koji nemaju tileove")
+            table = exact_table(spec)
+            blocks = set(spec['exact']['blocks']) - set(spec['exact'].get('objects', {}))
+            around = lambda m, i, c: _around([m[7]] + m + [m[-1]], i + 1, c)  # (as exact sees it)
+            gmap = layout.repair(gmap, lambda k: sum(table.get(k, {}).values()), blocks, around, spec['layout'])
     if how == 'autotile':
         out, h = E.autotile(dict(spec, aligned=True), img, grids, letter)
         # (spec `own_sides`, with `edges`: the side columns the autotile's own, its plan the nearest column's: ASTEROID's
@@ -221,6 +228,19 @@ def _around(mask, r, c):
 SIDES = ((1, 'N'), (6, 'S'), (3, 'W'), (4, 'E'))  # (_around's index of each side)
 
 
+def exact_table(spec):
+    """Spec `exact`'s original: {its pads' neighbourhoods (_around): Counter of the tiles it has there}."""
+    fam = set(spec['exact']['family'])
+    src = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(spec['tiles'])][0]['maps'][0]
+    smask = [[t in fam for t in row] for row in src]
+    table = {}
+    for y, row in enumerate(src):
+        for x, t in enumerate(row):
+            if smask[y][x]:
+                table.setdefault(_around(smask, y, x), Counter())[t] += 1
+    return table
+
+
 def exact(spec, gmap):
     """Spec `exact`: dict(blocks=[...], family=[...], sides={tile: 'NSWE'}, fill=tile, objects={block: tile},
     runs={blocks: (tiles on the left half, on the right half)}): the GBC map's cells of those
@@ -236,13 +256,7 @@ def exact(spec, gmap):
     fam, fill = set(st['family']), st['fill']
     objects = st.get('objects', {})
     blocks = set(st['blocks']) - set(objects)
-    src = [l for l in E.sources.original_levels() if (l['episode'], l['name']) == tuple(spec['tiles'])][0]['maps'][0]
-    smask = [[t in fam for t in row] for row in src]
-    table = {}
-    for y, row in enumerate(src):
-        for x, t in enumerate(row):
-            if smask[y][x]:
-                table.setdefault(_around(smask, y, x), Counter())[t] += 1
+    table = exact_table(spec)
     h, w = len(gmap), len(gmap[0])
     col = [min(max(c - D.LEFT, 0), w - 1) for c in range(14)]
     mask = [[gmap[i][col[c]] in blocks for c in range(14)] for i in range(h)]
@@ -254,7 +268,9 @@ def exact(spec, gmap):
         for c in range(14):
             if not mask[i][c]:
                 continue
-            k = _around(mask, i, c)
+            # (a layout of our own, spec `layout`: past its rows what the level has there, not floor: no edge drawn across
+            # the map at its start (its first row goes on below) nor at its end (rows 0-7 repeat above it))
+            k = _around([mask[7]] + mask + [mask[-1]], i + 1, c) if spec.get('layout') else _around(mask, i, c)
             # (spec `edges`: {floor sides: tile}: a neighbourhood the original has under `rare` times (or never), its floor
             # sides' edge or corner, the pit round a turret's sides: the original's one or two odd cells put corners
             # there)
