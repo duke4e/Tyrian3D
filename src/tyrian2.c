@@ -733,6 +733,13 @@ static JE_word shot_from[ENEMY_SHOT_MAX];
 // the ROM's), shared among an object's PC parts by their armour (parts that can't be shot keep theirs, unless none
 // can); d3: how often its guns fire (ticks; 0 never, -1 the PC enemy's own).
 #define GBC_FIGHT 203
+
+// Tyrian3D: an episode 7 enemy anchored to the ground (event 208 at its tick, d1 events or fewer before the one that makes it,
+// tools/content/gbc/build.py): a PC enemy that never moves in the PC levels (a turret, a bunker, a pyramid) drawn for a
+// GBC one that does. It stays where the map puts it: no speed of its own, nor what its link is given (events 19, 20).
+// (The user, 2026-11-11: "ovaj protivnik s piramidom bi trebao biti fiksni na podu"; turrets that "se pomiču po levelu")
+#define GBC_ANCHOR 208
+static bool gbc_anchored[100];
 static int gbc_shootable(int type)
 {
 	const int armor = type > 0 && type <= ENEMY_NUM ? enemyDat[type].armor : 0;
@@ -1259,7 +1266,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204: case GBC_ANCHOR:
 	case 206: case CHECKPOINT_EVENT: case MARK_EVENT:
 		return true;
 	default:
@@ -6538,6 +6545,14 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	else
 		gbc_object[b-1] = 0;
 	gbc_lean[b-1] = NAN;
+	gbc_anchored[b-1] = false;
+	if (episodeNum == EPISODE_GBC)
+	{
+		const int e = eventLoc - 1;
+		for (int k = e - 1; k >= 0 && k >= e - 40 && eventRec[k].eventtime == eventRec[e].eventtime; --k)
+			if (eventRec[k].eventtype == GBC_ANCHOR && k + eventRec[k].eventdat >= e)
+				gbc_anchored[b-1] = true;
+	}
 	gbc_look_id[b-1] = 0;
 	gbc_look_parts[b-1] = 0;
 	if (episodeNum == EPISODE_GBC && enemyTypeOfs == 0)
@@ -6640,6 +6655,15 @@ void JE_createNewEventEnemy(JE_byte enemyTypeOfs, JE_word enemyOffset, Sint16 un
 	enemy[b-1].eyc += eventRec[eventLoc-1].eventdat3;
 	enemy[b-1].linknum = eventRec[eventLoc-1].eventdat4;
 	enemy[b-1].fixedmovey = eventRec[eventLoc-1].eventdat6;
+	if (gbc_anchored[b-1])
+	{
+		enemy[b-1].exc = enemy[b-1].eyc = 0;
+		enemy[b-1].exca = enemy[b-1].eyca = 0;
+		enemy[b-1].excc = enemy[b-1].eycc = 0;
+		enemy[b-1].exrev = enemy[b-1].eyrev = 0;
+		enemy[b-1].xaccel = enemy[b-1].yaccel = 0;
+		enemy[b-1].fixedmovey = 0;
+	}
 	gbc_pool_join(b - 1);  // (Tyrian3D: a GBC boss's piece joins its body)
 	gbc_find_head(b - 1);  // (Tyrian3D: goes with the first piece of its picture)
 
@@ -6973,7 +6997,7 @@ void JE_eventSystem(void)
 
 		for (int i = initial_i; i < max_i; i++)
 		{
-			if (all_enemies || enemy[i].linknum == eventRec[eventLoc-1].eventdat4)
+			if ((all_enemies || enemy[i].linknum == eventRec[eventLoc-1].eventdat4) && !gbc_anchored[i])
 			{
 				if (eventRec[eventLoc-1].eventdat != -99)
 					enemy[i].exc = eventRec[eventLoc-1].eventdat;
@@ -7000,7 +7024,7 @@ void JE_eventSystem(void)
 
 		for (temp = 0; temp < 100; temp++)
 		{
-			if (enemyAvail[temp] != 1 &&
+			if (enemyAvail[temp] != 1 && !gbc_anchored[temp] &&
 			    (enemy[temp].linknum == eventRec[eventLoc-1].eventdat4 || eventRec[eventLoc-1].eventdat4 == 0))
 			{
 				if (eventRec[eventLoc-1].eventdat != -99)
@@ -7698,6 +7722,9 @@ void JE_eventSystem(void)
 
 	case 205:  // Tyrian3D: the level seen from behind the ship (d1 1) or from above again (0)
 		l3d_chase = eventRec[eventLoc-1].eventdat != 0;
+		break;
+
+	case GBC_ANCHOR:  // Tyrian3D: the enemies the next d1 events make anchored to the ground (episode 7: gbc_anchored; JE_createNewEventEnemy)
 		break;
 
 	case 206:  // Tyrian3D: link d4's enemies d1 times as tough (tough_damage); d4 0: every link as it was

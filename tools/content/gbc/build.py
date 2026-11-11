@@ -621,6 +621,46 @@ def music(stages):
         out.write("\n".join(lines) + "\n")
 
 
+SPAWNS = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56}  # (events that make enemies, d1 the enemy)
+ANCHOR = 208  # (tyrian2.c GBC_ANCHOR: the enemies the next d1 events make stay where the map puts them)
+
+
+def ground_parts(e):
+    """The PC enemies a spawn makes on the ground, or None (in the sky, episode 7's own, a boss's piece)."""
+    if not isinstance(e.get("ep"), int) or e["d1"] <= 0:
+        return None
+    if e["type"] in (6, 10, 17):
+        return [e["d1"]]
+    if e["type"] == 12 and e["d6"] in (0, 1, 4):
+        return [e["d1"] + k for k in range(4)]
+    return None
+
+
+def anchor(events, static):
+    """An event 208 before each enemy (its events 202 and 203, its 201's pieces) all of whose parts are on the ground
+    and never move there in the PC levels (tools/gbc/static_ground.py: turrets, bunkers, pyramids), which a GBC enemy
+    that moves is drawn as: it stays where the map puts it (the user, 2026-11-11: the pyramid "bi trebao biti fiksni na
+    podu", turrets that "se pomiču po levelu"). Returns the events and how many were anchored."""
+    out, i, n, count = [], 0, len(events), 0
+    while i < n:
+        t, j = events[i]["t"], i
+        while j < n and events[j]["type"] in (202, 203) and events[j]["t"] == t:
+            j += 1
+        if j < n and events[j]["t"] == t and (events[j]["type"] == 201 or events[j]["type"] in SPAWNS):
+            last = min(n - 1, j + events[j]["d1"]) if events[j]["type"] == 201 else j
+            group = [e for e in events[j:last + 1] if e["type"] in SPAWNS]
+            parts = [ground_parts(e) for e in group]
+            if group and all(p is not None and all((e["ep"], k) in static for k in p) for e, p in zip(group, parts)):
+                out.append(dict(t=t, type=ANCHOR, d1=last - i + 1, d2=0, d3=0, d5=0, d6=0, d4=0))
+                count += 1
+            out.extend(events[i:last + 1])
+            i = last + 1
+        else:
+            out.append(events[i])
+            i += 1
+    return out, count
+
+
 def main():
     index = os.path.join(SRC, "episode.json")
     if not os.path.exists(index):
@@ -637,6 +677,11 @@ def main():
         expanded = compose.expand(level)
         level["placements"] += bosses
         level["events"] = boss_fight(level, expanded)
+    static = {tuple(x) for x in json.load(open(os.path.join(HERE, "static_ground.json")))}
+    anchored = 0
+    for level in levels:
+        level["events"], k = anchor(level["events"], static)
+        anchored += k
     # (as episode 6: episode 5's enemies used as they are keep their weapons)
     probe = Importer()
     kept = set()
@@ -680,7 +725,8 @@ def main():
     tf.write_strings(os.path.join(OUT, "levels7.dat"), script(stages, levels, planets(), numbers, ending[:-1]))
     tf.write_strings(os.path.join(OUT, "cubetxt7.dat"), cubes + ["*"])
     music(stages)
-    print(f"{OUT}: {len(levels)} levels, {len(importer.enemy_map)} enemies and {len(importer.weapon_map)} guns brought in"
+    print(f"{OUT}: {len(levels)} levels, {len(importer.enemy_map)} enemies and {len(importer.weapon_map)} guns brought in, "
+          f"{anchored} enemies anchored to the ground"
           + (f", {Importer.full} guns as episode 5's (no slot left)" if Importer.full else ""))
     return 0
 
