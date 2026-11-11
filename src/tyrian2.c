@@ -734,11 +734,11 @@ static JE_word shot_from[ENEMY_SHOT_MAX];
 // can); d3: how often its guns fire (ticks; 0 never, -1 the PC enemy's own).
 #define GBC_FIGHT 203
 
-// Tyrian3D: an episode 7 enemy anchored to the ground (event 208 at its tick, d1 events or fewer before the one that makes it,
+// Tyrian3D: an episode 7 enemy anchored to the ground (event 211 at its tick, d1 events or fewer before the one that makes it,
 // tools/content/gbc/build.py): a PC enemy that never moves in the PC levels (a turret, a bunker, a pyramid) drawn for a
 // GBC one that does. It stays where the map puts it: no speed of its own, nor what its link is given (events 19, 20).
 // (The user, 2026-11-11: "ovaj protivnik s piramidom bi trebao biti fiksni na podu"; turrets that "se pomiču po levelu")
-#define GBC_ANCHOR 208
+#define GBC_ANCHOR 211  // (tyrian2.h: 208-210 taken)
 static bool gbc_anchored[100];
 static int gbc_shootable(int type)
 {

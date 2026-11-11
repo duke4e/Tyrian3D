@@ -622,7 +622,7 @@ def music(stages):
 
 
 SPAWNS = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56}  # (events that make enemies, d1 the enemy)
-ANCHOR = 208  # (tyrian2.c GBC_ANCHOR: the enemies the next d1 events make stay where the map puts them)
+ANCHOR = 211  # (tyrian2.c GBC_ANCHOR: the enemies the next d1 events make stay where the map puts them)
 
 
 def ground_parts(e):
@@ -637,7 +637,7 @@ def ground_parts(e):
 
 
 def anchor(events, static):
-    """An event 208 before each enemy (its events 202 and 203, its 201's pieces) all of whose parts are on the ground
+    """An event 211 before each enemy (its events 202 and 203, its 201's pieces) all of whose parts are on the ground
     and never move there in the PC levels (tools/gbc/static_ground.py: turrets, bunkers, pyramids), which a GBC enemy
     that moves is drawn as: it stays where the map puts it (the user, 2026-11-11: the pyramid "bi trebao biti fiksni na
     podu", turrets that "se pomiču po levelu"). Returns the events and how many were anchored."""
