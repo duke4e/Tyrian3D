@@ -472,6 +472,10 @@ def boss_template(src):
                 speed=(before[-1]["d1"], before[-1]["d2"], before[-1]["d3"]) if before else (1, 2, 3))
 
 
+BODY = 212    # (tyrian2.c GBC_BODY: link d1's enemies one body)
+REPEAT = 100  # (ticks: a boss's piece made again this much later is its next coming)
+
+
 class BossLinks:
     """The boss's links: its own (31-40 for the originals' low ones; the GBC script's are 1-30)."""
 
@@ -492,6 +496,25 @@ def boss_fight(level, events):
     start = p["start"]
     placed = compose.place(tpl, start, BossLinks(), src.episode)
     links = {v for e in placed if e["type"] == 79 for v in (e["d1"], e["d2"]) if v}
+    # (the original's boss coming by more than once before its fight, its pieces again on the same link: CAMANIS's
+    # ship passing on layer 3, then 2, then fought on the ground; here the map stops for it, and the earlier ones
+    # stayed, two bosses, the user 2026-11-11: "pojave se 2 bossa": only its last coming)
+    bar_t = min((e["t"] for e in placed if e["type"] == 79), default=None)
+    if bar_t is not None:
+        body = lambda e: e["d4"] in links and e["type"] in tuple(LAYER_OF) + (12,) and "ep" in e and e["t"] <= bar_t
+        times = sorted({e["t"] for e in placed if body(e)})
+        comings, prev = [], None
+        for t in times:  # (its comings: its pieces made with gaps of more than REPEAT ticks between)
+            if prev is None or t - prev > REPEAT:
+                comings.append([])
+            comings[-1].append(t)
+            prev = t
+        made = [{(e["ep"], e["d1"]) for e in placed if body(e) and e["t"] in c} for c in comings]
+        if len(comings) > 1 and any(made[k] & set().union(*made[k + 1:]) for k in range(len(made) - 1)):
+            placed = [e for e in placed if not (body(e) and e["t"] < comings[-1][0])]
+    # (its pieces one body, as the GBC's bosses are: tyrian2.c GBC_BODY; the user, 2026-11-11: CAMANIS's "svaki dio
+    # bossa se po healthu tretira kao cijeli boss", FLEET's bar coming back up, TUNNEL's boss never brought down)
+    placed = [dict(t=start, type=BODY, d1=link, d2=0, d3=0, d5=0, d6=0, d4=0) for link in sorted(links)] + placed
     s1, s2, s3 = tpl["speed"]
     scroll = [dict(t=start, type=2, d1=s1, d2=s2, d3=s3, d5=0, d6=0, d4=0)]
     scroll += [dict(t=start + e["t"], type=e["type"], d1=e["d1"], d2=e["d2"], d3=e["d3"], d5=0, d6=0, d4=0)

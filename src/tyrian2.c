@@ -544,6 +544,17 @@ static void gbc_mark_picture(unsigned int hit)
 static struct { int sum, count, taken; } gbc_pool;
 static bool gbc_pooled[100];  // pieces of the body (cleared as any enemy is made: gbc_pool_forget)
 
+// Tyrian3D: an original's boss in episode 7 is one body too (event 212: link d1's enemies, from then on, until the next
+// level), as the GBC's bosses are: the user, 2026-11-11, CAMANIS's "svaki dio bossa se po healthu tretira kao cijeli
+// boss", FLEET's boss whose bar came back up, TUNNEL's that couldn't be brought down.
+#define GBC_BODY 212
+static bool gbc_body[256];
+
+static bool gbc_body_link(int link)
+{
+	return gbc_piece_link(link) || (episodeNum == EPISODE_GBC && link > 0 && link < 256 && gbc_body[link]);
+}
+
 static void gbc_pool_forget(const struct JE_SingleEnemyType *e)
 {
 	gbc_pooled[e - enemy] = false;
@@ -626,7 +637,7 @@ static int gbc_pool_left(void)
 
 static void gbc_pool_join(unsigned int i)
 {
-	if (!gbc_piece_link(enemy[i].linknum))
+	if (!gbc_body_link(enemy[i].linknum))
 		return;
 	bool live = false;
 	for (unsigned int j = 0; j < COUNTOF(enemy); ++j)
@@ -1266,7 +1277,7 @@ static bool prespawn_passes(int type)
 	{
 	case 0:  // (unknown: ignored)
 	case 1: case 8: case 9: case 16: case 21: case 22: case 28: case 29: case 34: case 35: case 37: case 42:
-	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204: case GBC_ANCHOR:
+	case 43: case 44: case 48: case 62: case 64: case 69: case 73: case 79: case 82: case 99: case 201: case 202: case 203: case 204: case GBC_ANCHOR: case GBC_BODY:
 	case 206: case CHECKPOINT_EVENT: case MARK_EVENT:
 		return true;
 	default:
@@ -2593,6 +2604,7 @@ start_level_first:
 
 	for (unsigned int i = 0; i < COUNTOF(boss_bar); i++)
 		boss_bar[i].link_num = 0;
+	memset(gbc_body, 0, sizeof(gbc_body));
 
 	forceEvents = false;  /*Force events to continue if background movement = 0*/
 
@@ -3340,7 +3352,7 @@ level_loop:
 						if (enemy[b].armorleft < 255)
 						{
 							for (unsigned int i = 0; i < COUNTOF(boss_bar); i++)
-								if (temp == boss_bar[i].link_num || (pooled && gbc_piece_link(boss_bar[i].link_num)))
+								if (temp == boss_bar[i].link_num || (pooled && gbc_body_link(boss_bar[i].link_num)))
 									boss_bar[i].color = 6;
 
 							if (enemy[b].enemyground)
@@ -7724,6 +7736,11 @@ void JE_eventSystem(void)
 		l3d_chase = eventRec[eventLoc-1].eventdat != 0;
 		break;
 
+	case GBC_BODY:  // Tyrian3D: link d1's enemies one body (episode 7's original bosses: gbc_body)
+		if (eventRec[eventLoc-1].eventdat > 0 && eventRec[eventLoc-1].eventdat < 256)
+			gbc_body[eventRec[eventLoc-1].eventdat] = true;
+		break;
+
 	case GBC_ANCHOR:  // Tyrian3D: the enemies the next d1 events make anchored to the ground (episode 7: gbc_anchored; JE_createNewEventEnemy)
 		break;
 
@@ -7852,7 +7869,7 @@ void draw_boss_bar(void)
 					armor = enemy[e].armorleft;
 		}
 		// (Tyrian3D: a GBC boss's body, gbc_pool_hit: what it has left of its full pool, while any piece of it lives)
-		if (gbc_piece_link(boss_bar[b].link_num))
+		if (gbc_body_link(boss_bar[b].link_num))
 		{
 			bool live = false;
 			for (unsigned int e = 0; e < COUNTOF(enemy); e++)
