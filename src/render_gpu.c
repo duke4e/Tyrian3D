@@ -5558,6 +5558,8 @@ static float cloud_view[4][4], cloud_rect[4][4], cloud_shift[4][2], cloud_origin
 // How far above the highest ground drawn under them the clouds float at least (their lower slice and
 // puffs reach 1.5 below their height).
 #define CLOUD_CLEARANCE 4.0f
+// Texels (CLOUD_SCALE game pixels) the clearing round a solid drawn over the clouds is blurred by, twice.
+#define CLOUD_SOLID_BLUR 5
 // The canvas's coarse fields (its noise, the depth inside its clouds, their colours) are worked out
 // every CLOUD_COARSE texels: the lattice the canvas is fixed to the map by.
 #define CLOUD_COARSE 4
@@ -5866,8 +5868,13 @@ static bool cloud_solid_mask(int layer, float base, float x0, float z0, int w, i
 				                   NULL, NULL, NULL, 0);
 		}
 	}
+	// (blurred wide: the clouds thin out towards the solids rather than stop at their outlines, cut to their shape; the
+	// user, 2026-11-11: "oblaci se urezuju u teren")
 	if (any)
-		box_blur(mask, scratch, w, h, 2);
+	{
+		box_blur(mask, scratch, w, h, CLOUD_SOLID_BLUR);
+		box_blur(mask, scratch, w, h, CLOUD_SOLID_BLUR);
+	}
 	return any;
 }
 
@@ -6163,7 +6170,7 @@ static void build_cloud_canvas(int c, int set, int layer, bool blended, float ba
 	if (cleared)
 		for (int i = 0; i < w * h; ++i)
 		{
-			const float k = SDL_clamp((solid[i] - 0.12f) / 0.4f, 0.0f, 1.0f);
+			const float k = SDL_clamp((solid[i] - 0.05f) / 0.55f, 0.0f, 1.0f);
 			cover[i] *= 1 - k * k * (3 - 2 * k);
 		}
 

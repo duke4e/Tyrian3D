@@ -115,11 +115,19 @@ def carried_settings(settings, original, fallback):
     return out
 
 
-def shifted(s, shift):
+def shifted(s, st):
     """The carried heights moved by the stage's "terrain_shift" (DELICORE's UNDERDELI floor 12 lower than DELI CORE's:
-    its pads at the ground, its rooms below, under its BRAINIAC platforms in background 2, drawn just above the ground)."""
-    if shift and "materials" in s:
-        s = dict(s, materials={k: v + shift if isinstance(v, (int, float)) else v for k, v in s["materials"].items()})
+    its pads at the ground, its rooms below, under its BRAINIAC platforms in background 2, drawn just above the ground)
+    and kept to its "terrain_cap" (TYRIAN's raised rock, 28 as PC TYRIAN's, stood through its background 3's rock,
+    whose top is at 20.8: the user, 2026-11-11, "teren od ispod probija na teren iznad u obliku crne sjene")."""
+    shift, cap = st.get("terrain_shift", 0), st.get("terrain_cap")
+    if "materials" in s and (shift or cap is not None):
+        def move(v):
+            if not isinstance(v, (int, float)):
+                return v
+            v += shift
+            return min(v, cap) if cap is not None else v
+        s = dict(s, materials={k: move(v) for k, v in s["materials"].items()})
     return s
 
 
@@ -141,7 +149,7 @@ def refresh():
             continue
         pc = stages[name].get("tiles", stages[name]["pc"])[1]
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
-        settings[h] = dict(shifted(carried_settings(settings, original_map(settings, pc), fallback), stages[name].get("terrain_shift")),
+        settings[h] = dict(shifted(carried_settings(settings, original_map(settings, pc), fallback), stages[name]),
                            level=s["level"], episode=7)
         built.append(h)
     json.dump(settings, open(SETTINGS, "w"), indent=1)
@@ -182,7 +190,7 @@ def main(names):
         pc = st.get("tiles", st["pc"])[1]
         original = original_map(settings, pc)
         fallback = original_map(settings, "DELIANI" if "Deli" in pc else "SQUADRON")
-        s = shifted(carried_settings(settings, original, fallback), st.get("terrain_shift"))
+        s = shifted(carried_settings(settings, original, fallback), st)
         settings[ground] = dict(s, level=f"{name} ({TAG})", episode=7)
         keep.add(ground)
         built.append(ground)

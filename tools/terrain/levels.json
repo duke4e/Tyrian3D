@@ -662,12 +662,6 @@
   "level": "LAVA I (gbc)",
   "episode": 7
  },
- "96dd08e1bb1abc68": {
-  "background": 3,
-  "solid": true,
-  "level": "TYRIAN (gbc)",
-  "episode": 7
- },
  "f4890c387fcbb93f": {
   "background": 3,
   "solid": true,
@@ -931,7 +925,7 @@
   "heights": {},
   "materials": {
    "#0c3a0f": 8,
-   "#4a3213": 28,
+   "#4a3213": 16,
    "#2b1a07": 0,
    "#071608": 0,
    "#6d5228": 0,
@@ -1013,6 +1007,12 @@
   "void": "hole",
   "heights": {},
   "level": "BUBBLES (gbc)",
+  "episode": 7
+ },
+ "018f5d8fde954053": {
+  "background": 3,
+  "solid": true,
+  "level": "TYRIAN (gbc)",
   "episode": 7
  }
 }
