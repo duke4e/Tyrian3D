@@ -6907,17 +6907,27 @@ void JE_eventSystem(void)
 			}
 			eventRec[eventLoc-1].eventdat6 = 0;   /* We use EVENTDAT6 for the background */
 			JE_createNewEventEnemy(0, temp, 0);
+			// (Tyrian3D: each piece's place from the first's again once it is moved to it, gbc_find_head: ASTEROID's
+			// big rock went to one piece, all four at the first's place, the user's playtest "jedan od kamena nije
+			// cijeli, te je zato kockast")
 			JE_createNewEventEnemy(1, temp, 0);
 			if (b > 0)
+			{
 				enemy[b-1].ex += 24;
+				gbc_find_head(b - 1);
+			}
 			JE_createNewEventEnemy(2, temp, 0);
 			if (b > 0)
+			{
 				enemy[b-1].ey -= 28;
+				gbc_find_head(b - 1);
+			}
 			JE_createNewEventEnemy(3, temp, 0);
 			if (b > 0)
 			{
 				enemy[b-1].ex += 24;
 				enemy[b-1].ey -= 28;
+				gbc_find_head(b - 1);
 			}
 			break;
 		}
