@@ -97,5 +97,10 @@
   "base": [1, 398], "layer": "sky", "columns": 1, "rows": 1,
   "recolor": {"sheet": "Q", "sprite": 115, "big": true, "map": {"0x51": "0x91", "0x52": "0x92", "0x53": "0x93", "0x54": "0x94", "0x55": "0x95", "0x56": "0x96", "0x57": "0x97", "0x58": "0x98", "0x59": "0x99", "0x5a": "0x9a", "0x5b": "0x9b", "0x5c": "0x9c", "0x5d": "0x9d", "0x5e": "0x9e", "0x5f": "0x9f"}},
   "parts": [{"column": 0, "row": 0, "sprite": 11}]
+ },
+ "look_p171": {
+  "about": "FLEET's small red dots 07 and 18 (the user's playtest, 2026-11-12: \"nisam siguran da su ove crvene kuglice dobro odabran protivnik\", then the seeker mine): the seeker mine, P 171 (model seeker_mine), not homing",
+  "sheet": "P", "big": false, "base": [3, 199], "layer": "sky", "armor": 6,
+  "parts": [{"sprite": 171}]
  }
 }
