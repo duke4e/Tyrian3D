@@ -387,6 +387,11 @@ def decor(level, spec, layer1):
                     t = 28 * (E.ROWS - r) - ROW_TIME
                     if t < 0:
                         continue
+                    # (spec decor `clear`: the leg's tiles under the decor that stands there that tile: the arch's left
+                    # leg showed twice, the model and the map's rock beside it, the user 2026-11-11: "ispod nekih lukova
+                    # ... tileove koje ne bi trebali imati")
+                    if d.get('clear') is not None:
+                        layer1[r][c] = layer1[r + 1][c] = d['clear']
                     for e in group:
                         events.append(dict(t=t, type=e['type'], d1=e['d1'], d2=e['d2'] + 24 * (c - c0), d3=e['d3'],
                                            d5=e['d5'], d6=e['d6'], d4=0, ep=src.episode, decor=d.get('tag', 'decor')))

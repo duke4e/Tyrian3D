@@ -848,36 +848,6 @@
   "level": "SAVARA II (gbc)",
   "episode": 7
  },
- "47579727b09d0dcb": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#444444": 18,
-   "#8d755e": 0,
-   "#715d47": 0,
-   "#41602e": 0,
-   "#4f4b47": "~",
-   "#342d27": "~"
-  },
-  "level": "DESERT (gbc)",
-  "episode": 7
- },
- "6587e429ab38509d": {
-  "classes": 6,
-  "palms": true,
-  "heights": {},
-  "materials": {
-   "#897960": 0,
-   "#42602f": "~",
-   "#3e3e3e": 18,
-   "#735e48": 0,
-   "#3c2810": 0,
-   "#45413d": "~"
-  },
-  "level": "OASIS (gbc)",
-  "episode": 7
- },
  "ce29c0873f731a89": {
   "classes": 6,
   "void": "hole",
@@ -1013,6 +983,36 @@
   "background": 3,
   "solid": true,
   "level": "TYRIAN (gbc)",
+  "episode": 7
+ },
+ "f263f2e1ecef3ef5": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#897960": 0,
+   "#42602f": "~",
+   "#3e3e3e": 18,
+   "#735e48": 0,
+   "#3c2810": 0,
+   "#45413d": "~"
+  },
+  "level": "OASIS (gbc)",
+  "episode": 7
+ },
+ "b5e644fed9d37d89": {
+  "classes": 6,
+  "palms": true,
+  "heights": {},
+  "materials": {
+   "#444444": 18,
+   "#8d755e": 0,
+   "#715d47": 0,
+   "#41602e": 0,
+   "#4f4b47": "~",
+   "#342d27": "~"
+  },
+  "level": "DESERT (gbc)",
   "episode": 7
  }
 }
