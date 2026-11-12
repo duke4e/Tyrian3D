@@ -675,6 +675,15 @@ bool dev_autopilot(void)
 	return SDL_getenv("TYR3D_AUTOPILOT") != NULL;
 }
 
+// TYR3D_AUTOPILOT=ghost: weaving as ever, never firing and touching nothing (no collisions with enemies, their shots
+// or items: JE_playerCollide), so that a run shows every enemy alive (tools/gbc/review_shots.py, the user's level by
+// level comparison: "bez da uništimo i jednog protivnika").
+bool dev_ghost(void)
+{
+	const char *mode = SDL_getenv("TYR3D_AUTOPILOT");
+	return mode != NULL && SDL_strcmp(mode, "ghost") == 0;
+}
+
 void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 {
 	// Weave across the playfield with a slow vertical drift; always fire (TYR3D_AUTOPILOT=nofire: never,
@@ -701,7 +710,7 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 	else if (y > target_y + speed)
 		*dy -= speed;
 
-	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0 && !park;
+	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0 && !park && !dev_ghost();
 }
 
 /*

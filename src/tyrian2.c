@@ -3610,7 +3610,7 @@ draw_player_shot_loop_end:
 	/*=================================*/
 	
 	for (uint i = 0; i < (twoPlayerMode ? 2 : 1); ++i)
-		if (player[i].is_alive && !endLevel)
+		if (player[i].is_alive && !endLevel && !dev_ghost())  // (Tyrian3D dev: TYR3D_AUTOPILOT=ghost touches nothing)
 			JE_playerCollide(&player[i], i + 1);
 	
 	if (firstGameOver)

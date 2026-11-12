@@ -60,6 +60,7 @@ bool dev_background_run(void);
 
 // Autopilot steering for one player; adds to the movement and buttons for this frame.
 bool dev_autopilot(void);
+bool dev_ghost(void);  // (TYR3D_AUTOPILOT=ghost: never firing, touching nothing)
 void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire);
 
 // True if the frame about to be presented should be captured (pass its pixels below).

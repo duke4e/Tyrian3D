@@ -662,6 +662,7 @@ def music(stages):
 
 SPAWNS = {6, 7, 10, 12, 15, 17, 18, 23, 32, 56}  # (events that make enemies, d1 the enemy)
 ANCHOR = 211  # (tyrian2.c GBC_ANCHOR: the enemies the next d1 events make stay where the map puts them)
+STREAM = 120  # (ticks: an anchored enemy made again at its place this soon is a stream's next, left out)
 
 
 def ground_parts(e):
@@ -679,8 +680,25 @@ def anchor(events, static):
     """An event 211 before each enemy (its events 202 and 203, its 201's pieces) all of whose parts are on the ground
     and never move there in the PC levels (tools/gbc/static_ground.py: turrets, bunkers, pyramids), which a GBC enemy
     that moves is drawn as: it stays where the map puts it (the user, 2026-11-11: the pyramid "bi trebao biti fiksni na
-    podu", turrets that "se pomiču po levelu"). Returns the events and how many were anchored."""
+    podu", turrets that "se pomiču po levelu"). One made again at the place of one anchored a little before, over it, is
+    left out: the GBC sends some in a stream from one place (TYRIAN's pyramids rising one after another), which standing
+    there piled up into a column (overlap()). Returns the events and how many were anchored."""
+    def ground_at(t):  # (how far the ground has scrolled by clock t: the clock steps as far as the ground moves)
+        return t
+
+    def box(e):  # (its place on the map: x from, to; y from, to, the ground's scroll taken off)
+        wide, high = (48, 56) if e["type"] == 12 else (24, 28)
+        top = 190 + e["d5"] if e["type"] == 17 else -28 + e["d5"] - (28 if e["type"] == 12 else 0)
+        m = top - ground_at(e["t"])
+        return e["d2"], e["d2"] + wide, m, m + high
+
+    def overlap(a, b):
+        w = min(a[1], b[1]) - max(a[0], b[0])
+        h = min(a[3], b[3]) - max(a[2], b[2])
+        return w > 0 and h > 0
+
     out, i, n, count = [], 0, len(events), 0
+    placed, where, gone, begin = [], [], set(), {}
     while i < n:
         t, j = events[i]["t"], i
         while j < n and events[j]["type"] in (202, 203) and events[j]["t"] == t:
@@ -690,13 +708,31 @@ def anchor(events, static):
             group = [e for e in events[j:last + 1] if e["type"] in SPAWNS]
             parts = [ground_parts(e) for e in group]
             if group and all(p is not None and all((e["ep"], k) in static for k in p) for e, p in zip(group, parts)):
+                boxes = [box(e) for e in group]
+                # (only a stream's: the same enemy made at the same place again a little later, over the one before)
+                key = tuple(sorted((e["ep"], e["d1"], e["type"], e["d2"], e["d5"]) for e in group))
+                if any(q[5] == key and 0 < t - q[4] <= STREAM and overlap(b, q[:4]) for b in boxes for q in placed):
+                    gone.update(range(i, last + 1))
+                    where += [len(out)] * (last + 1 - i)
+                    i = last + 1
+                    continue
+                placed += [b + (t, key) for b in boxes]
                 out.append(dict(t=t, type=ANCHOR, d1=last - i + 1, d2=0, d3=0, d5=0, d6=0, d4=0))
                 count += 1
+                begin[i] = len(out) - 1
+            where += [len(out) + k for k in range(last + 1 - i)]
             out.extend(events[i:last + 1])
             i = last + 1
         else:
+            where.append(len(out))
             out.append(events[i])
             i += 1
+    where.append(len(out))
+    # (a difficulty skip counts the events its old ones are now: the 211s added among them, the left out gone)
+    for k, e in enumerate(events):
+        if e["type"] == 66 and k not in gone:
+            stop = min(n, k + 1 + e["d2"])
+            out[where[k]] = dict(out[where[k]], d2=begin.get(stop, where[stop]) - where[k] - 1)
     return out, count
 
 
