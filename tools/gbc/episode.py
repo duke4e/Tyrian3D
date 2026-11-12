@@ -136,7 +136,7 @@ LEVELS = [
          boss=(1, 'ASSASSIN')),
     dict(gbc=12, name='BUBBLES', remake='fitted', pc=(1, 'BUBBLES'), arcade=True, pool=[(1, 'BUBBLES'), (3, 'STARGATE')], no_boss=True),
     dict(gbc=15, name='CAMANIS', remake='autotile', pc=(3, 'CAMANIS'), pool=ICES, gbc_boss=False, upper_pieces={2: dict(source=[(3, 'CAMANIS'), (4, 'ICE EXIT')], fill=0.07, max_rows=10, min_tiles=3), 3: dict(source=[(3, 'CAMANIS', 2), (4, 'ICE EXIT', 2)], fill=0.02, max_rows=4, min_tiles=2)}),
-    dict(gbc=18, name='ICE EXIT', remake='autotile', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES, boss=(4, 'DREAD-NOT'), upper_pieces={2: dict(source=[(4, 'ICE EXIT')], fill=0.17, max_rows=12, min_tiles=8)},
+    dict(gbc=18, name='ICE EXIT', remake='autotile', pc=(4, 'ICE EXIT'), maps=[(4, 'ICE EXIT'), (3, 'CAMANIS')], arcade=True, pool=ICES, boss=(4, 'DREAD-NOT'), upper_pieces={2: dict(source=[(4, 'ICE EXIT')], fill=0.17, max_rows=12, min_tiles=8)}, upper_pace=[2, None],
          rare=(5, 0.25), **REMADE),
     dict(gbc=5, name='AST.BONUS', pc=(1, 'ASTEROID?'), pool=[(1, 'ASTEROID?'), (1, 'BONUS'), (2, 'BONUS')], no_boss=True,
          gbc_boss=False),
