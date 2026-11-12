@@ -803,13 +803,6 @@
   "level": "SAVARA (gbc)",
   "episode": 7
  },
- "17487a505dd08133": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "BUBBLES (gbc)",
-  "episode": 7
- },
  "3705021d873766f2": {
   "classes": 6,
   "heights": {},
@@ -874,13 +867,6 @@
    "#342d27": "~"
   },
   "level": "DESERT (gbc)",
-  "episode": 7
- },
- "f82fed6214a0d280": {
-  "classes": 6,
-  "void": "hole",
-  "heights": {},
-  "level": "WARP (gbc)",
   "episode": 7
  },
  "6587e429ab38509d": {
@@ -1013,6 +999,20 @@
    "#1b1b1b": "~"
   },
   "level": "DELICORE (gbc)",
+  "episode": 7
+ },
+ "b17f0d45fa9d9d78": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "WARP (gbc)",
+  "episode": 7
+ },
+ "20e8fd1ae5eb3d55": {
+  "classes": 6,
+  "void": "hole",
+  "heights": {},
+  "level": "BUBBLES (gbc)",
   "episode": 7
  }
 }
