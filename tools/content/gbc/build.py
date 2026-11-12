@@ -473,6 +473,9 @@ def boss_template(src):
 
 
 BODY = 212    # (tyrian2.c GBC_BODY: link d1's enemies one body)
+# (pieces of an original's boss left out: APPROACH's (SPACE ATK's) two orbs only their outer halves, the left one's left
+# and the right one's right, the user 2026-11-11: "lijeva kugla nebi trebala imati desnu polovicu")
+BOSS_LEAVE_OUT = {(4, "APPROACH"): {803, 805, 806, 808}}
 REPEAT = 100  # (ticks: a boss's piece made again this much later is its next coming)
 
 
@@ -495,6 +498,9 @@ def boss_fight(level, events):
         return events
     start = p["start"]
     placed = compose.place(tpl, start, BossLinks(), src.episode)
+    leave = BOSS_LEAVE_OUT.get((p["episode"], p["name"]), set())
+    placed = [e for e in placed if not (e["type"] in tuple(LAYER_OF) + (12,) and e.get("ep") == p["episode"] and
+                                        e["d1"] in leave)]
     links = {v for e in placed if e["type"] == 79 for v in (e["d1"], e["d2"]) if v}
     # (the original's boss coming by more than once before its fight, its pieces again on the same link: CAMANIS's
     # ship passing on layer 3, then 2, then fought on the ground; here the map stops for it, and the earlier ones
