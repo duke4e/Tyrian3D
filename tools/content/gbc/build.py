@@ -476,6 +476,11 @@ BODY = 212    # (tyrian2.c GBC_BODY: link d1's enemies one body)
 # (pieces of an original's boss left out: APPROACH's (SPACE ATK's) two orbs only their outer halves, the left one's left
 # and the right one's right, the user 2026-11-11: "lijeva kugla nebi trebala imati desnu polovicu")
 BOSS_LEAVE_OUT = {(4, "APPROACH"): {803, 805, 806, 808}}
+# (levels whose boss, on the ground in its original, flies, as SAVARA V's does: SAVARA II's jungle trees stood through
+# SAVARA's boss, the user 2026-11-11: "boss clippa kroz drveće". Its ground spawns are sky ones (12 pixels right, as
+# the ground layer puts them, coming down the ground's scroll faster), and its speed changes (19) hold it against the
+# ground's scroll as before)
+BOSS_FLY = {"SAVARA II"}
 REPEAT = 100  # (ticks: a boss's piece made again this much later is its next coming)
 
 
@@ -502,6 +507,11 @@ def boss_fight(level, events):
     placed = [e for e in placed if not (e["type"] in tuple(LAYER_OF) + (12,) and e.get("ep") == p["episode"] and
                                         e["d1"] in leave)]
     links = {v for e in placed if e["type"] == 79 for v in (e["d1"], e["d2"]) if v}
+    if level["name"] in BOSS_FLY:
+        ground = tpl["speed"][0]
+        placed = [dict(e, type=15, d2=e["d2"] - 12, d3=e["d3"] + ground) if e["type"] in (6, 10) and "ep" in e else
+                  dict(e, d2=e["d2"] + ground) if e["type"] == 19 and e["d3"] == 0 and e["d2"] != -99 else e
+                  for e in placed]
     # (the original's boss coming by more than once before its fight, its pieces again on the same link: CAMANIS's
     # ship passing on layer 3, then 2, then fought on the ground; here the map stops for it, and the earlier ones
     # stayed, two bosses, the user 2026-11-11: "pojave se 2 bossa": only its last coming)
