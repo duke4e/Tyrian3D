@@ -390,8 +390,15 @@ def decor(level, spec, layer1):
                     # (spec decor `clear`: the leg's tiles under the decor that stands there that tile: the arch's left
                     # leg showed twice, the model and the map's rock beside it, the user 2026-11-11: "ispod nekih lukova
                     # ... tileove koje ne bi trebali imati")
+                    # (and the rest of its tiles, `clear_tiles` within `clear_span` columns: the decor's pieces are the
+                    # whole arch, legs too, and the map's rock under them the terrain raised as cut blocks, one inside
+                    # the arch by its right leg, the user's screenshot of the same playtest)
                     if d.get('clear') is not None:
                         layer1[r][c] = layer1[r + 1][c] = d['clear']
+                        for cc in range(c + 1, min(14, c + d.get('clear_span', 1))):
+                            for rr in (r, r + 1):
+                                if layer1[rr][cc] in d.get('clear_tiles', ()):
+                                    layer1[rr][cc] = d['clear']
                     for e in group:
                         events.append(dict(t=t, type=e['type'], d1=e['d1'], d2=e['d2'] + 24 * (c - c0), d3=e['d3'],
                                            d5=e['d5'], d6=e['d6'], d4=0, ep=src.episode, decor=d.get('tag', 'decor')))
