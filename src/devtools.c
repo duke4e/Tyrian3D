@@ -701,13 +701,35 @@ void dev_autopilot_steer(int x, int y, int speed, int *dx, int *dy, bool *fire)
 		target_x = boss_x + (int)(36 * SDL_sin(t * 1.7));
 	const int target_y = park ? 999 : 140 + (int)(25 * SDL_sin(t * 0.37));
 
-	if (x < target_x - speed)
+	// It goes there as a player would, by Fitts's law (CLAUDE.md, the user 2026-11-23): each move to a place takes
+	// FITTS_A + FITTS_B * log2(distance / FITTS_W + 1) seconds, along a minimum-jerk course (slow off, fast through
+	// the middle, slow into the place), instead of the ship's full speed straight at it. A move is planned again
+	// once it is done or its place has drifted more than FITTS_W from where it was aimed.
+	enum { FITTS_W = 16 };                               // (pixels: the place it aims at, about the ship's size)
+	static const double FITTS_A = 0.12, FITTS_B = 0.16;  // (seconds, seconds a bit: a player's reaction and aim)
+	static long move_from = -1;
+	static int from_x, from_y, aim_x, aim_y, move_ticks;
+	const long now = frame;
+	const bool drifted = abs(target_x - aim_x) > FITTS_W || abs(target_y - aim_y) > FITTS_W;
+	if (move_from < 0 || now < move_from || now - move_from >= move_ticks || drifted)
+	{
+		const double distance = SDL_sqrt((double)(target_x - x) * (target_x - x) + (double)(target_y - y) * (target_y - y));
+		const double seconds = FITTS_A + FITTS_B * SDL_log(distance / FITTS_W + 1.0) / SDL_log(2.0);
+		move_from = now, from_x = x, from_y = y, aim_x = target_x, aim_y = target_y;
+		move_ticks = SDL_max(1, (int)SDL_lround(seconds * 35.0));
+	}
+	const double p = SDL_min(1.0, (double)(now - move_from + 1) / move_ticks);
+	const double s = p * p * p * (10.0 + p * (6.0 * p - 15.0));  // (minimum jerk: 10p^3 - 15p^4 + 6p^5)
+	const int want_x = from_x + (int)SDL_lround((aim_x - from_x) * s);
+	const int want_y = from_y + (int)SDL_lround((aim_y - from_y) * s);
+
+	if (x < want_x - speed / 2)
 		*dx += speed;
-	else if (x > target_x + speed)
+	else if (x > want_x + speed / 2)
 		*dx -= speed;
-	if (y < target_y - speed)
+	if (y < want_y - speed / 2)
 		*dy += speed;
-	else if (y > target_y + speed)
+	else if (y > want_y + speed / 2)
 		*dy -= speed;
 
 	*fire = SDL_strcmp(SDL_getenv("TYR3D_AUTOPILOT"), "nofire") != 0 && !park && !dev_ghost();
